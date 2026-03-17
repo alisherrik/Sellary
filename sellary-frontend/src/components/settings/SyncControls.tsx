@@ -6,6 +6,7 @@ import { getSyncQueue } from '@/lib/syncQueue';
 import { CloudArrowUpIcon, ArrowPathIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { Switch } from '@headlessui/react';
 import clsx from 'clsx';
+import { isOfflineModeEnabled } from '@/lib/features';
 
 export default function SyncControls() {
     const { isServerReachable, autoSync, toggleAutoSync, triggerManualSync, isChecking } = useServerHealth();
@@ -22,6 +23,10 @@ export default function SyncControls() {
         const interval = setInterval(updateCount, 2000);
         return () => clearInterval(interval);
     }, []);
+
+    if (!isOfflineModeEnabled) {
+        return null;
+    }
 
     return (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">

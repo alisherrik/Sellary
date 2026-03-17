@@ -14,6 +14,7 @@ import {
     ChevronDownIcon,
     ChevronUpIcon
 } from '@heroicons/react/24/outline';
+import { isOfflineModeEnabled } from '@/lib/features';
 
 /**
  * Sync Status Panel - Displays offline queue status
@@ -51,7 +52,7 @@ export default function SyncStatusPanel() {
   }, [isExpanded]);
 
   // Don't render if queue is empty
-  if (queueStatus.total === 0) {
+  if (!isOfflineModeEnabled || queueStatus.total === 0) {
     return null;
   }
 

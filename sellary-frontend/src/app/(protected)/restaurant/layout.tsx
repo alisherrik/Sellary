@@ -1,8 +1,9 @@
 'use client';
 
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { useEffect } from 'react';
+import { isRestaurantEnabled } from '@/lib/features';
 
 
 export default function RestaurantLayout({
@@ -10,15 +11,21 @@ export default function RestaurantLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const { isAuthenticated } = useAuthStore();
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      redirect('/login');
+    if (!isRestaurantEnabled) {
+      router.replace('/pos');
+      return;
     }
-  }, [isAuthenticated]);
 
-  if (!isAuthenticated) {
+    if (!isAuthenticated) {
+      router.replace('/login');
+    }
+  }, [isAuthenticated, router]);
+
+  if (!isAuthenticated || !isRestaurantEnabled) {
     return null;
   }
 

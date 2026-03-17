@@ -4,6 +4,7 @@ import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
+import { isOfflineModeEnabled } from '@/lib/features';
 
 export function useOfflineSync() {
     const [isSyncing, setIsSyncing] = useState(false);
@@ -18,6 +19,11 @@ export function useOfflineSync() {
     }, []);
 
     const processQueue = useCallback(async (manual = false) => {
+        if (!isOfflineModeEnabled) {
+            if (manual) toast("Offline sync MVP versiyada o'chiq", { icon: 'i' });
+            return;
+        }
+
         // Agar allaqachon jarayon ketayotgan bo'lsa, ikkinchisini boshlamaymiz
         if (isSyncing) return;
 

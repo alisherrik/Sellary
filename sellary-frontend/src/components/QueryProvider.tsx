@@ -4,8 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { createIDBPersister } from '@/lib/persister';
 import { useState, useEffect } from 'react';
+import { isOfflineModeEnabled } from '@/lib/features';
 
 export default function QueryProvider({ children }: { children: React.ReactNode }) {
+    const networkMode: 'offlineFirst' | 'online' = isOfflineModeEnabled ? 'offlineFirst' : 'online';
     const [queryClient] = useState(
         () =>
             new QueryClient({
@@ -15,17 +17,21 @@ export default function QueryProvider({ children }: { children: React.ReactNode 
                         gcTime: 1000 * 60 * 60 * 24,
                         refetchOnWindowFocus: false,
                         retry: 1,
-                        networkMode: 'offlineFirst',
+                        networkMode,
                     },
                     mutations: {
                         retry: 0,
-                        networkMode: 'offlineFirst',
+                        networkMode,
                     },
                 },
             })
     );
 
     useEffect(() => {
+        if (!isOfflineModeEnabled) {
+            return;
+        }
+
         // Initialize persistence
         const persister = createIDBPersister();
 

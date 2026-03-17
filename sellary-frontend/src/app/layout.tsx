@@ -4,13 +4,14 @@ import './globals.css'
 import QueryProvider from '@/components/QueryProvider'
 import { ServerHealthProvider } from '@/providers/ServerHealthProvider'
 import { Toaster } from 'react-hot-toast'
+import { isOfflineModeEnabled } from '@/lib/features'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Sellary',
   description: 'Автоматизация торговли',
-  manifest: '/manifest.json',
+  manifest: isOfflineModeEnabled ? '/manifest.json' : undefined,
 }
 
 export default function RootLayout({

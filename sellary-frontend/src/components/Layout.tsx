@@ -21,6 +21,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePrefetchOnHover } from '@/hooks/useQueries';
 import ConnectionStatus from './ui/ConnectionStatus';
 import SyncStatusPanel from './SyncStatusPanel';
+import { isRestaurantEnabled } from '@/lib/features';
 
 interface LayoutProps {
   children: ReactNode;
@@ -45,6 +46,9 @@ export default function Layout({ children }: LayoutProps) {
   const prefetch = usePrefetchOnHover();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const visibleNavigation = navigation.filter(
+    (item) => item.href !== '/restaurant' || isRestaurantEnabled
+  );
 
   // Close sidebar on mobile when navigating
   const handleNavClick = () => {
@@ -113,7 +117,7 @@ export default function Layout({ children }: LayoutProps) {
 
         <nav className="mt-6 px-3">
           <div className="space-y-1">
-            {navigation.map((item) => {
+            {visibleNavigation.map((item) => {
               const isActive = pathname === item.href ||
                 (item.href !== '/pos' && item.href !== '/dashboard' && pathname.startsWith(item.href));
               return (

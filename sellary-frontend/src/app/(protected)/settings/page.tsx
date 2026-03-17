@@ -3,14 +3,12 @@
 
 import { useSettingsStore, CURRENCIES, CurrencyCode } from '@/store/settingsStore';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
-import { BanknotesIcon, Cog6ToothIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline';
+import { BanknotesIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
-import { useOfflineSync } from '@/hooks/useOfflineSync';
 import SyncControls from '@/components/settings/SyncControls';
 
 export default function SettingsPage() {
     const { currency, setCurrency } = useSettingsStore();
-    const { processQueue, queueLength, isSyncing } = useOfflineSync();
 
     const handleCurrencyChange = (code: CurrencyCode) => {
         setCurrency(code);

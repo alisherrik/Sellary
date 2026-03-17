@@ -1,11 +1,14 @@
 /** @type {import('next').NextConfig} */
+const offlineModeEnabled = process.env.NEXT_PUBLIC_ENABLE_OFFLINE_MODE === "true";
+const apiProxyTarget = (process.env.NEXT_PUBLIC_API_PROXY_TARGET || "http://127.0.0.1:8000").replace(/\/$/, "");
+
 const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
   swcMinify: true,
-  disable: process.env.NODE_ENV === "development",
+  disable: process.env.NODE_ENV === "development" || !offlineModeEnabled,
   workboxOptions: {
     disableDevLogs: true,
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -44,7 +47,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://127.0.0.1:8000/api/:path*',
+        destination: `${apiProxyTarget}/api/:path*`,
       },
     ];
   },

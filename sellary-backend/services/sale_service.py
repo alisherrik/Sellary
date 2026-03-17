@@ -61,23 +61,27 @@ class SaleService:
             
             # Create a map for quick lookup
             product_map = {p.id: p for p in locked_products}
+            requested_quantities = {}
+            for item_create in sale_create.items:
+                requested_quantities[item_create.product_id] = (
+                    requested_quantities.get(item_create.product_id, 0) + item_create.quantity
+                )
             
             # Validate all products exist
             for pid in product_ids:
                 if pid not in product_map:
                     raise ValueError(f"Product with id {pid} not found")
 
-            # Step 2: Validate stock availability for all items (after lock acquired)
-            for item_create in sale_create.items:
-                product = product_map[item_create.product_id]
+            # Step 2: Validate stock availability for all products (after lock acquired)
+            for product_id, requested_quantity in requested_quantities.items():
+                product = product_map[product_id]
                 if not product.is_active:
                     raise ValueError(f"Product '{product.name}' is not active")
-                # Allow overselling for demo purposes
-                # if product.stock_quantity < item_create.quantity:
-                #     raise ValueError(
-                #         f"Insufficient stock for '{product.name}'. "
-                #         f"Available: {product.stock_quantity}, Required: {item_create.quantity}"
-                #     )
+                if product.stock_quantity < requested_quantity:
+                    raise ValueError(
+                        f"Insufficient stock for '{product.name}'. "
+                        f"Available: {product.stock_quantity}, Required: {requested_quantity}"
+                    )
 
             # Step 3: Calculate totals and create sale items
             subtotal = Decimal("0.00")

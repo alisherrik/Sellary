@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { processQueue, getSyncConfig, setSyncConfig } from '@/lib/syncQueue';
 import toast from 'react-hot-toast';
+import { isOfflineModeEnabled } from '@/lib/features';
 
 
 interface ServerHealthContextType {
@@ -31,15 +32,24 @@ export function ServerHealthProvider({ children }: { children: React.ReactNode }
     const [isNavigatorOnline, setIsNavigatorOnline] = useState(true);
     const [isServerReachable, setIsServerReachable] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
-    const [autoSync, setAutoSync] = useState(true);
+    const [autoSync, setAutoSync] = useState(isOfflineModeEnabled);
     const previousServerReachable = useRef(false);
 
     // Load initial sync config
     useEffect(() => {
+        if (!isOfflineModeEnabled) {
+            setAutoSync(false);
+            return;
+        }
+
         getSyncConfig().then(config => setAutoSync(config.autoSync));
     }, []);
 
     const toggleAutoSync = async () => {
+        if (!isOfflineModeEnabled) {
+            return;
+        }
+
         const newValue = !autoSync;
         setAutoSync(newValue);
 
@@ -56,6 +66,10 @@ export function ServerHealthProvider({ children }: { children: React.ReactNode }
     };
 
     const triggerManualSync = async () => {
+        if (!isOfflineModeEnabled) {
+            toast("Offline sync MVP versiyada o'chiq", { icon: 'i' });
+            return;
+        }
         if (!isServerReachable) {
             toast.error('Нет связи с сервером');
             return;
@@ -81,7 +95,7 @@ export function ServerHealthProvider({ children }: { children: React.ReactNode }
     // MUST use cache-busting timestamp
     // Timeout MUST be 3 seconds (per architecture spec)
     // MUST use direct backend URL to match API configuration
-    const HEALTH_CHECK_URL = 'http://localhost:8000/';
+    const HEALTH_CHECK_BASE_URL = (process.env.NEXT_PUBLIC_API_PROXY_TARGET || 'http://127.0.0.1:8000').replace(/\/$/, '');
     const HEALTH_CHECK_TIMEOUT = 3000; // 3 seconds - NON-NEGOTIABLE
 
     const checkHealth = useCallback(async () => {
@@ -103,7 +117,7 @@ export function ServerHealthProvider({ children }: { children: React.ReactNode }
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT);
 
-            const response = await fetch(`${HEALTH_CHECK_URL}health`, {
+            const response = await fetch(`${HEALTH_CHECK_BASE_URL}/health`, {
                 method: 'POST', // POST bypasses SW cache
                 signal: controller.signal,
                 headers: {
@@ -166,6 +180,11 @@ export function ServerHealthProvider({ children }: { children: React.ReactNode }
 
     // CRITICAL: Auto-process sync queue when server comes back online
     useEffect(() => {
+        if (!isOfflineModeEnabled) {
+            previousServerReachable.current = isServerReachable;
+            return;
+        }
+
         // Only trigger on transition from false to true
         if (isServerReachable && !previousServerReachable.current && !isChecking) {
             console.log('Server is back online!');

@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
-from core.database import Base, engine
 from api import (
     auth_router,
     products_router,
@@ -15,33 +14,37 @@ from api import (
     meta_router,
 )
 
-Base.metadata.create_all(bind=engine)
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title=settings.PROJECT_NAME,
+        version=settings.VERSION,
+        docs_url="/docs",
+        redoc_url="/redoc",
+    )
 
-app = FastAPI(
-    title=settings.PROJECT_NAME,
-    version=settings.VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
-)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.BACKEND_CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    app.include_router(auth_router, prefix=settings.API_V1_STR)
+    app.include_router(products_router, prefix=settings.API_V1_STR)
+    app.include_router(sales_router, prefix=settings.API_V1_STR)
+    app.include_router(inventory_router, prefix=settings.API_V1_STR)
+    app.include_router(reports_router, prefix=settings.API_V1_STR)
+    app.include_router(categories_router, prefix=settings.API_V1_STR)
+    app.include_router(customers_router, prefix=settings.API_V1_STR)
+    app.include_router(suppliers_router, prefix=settings.API_V1_STR)
+    app.include_router(purchase_orders_router, prefix=settings.API_V1_STR)
+    app.include_router(meta_router, prefix=settings.API_V1_STR)
 
-app.include_router(auth_router, prefix=settings.API_V1_STR)
-app.include_router(products_router, prefix=settings.API_V1_STR)
-app.include_router(sales_router, prefix=settings.API_V1_STR)
-app.include_router(inventory_router, prefix=settings.API_V1_STR)
-app.include_router(reports_router, prefix=settings.API_V1_STR)
-app.include_router(categories_router, prefix=settings.API_V1_STR)
-app.include_router(customers_router, prefix=settings.API_V1_STR)
-app.include_router(suppliers_router, prefix=settings.API_V1_STR)
-app.include_router(purchase_orders_router, prefix=settings.API_V1_STR)
-app.include_router(meta_router, prefix=settings.API_V1_STR)
+    return app
+
+
+app = create_app()
 
 
 @app.get("/")

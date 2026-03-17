@@ -21,6 +21,7 @@ import ProductDrawer from '@/components/pos/ProductDrawer';
 import toast from 'react-hot-toast';
 import { addToSyncQueue } from '@/lib/syncQueue';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
+import { isOfflineModeEnabled } from '@/lib/features';
 
 export default function POS() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -87,6 +88,12 @@ export default function POS() {
     // CRITICAL: Check server health BEFORE making API call
     // This prevents unnecessary timeouts when offline
     if (!isServerReachable) {
+      if (!isOfflineModeEnabled) {
+        toast.error("Server bilan aloqa yo'q. MVP versiyada offline savdo o'chirilgan.");
+        setLoading(false);
+        return;
+      }
+
       // Server is known to be down, queue immediately
       await addToSyncQueue({
         url: '/api/sales',
@@ -126,7 +133,7 @@ export default function POS() {
       const isNetworkError = error.message === 'Network Error' || error.code === 'ERR_NETWORK' || error.code === 'ERR_INTERNET_DISCONNECTED';
       const shouldQueue = isNetworkError || error.response?.status >= 500;
 
-      if (shouldQueue) {
+      if (shouldQueue && isOfflineModeEnabled) {
         await addToSyncQueue({
           url: '/api/sales',
           method: 'POST',
@@ -144,7 +151,7 @@ export default function POS() {
         setShowPaymentModal(false);
         setCardType(null);
       } else {
-        toast.error(error.response?.data?.detail || 'Ошибка при продаже');
+        toast.error(error.response?.data?.detail || "Sotuv amalga oshmadi. Offline savdo MVP versiyada o'chirilgan.");
       }
     } finally {
       setLoading(false);

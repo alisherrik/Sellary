@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { getSyncQueue } from '@/lib/syncQueue';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
+import { isOfflineModeEnabled } from '@/lib/features';
 
 export default function ConnectionStatus() {
     const { isServerReachable, isChecking, triggerManualSync, autoSync } = useServerHealth();
@@ -13,6 +14,11 @@ export default function ConnectionStatus() {
 
     // Poll queue count
     useEffect(() => {
+        if (!isOfflineModeEnabled) {
+            setQueueCount(0);
+            return;
+        }
+
         const updateCount = async () => {
             const queue = await getSyncQueue();
             const count = queue.length;
@@ -25,6 +31,10 @@ export default function ConnectionStatus() {
     }, [isServerReachable]); // Update when status changes too
 
     const handleSyncClick = () => {
+        if (!isOfflineModeEnabled) {
+            return;
+        }
+
         if (!autoSync && queueCount > 0 && isServerReachable) {
             triggerManualSync();
         } else if (queueCount > 0 && !isServerReachable) {
