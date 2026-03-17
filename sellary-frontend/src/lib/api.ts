@@ -2,12 +2,8 @@
 
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-
-// Log the API URL for debugging
-if (typeof window !== 'undefined') {
-  console.log('API URL:', API_URL);
-}
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
+export const API_PROXY_TARGET = (process.env.NEXT_PUBLIC_API_PROXY_TARGET || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 const api = axios.create({
   baseURL: API_URL,
@@ -57,7 +53,7 @@ if (typeof window !== 'undefined') {
 // API Functions
 export const authApi = {
   login: (username: string, password: string) =>
-    api.post(`/auth/login?_t=${Date.now()}`, { username, password }),
+    api.post('/auth/login', { username, password }),
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
 };

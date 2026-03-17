@@ -12,7 +12,7 @@ npm install
 2. Configure environment:
 ```bash
 cp .env.example .env
-# Edit .env if backend is not at http://localhost:8000
+# Set NEXT_PUBLIC_API_PROXY_TARGET if your backend is not at http://127.0.0.1:8000
 ```
 
 3. Start development server:
@@ -20,7 +20,7 @@ cp .env.example .env
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`
+The app will be available at [http://localhost:3000](http://localhost:3000)
 
 ## Build
 
@@ -33,7 +33,7 @@ npm run build
 - **POS Terminal**: Fast product scanning, cart management, payment processing
 - **Dashboard**: Real-time sales overview, low stock alerts, top products
 - **Products**: Full CRUD with search, filtering, and stock management
-- **Reports**: Sales trends, profit analysis, top selling products
+- **Reports**: Core MVP reporting for sales, top products, and low stock
 - **Hotkeys**: F2 (focus barcode), Enter (complete sale), Esc (clear cart)
 
 ## Keyboard Shortcuts

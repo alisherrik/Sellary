@@ -1,285 +1,235 @@
 'use client';
 
-import { useState } from 'react';
-import dynamic from 'next/dynamic';
 import OfflineGuard from '@/components/OfflineGuard';
+import { CardSkeleton, ChartSkeleton, StatCardsSkeleton } from '@/components/skeletons';
+import { useDailySales, useDashboard, useTopProducts } from '@/hooks/useQueries';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import {
-  ChartBarIcon,
   ArrowTrendingUpIcon,
+  ChartBarIcon,
+  ExclamationTriangleIcon,
   ShoppingBagIcon,
 } from '@heroicons/react/24/outline';
-
-import { ChartSkeleton, CardSkeleton } from '@/components/skeletons';
-import { useDailySales, useProfit, useTopProducts } from '@/hooks/useQueries';
+import { useState } from 'react';
 import {
-  LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 
-type ReportTab = 'sales' | 'profit' | 'products';
+const dayOptions = [7, 30, 90];
 
-export default function Reports() {
-  const [activeTab, setActiveTab] = useState<ReportTab>('sales');
+export default function ReportsPage() {
   const [days, setDays] = useState(30);
+  const { data: dashboard, isLoading: dashboardLoading } = useDashboard();
+  const { data: salesData, isLoading: salesLoading } = useDailySales(days);
+  const { data: topProducts, isLoading: topProductsLoading } = useTopProducts(days, 5);
 
-  const salesQuery = useDailySales(days, { enabled: activeTab === 'sales' });
-  const profitQuery = useProfit(days, { enabled: activeTab === 'profit' });
-  const productsQuery = useTopProducts(days, 10, { enabled: activeTab === 'products' });
+  const stats = salesData
+    ? [
+        {
+          name: 'Выручка',
+          value: formatCurrency(salesData.total_sales),
+          icon: ChartBarIcon,
+          color: 'bg-blue-500',
+        },
+        {
+          name: 'Прибыль',
+          value: formatCurrency(salesData.total_profit),
+          icon: ArrowTrendingUpIcon,
+          color: 'bg-green-500',
+        },
+        {
+          name: 'Чеки',
+          value: formatNumber(salesData.sales_count),
+          icon: ShoppingBagIcon,
+          color: 'bg-slate-900',
+        },
+        {
+          name: 'Заканчиваются',
+          value: formatNumber(dashboard?.low_stock_count || 0),
+          icon: ExclamationTriangleIcon,
+          color: 'bg-amber-500',
+        },
+      ]
+    : [];
 
-  const renderSalesReport = () => {
-    const { data: salesData, isLoading } = salesQuery;
-    if (isLoading && !salesData) return <div className="space-y-4"><CardSkeleton /><ChartSkeleton /></div>;
-    if (!salesData) return null;
-
-    return (
-      <div className="space-y-4">
-        {/* Stats - 3 columns on mobile */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-2 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-            <div className="flex items-center gap-2">
-              <div className="bg-blue-500 p-1.5 sm:p-3 rounded-lg flex-shrink-0">
-                <ChartBarIcon className="w-3 h-3 sm:w-6 sm:h-6 text-white" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-sm text-gray-600 dark:text-gray-400 truncate">Выручка</p>
-                <p className="text-xs sm:text-2xl font-bold text-gray-900 dark:text-white truncate">
-                  {formatCurrency(salesData.total_sales)}
-                </p>
-              </div>
-            </div>
+  return (
+    <OfflineGuard>
+      <div className="space-y-4 pb-4 sm:space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">Отчеты</h1>
+            <p className="text-xs text-gray-600 dark:text-gray-400 sm:text-base">
+              Базовые показатели MVP: выручка, топ товаров и остатки
+            </p>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-2 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-            <div className="flex items-center gap-2">
-              <div className="bg-green-500 p-1.5 sm:p-3 rounded-lg flex-shrink-0">
-                <ArrowTrendingUpIcon className="w-3 h-3 sm:w-6 sm:h-6 text-white" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-sm text-gray-600 dark:text-gray-400 truncate">Прибыль</p>
-                <p className="text-xs sm:text-2xl font-bold text-gray-900 dark:text-white truncate">
-                  {formatCurrency(salesData.total_profit)}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-2 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-            <div className="flex items-center gap-2">
-              <div className="bg-purple-500 p-1.5 sm:p-3 rounded-lg flex-shrink-0">
-                <ShoppingBagIcon className="w-3 h-3 sm:w-6 sm:h-6 text-white" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-sm text-gray-600 dark:text-gray-400 truncate">Чеки</p>
-                <p className="text-xs sm:text-2xl font-bold text-gray-900 dark:text-white truncate">
-                  {formatNumber(salesData.sales_count)}
-                </p>
-              </div>
-            </div>
+          <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            {dayOptions.map((option) => (
+              <button
+                key={option}
+                onClick={() => setDays(option)}
+                className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors sm:text-sm ${
+                  option === days
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                }`}
+              >
+                {option} дн.
+              </button>
+            ))}
           </div>
         </div>
 
-        {salesData.data && salesData.data.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-100 dark:border-gray-700">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">
-              Динамика продаж
-            </h3>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={salesData.data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                <Line type="monotone" dataKey="total_sales" stroke="#3b82f6" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+        {salesLoading || dashboardLoading ? (
+          <StatCardsSkeleton count={4} />
+        ) : (
+          <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
+            {stats.map((stat) => (
+              <div
+                key={stat.name}
+                className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-4"
+              >
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className={`${stat.color} rounded-lg p-2 text-white sm:p-3`}>
+                    <stat.icon className="h-4 w-4 sm:h-6 sm:w-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-[10px] font-medium text-gray-500 dark:text-gray-400 sm:text-sm">
+                      {stat.name}
+                    </p>
+                    <p className="truncate text-sm font-bold text-gray-900 dark:text-white sm:text-2xl">
+                      {stat.value}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
-      </div>
-    );
-  };
 
-  const renderProfitReport = () => {
-    const { data: profitData, isLoading } = profitQuery;
-    if (isLoading && !profitData) return <div className="space-y-4"><CardSkeleton /><ChartSkeleton /></div>;
-    if (!profitData) return null;
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr,1fr] sm:gap-6">
+          {salesLoading ? (
+            <div className="space-y-4">
+              <CardSkeleton />
+              <ChartSkeleton />
+            </div>
+          ) : (
+            <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-5">
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
+                  Динамика продаж
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
+                  Общая выручка за последние {days} дней
+                </p>
+              </div>
 
-    const marginPercent = parseFloat(profitData.profit_margin_percent || '0');
+              {!salesData || salesData.data.length === 0 ? (
+                <div className="rounded-xl bg-gray-50 px-4 py-10 text-center text-sm text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+                  Недостаточно данных для графика
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={salesData.data}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                    <Line type="monotone" dataKey="total_sales" stroke="#2563eb" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          )}
 
-    return (
-      <div className="space-y-4">
-        {/* Stats - 2x2 on mobile */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-2 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-            <p className="text-[10px] sm:text-sm text-gray-600 dark:text-gray-400">Выручка</p>
-            <p className="text-sm sm:text-2xl font-bold text-gray-900 dark:text-white truncate">
-              {formatCurrency(profitData.revenue || 0)}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-2 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-            <p className="text-[10px] sm:text-sm text-gray-600 dark:text-gray-400">Себестоимость</p>
-            <p className="text-sm sm:text-2xl font-bold text-gray-900 dark:text-white truncate">
-              {formatCurrency(profitData.cost || 0)}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-2 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-            <p className="text-[10px] sm:text-sm text-gray-600 dark:text-gray-400">Прибыль</p>
-            <p className="text-sm sm:text-2xl font-bold text-green-600 truncate">
-              {formatCurrency(profitData.profit || 0)}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-2 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-            <p className="text-[10px] sm:text-sm text-gray-600 dark:text-gray-400">Маржа</p>
-            <p className="text-sm sm:text-2xl font-bold text-blue-600">{marginPercent.toFixed(1)}%</p>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-100 dark:border-gray-700">
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart
-              data={[
-                { name: 'Выручка', value: parseFloat(profitData.revenue || '0') },
-                { name: 'Себестоим.', value: parseFloat(profitData.cost || '0') },
-                { name: 'Прибыль', value: parseFloat(profitData.profit || '0') },
-              ]}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(value) => formatCurrency(value as number)} />
-              <Bar dataKey="value" fill="#3b82f6" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    );
-  };
-
-  const renderProductsReport = () => {
-    const { data: topProducts, isLoading } = productsQuery;
-    if (isLoading && !topProducts) return <div className="space-y-4"><CardSkeleton /><ChartSkeleton /></div>;
-    if (!topProducts) return null;
-
-    const productsList = topProducts.top_products || [];
-
-    return (
-      <div className="space-y-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-          <div className="px-3 sm:px-5 py-3 border-b border-gray-100 dark:border-gray-700">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-white">
-              Топ товаров ({days} дн.)
-            </h3>
-          </div>
-          <div className="p-3 sm:p-5">
-            {productsList.length === 0 ? (
-              <p className="text-center text-gray-500 py-8 text-sm">Нет данных</p>
+          <div className="space-y-4 sm:space-y-6">
+            {topProductsLoading ? (
+              <CardSkeleton />
             ) : (
-              <div className="space-y-2 sm:space-y-4">
-                {productsList.map((product: any, index: number) => (
-                  <div key={product.product_id} className="flex items-center justify-between border-b dark:border-gray-700 pb-2 sm:pb-4 last:border-0">
-                    <div className="flex items-center min-w-0 flex-1">
-                      <span className="text-lg sm:text-2xl font-bold text-gray-400 mr-2 sm:mr-4">#{index + 1}</span>
-                      <div className="min-w-0">
-                        <p className="font-medium text-gray-900 dark:text-white text-xs sm:text-base truncate">
-                          {product.product_name}
-                        </p>
-                        <p className="text-[10px] sm:text-sm text-gray-500 truncate">{product.barcode}</p>
-                      </div>
+              <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-700 sm:px-5 sm:py-4">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
+                    Топ товаров
+                  </h2>
+                </div>
+                <div className="p-4 sm:p-5">
+                  {!topProducts || topProducts.top_products.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                      Нет данных по товарам
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {topProducts.top_products.map((product, index) => (
+                        <div key={product.product_id} className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs text-gray-400">#{index + 1}</div>
+                            <div className="truncate font-medium text-gray-900 dark:text-white">
+                              {product.product_name}
+                            </div>
+                            <div className="truncate text-xs text-gray-500 dark:text-gray-400">
+                              {product.barcode || 'Без штрихкода'}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {product.quantity_sold} шт
+                            </div>
+                            <div className="text-xs text-green-600">
+                              {formatCurrency(product.total_profit || 0)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-right flex-shrink-0 ml-2">
-                      <p className="font-medium text-gray-900 dark:text-white text-xs sm:text-base">
-                        {product.quantity_sold} шт
-                      </p>
-                      <p className="text-[10px] sm:text-sm text-green-600">
-                        {formatCurrency(product.profit || product.total_profit || 0)}
-                      </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {dashboardLoading ? (
+              <CardSkeleton />
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-700 sm:px-5 sm:py-4">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
+                    Остатки
+                  </h2>
+                </div>
+                <div className="p-4 sm:p-5">
+                  {!dashboard || dashboard.low_stock_items.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                      Критичных остатков нет
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {dashboard.low_stock_items.slice(0, 5).map((item: any) => (
+                        <div key={item.product_id} className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium text-gray-900 dark:text-white">
+                              {item.product_name}
+                            </div>
+                            <div className="truncate text-xs text-gray-500 dark:text-gray-400">
+                              {item.barcode || 'Без штрихкода'}
+                            </div>
+                          </div>
+                          <div className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
+                            {item.current_stock} шт
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                ))}
+                  )}
+                </div>
               </div>
             )}
           </div>
         </div>
-
-        {productsList.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-100 dark:border-gray-700">
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={productsList.slice(0, 5)}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="product_name" tick={{ fontSize: 8 }} interval={0} angle={-15} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Bar dataKey="quantity_sold" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
       </div>
-    );
-  };
-
-  const isLoading = salesQuery.isLoading || profitQuery.isLoading || productsQuery.isLoading;
-
-  const tabs = [
-    { key: 'sales' as ReportTab, label: 'Продажи', shortLabel: 'Продажи' },
-    { key: 'profit' as ReportTab, label: 'Прибыль', shortLabel: 'Прибыль' },
-    { key: 'products' as ReportTab, label: 'Товары', shortLabel: 'Товары' },
-  ];
-
-  return (
-    <OfflineGuard>
-
-      <div className="space-y-4 sm:space-y-6 pb-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Отчеты</h1>
-          <p className="text-xs sm:text-base text-gray-600 dark:text-gray-400">Анализ эффективности</p>
-        </div>
-
-        {/* Tabs - scrollable on mobile */}
-        <div className="border-b border-gray-200 dark:border-gray-700">
-          <nav className="flex gap-4 sm:gap-8 overflow-x-auto scrollbar-hide">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`py-2 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap ${activeTab === tab.key
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-              >
-                <span className="sm:hidden">{tab.shortLabel}</span>
-                <span className="hidden sm:inline">{tab.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Date Range Selector */}
-        <div className="flex items-center gap-2 sm:gap-4">
-          <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
-            Период:
-          </label>
-          <select
-            value={days}
-            onChange={(e) => setDays(parseInt(e.target.value))}
-            className="h-8 sm:h-10 px-2 sm:px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-xs sm:text-sm"
-          >
-            <option value={7}>7 дней</option>
-            <option value={30}>30 дней</option>
-            <option value={90}>90 дней</option>
-            <option value={365}>Год</option>
-          </select>
-          {isLoading && (
-            <div className="ml-2 animate-pulse">
-              <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-            </div>
-          )}
-        </div>
-
-        {/* Report Content */}
-        {activeTab === 'sales' && renderSalesReport()}
-        {activeTab === 'profit' && renderProfitReport()}
-        {activeTab === 'products' && renderProductsReport()}
-      </div>
-
     </OfflineGuard>
   );
 }

@@ -9,9 +9,23 @@ interface UIState {
   setTheme: (theme: 'light' | 'dark') => void;
 }
 
+const getInitialTheme = (): 'light' | 'dark' => {
+  if (typeof window === 'undefined') {
+    return 'light';
+  }
+
+  return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+};
+
+const applyTheme = (theme: 'light' | 'dark') => {
+  if (typeof document !== 'undefined') {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }
+};
+
 export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: true,
-  theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
+  theme: getInitialTheme(),
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -19,15 +33,19 @@ export const useUIStore = create<UIState>((set) => ({
   toggleTheme: () => {
     set((state) => {
       const newTheme = state.theme === 'light' ? 'dark' : 'light';
-      localStorage.setItem('theme', newTheme);
-      document.documentElement.classList.toggle('dark', newTheme === 'dark');
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('theme', newTheme);
+      }
+      applyTheme(newTheme);
       return { theme: newTheme };
     });
   },
 
   setTheme: (theme) => {
-    localStorage.setItem('theme', theme);
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('theme', theme);
+    }
+    applyTheme(theme);
     set({ theme });
   },
 }));

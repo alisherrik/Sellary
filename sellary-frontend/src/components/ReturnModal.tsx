@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { Sale, SaleItem, SaleReturnOptions } from '../types';
-import { salesApi, metaApi, generateIdempotencyKey } from '../api';
+import { salesApi, metaApi, generateIdempotencyKey } from '@/lib/api';
 
 interface ReturnModalProps {
     sale: Sale;

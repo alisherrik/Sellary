@@ -20,7 +20,7 @@ export function useOfflineSync() {
 
     const processQueue = useCallback(async (manual = false) => {
         if (!isOfflineModeEnabled) {
-            if (manual) toast("Offline sync MVP versiyada o'chiq", { icon: 'i' });
+            if (manual) toast('Офлайн-синхронизация отключена в MVP', { icon: 'i' });
             return;
         }
 
@@ -36,13 +36,13 @@ export function useOfflineSync() {
         setQueueLength(queue.length);
 
         if (queue.length === 0) {
-            if (manual) toast.success("Sinxronlash uchun ma'lumot yo'q");
+            if (manual) toast.success('Нет данных для синхронизации');
             return;
         }
 
         setIsSyncing(true);
         // Faqat manual bo'lganda loading ko'rsatamiz, avtomatikda foydalanuvchini chalg'itmaymiz
-        const toastId = manual ? toast.loading(`Sinxronizatsiya: ${queue.length} ta...`) : undefined;
+        const toastId = manual ? toast.loading(`Синхронизация: ${queue.length} шт...`) : undefined;
 
         let successCount = 0;
         let failCount = 0; // Ketma-ket xatolar soni
@@ -92,7 +92,7 @@ export function useOfflineSync() {
         setIsSyncing(false);
 
         if (successCount > 0) {
-            const msg = `Yuklandi: ${successCount} ta`;
+            const msg = `Синхронизировано: ${successCount}`;
             if (toastId) toast.success(msg, { id: toastId });
             else if (manual) toast.success(msg);
 

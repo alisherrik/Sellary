@@ -4,7 +4,10 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { processQueue, getSyncConfig, setSyncConfig } from '@/lib/syncQueue';
 import toast from 'react-hot-toast';
 import { isOfflineModeEnabled } from '@/lib/features';
+import { API_PROXY_TARGET } from '@/lib/api';
 
+const HEALTH_CHECK_BASE_URL = API_PROXY_TARGET;
+const HEALTH_CHECK_TIMEOUT = 3000;
 
 interface ServerHealthContextType {
     isServerReachable: boolean;
@@ -67,7 +70,7 @@ export function ServerHealthProvider({ children }: { children: React.ReactNode }
 
     const triggerManualSync = async () => {
         if (!isOfflineModeEnabled) {
-            toast("Offline sync MVP versiyada o'chiq", { icon: 'i' });
+            toast('Офлайн-синхронизация отключена в MVP', { icon: 'i' });
             return;
         }
         if (!isServerReachable) {
@@ -89,14 +92,6 @@ export function ServerHealthProvider({ children }: { children: React.ReactNode }
             toast.error('Ошибка при синхронизации', { id: toastId });
         }
     };
-
-    // ZERO TRUST: Health check URL
-    // MUST be POST to bypass Service Worker cache
-    // MUST use cache-busting timestamp
-    // Timeout MUST be 3 seconds (per architecture spec)
-    // MUST use direct backend URL to match API configuration
-    const HEALTH_CHECK_BASE_URL = (process.env.NEXT_PUBLIC_API_PROXY_TARGET || 'http://127.0.0.1:8000').replace(/\/$/, '');
-    const HEALTH_CHECK_TIMEOUT = 3000; // 3 seconds - NON-NEGOTIABLE
 
     const checkHealth = useCallback(async () => {
         // ZERO TRUST MODEL:
