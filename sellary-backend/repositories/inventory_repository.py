@@ -1,0 +1,119 @@
+from decimal import Decimal
+from sqlalchemy.orm import Session, joinedload
+from models.inventory_log import InventoryLog
+from models.product import Product
+from typing import Optional, List
+
+
+class InventoryRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_logs(
+        self,
+        skip: int = 0,
+        limit: int = 50,
+        product_id: Optional[int] = None,
+    ) -> tuple[List[InventoryLog], int]:
+        query = self.db.query(InventoryLog).options(
+            joinedload(InventoryLog.product), joinedload(InventoryLog.user)
+        )
+
+        if product_id:
+            query = query.filter(InventoryLog.product_id == product_id)
+
+        query = query.order_by(InventoryLog.created_at.desc())
+
+        total = query.count()
+        logs = query.offset(skip).limit(limit).all()
+
+        return logs, total
+
+    def create_log(
+        self,
+        product_id: int,
+        user_id: int,
+        quantity_change: int,
+        previous_quantity: int,
+        new_quantity: int,
+        reason: str,
+        reference_type: Optional[str] = None,
+        reference_id: Optional[int] = None,
+    ) -> InventoryLog:
+        """
+        Create inventory log entry.
+        NOTE: Does NOT commit - caller must manage transaction.
+        """
+        log = InventoryLog(
+            product_id=product_id,
+            user_id=user_id,
+            quantity_change=quantity_change,
+            previous_quantity=previous_quantity,
+            new_quantity=new_quantity,
+            reason=reason,
+            reference_type=reference_type,
+            reference_id=reference_id,
+        )
+        self.db.add(log)
+        # No commit here - let caller manage the transaction
+        return log
+
+    def adjust_stock(
+        self,
+        product_id: int,
+        user_id: int,
+        quantity_change: int,
+        reason: str,
+    ) -> Product:
+        """
+        Adjust product stock with row-level locking.
+        Uses SELECT ... FOR UPDATE to prevent race conditions.
+        """
+        try:
+            # Lock the product row for update
+            product = self.db.query(Product).filter(
+                Product.id == product_id
+            ).with_for_update().first()
+            
+            if not product:
+                raise ValueError(f"Product with id {product_id} not found")
+
+            previous_quantity = product.stock_quantity
+            new_quantity = previous_quantity + quantity_change
+
+            if new_quantity < 0:
+                raise ValueError(
+                    f"Insufficient stock for product '{product.name}'. "
+                    f"Current: {previous_quantity}, Change: {quantity_change}"
+                )
+
+            product.stock_quantity = new_quantity
+
+            # Create log within same transaction
+            self.create_log(
+                product_id=product_id,
+                user_id=user_id,
+                quantity_change=quantity_change,
+                previous_quantity=previous_quantity,
+                new_quantity=new_quantity,
+                reason=reason,
+                reference_type="manual_adjust",
+            )
+
+            self.db.commit()
+            self.db.refresh(product)
+            return product
+
+        except Exception as e:
+            self.db.rollback()
+            raise e
+
+    def get_inventory_value(self) -> Decimal:
+        from sqlalchemy import func
+
+        result = (
+            self.db.query(func.sum(Product.stock_quantity * Product.cost_price))
+            .filter(Product.is_active == True)
+            .scalar()
+        )
+        return result or Decimal("0.00")

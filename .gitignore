@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+*.venv/
+venv/
+.env
+
+# Coverage
+htmlcov/
+coverage.xml
+.coverage
+
+# Node.js
+node_modules/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Debug/temp files
+nul
+debug_log.txt
+*.log

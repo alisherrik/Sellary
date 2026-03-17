@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\".venv/Scripts/python.exe\" -c \"from models import Supplier, PurchaseOrder, PurchaseOrderItem; print\\(''Models imported successfully''\\)\")",
+      "Bash(\".venv/Scripts/python.exe\" main.py)",
+      "Bash(curl:*)",
+      "Bash(echo:*)",
+      "Bash(python:*)",
+      "Bash(findstr:*)",
+      "Bash(.venvScriptspip install pytest pytest-asyncio pytest-cov pytest-mock httpx factory-boy freezegun)",
+      "Bash(.venvScriptsactivate)",
+      "Bash(pip install:*)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/unit/test_security.py -v)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/unit/ -v --tb=short)",
+      "Bash(\"./.venv/Scripts/pytest.exe\":*)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/ -v --co -q)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/ -v --tb=short)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/ -v --tb=line)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/ --tb=no -q)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/unit/test_product_service.py::TestGetAll::test_get_all_products -v)",
+      "Bash(\"./.venv/Scripts/python.exe\" -c \"\nimport re\n\n# Read the file\nwith open\\(''tests/unit/test_product_service.py'', ''r''\\) as f:\n    content = f.read\\(\\)\n\n# Replace Product creation patterns that don''t have product_type\n# Pattern 1: Product with name, barcode, category_id, cost_price, sell_price, stock_quantity\npattern1 = r''\\(Product\\\\\\(\\\\s*name=[^\\)]*,\\\\s*stock_quantity=\\\\d+,?\\\\s*\\\\\\)\\)''\ndef add_product_type\\(match\\):\n    text = match.group\\(1\\)\n    if ''product_type'' not in text:\n        # Add product_type before the closing parenthesis\n        text = text.replace\\(''\\)'', '', product_type=ProductType.ITEM\\)''\\)\n    return text\n\ncontent = re.sub\\(pattern1, add_product_type, content\\)\n\n# Write back\nwith open\\(''tests/unit/test_product_service.py'', ''w''\\) as f:\n    f.write\\(content\\)\n\nprint\\(''Updated test_product_service.py''\\)\n\")",
+      "Bash(\"./.venv/Scripts/python.exe\" -c \"\n# Fix the product_type issue in test files\nimport sys\n\ndef fix_product_type_in_file\\(filename\\):\n    with open\\(filename, ''r'', encoding=''utf-8''\\) as f:\n        content = f.read\\(\\)\n    \n    # Fix Product\\(\\) calls that are missing product_type\n    # Pattern: Product\\( ... stock_quantity=XXX, \\) -> Product\\( ... stock_quantity=XXX, product_type=ProductType.ITEM, \\)\n    import re\n    \n    # Find all Product\\( ... \\) patterns and add product_type if missing\n    lines = content.split\\(''\\\\n''\\)\n    new_lines = []\n    \n    for line in lines:\n        if ''Product\\('' in line and ''product_type'' not in line and ''stock_quantity'' in line:\n            # Add product_type before the closing parenthesis\n            line = line.rstrip\\(\\)\n            if line.endswith\\(''\\)''\\):\n                line = line[:-1] + '', product_type=ProductType.ITEM\\)''\n        new_lines.append\\(line\\)\n    \n    content = ''\\\\n''.join\\(new_lines\\)\n    \n    with open\\(filename, ''w'', encoding=''utf-8''\\) as f:\n        f.write\\(content\\)\n    \n    print\\(f''Fixed {filename}''\\)\n\n# Fix the test files\nfix_product_type_in_file\\(''tests/unit/test_product_service.py''\\)\nfix_product_type_in_file\\(''tests/integration/test_product_endpoints.py''\\)\nfix_product_type_in_file\\(''tests/integration/test_sales_endpoints.py''\\)\n\")",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/unit/test_product_service.py::TestGetAll::test_get_all_products -v --tb=short)",
+      "Bash(\"./.venv/Scripts/python.exe\" -c \"\nimport re\n\n# Read the file\nwith open\\(''tests/unit/test_product_service.py'', ''r'', encoding=''utf-8''\\) as f:\n    content = f.read\\(\\)\n\n# More robust fix: find Product\\(\\) blocks and add product_type\n# This handles multi-line Product\\(\\) calls\ndef fix_product_calls\\(content\\):\n    lines = content.split\\(''\\\\n''\\)\n    result = []\n    in_product = False\n    indent = 0\n    added_product_type = False\n    \n    for line in lines:\n        if ''Product\\('' in line and ''product_type'' not in line:\n            in_product = True\n            added_product_type = False\n            # Check if this is a single-line Product\\(\\) call\n            if ''\\)'' in line and line.count\\(''\\(''\\) == line.count\\(''\\)''\\):\n                # Single line - add product_type if missing\n                if ''product_type'' not in line:\n                    line = line.rstrip\\(\\)\n                    if line.endswith\\(''\\)''\\):\n                        line = line[:-1] + '', product_type=ProductType.ITEM\\)''\n            result.append\\(line\\)\n        elif in_product:\n            result.append\\(line\\)\n            if ''\\)'' in line and not added_product_type:\n                # This is the closing line\n                if ''product_type'' not in line:\n                    # Add product_type before this closing line\n                    indent = len\\(line\\) - len\\(line.lstrip\\(\\)\\)\n                    result.pop\\(\\)  # Remove the line we just added\n                    # Add product_type line\n                    result.append\\('' '' * indent + ''product_type=ProductType.ITEM,''\\)\n                    result.append\\(line\\)\n                    added_product_type = True\n                in_product = False\n        else:\n            result.append\\(line\\)\n    \n    return ''\\\\n''.join\\(result\\)\n\ncontent = fix_product_calls\\(content\\)\n\n# Write back\nwith open\\(''tests/unit/test_product_service.py'', ''w'', encoding=''utf-8''\\) as f:\n    f.write\\(content\\)\n\nprint\\(''Fixed test_product_service.py with product_type''\\)\n\")",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/unit/test_product_service.py::TestGetAll::test_get_all_products -v --tb=no)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/unit/test_auth_service.py tests/unit/test_security.py tests/integration/test_auth_endpoints.py --tb=no -q)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/unit/test_inventory_service.py -v --tb=short)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/integration/test_inventory_endpoints.py --tb=short)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/unit/test_sale_return_service.py tests/integration/test_return_endpoints.py -v --tb=short)",
+      "Bash(\"./.venv/Scripts/pytest.exe\" tests/unit/test_sale_return_service.py -v --tb=line)",
+      "Bash(.venv/Scripts/python:*)",
+      "Bash(dir:*)",
+      "Bash(npm install:*)",
+      "Bash(npm test)",
+      "Bash(timeout 60 npx vitest run:*)",
+      "Bash(npx vitest run:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run build:*)"
+    ]
+  }
+}

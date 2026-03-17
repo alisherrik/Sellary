@@ -1,0 +1,20 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+alembic
+pydantic
+pydantic-settings
+python-multipart
+bcrypt
+PyJWT
+email-validator
+
+# Testing dependencies
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
+httpx
+factory-boy
+freezegun

@@ -1,0 +1,74 @@
+import { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import Layout from './components/Layout';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import POS from './pages/POS';
+import Products from './pages/Products';
+import Reports from './pages/Reports';
+import Suppliers from './pages/Suppliers';
+import PurchaseOrders from './pages/PurchaseOrders';
+import { useAuthStore } from './store';
+import registerHotkeys from './hotkeys';
+
+function App() {
+  const { isAuthenticated, fetchUser, token } = useAuthStore();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      if (token) {
+        try {
+          await fetchUser();
+        } catch (error) {
+          console.error('Auth failed');
+        }
+      }
+      setLoading(false);
+    };
+
+    initAuth();
+    registerHotkeys();
+  }, [token]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+        <Toaster position="top-right" />
+      </BrowserRouter>
+    );
+  }
+
+  return (
+    <BrowserRouter>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Navigate to="/pos" replace />} />
+          <Route path="/pos" element={<POS />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/suppliers" element={<Suppliers />} />
+          <Route path="/purchase-orders" element={<PurchaseOrders />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="*" element={<Navigate to="/pos" replace />} />
+        </Routes>
+      </Layout>
+      <Toaster position="top-right" />
+    </BrowserRouter>
+  );
+}
+
+export default App;
