@@ -141,6 +141,16 @@ const createWrapper = (isServerReachable: boolean = true) => {
     return Wrapper;
 };
 
+beforeEach(() => {
+    vi.clearAllMocks();
+    mockServerReachable = true;
+    mockUseServerHealth.mockImplementation(() => ({
+        isServerReachable: mockServerReachable,
+        isNavigatorOnline: true,
+        isChecking: false,
+    }));
+});
+
 describe('useQueries - Query Keys', () => {
     it('should have consistent query keys for dashboard', () => {
         expect(queryKeys.dashboard).toEqual(['dashboard']);

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { User } from '../types';
-import { authApi } from '../api';
+import { createJSONStorage, persist, StateStorage } from 'zustand/middleware';
+import { User } from '../lib/types';
+import { authApi } from '@/lib/api';
 
 interface AuthState {
   user: User | null;
@@ -11,6 +11,12 @@ interface AuthState {
   logout: () => void;
   fetchUser: () => Promise<void>;
 }
+
+const noopStorage: StateStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+};
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -22,12 +28,16 @@ export const useAuthStore = create<AuthState>()(
       login: async (username, password) => {
         const response = await authApi.login(username, password);
         const { access_token, user } = response.data;
-        localStorage.setItem('token', access_token);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('token', access_token);
+        }
         set({ user, token: access_token, isAuthenticated: true });
       },
 
       logout: () => {
-        localStorage.removeItem('token');
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('token');
+        }
         set({ user: null, token: null, isAuthenticated: false });
       },
 
@@ -39,6 +49,7 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       partialize: (state) => ({ user: state.user, token: state.token, isAuthenticated: state.isAuthenticated }),
+      storage: createJSONStorage(() => (typeof window !== 'undefined' ? localStorage : noopStorage)),
     }
   )
 );

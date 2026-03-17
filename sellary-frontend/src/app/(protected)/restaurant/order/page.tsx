@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useRestaurantStore } from '@/lib/restaurant-store';
 import { useState, useEffect } from 'react';
 import { Product } from '@/lib/types';
-import { productsApi } from '@/api';
+import { productsApi } from '@/lib/api';
 
 const mockCategories = [
     { id: 1, name: 'Основные' },
