@@ -304,7 +304,7 @@ export default function Products() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Поиск..."
-                className="w-full h-9 sm:h-10 pl-9 sm:pl-10 pr-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm sm:text-base"
+                className="h-9 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-sm dark:border-gray-600 dark:bg-gray-700 sm:h-10 sm:pl-10 sm:text-base"
               />
             </div>
             <select
@@ -334,19 +334,23 @@ export default function Products() {
               <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
                 {products.map((product) => (
                   <div key={product.id} className="p-3">
-                    <div className="flex items-start justify-between mb-2">
+                    <div className="mb-2 flex items-start justify-between">
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{product.name}</p>
+                        <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{product.name}</p>
                         <p className="text-[10px] text-gray-500">{product.barcode || 'Без штрихкода'}</p>
                       </div>
-                      <span className={`ml-2 px-2 py-0.5 text-[10px] font-medium rounded-full flex-shrink-0 ${getStockStatusColor(product)}`}>
+                      <span
+                        className={`ml-2 flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${getStockStatusColor(product)}`}
+                      >
                         {product.stock_quantity} шт
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs text-gray-500">{product.category?.name || 'Без категории'}</p>
-                        <p className="font-bold text-gray-900 dark:text-white text-sm">{formatCurrency(product.sell_price)}</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                          {formatCurrency(product.sell_price)}
+                        </p>
                       </div>
                       <div className="flex gap-1">
                         <button type="button" onClick={() => handleEditProduct(product)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
@@ -381,7 +385,7 @@ export default function Products() {
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{product.category?.name || '-'}</td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(product.sell_price)}</td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStockStatusColor(product)}`}>
+                          <span className={`rounded-full px-2 py-1 text-xs font-medium ${getStockStatusColor(product)}`}>
                             {product.stock_quantity}
                           </span>
                         </td>

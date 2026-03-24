@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useCartStore } from '@/lib/store';
 import { salesApi } from '@/lib/api';
 import { formatCurrency, hotkeyManager, registerHotkeys } from '@/lib/utils';
@@ -13,8 +13,7 @@ import {
   DevicePhoneMobileIcon,
   XMarkIcon,
   ShoppingBagIcon,
-  DocumentPlusIcon,
-  ArchiveBoxXMarkIcon
+  ArchiveBoxXMarkIcon,
 } from '@heroicons/react/24/outline';
 
 import ProductDrawer from '@/components/pos/ProductDrawer';
@@ -34,9 +33,6 @@ export default function POS() {
   const {
     sessions,
     activeSessionId,
-    createSession,
-    switchSession,
-    deleteSession,
     addItem,
     removeItem,
     updateQuantity,
@@ -44,10 +40,9 @@ export default function POS() {
     getSubtotal,
     getTax,
     getTotal,
+    getItemCount,
   } = useCartStore();
-
-  const activeSession = sessions.find(s => s.id === activeSessionId);
-  const items = useMemo(() => activeSession?.items || [], [activeSession]);
+  const items = sessions.find((session) => session.id === activeSessionId)?.items ?? [];
 
   useEffect(() => {
     registerHotkeys();
@@ -57,11 +52,19 @@ export default function POS() {
     };
   }, []);
 
+  const resetCheckout = useCallback(() => {
+    clearCart();
+    setShowPaymentModal(false);
+    setCardType(null);
+    setPaymentMethod('cash');
+  }, [clearCart]);
+
   const completeSale = useCallback(async () => {
     if (items.length === 0) {
       toast.error('Корзина пуста');
       return;
     }
+
     if (paymentMethod === 'card' && !cardType) {
       toast.error('Выберите тип карты');
       return;
@@ -85,52 +88,35 @@ export default function POS() {
       saleData.card_type = cardType;
     }
 
-    // CRITICAL: Check server health BEFORE making API call
-    // This prevents unnecessary timeouts when offline
     if (!isServerReachable) {
       if (!isOfflineModeEnabled) {
-        toast.error("Server bilan aloqa yo'q. MVP versiyada offline savdo o'chirilgan.");
+        toast.error('Нет связи с сервером. В MVP офлайн-продажи отключены.');
         setLoading(false);
         return;
       }
 
-      // Server is known to be down, queue immediately
       await addToSyncQueue({
         url: '/api/sales',
         method: 'POST',
         body: saleData,
-        type: 'sale'
+        type: 'sale',
       });
-      toast.success('Офлайн режим: Чек сохранен в очереди', { icon: '💾' });
 
-      // Clear cart
-      if (sessions.length > 1) {
-        deleteSession(activeSessionId);
-      } else {
-        clearCart();
-      }
-      setShowPaymentModal(false);
-      setCardType(null);
+      toast.success('Чек сохранен в очереди');
+      resetCheckout();
       setLoading(false);
       return;
     }
 
-    // Server is reachable, try direct API call
     try {
       await salesApi.create(saleData);
-      toast.success('Продажа завершена!');
-
-      if (sessions.length > 1) {
-        deleteSession(activeSessionId);
-      } else {
-        clearCart();
-      }
-      setShowPaymentModal(false);
-      setCardType(null);
+      toast.success('Продажа завершена');
+      resetCheckout();
     } catch (error: any) {
-      // Server was supposed to be reachable but request failed
-      // This could be a transient error, server just went down, etc.
-      const isNetworkError = error.message === 'Network Error' || error.code === 'ERR_NETWORK' || error.code === 'ERR_INTERNET_DISCONNECTED';
+      const isNetworkError =
+        error.message === 'Network Error' ||
+        error.code === 'ERR_NETWORK' ||
+        error.code === 'ERR_INTERNET_DISCONNECTED';
       const shouldQueue = isNetworkError || error.response?.status >= 500;
 
       if (shouldQueue && isOfflineModeEnabled) {
@@ -138,25 +124,18 @@ export default function POS() {
           url: '/api/sales',
           method: 'POST',
           body: saleData,
-          type: 'sale'
+          type: 'sale',
         });
-        toast.success('Офлайн режим: Чек сохранен в очереди', { icon: '💾' });
 
-        // Clear cart
-        if (sessions.length > 1) {
-          deleteSession(activeSessionId);
-        } else {
-          clearCart();
-        }
-        setShowPaymentModal(false);
-        setCardType(null);
+        toast.success('Чек сохранен в очереди');
+        resetCheckout();
       } else {
-        toast.error(error.response?.data?.detail || "Sotuv amalga oshmadi. Offline savdo MVP versiyada o'chirilgan.");
+        toast.error(error.response?.data?.detail || 'Не удалось завершить продажу');
       }
     } finally {
       setLoading(false);
     }
-  }, [items, paymentMethod, cardType, sessions, activeSessionId, deleteSession, clearCart, isServerReachable]);
+  }, [items, paymentMethod, cardType, isServerReachable, resetCheckout]);
 
   useEffect(() => {
     hotkeyManager.register({
@@ -164,7 +143,7 @@ export default function POS() {
       handler: () => {
         if (showPaymentModal) {
           completeSale();
-        } else if (!isDrawerOpen && items.length > 0) {
+        } else if (items.length > 0 && !isDrawerOpen) {
           setShowPaymentModal(true);
         }
       },
@@ -176,100 +155,108 @@ export default function POS() {
       handler: () => setIsDrawerOpen(true),
       description: 'Open Product Drawer',
     });
-  }, [showPaymentModal, isDrawerOpen, items, completeSale]);
+  }, [showPaymentModal, items.length, isDrawerOpen, completeSale]);
 
   const handleQuantityChange = (itemId: number, change: number) => {
-    const item = items.find((i) => i.product.id === itemId);
-    if (!item) return;
-    const newQuantity = item.quantity + change;
-    if (newQuantity <= 0) {
-      removeItem(itemId);
-    } else if (newQuantity <= item.product.stock_quantity) {
-      updateQuantity(itemId, newQuantity);
-    } else {
-      toast.error(`Доступно: ${item.product.stock_quantity}`);
+    const item = items.find((entry) => entry.product.id === itemId);
+    if (!item) {
+      return;
     }
+
+    const nextQuantity = item.quantity + change;
+    if (nextQuantity <= 0) {
+      removeItem(itemId);
+      return;
+    }
+
+    if (nextQuantity > item.product.stock_quantity) {
+      toast.error(`Доступно: ${item.product.stock_quantity}`);
+      return;
+    }
+
+    updateQuantity(itemId, nextQuantity);
   };
 
   const subtotal = getSubtotal();
   const tax = getTax();
   const total = getTotal();
+  const itemCount = getItemCount();
 
   return (
     <>
-
-      <div className="h-[calc(100vh-80px)] sm:h-[calc(100vh-100px)] flex flex-col">
-
-        {/* Sessions Tabs */}
-        <div className="flex items-center gap-1 sm:gap-2 mb-2 sm:mb-4 overflow-x-auto pb-2 scrollbar-hide">
-          {sessions.map((session) => (
-            <div
-              key={session.id}
-              onClick={() => switchSession(session.id)}
-              className={`group relative flex items-center min-w-[100px] sm:min-w-[140px] cursor-pointer px-2 sm:px-4 py-2 sm:py-3 rounded-t-xl border-b-2 transition-all select-none ${session.id === activeSessionId
-                ? 'bg-white dark:bg-gray-800 border-blue-500 text-blue-600 dark:text-blue-400 shadow-sm z-10'
-                : 'bg-gray-100 dark:bg-gray-900 border-transparent text-gray-500 hover:bg-gray-50'
-                }`}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-xs sm:text-sm truncate">{session.name}</div>
-                <div className="text-[10px] sm:text-xs opacity-70">{session.items.length} шт</div>
-              </div>
-              {sessions.length > 1 && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); deleteSession(session.id); }}
-                  className="p-1 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-100 text-red-500 transition-all ml-1"
-                >
-                  <XMarkIcon className="w-3 h-3 sm:w-4 sm:h-4" />
-                </button>
-              )}
+      <div className="h-[calc(100vh-80px)] sm:h-[calc(100vh-100px)] flex flex-col gap-3 sm:gap-4">
+        <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white sm:text-2xl">Касса</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
+                Одна активная корзина, быстрый расчет и простой MVP-сценарий
+              </p>
             </div>
-          ))}
-          <button
-            onClick={createSession}
-            className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors flex-shrink-0"
-          >
-            <DocumentPlusIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="font-medium text-xs sm:text-sm hidden sm:inline">Новый чек</span>
-          </button>
+            <div className="rounded-xl bg-blue-50 px-3 py-2 text-right dark:bg-blue-900/20">
+              <div className="text-[11px] uppercase tracking-wide text-blue-600 dark:text-blue-300">
+                Корзина
+              </div>
+              <div className="text-base font-bold text-blue-700 dark:text-blue-200 sm:text-lg">
+                {itemCount} шт
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Main Content */}
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 flex flex-col overflow-hidden relative">
-
-          {/* Cart Items */}
-          <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-2 sm:space-y-3 pb-24">
+        <div className="relative flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+          <div className="flex-1 space-y-2 overflow-y-auto p-2 pb-28 sm:space-y-3 sm:p-4 sm:pb-32">
             {items.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-gray-300 dark:text-gray-600">
-                <ShoppingBagIcon className="w-16 h-16 sm:w-24 sm:h-24 mb-4 opacity-50" />
-                <p className="text-sm sm:text-lg font-medium">Корзина пуста</p>
-                <p className="text-xs sm:text-sm">Нажмите + чтобы добавить</p>
+              <div className="flex h-full flex-col items-center justify-center text-gray-300 dark:text-gray-600">
+                <ShoppingBagIcon className="mb-4 h-16 w-16 opacity-50 sm:h-24 sm:w-24" />
+                <p className="text-sm font-medium sm:text-lg">Корзина пуста</p>
+                <p className="text-xs sm:text-sm">Нажмите кнопку ниже, чтобы добавить товар</p>
               </div>
             ) : (
               items.map((item) => (
-                <div key={item.product.id} className="flex items-center justify-between p-2 sm:p-4 bg-gray-50 dark:bg-gray-750/50 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors gap-2 sm:gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-gray-900 dark:text-white text-sm sm:text-lg truncate">{item.product.name}</div>
-                    <div className="text-[10px] sm:text-sm text-gray-500">{formatCurrency(item.product.sell_price)}</div>
+                <div
+                  key={item.product.id}
+                  className="flex items-center justify-between gap-2 rounded-xl bg-gray-50 p-2 transition-colors hover:bg-gray-100 dark:bg-gray-750/50 dark:hover:bg-gray-700 sm:gap-4 sm:p-4"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-bold text-gray-900 dark:text-white sm:text-lg">
+                      {item.product.name}
+                    </div>
+                    <div className="text-[10px] text-gray-500 sm:text-sm">
+                      {formatCurrency(item.product.sell_price)}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-1 sm:gap-3">
-                    <div className="flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600">
-                      <button onClick={() => handleQuantityChange(item.product.id, -1)} className="p-1.5 sm:p-3 hover:text-blue-600">
-                        <MinusIcon className="w-3 h-3 sm:w-5 sm:h-5" />
+                    <div className="flex items-center rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-800">
+                      <button
+                        onClick={() => handleQuantityChange(item.product.id, -1)}
+                        className="p-1.5 hover:text-blue-600 sm:p-3"
+                      >
+                        <MinusIcon className="h-3 w-3 sm:h-5 sm:w-5" />
                       </button>
-                      <span className="w-6 sm:w-10 text-center font-bold text-xs sm:text-base">{item.quantity}</span>
-                      <button onClick={() => handleQuantityChange(item.product.id, 1)} className="p-1.5 sm:p-3 hover:text-blue-600">
-                        <PlusIcon className="w-3 h-3 sm:w-5 sm:h-5" />
+                      <span className="w-6 text-center text-xs font-bold sm:w-10 sm:text-base">
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => handleQuantityChange(item.product.id, 1)}
+                        className="p-1.5 hover:text-blue-600 sm:p-3"
+                      >
+                        <PlusIcon className="h-3 w-3 sm:h-5 sm:w-5" />
                       </button>
                     </div>
 
-                    <div className="text-right min-w-[50px] sm:min-w-[80px]">
-                      <div className="font-bold text-xs sm:text-lg text-blue-600">{formatCurrency(Number(item.product.sell_price) * item.quantity)}</div>
+                    <div className="min-w-[56px] text-right sm:min-w-[90px]">
+                      <div className="text-xs font-bold text-blue-600 sm:text-lg">
+                        {formatCurrency(Number(item.product.sell_price) * item.quantity)}
+                      </div>
                     </div>
 
-                    <button onClick={() => removeItem(item.product.id)} className="p-1 sm:p-2 text-gray-400 hover:text-red-500">
-                      <TrashIcon className="w-4 h-4 sm:w-6 sm:h-6" />
+                    <button
+                      onClick={() => removeItem(item.product.id)}
+                      className="p-1 text-gray-400 hover:text-red-500 sm:p-2"
+                    >
+                      <TrashIcon className="h-4 w-4 sm:h-6 sm:w-6" />
                     </button>
                   </div>
                 </div>
@@ -277,48 +264,42 @@ export default function POS() {
             )}
           </div>
 
-          {/* Bottom Fixed Bar */}
-          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 p-2 sm:p-4 safe-area-bottom">
+          <div className="absolute bottom-0 left-0 right-0 border-t border-gray-100 bg-white p-2 dark:border-gray-700 dark:bg-gray-800 sm:p-4">
             <div className="flex items-center justify-between gap-2 sm:gap-4">
-              {/* Add Button */}
               <button
                 onClick={() => setIsDrawerOpen(true)}
-                className="flex items-center justify-center gap-1 sm:gap-2 bg-blue-600 text-white px-3 sm:px-6 py-2.5 sm:py-3 rounded-xl shadow-lg hover:bg-blue-700 transition-all font-bold text-xs sm:text-base flex-shrink-0"
+                className="flex flex-shrink-0 items-center justify-center gap-1 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white shadow-lg transition-all hover:bg-blue-700 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
               >
-                <PlusIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Добавить</span>
+                <PlusIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="hidden sm:inline">Товар</span>
               </button>
 
-              {/* Summary */}
               <div className="flex-1 text-right">
-                <div className="text-[10px] sm:text-xs text-gray-500">Итого</div>
-                <div className="font-black text-lg sm:text-2xl text-blue-600">{formatCurrency(total)}</div>
+                <div className="text-[10px] text-gray-500 sm:text-xs">Итого</div>
+                <div className="text-lg font-black text-blue-600 sm:text-2xl">{formatCurrency(total)}</div>
               </div>
 
-              {/* Pay Button */}
               <button
                 onClick={() => items.length > 0 && setShowPaymentModal(true)}
                 disabled={items.length === 0}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 sm:px-8 py-2.5 sm:py-3 rounded-xl font-bold text-sm sm:text-lg shadow-lg transition-all"
+                className="rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300 sm:px-8 sm:py-3 sm:text-lg"
               >
                 Оплатить
               </button>
             </div>
 
-            {/* Clear Button - only show if cart has items */}
             {items.length > 0 && (
               <button
                 onClick={() => clearCart()}
-                className="w-full mt-2 py-1.5 sm:py-2 text-red-500 hover:bg-red-50 rounded-lg font-medium text-xs sm:text-sm flex items-center justify-center gap-1"
+                className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 sm:py-2 sm:text-sm"
               >
-                <ArchiveBoxXMarkIcon className="w-3 h-3 sm:w-4 sm:h-4" />
-                Очистить
+                <ArchiveBoxXMarkIcon className="h-3 w-3 sm:h-4 sm:w-4" />
+                Очистить корзину
               </button>
             )}
           </div>
         </div>
 
-        {/* Product Drawer */}
         <ProductDrawer
           isOpen={isDrawerOpen}
           onClose={() => setIsDrawerOpen(false)}
@@ -328,51 +309,120 @@ export default function POS() {
           }}
         />
 
-        {/* Payment Modal */}
         {showPaymentModal && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-            <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" onClick={() => setShowPaymentModal(false)} />
-            <div className="relative bg-white dark:bg-gray-800 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg p-4 sm:p-6 max-h-[90vh] overflow-y-auto safe-area-bottom">
-              <div className="flex justify-between items-center mb-4 sm:mb-6">
-                <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Оплата</h2>
-                <button onClick={() => setShowPaymentModal(false)}><XMarkIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" /></button>
+          <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+            <div
+              className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm"
+              onClick={() => setShowPaymentModal(false)}
+            />
+            <div className="relative max-h-[90vh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl dark:bg-gray-800 sm:max-w-lg sm:rounded-3xl sm:p-6">
+              <div className="mb-4 flex items-center justify-between sm:mb-6">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white sm:text-2xl">Оплата</h2>
+                <button onClick={() => setShowPaymentModal(false)}>
+                  <XMarkIcon className="h-5 w-5 text-gray-400 sm:h-6 sm:w-6" />
+                </button>
               </div>
 
-              <div className="text-center mb-4 sm:mb-8">
-                <div className="text-xs sm:text-sm text-gray-500 mb-1">К оплате</div>
-                <div className="text-3xl sm:text-5xl font-black text-blue-600">{formatCurrency(total)}</div>
+              <div className="mb-4 rounded-2xl bg-gray-50 p-4 dark:bg-gray-900 sm:mb-6">
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(subtotal)}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-sm text-gray-500">
+                  <span>Налог</span>
+                  <span>{formatCurrency(tax)}</span>
+                </div>
+                <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+                  <div className="text-xs text-gray-500">К оплате</div>
+                  <div className="text-3xl font-black text-blue-600 sm:text-5xl">
+                    {formatCurrency(total)}
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6">
-                <button onClick={() => { setPaymentMethod('cash'); setCardType(null); }} className={`flex flex-col items-center justify-center p-2 sm:p-4 rounded-xl border-2 transition-all ${paymentMethod === 'cash' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <BanknotesIcon className="w-6 h-6 sm:w-8 sm:h-8 mb-1 sm:mb-2" />
-                  <span className="font-semibold text-[10px] sm:text-sm">Наличные</span>
+              <div className="mb-4 grid grid-cols-3 gap-2 sm:mb-6 sm:gap-4">
+                <button
+                  onClick={() => {
+                    setPaymentMethod('cash');
+                    setCardType(null);
+                  }}
+                  className={`flex flex-col items-center justify-center rounded-xl border-2 p-2 transition-all sm:p-4 ${
+                    paymentMethod === 'cash'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <BanknotesIcon className="mb-1 h-6 w-6 sm:mb-2 sm:h-8 sm:w-8" />
+                  <span className="text-[10px] font-semibold sm:text-sm">Наличные</span>
                 </button>
-                <button onClick={() => setPaymentMethod('card')} className={`flex flex-col items-center justify-center p-2 sm:p-4 rounded-xl border-2 transition-all ${paymentMethod === 'card' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <CreditCardIcon className="w-6 h-6 sm:w-8 sm:h-8 mb-1 sm:mb-2" />
-                  <span className="font-semibold text-[10px] sm:text-sm">Карта</span>
+                <button
+                  onClick={() => setPaymentMethod('card')}
+                  className={`flex flex-col items-center justify-center rounded-xl border-2 p-2 transition-all sm:p-4 ${
+                    paymentMethod === 'card'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <CreditCardIcon className="mb-1 h-6 w-6 sm:mb-2 sm:h-8 sm:w-8" />
+                  <span className="text-[10px] font-semibold sm:text-sm">Карта</span>
                 </button>
-                <button onClick={() => { setPaymentMethod('mobile'); setCardType(null); }} className={`flex flex-col items-center justify-center p-2 sm:p-4 rounded-xl border-2 transition-all ${paymentMethod === 'mobile' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <DevicePhoneMobileIcon className="w-6 h-6 sm:w-8 sm:h-8 mb-1 sm:mb-2" />
-                  <span className="font-semibold text-[10px] sm:text-sm">Мобильный</span>
+                <button
+                  onClick={() => {
+                    setPaymentMethod('mobile');
+                    setCardType(null);
+                  }}
+                  className={`flex flex-col items-center justify-center rounded-xl border-2 p-2 transition-all sm:p-4 ${
+                    paymentMethod === 'mobile'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <DevicePhoneMobileIcon className="mb-1 h-6 w-6 sm:mb-2 sm:h-8 sm:w-8" />
+                  <span className="text-[10px] font-semibold sm:text-sm">Мобильный</span>
                 </button>
               </div>
 
               {paymentMethod === 'card' && (
                 <div className="mb-4 sm:mb-8">
-                  <div className="text-xs sm:text-sm font-medium text-gray-600 mb-2 sm:mb-3">Тип карты</div>
+                  <div className="mb-2 text-xs font-medium text-gray-600 sm:mb-3 sm:text-sm">
+                    Тип карты
+                  </div>
                   <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                    <button onClick={() => setCardType('alif')} className={`flex flex-col items-center p-2 sm:p-4 rounded-xl border-2 transition-all ${cardType === 'alif' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}>
-                      <div className={`text-lg sm:text-2xl font-bold mb-0.5 ${cardType === 'alif' ? 'text-green-600' : 'text-green-500'}`}>Alif</div>
-                      <span className="text-[10px] sm:text-xs text-gray-500">Банк</span>
+                    <button
+                      onClick={() => setCardType('alif')}
+                      className={`rounded-xl border-2 p-2 transition-all sm:p-4 ${
+                        cardType === 'alif'
+                          ? 'border-green-500 bg-green-50'
+                          : 'border-gray-200 hover:border-green-300'
+                      }`}
+                    >
+                      <div className={`text-lg font-bold sm:text-2xl ${cardType === 'alif' ? 'text-green-600' : 'text-green-500'}`}>
+                        Alif
+                      </div>
                     </button>
-                    <button onClick={() => setCardType('eskhata')} className={`flex flex-col items-center p-2 sm:p-4 rounded-xl border-2 transition-all ${cardType === 'eskhata' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}>
-                      <div className={`text-lg sm:text-2xl font-bold mb-0.5 ${cardType === 'eskhata' ? 'text-blue-600' : 'text-blue-500'}`}>Eskhata</div>
-                      <span className="text-[10px] sm:text-xs text-gray-500">Банк</span>
+                    <button
+                      onClick={() => setCardType('eskhata')}
+                      className={`rounded-xl border-2 p-2 transition-all sm:p-4 ${
+                        cardType === 'eskhata'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-blue-300'
+                      }`}
+                    >
+                      <div className={`text-lg font-bold sm:text-2xl ${cardType === 'eskhata' ? 'text-blue-600' : 'text-blue-500'}`}>
+                        Eskhata
+                      </div>
                     </button>
-                    <button onClick={() => setCardType('dc')} className={`flex flex-col items-center p-2 sm:p-4 rounded-xl border-2 transition-all ${cardType === 'dc' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'}`}>
-                      <div className={`text-lg sm:text-2xl font-bold mb-0.5 ${cardType === 'dc' ? 'text-purple-600' : 'text-purple-500'}`}>DC</div>
-                      <span className="text-[10px] sm:text-xs text-gray-500">Dushanbe</span>
+                    <button
+                      onClick={() => setCardType('dc')}
+                      className={`rounded-xl border-2 p-2 transition-all sm:p-4 ${
+                        cardType === 'dc'
+                          ? 'border-purple-500 bg-purple-50'
+                          : 'border-gray-200 hover:border-purple-300'
+                      }`}
+                    >
+                      <div className={`text-lg font-bold sm:text-2xl ${cardType === 'dc' ? 'text-purple-600' : 'text-purple-500'}`}>
+                        DC
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -381,15 +431,14 @@ export default function POS() {
               <button
                 onClick={completeSale}
                 disabled={loading}
-                className="w-full py-3 sm:py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-base sm:text-xl shadow-lg transition-all"
+                className="w-full rounded-xl bg-green-600 py-3 text-base font-bold text-white transition-all hover:bg-green-700 sm:py-4 sm:text-xl"
               >
-                {loading ? 'Обработка...' : 'Завершить'}
+                {loading ? 'Обработка...' : 'Завершить продажу'}
               </button>
             </div>
           </div>
         )}
       </div>
-
     </>
   );
 }

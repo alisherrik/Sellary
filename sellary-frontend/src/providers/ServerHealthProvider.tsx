@@ -1,231 +1,208 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { processQueue, getSyncConfig, setSyncConfig } from '@/lib/syncQueue';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import toast from 'react-hot-toast';
-import { isOfflineModeEnabled } from '@/lib/features';
 
-// ZERO TRUST: Health check URL
-// MUST be POST to bypass Service Worker cache
-// MUST use direct backend URL to match API configuration
-const HEALTH_CHECK_BASE_URL = (
-    process.env.NEXT_PUBLIC_API_PROXY_TARGET || 'http://127.0.0.1:8000'
-).replace(/\/$/, '');
-const HEALTH_CHECK_TIMEOUT = 3000; // 3 seconds - NON-NEGOTIABLE
+import { isOfflineModeEnabled } from '@/lib/features';
+import { API_PROXY_TARGET } from '@/lib/api';
+import { getSyncConfig, processQueue, setSyncConfig } from '@/lib/syncQueue';
+
+const HEALTH_CHECK_BASE_URL = API_PROXY_TARGET;
+const HEALTH_CHECK_TIMEOUT = 3000;
 
 interface ServerHealthContextType {
-    isServerReachable: boolean;
-    isNavigatorOnline: boolean;
-    isChecking: boolean;
-    autoSync: boolean;
-    checkHealth: () => Promise<void>;
-    toggleAutoSync: () => Promise<void>;
-    triggerManualSync: () => Promise<void>;
+  isServerReachable: boolean;
+  isNavigatorOnline: boolean;
+  isChecking: boolean;
+  autoSync: boolean;
+  checkHealth: () => Promise<void>;
+  toggleAutoSync: () => Promise<void>;
+  triggerManualSync: () => Promise<void>;
 }
 
 const ServerHealthContext = createContext<ServerHealthContextType>({
-    isServerReachable: false,
-    isNavigatorOnline: true,
-    isChecking: true,
-    autoSync: true,
-    checkHealth: async () => { },
-    toggleAutoSync: async () => { },
-    triggerManualSync: async () => { },
+  isServerReachable: false,
+  isNavigatorOnline: true,
+  isChecking: true,
+  autoSync: true,
+  checkHealth: async () => {},
+  toggleAutoSync: async () => {},
+  triggerManualSync: async () => {},
 });
 
 export const useServerHealth = () => useContext(ServerHealthContext);
 
 export function ServerHealthProvider({ children }: { children: React.ReactNode }) {
-    const [isNavigatorOnline, setIsNavigatorOnline] = useState(true);
-    const [isServerReachable, setIsServerReachable] = useState(false);
-    const [isChecking, setIsChecking] = useState(true);
-    const [autoSync, setAutoSync] = useState(isOfflineModeEnabled);
-    const previousServerReachable = useRef(false);
+  const [isNavigatorOnline, setIsNavigatorOnline] = useState(true);
+  const [isServerReachable, setIsServerReachable] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+  const [autoSync, setAutoSync] = useState(isOfflineModeEnabled);
+  const previousServerReachable = useRef(false);
 
-    // Load initial sync config
-    useEffect(() => {
-        if (!isOfflineModeEnabled) {
-            setAutoSync(false);
-            return;
-        }
+  useEffect(() => {
+    if (!isOfflineModeEnabled) {
+      setAutoSync(false);
+      return;
+    }
 
-        getSyncConfig().then(config => setAutoSync(config.autoSync));
-    }, []);
+    getSyncConfig().then((config) => setAutoSync(config.autoSync));
+  }, []);
 
-    const toggleAutoSync = async () => {
-        if (!isOfflineModeEnabled) {
-            return;
-        }
+  const triggerManualSync = useCallback(async () => {
+    if (!isOfflineModeEnabled) {
+      toast('Офлайн-синхронизация отключена в MVP', { icon: 'i' });
+      return;
+    }
 
-        const newValue = !autoSync;
-        setAutoSync(newValue);
+    if (!isServerReachable) {
+      toast.error('Нет связи с сервером');
+      return;
+    }
 
-        // Get current config and update it
-        const currentConfig = await getSyncConfig();
-        await setSyncConfig({ ...currentConfig, autoSync: newValue });
+    const toastId = toast.loading('Синхронизация...');
+    try {
+      const { processed, failed } = await processQueue(true);
+      if (processed > 0) {
+        toast.success(`Синхронизировано: ${processed} чеков`, { id: toastId });
+      } else if (failed > 0) {
+        toast.error(`Ошибка синхронизации: ${failed}`, { id: toastId });
+      } else {
+        toast.success('Все данные синхронизированы', { id: toastId });
+      }
+    } catch {
+      toast.error('Ошибка при синхронизации', { id: toastId });
+    }
+  }, [isServerReachable]);
 
-        toast.success(newValue ? 'Авто-синхронизация включена' : 'Авто-синхронизация отключена');
+  const toggleAutoSync = useCallback(async () => {
+    if (!isOfflineModeEnabled) {
+      return;
+    }
 
-        // If turned ON and server is reachable, try syncing immediately
-        if (newValue && isServerReachable) {
-            triggerManualSync();
-        }
+    const newValue = !autoSync;
+    setAutoSync(newValue);
+
+    const currentConfig = await getSyncConfig();
+    await setSyncConfig({ ...currentConfig, autoSync: newValue });
+
+    toast.success(newValue ? 'Авто-синхронизация включена' : 'Авто-синхронизация отключена');
+
+    if (newValue && isServerReachable) {
+      void triggerManualSync();
+    }
+  }, [autoSync, isServerReachable, triggerManualSync]);
+
+  const checkHealth = useCallback(async () => {
+    if (typeof navigator !== 'undefined') {
+      setIsNavigatorOnline(navigator.onLine);
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT);
+
+      const response = await fetch(`${HEALTH_CHECK_BASE_URL}/health`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ping: true }),
+      });
+
+      clearTimeout(timeoutId);
+      setIsServerReachable(response.status === 200);
+
+      if (response.status !== 200) {
+        console.warn(`Server health check returned non-200 status: ${response.status}`);
+      }
+    } catch (error) {
+      console.warn('Server heartbeat failed (Network Error):', error);
+      setIsServerReachable(false);
+    } finally {
+      setIsChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void checkHealth();
+
+    const handleOnline = () => {
+      setIsNavigatorOnline(true);
+      void checkHealth();
+    };
+    const handleOffline = () => {
+      setIsNavigatorOnline(false);
+      void checkHealth();
     };
 
-    const triggerManualSync = async () => {
-        if (!isOfflineModeEnabled) {
-            toast("Offline sync MVP versiyada o'chiq", { icon: 'i' });
-            return;
-        }
-        if (!isServerReachable) {
-            toast.error('Нет связи с сервером');
-            return;
-        }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
-        const toastId = toast.loading('Синхронизация...');
-        try {
-            const { processed, failed } = await processQueue(true); // Force sync
+    const interval = setInterval(() => {
+      void checkHealth();
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      clearInterval(interval);
+    };
+  }, [checkHealth]);
+
+  useEffect(() => {
+    if (!isOfflineModeEnabled) {
+      previousServerReachable.current = isServerReachable;
+      return;
+    }
+
+    if (isServerReachable && !previousServerReachable.current && !isChecking) {
+      if (autoSync) {
+        processQueue()
+          .then(({ processed, failed, skipped }) => {
+            if (skipped) {
+              return;
+            }
+
             if (processed > 0) {
-                toast.success(`Синхронизировано: ${processed} чеков`, { id: toastId });
-            } else if (failed > 0) {
-                toast.error(`Ошибка синхронизации: ${failed}`, { id: toastId });
-            } else {
-                toast.success('Все данные синхронизированы', { id: toastId });
+              toast.success(`Синхронизировано: ${processed} чеков`, { icon: '✅' });
             }
-        } catch (error) {
-            toast.error('Ошибка при синхронизации', { id: toastId });
-        }
-    };
-
-    const checkHealth = useCallback(async () => {
-        // ZERO TRUST MODEL:
-        // - navigator.onLine is UNTRUSTED (tracked for info only)
-        // - ONLY POST /api/health response determines connectivity
-        // - Timeout > 3s = OFFLINE
-        // - Any error = OFFLINE
-        // - ONLY HTTP 200 OK = ONLINE
-
-        // Track browser state separately (informational only)
-        if (typeof navigator !== 'undefined') {
-            setIsNavigatorOnline(navigator.onLine);
-        }
-
-        // ALWAYS check server health, regardless of browser online status
-        try {
-            // CRITICAL: 3-second timeout (NON-NEGOTIABLE per architecture)
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT);
-
-            const response = await fetch(`${HEALTH_CHECK_BASE_URL}/health`, {
-                method: 'POST', // POST bypasses SW cache
-                signal: controller.signal,
-                headers: {
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ ping: true })
-            });
-
-            clearTimeout(timeoutId);
-
-            // ZERO TRUST: ONLY HTTP 200 OK = ONLINE
-            // - 200 OK → Server is ONLINE
-            // - Anything else (4xx, 5xx) → OFFLINE
-            // - This prevents false positives from cached 401s
-            if (response.status === 200) {
-                setIsServerReachable(true);
-            } else {
-                console.warn(`Server health check returned non-200 status: ${response.status}`);
-                setIsServerReachable(false);
+            if (failed > 0) {
+              toast.error(`Не синхронизировано: ${failed} чеков`, { icon: '⚠️' });
             }
+          })
+          .catch((error) => {
+            console.error('Failed to process sync queue:', error);
+          });
+      } else {
+        toast('Сервер доступен. Синхронизируйте данные вручную.', { icon: 'ℹ️' });
+      }
+    }
 
-        } catch (error) {
-            console.warn('Server heartbeat failed (Network Error):', error);
-            setIsServerReachable(false);
-        } finally {
-            setIsChecking(false);
-        }
-    }, []);
+    previousServerReachable.current = isServerReachable;
+  }, [autoSync, isChecking, isServerReachable]);
 
-    useEffect(() => {
-        // Initial check
-        checkHealth();
-
-        // Listeners for network changes
-        // IMPORTANT: We don't immediately set offline/online based on browser state
-        // Instead, we re-check server health when browser state changes
-        // This ensures server health is ALWAYS the source of truth
-        const handleOnline = () => {
-            setIsNavigatorOnline(true);
-            checkHealth(); // Verify server is actually reachable
-        };
-        const handleOffline = () => {
-            setIsNavigatorOnline(false);
-            checkHealth(); // Check if server is still reachable (e.g., localhost)
-        };
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-
-        // Periodic heartbeat (every 30s)
-        const interval = setInterval(checkHealth, 30000);
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-            clearInterval(interval);
-        };
-    }, [checkHealth]);
-
-    // CRITICAL: Auto-process sync queue when server comes back online
-    useEffect(() => {
-        if (!isOfflineModeEnabled) {
-            previousServerReachable.current = isServerReachable;
-            return;
-        }
-
-        // Only trigger on transition from false to true
-        if (isServerReachable && !previousServerReachable.current && !isChecking) {
-            console.log('Server is back online!');
-
-            // Only sync automatically if enabled
-            if (autoSync) {
-                console.log('Auto-syncing...');
-                processQueue()
-                    .then(({ processed, failed, skipped }) => {
-                        if (skipped) return;
-
-                        if (processed > 0) {
-                            toast.success(`Синхронизировано: ${processed} чеков`, { icon: '✅' });
-                        }
-                        if (failed > 0) {
-                            toast.error(`Не синхронизировано: ${failed} чеков`, { icon: '⚠️' });
-                        }
-                    })
-                    .catch((error) => {
-                        console.error('Failed to process sync queue:', error);
-                    });
-            } else {
-                console.log('Auto-sync disabled. Queue pending.');
-                toast('Сервер доступен. Синхронизируйте данные вручную.', { icon: 'ℹ️' });
-            }
-        }
-
-        // Update previous state for next comparison
-        previousServerReachable.current = isServerReachable;
-    }, [isServerReachable, isChecking, autoSync]);
-
-    return (
-        <ServerHealthContext.Provider value={{
-            isServerReachable,
-            isNavigatorOnline,
-            isChecking,
-            autoSync,
-            checkHealth,
-            toggleAutoSync,
-            triggerManualSync
-        }}>
-            {children}
-        </ServerHealthContext.Provider>
-    );
+  return (
+    <ServerHealthContext.Provider
+      value={{
+        isServerReachable,
+        isNavigatorOnline,
+        isChecking,
+        autoSync,
+        checkHealth,
+        toggleAutoSync,
+        triggerManualSync,
+      }}
+    >
+      {children}
+    </ServerHealthContext.Provider>
+  );
 }

@@ -47,7 +47,6 @@ export default function Layout({ children }: LayoutProps) {
   const queryClient = useQueryClient();
   const { user, logout, isAuthenticated, currentCompany, companies, switchCompany } = useAuthStore();
   const prefetch = usePrefetchOnHover();
-
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | ''>(currentCompany?.id ?? '');
   const visibleNavigation = navigation.filter(
@@ -93,24 +92,26 @@ export default function Layout({ children }: LayoutProps) {
   const handlePrefetch = useCallback((prefetchKey: string | null) => {
     if (!prefetchKey) return;
 
-    switch (prefetchKey) {
-      case 'dashboard':
-        prefetch.prefetchDashboard();
-        break;
-      case 'products':
-        prefetch.prefetchProducts();
-        break;
-      case 'sales':
-        prefetch.prefetchSales();
-        break;
-      case 'suppliers':
-        prefetch.prefetchSuppliers();
-        break;
-      case 'purchaseOrders':
-        prefetch.prefetchPurchaseOrders();
-        break;
-    }
-  }, [prefetch]);
+      switch (prefetchKey) {
+        case 'dashboard':
+          prefetch.prefetchDashboard();
+          break;
+        case 'products':
+          prefetch.prefetchProducts();
+          break;
+        case 'sales':
+          prefetch.prefetchSales();
+          break;
+        case 'suppliers':
+          prefetch.prefetchSuppliers();
+          break;
+        case 'purchaseOrders':
+          prefetch.prefetchPurchaseOrders();
+          break;
+      }
+    },
+    [prefetch]
+  );
 
   if (!isAuthenticated) {
     return <>{children}</>;
@@ -118,7 +119,6 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
@@ -126,28 +126,30 @@ export default function Layout({ children }: LayoutProps) {
         />
       )}
 
-      {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-          } lg:block`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 transform bg-white shadow-lg transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        } lg:block`}
       >
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
-          <Link href="/pos" className="text-xl font-bold text-gray-900 hover:text-blue-600 transition-colors">
+        <div className="flex h-16 items-center justify-between border-b border-gray-200 px-6">
+          <Link href="/pos" className="text-xl font-bold text-gray-900 transition-colors hover:text-blue-600">
             Sellary
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="p-1 rounded-md hover:bg-gray-100 lg:hidden"
+            className="rounded-md p-1 hover:bg-gray-100 lg:hidden"
           >
-            <XMarkIcon className="w-5 h-5 text-gray-500" />
+            <XMarkIcon className="h-5 w-5 text-gray-500" />
           </button>
         </div>
 
         <nav className="mt-6 px-3">
           <div className="space-y-1">
             {visibleNavigation.map((item) => {
-              const isActive = pathname === item.href ||
+              const isActive =
+                pathname === item.href ||
                 (item.href !== '/pos' && item.href !== '/dashboard' && pathname.startsWith(item.href));
+
               return (
                 <Link
                   key={item.name}
@@ -155,12 +157,11 @@ export default function Layout({ children }: LayoutProps) {
                   prefetch={false}
                   onClick={handleNavClick}
                   onMouseEnter={() => handlePrefetch(item.prefetchKey)}
-                  className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive
-                    ? 'bg-blue-50 text-blue-600'
-                    : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                  className={`flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
                 >
-                  <item.icon className="w-5 h-5 mr-3" />
+                  <item.icon className="mr-3 h-5 w-5" />
                   {item.name}
                 </Link>
               );
@@ -204,7 +205,7 @@ export default function Layout({ children }: LayoutProps) {
               </span>
             </div>
             <div className="ml-3 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="truncate text-sm font-medium text-gray-900">
                 {user?.full_name || user?.username}
               </p>
               <p className="text-xs text-gray-500 truncate">{currentCompany?.slug || 'No tenant'}</p>
@@ -212,27 +213,24 @@ export default function Layout({ children }: LayoutProps) {
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center w-full px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100"
+            className="flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            <ArrowRightOnRectangleIcon className="w-5 h-5 mr-3" />
+            <ArrowRightOnRectangleIcon className="mr-3 h-5 w-5" />
             Выйти
           </button>
         </div>
       </div>
 
-      {/* Main content */}
-      <div className={`lg:ml-64 min-h-screen transition-all duration-300`}>
-        {/* Sync Status Panel - Shows when queue has items */}
+      <div className="min-h-screen transition-all duration-300 lg:ml-64">
         <SyncStatusPanel />
 
-        {/* Header */}
-        <header className="bg-white shadow-sm sticky top-0 z-30">
-          <div className="flex items-center justify-between h-14 sm:h-16 px-4 sm:px-6">
+        <header className="sticky top-0 z-30 bg-white shadow-sm">
+          <div className="flex h-14 items-center justify-between px-4 sm:h-16 sm:px-6">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-md hover:bg-gray-100 lg:hidden"
+              className="rounded-md p-2 hover:bg-gray-100 lg:hidden"
             >
-              <Bars3Icon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
+              <Bars3Icon className="h-5 w-5 text-gray-500 sm:h-6 sm:w-6" />
             </button>
 
             <div className="flex items-center space-x-4">
@@ -251,8 +249,7 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="p-3 sm:p-6 pb-20 sm:pb-6">{children}</main>
+        <main className="p-3 pb-20 sm:p-6 sm:pb-6">{children}</main>
       </div>
     </div>
   );

@@ -15,7 +15,10 @@ import type {
   OwnerSession,
 } from './types';
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
+export const API_PROXY_TARGET = (
+  process.env.NEXT_PUBLIC_API_PROXY_TARGET || 'http://127.0.0.1:8000'
+).replace(/\/$/, '');
 
 const api = axios.create({
   baseURL: API_URL,
