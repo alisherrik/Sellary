@@ -66,6 +66,9 @@ class SaleItemResponse(BaseModel):
     class Config:
         from_attributes = True
 
+    def __getitem__(self, key: str):
+        return getattr(self, key)
+
 
 class Sale(BaseModel):
     id: int

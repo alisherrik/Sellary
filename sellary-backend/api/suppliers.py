@@ -1,11 +1,12 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional
+
+from api.dependencies import AuthContext, get_auth_context, require_manager_or_admin
 from core.database import get_db
-from schemas.supplier import SupplierCreate, SupplierUpdate, SupplierResponse
+from schemas.supplier import SupplierCreate, SupplierResponse, SupplierUpdate
 from services.supplier_service import SupplierService
-from api.dependencies import get_current_user, require_manager_or_admin
-from models.user import User
 
 router = APIRouter(prefix="/suppliers", tags=["suppliers"])
 
@@ -16,9 +17,9 @@ def get_suppliers(
     limit: int = Query(50, ge=1, le=200),
     search: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth: AuthContext = Depends(get_auth_context),
 ):
-    service = SupplierService(db)
+    service = SupplierService(db, auth.company_id)
     suppliers, _ = service.get_all(skip=skip, limit=limit, search=search)
     return suppliers
 
@@ -27,9 +28,9 @@ def get_suppliers(
 def get_supplier(
     supplier_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth: AuthContext = Depends(get_auth_context),
 ):
-    service = SupplierService(db)
+    service = SupplierService(db, auth.company_id)
     supplier = service.get_by_id(supplier_id)
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
@@ -40,13 +41,13 @@ def get_supplier(
 def create_supplier(
     supplier_create: SupplierCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_manager_or_admin),
 ):
-    service = SupplierService(db)
+    service = SupplierService(db, auth.company_id)
     try:
         return service.create(supplier_create)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.put("/{supplier_id}", response_model=SupplierResponse)
@@ -54,23 +55,25 @@ def update_supplier(
     supplier_id: int,
     supplier_update: SupplierUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_manager_or_admin),
 ):
-    service = SupplierService(db)
+    service = SupplierService(db, auth.company_id)
     try:
         return service.update(supplier_id, supplier_update)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.delete("/{supplier_id}", status_code=204)
 def delete_supplier(
     supplier_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_manager_or_admin),
 ):
-    service = SupplierService(db)
+    service = SupplierService(db, auth.company_id)
     try:
         service.delete(supplier_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))

@@ -1,8 +1,10 @@
 'use client';
 
-import { ReactNode, useState, useCallback } from 'react';
+import { ChangeEvent, ReactNode, useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import {
   HomeIcon,
   ShoppingBagIcon,
@@ -17,11 +19,11 @@ import {
   BuildingStorefrontIcon,
   Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore } from '@/lib/store';
 import { usePrefetchOnHover } from '@/hooks/useQueries';
 import ConnectionStatus from './ui/ConnectionStatus';
 import SyncStatusPanel from './SyncStatusPanel';
-import { isRestaurantEnabled } from '@/lib/features';
+import { isOfflineModeEnabled, isRestaurantEnabled } from '@/lib/features';
 
 interface LayoutProps {
   children: ReactNode;
@@ -42,13 +44,19 @@ const navigation = [
 export default function Layout({ children }: LayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, isAuthenticated } = useAuthStore();
+  const queryClient = useQueryClient();
+  const { user, logout, isAuthenticated, currentCompany, companies, switchCompany } = useAuthStore();
   const prefetch = usePrefetchOnHover();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | ''>(currentCompany?.id ?? '');
   const visibleNavigation = navigation.filter(
     (item) => item.href !== '/restaurant' || isRestaurantEnabled
   );
+
+  useEffect(() => {
+    setSelectedCompanyId(currentCompany?.id ?? '');
+  }, [currentCompany?.id]);
 
   // Close sidebar on mobile when navigating
   const handleNavClick = () => {
@@ -60,6 +68,26 @@ export default function Layout({ children }: LayoutProps) {
   const handleLogout = () => {
     logout();
     router.push('/login');
+  };
+
+  const handleCompanyChange = async (event: ChangeEvent<HTMLSelectElement>) => {
+    const companyId = Number(event.target.value);
+    if (!companyId || companyId === currentCompany?.id) {
+      return;
+    }
+
+    setSelectedCompanyId(companyId);
+    try {
+      await switchCompany(companyId);
+      queryClient.clear();
+      router.replace('/pos');
+      toast.success('Company switched successfully.');
+    } catch (error: any) {
+      setSelectedCompanyId(currentCompany?.id ?? '');
+      toast.error(
+        error?.response?.data?.detail || error?.message || 'Could not switch company.',
+      );
+    }
   };
 
   const handlePrefetch = useCallback((prefetchKey: string | null) => {
@@ -141,6 +169,34 @@ export default function Layout({ children }: LayoutProps) {
         </nav>
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
+          <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+              Company
+            </p>
+            <p className="mt-2 truncate text-sm font-semibold text-gray-900">
+              {currentCompany?.name || 'No company selected'}
+            </p>
+            <p className="mt-1 text-xs capitalize text-gray-500">
+              {currentCompany?.role || 'No role'}
+            </p>
+            <select
+              value={selectedCompanyId}
+              onChange={handleCompanyChange}
+              disabled={companies.length <= 1 || isOfflineModeEnabled}
+              className="mt-3 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-100"
+            >
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
+            {isOfflineModeEnabled && companies.length > 1 && (
+              <p className="mt-2 text-[11px] leading-4 text-amber-600">
+                Multi-company switching is disabled while offline mode is enabled.
+              </p>
+            )}
+          </div>
           <div className="flex items-center mb-3">
             <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
               <span className="text-white text-sm font-medium">
@@ -151,7 +207,7 @@ export default function Layout({ children }: LayoutProps) {
               <p className="text-sm font-medium text-gray-900 truncate">
                 {user?.full_name || user?.username}
               </p>
-              <p className="text-xs text-gray-500 capitalize truncate">{user?.role}</p>
+              <p className="text-xs text-gray-500 truncate">{currentCompany?.slug || 'No tenant'}</p>
             </div>
           </div>
           <button
@@ -181,6 +237,9 @@ export default function Layout({ children }: LayoutProps) {
 
             <div className="flex items-center space-x-4">
               <ConnectionStatus />
+              <div className="hidden sm:block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                {currentCompany?.name || 'No company'}
+              </div>
               <span className="text-xs sm:text-sm text-gray-600">
                 {new Date().toLocaleDateString('ru-RU', {
                   weekday: 'short',

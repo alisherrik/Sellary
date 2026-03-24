@@ -11,13 +11,14 @@ class InventoryRepository:
 
     def get_logs(
         self,
+        company_id: int,
         skip: int = 0,
         limit: int = 50,
         product_id: Optional[int] = None,
     ) -> tuple[List[InventoryLog], int]:
         query = self.db.query(InventoryLog).options(
             joinedload(InventoryLog.product), joinedload(InventoryLog.user)
-        )
+        ).filter(InventoryLog.company_id == company_id)
 
         if product_id:
             query = query.filter(InventoryLog.product_id == product_id)
@@ -31,6 +32,7 @@ class InventoryRepository:
 
     def create_log(
         self,
+        company_id: int,
         product_id: int,
         user_id: int,
         quantity_change: int,
@@ -45,6 +47,7 @@ class InventoryRepository:
         NOTE: Does NOT commit - caller must manage transaction.
         """
         log = InventoryLog(
+            company_id=company_id,
             product_id=product_id,
             user_id=user_id,
             quantity_change=quantity_change,
@@ -60,6 +63,7 @@ class InventoryRepository:
 
     def adjust_stock(
         self,
+        company_id: int,
         product_id: int,
         user_id: int,
         quantity_change: int,
@@ -69,51 +73,49 @@ class InventoryRepository:
         Adjust product stock with row-level locking.
         Uses SELECT ... FOR UPDATE to prevent race conditions.
         """
-        try:
-            # Lock the product row for update
-            product = self.db.query(Product).filter(
-                Product.id == product_id
-            ).with_for_update().first()
-            
-            if not product:
-                raise ValueError(f"Product with id {product_id} not found")
+        product = self.db.query(Product).filter(
+            Product.company_id == company_id,
+            Product.id == product_id
+        ).with_for_update().first()
 
-            previous_quantity = product.stock_quantity
-            new_quantity = previous_quantity + quantity_change
+        if not product:
+            raise ValueError(f"Product with id {product_id} not found")
 
-            if new_quantity < 0:
-                raise ValueError(
-                    f"Insufficient stock for product '{product.name}'. "
-                    f"Current: {previous_quantity}, Change: {quantity_change}"
-                )
+        previous_quantity = product.stock_quantity
+        new_quantity = previous_quantity + quantity_change
 
-            product.stock_quantity = new_quantity
-
-            # Create log within same transaction
-            self.create_log(
-                product_id=product_id,
-                user_id=user_id,
-                quantity_change=quantity_change,
-                previous_quantity=previous_quantity,
-                new_quantity=new_quantity,
-                reason=reason,
-                reference_type="manual_adjust",
+        if new_quantity < 0:
+            raise ValueError(
+                f"Insufficient stock for product '{product.name}'. "
+                f"Current: {previous_quantity}, Change: {quantity_change}"
             )
 
-            self.db.commit()
-            self.db.refresh(product)
-            return product
+        product.stock_quantity = new_quantity
 
-        except Exception as e:
-            self.db.rollback()
-            raise e
+        # Create log within the active transaction; caller commits after idempotency is stored.
+        self.create_log(
+            company_id=company_id,
+            product_id=product_id,
+            user_id=user_id,
+            quantity_change=quantity_change,
+            previous_quantity=previous_quantity,
+            new_quantity=new_quantity,
+            reason=reason,
+            reference_type="manual_adjust",
+        )
 
-    def get_inventory_value(self) -> Decimal:
+        self.db.flush()
+        return product
+
+    def get_inventory_value(self, company_id: int) -> Decimal:
         from sqlalchemy import func
 
         result = (
             self.db.query(func.sum(Product.stock_quantity * Product.cost_price))
-            .filter(Product.is_active == True)
+            .filter(
+                Product.company_id == company_id,
+                Product.is_active == True,
+            )
             .scalar()
         )
         return result or Decimal("0.00")

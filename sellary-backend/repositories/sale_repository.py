@@ -10,16 +10,17 @@ class SaleRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_by_id(self, sale_id: int) -> Optional[Sale]:
+    def get_by_id(self, company_id: int, sale_id: int) -> Optional[Sale]:
         return (
             self.db.query(Sale)
             .options(joinedload(Sale.items), joinedload(Sale.customer), joinedload(Sale.cashier))
-            .filter(Sale.id == sale_id)
+            .filter(Sale.company_id == company_id, Sale.id == sale_id)
             .first()
         )
 
     def get_all(
         self,
+        company_id: int,
         skip: int = 0,
         limit: int = 50,
         start_date: Optional[datetime] = None,
@@ -28,7 +29,10 @@ class SaleRepository:
         status: Optional[SaleStatus] = None,
         context_type: Optional[SaleContextType] = None,
     ) -> Tuple[List[Sale], int]:
-        query = self.db.query(Sale).options(joinedload(Sale.items), joinedload(Sale.cashier))
+        query = self.db.query(Sale).options(
+            joinedload(Sale.items),
+            joinedload(Sale.cashier),
+        ).filter(Sale.company_id == company_id)
 
         if start_date:
             query = query.filter(Sale.created_at >= start_date)
@@ -56,8 +60,7 @@ class SaleRepository:
             item.sale_id = sale.id
             self.db.add(item)
 
-        self.db.commit()
-        self.db.refresh(sale)
+        self.db.flush()
         return sale
 
     def update(self, sale: Sale) -> Sale:
@@ -66,7 +69,7 @@ class SaleRepository:
         return sale
 
     def get_daily_sales(
-        self, start_date: datetime, end_date: datetime
+        self, company_id: int, start_date: datetime, end_date: datetime
     ) -> List[tuple[datetime, int, Decimal, Decimal]]:
         result = (
             self.db.query(
@@ -74,7 +77,11 @@ class SaleRepository:
                 Sale.id,
                 Sale.total_amount,
             )
-            .filter(Sale.created_at >= start_date, Sale.created_at <= end_date)
+            .filter(
+                Sale.company_id == company_id,
+                Sale.created_at >= start_date,
+                Sale.created_at <= end_date,
+            )
             .filter(Sale.status == SaleStatus.COMPLETED)
             .order_by(Sale.created_at)
             .all()
@@ -82,7 +89,7 @@ class SaleRepository:
         return result
 
     def get_top_products(
-        self, start_date: datetime, end_date: datetime, limit: int = 10
+        self, company_id: int, start_date: datetime, end_date: datetime, limit: int = 10
     ) -> List[tuple]:
         from models.product import Product
 
@@ -96,7 +103,11 @@ class SaleRepository:
             )
             .join(SaleItem, Product.id == SaleItem.product_id)
             .join(Sale, SaleItem.sale_id == Sale.id)
-            .filter(Sale.created_at >= start_date, Sale.created_at <= end_date)
+            .filter(
+                Sale.company_id == company_id,
+                Sale.created_at >= start_date,
+                Sale.created_at <= end_date,
+            )
             .filter(Sale.status == SaleStatus.COMPLETED)
             .order_by(SaleItem.quantity.desc())
             .limit(limit)

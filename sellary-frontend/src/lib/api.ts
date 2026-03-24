@@ -2,12 +2,20 @@
 
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+import { clearOwnerSession, getOwnerAccessToken } from './owner-session';
+import { clearStoredSession, getActiveAccessToken } from './session';
+import type {
+  AuthSession,
+  CompanySession,
+  LoginResponse,
+  ManagedCompany,
+  ManagedMembership,
+  ManagedUser,
+  OwnerLoginResponse,
+  OwnerSession,
+} from './types';
 
-// Log the API URL for debugging
-if (typeof window !== 'undefined') {
-  console.log('API URL:', API_URL);
-}
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
 
 const api = axios.create({
   baseURL: API_URL,
@@ -16,50 +24,163 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+const ownerClient = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 if (typeof window !== 'undefined') {
   api.interceptors.request.use(
     (config) => {
-      const token = localStorage.getItem('token');
-      if (token) {
+      const token = getActiveAccessToken();
+      config.headers = config.headers ?? {};
+
+      if (token && !config.headers.Authorization) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+
       return config;
     },
-    (error) => Promise.reject(error)
+    (error) => Promise.reject(error),
   );
 
-  // Response interceptor to handle errors
   api.interceptors.response.use(
     (response) => response,
     (error) => {
-      // Log the full error object for debugging
-      console.error('Full API Error Object:', error);
-
-      console.error('API Error Details:', {
-        message: error.message,
-        code: error.code,
-        url: error.config?.url,
-        baseURL: error.config?.baseURL,
-        status: error.response?.status,
-        data: error.response?.data || 'No response data',
-      });
-
-      if (error.response?.status === 401 && typeof window !== 'undefined') {
-        localStorage.removeItem('token');
+      if (error.response?.status === 401) {
+        clearStoredSession();
         window.location.href = '/login';
       }
+
       return Promise.reject(error);
-    }
+    },
+  );
+
+  ownerClient.interceptors.request.use(
+    (config) => {
+      const token = getOwnerAccessToken();
+      config.headers = config.headers ?? {};
+
+      if (token && !config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+
+      return config;
+    },
+    (error) => Promise.reject(error),
+  );
+
+  ownerClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response?.status === 401) {
+        clearOwnerSession();
+        window.location.href = '/owner/login';
+      }
+
+      return Promise.reject(error);
+    },
   );
 }
 
-// API Functions
 export const authApi = {
   login: (username: string, password: string) =>
-    api.post(`/auth/login?_t=${Date.now()}`, { username, password }),
+    api.post<LoginResponse>(`/auth/login?_t=${Date.now()}`, { username, password }),
+  selectCompany: (companyId: number, loginToken: string) =>
+    api.post<CompanySession>(
+      '/auth/select-company',
+      { company_id: companyId },
+      {
+        headers: {
+          Authorization: `Bearer ${loginToken}`,
+        },
+      },
+    ),
+  switchCompany: (companyId: number) =>
+    api.post<CompanySession>('/auth/switch-company', { company_id: companyId }),
   logout: () => api.post('/auth/logout'),
-  me: () => api.get('/auth/me'),
+  me: () => api.get<AuthSession>('/auth/me'),
+};
+
+export const ownerApi = {
+  login: (username: string, password: string) =>
+    ownerClient.post<OwnerLoginResponse>('/owner/auth/login', { username, password }),
+  session: () => ownerClient.get<OwnerSession>('/owner/session'),
+  getUsers: (params?: { search?: string }) =>
+    ownerClient.get<ManagedUser[]>('/owner/users', { params }),
+  createUser: (data: {
+    username: string;
+    email: string;
+    full_name?: string;
+    password: string;
+    is_active?: boolean;
+  }) => ownerClient.post<ManagedUser>('/owner/users', data),
+  updateUser: (
+    id: number,
+    data: {
+      username?: string;
+      email?: string;
+      full_name?: string;
+      is_active?: boolean;
+    },
+  ) => ownerClient.patch<ManagedUser>(`/owner/users/${id}`, data),
+  getCompanies: (params?: { search?: string }) =>
+    ownerClient.get<ManagedCompany[]>('/owner/companies', { params }),
+  createCompany: (data: { name: string; slug?: string; is_active?: boolean }) =>
+    ownerClient.post<ManagedCompany>('/owner/companies', data),
+  updateCompany: (
+    id: number,
+    data: { name?: string; slug?: string; is_active?: boolean },
+  ) => ownerClient.patch<ManagedCompany>(`/owner/companies/${id}`, data),
+  getMemberships: (params?: { search?: string }) =>
+    ownerClient.get<ManagedMembership[]>('/owner/memberships', { params }),
+  createMembership: (data: {
+    user_id: number;
+    company_id: number;
+    role: 'admin' | 'manager' | 'cashier';
+    is_default?: boolean;
+    is_active?: boolean;
+  }) => ownerClient.post<ManagedMembership>('/owner/memberships', data),
+  updateMembership: (
+    id: number,
+    data: {
+      role?: 'admin' | 'manager' | 'cashier';
+      is_default?: boolean;
+      is_active?: boolean;
+    },
+  ) => ownerClient.patch<ManagedMembership>(`/owner/memberships/${id}`, data),
+  enterCompany: (companyId: number) =>
+    ownerClient.post<CompanySession>(`/owner/companies/${companyId}/enter`),
+};
+
+export const adminApi = {
+  getUsers: (params?: { search?: string }) => api.get<ManagedUser[]>('/admin/users', { params }),
+  createUser: (data: {
+    username: string;
+    email: string;
+    full_name?: string;
+    password: string;
+    role: 'admin' | 'manager' | 'cashier';
+    is_active?: boolean;
+    is_default?: boolean;
+  }) => api.post<ManagedUser>('/admin/users', data),
+  createMembership: (data: {
+    user_id?: number;
+    identifier?: string;
+    role: 'admin' | 'manager' | 'cashier';
+    is_default?: boolean;
+    is_active?: boolean;
+  }) => api.post<ManagedMembership>('/admin/memberships', data),
+  updateMembership: (
+    id: number,
+    data: {
+      role?: 'admin' | 'manager' | 'cashier';
+      is_default?: boolean;
+      is_active?: boolean;
+    },
+  ) => api.patch<ManagedMembership>(`/admin/memberships/${id}`, data),
 };
 
 export const productsApi = {
@@ -139,7 +260,9 @@ export const purchaseOrdersApi = {
   send: (id: number) => api.post(`/purchase-orders/${id}/send`),
   receive: (id: number, data: any, idempotencyKey?: string) => {
     const key = idempotencyKey || generateIdempotencyKey();
-    return api.post(`/purchase-orders/${id}/receive`, data, { headers: { 'Idempotency-Key': key } });
+    return api.post(`/purchase-orders/${id}/receive`, data, {
+      headers: { 'Idempotency-Key': key },
+    });
   },
   cancel: (id: number) => api.post(`/purchase-orders/${id}/cancel`),
   delete: (id: number) => api.delete(`/purchase-orders/${id}`),
@@ -149,9 +272,9 @@ export const metaApi = {
   getSaleReturnOptions: () => api.get('/meta/sale-return-options'),
 };
 
-// Helper to generate idempotency key
 export const generateIdempotencyKey = (): string =>
-  typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+  typeof crypto !== 'undefined'
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
 
 export default api;
-

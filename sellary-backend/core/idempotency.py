@@ -2,15 +2,16 @@
 Idempotency service for preventing duplicate request processing.
 
 Provides concurrency-safe idempotency checking and storage using
-database-level unique constraints and row-level locking.
+database-level unique constraints and company-scoped request records.
 """
 import hashlib
 import json
-from typing import Optional, Tuple, Any
-from sqlalchemy.orm import Session
+from typing import Any, Optional, Tuple
+
+from fastapi import HTTPException, Request
 from sqlalchemy.exc import IntegrityError
-from fastapi import Request, HTTPException
-from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+
 from models.idempotency_key import IdempotencyKey
 
 
@@ -30,7 +31,7 @@ class IdempotencyService:
         service = IdempotencyService(db)
         
         # Check if request was already processed
-        cached = service.get_cached_response(key, user_id, endpoint, request_body)
+        cached = service.get_cached_response(key, company_id, user_id, endpoint, request_body)
         if cached:
             return cached  # Return stored response
             
@@ -38,7 +39,7 @@ class IdempotencyService:
         response_data = process_request()
         
         # Store the response
-        service.store_response(key, user_id, endpoint, request_body, response_data, 201)
+        service.store_response(key, company_id, user_id, endpoint, request_body, response_data, 201)
     """
     
     def __init__(self, db: Session):
@@ -59,6 +60,7 @@ class IdempotencyService:
     def get_cached_response(
         self,
         key: str,
+        company_id: int,
         user_id: int,
         endpoint: str,
         request_body: Any,
@@ -68,6 +70,7 @@ class IdempotencyService:
         
         Args:
             key: Idempotency key from request header
+            company_id: ID of the active company/tenant
             user_id: ID of the authenticated user
             endpoint: Endpoint path (e.g., "/api/sales")
             request_body: Request body for hash comparison
@@ -80,6 +83,7 @@ class IdempotencyService:
         """
         existing = self.db.query(IdempotencyKey).filter(
             IdempotencyKey.key == key,
+            IdempotencyKey.company_id == company_id,
             IdempotencyKey.user_id == user_id,
             IdempotencyKey.endpoint == endpoint,
         ).first()
@@ -99,6 +103,7 @@ class IdempotencyService:
     def store_response(
         self,
         key: str,
+        company_id: int,
         user_id: int,
         endpoint: str,
         request_body: Any,
@@ -114,6 +119,7 @@ class IdempotencyService:
         
         Args:
             key: Idempotency key from request header
+            company_id: ID of the active company/tenant
             user_id: ID of the authenticated user
             endpoint: Endpoint path
             request_body: Original request body
@@ -121,6 +127,15 @@ class IdempotencyService:
             status_code: HTTP status code
         """
         request_hash = self.hash_request_body(request_body)
+
+        existing = self.db.query(IdempotencyKey).filter(
+            IdempotencyKey.key == key,
+            IdempotencyKey.company_id == company_id,
+            IdempotencyKey.user_id == user_id,
+            IdempotencyKey.endpoint == endpoint,
+        ).first()
+        if existing is not None:
+            raise IdempotencyConflictError(key)
         
         # Serialize response body
         if isinstance(response_body, dict):
@@ -134,6 +149,7 @@ class IdempotencyService:
         
         idempotency_record = IdempotencyKey(
             key=key,
+            company_id=company_id,
             user_id=user_id,
             endpoint=endpoint,
             request_hash=request_hash,
@@ -144,14 +160,10 @@ class IdempotencyService:
         try:
             self.db.add(idempotency_record)
             self.db.flush()  # Flush to detect conflicts before commit
-        except IntegrityError:
+        except IntegrityError as exc:
             # Race condition: another request stored the key first
             self.db.rollback()
-            # Try to get the cached response
-            cached = self.get_cached_response(key, user_id, endpoint, request_body)
-            if cached:
-                raise IdempotencyConflictError(key)
-            raise
+            raise IdempotencyConflictError(key) from exc
 
 
 def get_idempotency_key(request: Request) -> Optional[str]:

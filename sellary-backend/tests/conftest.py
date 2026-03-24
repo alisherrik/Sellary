@@ -1,17 +1,16 @@
 """
 Pytest configuration and fixtures for Sellary backend tests.
 """
-import os
 import sys
-from pathlib import Path
-from typing import Generator, AsyncGenerator
 from datetime import datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
+from typing import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 # Add backend directory to Python path
@@ -19,28 +18,38 @@ backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 from core.database import Base, get_db
-from core.security import create_access_token, get_password_hash
-from core.config import settings
+from core.security import create_access_token, create_owner_access_token, get_password_hash
 from main import app
-from models.user import User
-from models.product import Product, ProductType
 from models.category import Category
+from models.company import Company
+from models.company_membership import CompanyMembership
 from models.customer import Customer
-from models.sale import Sale, SaleStatus, PaymentMethod, SaleContextType
+from models.inventory_log import InventoryLog
+from models.product import Product, ProductType
+from models.purchase_order import PurchaseOrder
+from models.sale import PaymentMethod, Sale, SaleContextType, SaleStatus
 from models.sale_item import SaleItem
+from models.sale_return import SaleReturn
+from models.supplier import Supplier
+from models.user import User
 
 
-# ============================================================================
-# Database Fixtures
-# ============================================================================
-
-# Use in-memory SQLite for fast tests
 TEST_DATABASE_URL = "sqlite:///:memory:"
+
+TENANT_MODELS = (
+    Category,
+    Customer,
+    Product,
+    Supplier,
+    PurchaseOrder,
+    Sale,
+    SaleReturn,
+    InventoryLog,
+)
 
 
 @pytest.fixture(scope="session")
 def engine():
-    """Create test database engine."""
     engine = create_engine(
         TEST_DATABASE_URL,
         connect_args={"check_same_thread": False},
@@ -53,21 +62,31 @@ def engine():
 
 @pytest.fixture(scope="function")
 def db_session(engine) -> Generator[Session, None, None]:
-    """
-    Create a new database session for each test.
-    All changes are rolled back after each test.
-    """
     connection = engine.connect()
     transaction = connection.begin()
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=connection)
     session = TestingSessionLocal()
-
-    # Bind the session to the connection
     session.bind = connection
+
+    company = Company(name="Test Company", slug="test-company", is_active=True)
+    session.add(company)
+    session.flush()
+    session.info["default_company_id"] = company.id
+
+    def apply_default_company(session_: Session, flush_context, instances) -> None:
+        company_id = session_.info.get("default_company_id")
+        if company_id is None:
+          return
+        for instance in session_.new:
+            if isinstance(instance, TENANT_MODELS) and getattr(instance, "company_id", None) is None:
+                instance.company_id = company_id
+
+    event.listen(session, "before_flush", apply_default_company)
 
     try:
         yield session
     finally:
+        event.remove(session, "before_flush", apply_default_company)
         session.close()
         transaction.rollback()
         connection.close()
@@ -75,7 +94,6 @@ def db_session(engine) -> Generator[Session, None, None]:
 
 @pytest.fixture(scope="function")
 def client(db_session: Session) -> Generator[TestClient, None, None]:
-    """Create a test client with database dependency override."""
     def override_get_db():
         try:
             yield db_session
@@ -90,144 +108,196 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
     app.dependency_overrides.clear()
 
 
-# ============================================================================
-# Authentication Fixtures
-# ============================================================================
-
 @pytest.fixture
 def test_password() -> str:
-    """Standard test password."""
     return "testpassword123"
 
 
 @pytest.fixture
-def admin_user(db_session: Session, test_password: str) -> User:
-    """Create an admin user for testing."""
-    admin = User(
+def default_company(db_session: Session) -> Company:
+    company_id = db_session.info["default_company_id"]
+    return db_session.get(Company, company_id)
+
+
+@pytest.fixture
+def secondary_company(db_session: Session) -> Company:
+    company = Company(name="Second Company", slug="second-company", is_active=True)
+    db_session.add(company)
+    db_session.flush()
+    return company
+
+
+def _create_user_with_membership(
+    db_session: Session,
+    *,
+    username: str,
+    email: str,
+    password: str,
+    role: str,
+    company: Company,
+    is_active: bool = True,
+) -> User:
+    user = User(
+        username=username,
+        email=email,
+        full_name=f"Test {role.title()}",
+        hashed_password=get_password_hash(password),
+        global_role="standard",
+        role=role,
+        is_active=is_active,
+    )
+    db_session.add(user)
+    db_session.flush()
+    db_session.add(
+        CompanyMembership(
+            user_id=user.id,
+            company_id=company.id,
+            role=role,
+            is_default=True,
+            is_active=is_active,
+        )
+    )
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def admin_user(db_session: Session, default_company: Company, test_password: str) -> User:
+    return _create_user_with_membership(
+        db_session,
         username="admin",
         email="admin@test.com",
-        full_name="Test Admin",
+        password=test_password,
+        role="admin",
+        company=default_company,
+    )
+
+
+@pytest.fixture
+def manager_user(db_session: Session, default_company: Company, test_password: str) -> User:
+    return _create_user_with_membership(
+        db_session,
+        username="manager",
+        email="manager@test.com",
+        password=test_password,
+        role="manager",
+        company=default_company,
+    )
+
+
+@pytest.fixture
+def cashier_user(db_session: Session, default_company: Company, test_password: str) -> User:
+    return _create_user_with_membership(
+        db_session,
+        username="cashier",
+        email="cashier@test.com",
+        password=test_password,
+        role="cashier",
+        company=default_company,
+    )
+
+
+@pytest.fixture
+def inactive_user(db_session: Session, default_company: Company, test_password: str) -> User:
+    return _create_user_with_membership(
+        db_session,
+        username="inactive",
+        email="inactive@test.com",
+        password=test_password,
+        role="cashier",
+        company=default_company,
+        is_active=False,
+    )
+
+
+@pytest.fixture
+def super_admin_user(db_session: Session, test_password: str) -> User:
+    user = User(
+        username="owner",
+        email="owner@test.com",
+        full_name="Owner",
         hashed_password=get_password_hash(test_password),
+        global_role="super_admin",
         role="admin",
         is_active=True,
     )
-    db_session.add(admin)
+    db_session.add(user)
     db_session.commit()
-    db_session.refresh(admin)
-    return admin
+    db_session.refresh(user)
+    return user
 
 
-@pytest.fixture
-def manager_user(db_session: Session, test_password: str) -> User:
-    """Create a manager user for testing."""
-    manager = User(
-        username="manager",
-        email="manager@test.com",
-        full_name="Test Manager",
-        hashed_password=get_password_hash(test_password),
-        role="manager",
-        is_active=True,
-    )
-    db_session.add(manager)
-    db_session.commit()
-    db_session.refresh(manager)
-    return manager
-
-
-@pytest.fixture
-def cashier_user(db_session: Session, test_password: str) -> User:
-    """Create a cashier user for testing."""
-    cashier = User(
-        username="cashier",
-        email="cashier@test.com",
-        full_name="Test Cashier",
-        hashed_password=get_password_hash(test_password),
-        role="cashier",
-        is_active=True,
-    )
-    db_session.add(cashier)
-    db_session.commit()
-    db_session.refresh(cashier)
-    return cashier
-
-
-@pytest.fixture
-def inactive_user(db_session: Session, test_password: str) -> User:
-    """Create an inactive user for testing."""
-    inactive = User(
-        username="inactive",
-        email="inactive@test.com",
-        full_name="Inactive User",
-        hashed_password=get_password_hash(test_password),
-        role="cashier",
-        is_active=False,
-    )
-    db_session.add(inactive)
-    db_session.commit()
-    db_session.refresh(inactive)
-    return inactive
-
-
-@pytest.fixture
-def admin_token(admin_user: User) -> str:
-    """Create JWT token for admin user."""
+def _create_company_scoped_token(user: User, company_id: int, role: str) -> str:
     access_token_expires = timedelta(minutes=30)
-    token = create_access_token(
-        data={"sub": admin_user.username, "user_id": admin_user.id, "role": admin_user.role},
+    return create_access_token(
+        data={
+            "sub": user.username,
+            "user_id": user.id,
+            "company_id": company_id,
+            "role": role,
+            "global_role": user.global_role,
+        },
         expires_delta=access_token_expires,
     )
-    return token
+
+
+def _create_owner_token(user: User) -> str:
+    return create_owner_access_token(
+        data={
+            "sub": user.username,
+            "user_id": user.id,
+            "global_role": user.global_role,
+        }
+    )
 
 
 @pytest.fixture
-def manager_token(manager_user: User) -> str:
-    """Create JWT token for manager user."""
-    access_token_expires = timedelta(minutes=30)
-    token = create_access_token(
-        data={"sub": manager_user.username, "user_id": manager_user.id, "role": manager_user.role},
-        expires_delta=access_token_expires,
-    )
-    return token
+def admin_token(admin_user: User, default_company: Company) -> str:
+    return _create_company_scoped_token(admin_user, default_company.id, "admin")
 
 
 @pytest.fixture
-def cashier_token(cashier_user: User) -> str:
-    """Create JWT token for cashier user."""
-    access_token_expires = timedelta(minutes=30)
-    token = create_access_token(
-        data={"sub": cashier_user.username, "user_id": cashier_user.id, "role": cashier_user.role},
-        expires_delta=access_token_expires,
-    )
-    return token
+def manager_token(manager_user: User, default_company: Company) -> str:
+    return _create_company_scoped_token(manager_user, default_company.id, "manager")
+
+
+@pytest.fixture
+def cashier_token(cashier_user: User, default_company: Company) -> str:
+    return _create_company_scoped_token(cashier_user, default_company.id, "cashier")
 
 
 @pytest.fixture
 def admin_headers(admin_token: str) -> dict:
-    """Create headers with admin authorization token."""
     return {"Authorization": f"Bearer {admin_token}"}
 
 
 @pytest.fixture
 def manager_headers(manager_token: str) -> dict:
-    """Create headers with manager authorization token."""
     return {"Authorization": f"Bearer {manager_token}"}
 
 
 @pytest.fixture
 def cashier_headers(cashier_token: str) -> dict:
-    """Create headers with cashier authorization token."""
     return {"Authorization": f"Bearer {cashier_token}"}
 
 
-# ============================================================================
-# Model Entity Fixtures
-# ============================================================================
+@pytest.fixture
+def owner_token(super_admin_user: User) -> str:
+    return _create_owner_token(super_admin_user)
+
 
 @pytest.fixture
-def test_category(db_session: Session) -> Category:
-    """Create a test category."""
+def owner_headers(owner_token: str) -> dict:
+    return {"Authorization": f"Bearer {owner_token}"}
+
+
+@pytest.fixture
+def test_category(db_session: Session, default_company: Company) -> Category:
     import uuid
+
     category = Category(
+        company_id=default_company.id,
         name=f"Test Category {uuid.uuid4().hex[:8]}",
         description="A test category",
     )
@@ -238,18 +308,18 @@ def test_category(db_session: Session) -> Category:
 
 
 @pytest.fixture
-def test_product(db_session: Session, test_category: Category) -> Product:
-    """Create a test product."""
-    from models.product import ProductType
+def test_product(db_session: Session, default_company: Company, test_category: Category) -> Product:
     import uuid
+
     product = Product(
-        name=f"Test Product {uuid.uuid4().hex[:8]}",
+        company_id=default_company.id,
+        name="Test Product",
         barcode=f"TEST{uuid.uuid4().hex[:8]}",
         description="A test product",
         category_id=test_category.id,
-        cost_price=10.00,
-        sell_price=15.00,
-        tax_percent=10.00,
+        cost_price=Decimal("10.00"),
+        sell_price=Decimal("15.00"),
+        tax_percent=Decimal("10.00"),
         stock_quantity=100,
         min_stock_level=5,
         is_active=True,
@@ -262,19 +332,18 @@ def test_product(db_session: Session, test_category: Category) -> Product:
 
 
 @pytest.fixture
-def test_products_bulk(db_session: Session, test_category: Category) -> list[Product]:
-    """Create multiple test products."""
-    from models.product import ProductType
+def test_products_bulk(db_session: Session, default_company: Company, test_category: Category) -> list[Product]:
     products = []
     for i in range(5):
         product = Product(
+            company_id=default_company.id,
             name=f"Test Product {i}",
             barcode=f"BAR{i:06d}",
             description=f"Test product number {i}",
             category_id=test_category.id,
-            cost_price=10.00 + i,
-            sell_price=15.00 + i,
-            tax_percent=10.00,
+            cost_price=Decimal(f"{10 + i}.00"),
+            sell_price=Decimal(f"{15 + i}.00"),
+            tax_percent=Decimal("10.00"),
             stock_quantity=100 - i * 10,
             min_stock_level=5,
             is_active=True,
@@ -290,14 +359,15 @@ def test_products_bulk(db_session: Session, test_category: Category) -> list[Pro
 
 
 @pytest.fixture
-def test_customer(db_session: Session) -> Customer:
-    """Create a test customer."""
+def test_customer(db_session: Session, default_company: Company) -> Customer:
     import uuid
+
     uid = uuid.uuid4().hex[:8]
     customer = Customer(
-        name=f"Test Customer {uid}",
+        company_id=default_company.id,
+        name="Test Customer",
         email=f"customer{uid}@test.com",
-        phone=f"+992 123 {uid}",
+        phone=f"+992123{uid}",
         address="Test Address 123",
     )
     db_session.add(customer)
@@ -309,13 +379,13 @@ def test_customer(db_session: Session) -> Customer:
 @pytest.fixture
 def test_sale(
     db_session: Session,
+    default_company: Company,
     test_customer: Customer,
     cashier_user: User,
-    test_product: Product
+    test_product: Product,
 ) -> Sale:
-    """Create a test sale with items."""
-    # Create sale with explicit created_at to avoid SQLite storing "now()" string
     sale = Sale(
+        company_id=default_company.id,
         customer_id=test_customer.id,
         cashier_id=cashier_user.id,
         context_type=SaleContextType.RETAIL,
@@ -328,9 +398,8 @@ def test_sale(
         created_at=datetime.now(),
     )
     db_session.add(sale)
-    db_session.flush()  # Get the sale ID
+    db_session.flush()
 
-    # Create sale item
     sale_item = SaleItem(
         sale_id=sale.id,
         product_id=test_product.id,
@@ -345,7 +414,6 @@ def test_sale(
     )
     db_session.add(sale_item)
 
-    # Update product stock
     test_product.stock_quantity -= 2
 
     db_session.flush()
@@ -353,15 +421,15 @@ def test_sale(
     return sale
 
 
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-def create_auth_headers(username: str, user_id: int, role: str) -> dict:
-    """Helper to create authorization headers."""
-    access_token_expires = timedelta(minutes=30)
+def create_auth_headers(username: str, user_id: int, company_id: int, role: str) -> dict:
     token = create_access_token(
-        data={"sub": username, "user_id": user_id, "role": role},
-        expires_delta=access_token_expires,
+        data={
+            "sub": username,
+            "user_id": user_id,
+            "company_id": company_id,
+            "role": role,
+            "global_role": "standard",
+        },
+        expires_delta=timedelta(minutes=30),
     )
     return {"Authorization": f"Bearer {token}"}

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { QueryCacheNotifyEvent } from '@tanstack/react-query';
 import {
     queryKeys,
     useDashboard,
@@ -14,6 +13,7 @@ import {
     useTopProducts
 } from '../useQueries';
 import * as api from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 
 /**
  * UNIT TESTS FOR USEQUERIES HOOK
@@ -53,51 +53,27 @@ const createMockAxiosResponse = <T,>(data: T) => ({
     config: {} as any,
 });
 
-// Mock ServerHealthProvider with a test provider that can control the state
 import { ReactNode } from 'react';
-import { createContext, useContext } from 'react';
-
-interface TestHealthContextType {
-    isServerReachable: boolean;
-    isNavigatorOnline: boolean;
-    isChecking: boolean;
-}
-
-const TestHealthContext = createContext<TestHealthContextType>({
-    isServerReachable: false,
-    isNavigatorOnline: true,
-    isChecking: false,
-});
-
-// Export for use in mock
-export { TestHealthContext };
-
-// Use useContext to get the actual context value
-const useTestServerHealth = () => useContext(TestHealthContext);
-
-function TestServerHealthProvider({
-    children,
-    isServerReachable = true,
-}: {
-    children: ReactNode;
-    isServerReachable?: boolean;
-}) {
-    return (
-        <TestHealthContext.Provider
-            value={{
-                isServerReachable: isServerReachable ?? true,
-                isNavigatorOnline: true,
-                isChecking: false,
-            }}
-        >
-            {children}
-        </TestHealthContext.Provider>
-    );
-}
 
 // Mock the actual ServerHealthProvider hook
 // Use a module-level variable to control the mock return value
 let mockServerReachable = true;
+const TEST_COMPANY_ID = 101;
+const TEST_COMPANY = {
+    id: TEST_COMPANY_ID,
+    name: 'Acme Retail',
+    slug: 'acme-retail',
+    is_active: true,
+    role: 'admin' as const,
+    is_default: true,
+};
+const TEST_USER = {
+    id: 1,
+    username: 'owner',
+    email: 'owner@example.com',
+    is_active: true,
+    created_at: '2026-03-18T00:00:00Z',
+};
 
 const mockUseServerHealth = vi.fn(() => ({
     isServerReachable: mockServerReachable,
@@ -110,9 +86,47 @@ vi.mock('@/providers/ServerHealthProvider', () => ({
     ServerHealthProvider: ({ children }: { children: any }) => children,
 }));
 
-const createWrapper = (isServerReachable: boolean = true) => {
+const resetAuthState = () => {
+    if (typeof window !== 'undefined') {
+        window.localStorage.clear();
+    }
+
+    useAuthStore.setState({
+        user: null,
+        companies: [],
+        currentCompany: null,
+        loginToken: null,
+        accessToken: null,
+        isAuthenticated: false,
+    });
+};
+
+const seedAuthState = (companyId: number | null = TEST_COMPANY_ID) => {
+    if (companyId === null) {
+        resetAuthState();
+        return;
+    }
+
+    const currentCompany = {
+        ...TEST_COMPANY,
+        id: companyId,
+        slug: `company-${companyId}`,
+    };
+
+    useAuthStore.setState({
+        user: TEST_USER,
+        companies: [currentCompany],
+        currentCompany,
+        loginToken: null,
+        accessToken: 'test-access-token',
+        isAuthenticated: true,
+    });
+};
+
+const createWrapper = (isServerReachable: boolean = true, companyId: number | null = TEST_COMPANY_ID) => {
     // Update the module-level variable and set mock implementation
     mockServerReachable = isServerReachable;
+    seedAuthState(companyId);
 
     // Use mockImplementation instead of mockReturnValue for more dynamic behavior
     mockUseServerHealth.mockImplementation(() => ({
@@ -132,33 +146,36 @@ const createWrapper = (isServerReachable: boolean = true) => {
 
     const Wrapper = ({ children }: { children: ReactNode }) => (
         <QueryClientProvider client={queryClient}>
-            <TestServerHealthProvider isServerReachable={isServerReachable}>
-                {children}
-            </TestServerHealthProvider>
+            {children}
         </QueryClientProvider>
     );
     Wrapper.displayName = 'TestWrapper';
     return Wrapper;
 };
 
+beforeEach(() => {
+    vi.clearAllMocks();
+    resetAuthState();
+});
+
 describe('useQueries - Query Keys', () => {
     it('should have consistent query keys for dashboard', () => {
-        expect(queryKeys.dashboard).toEqual(['dashboard']);
+        expect(queryKeys.dashboard(TEST_COMPANY_ID)).toEqual(['dashboard', TEST_COMPANY_ID]);
     });
 
     it('should have consistent query keys for products with params', () => {
-        expect(queryKeys.products({ limit: 10 })).toEqual(['products', { limit: 10 }]);
-        expect(queryKeys.products()).toEqual(['products', undefined]);
+        expect(queryKeys.products(TEST_COMPANY_ID, { limit: 10 })).toEqual(['products', TEST_COMPANY_ID, { limit: 10 }]);
+        expect(queryKeys.products(null)).toEqual(['products', 'no-company', undefined]);
     });
 
     it('should have consistent query keys for sales with params', () => {
-        expect(queryKeys.sales({ limit: 20 })).toEqual(['sales', { limit: 20 }]);
+        expect(queryKeys.sales(TEST_COMPANY_ID, { limit: 20 })).toEqual(['sales', TEST_COMPANY_ID, { limit: 20 }]);
     });
 
     it('should have consistent query keys for reports', () => {
-        expect(queryKeys.dailySales(7)).toEqual(['dailySales', 7]);
-        expect(queryKeys.profit(30)).toEqual(['profit', 30]);
-        expect(queryKeys.topProducts(7, 10)).toEqual(['topProducts', 7, 10]);
+        expect(queryKeys.dailySales(TEST_COMPANY_ID, 7)).toEqual(['dailySales', TEST_COMPANY_ID, 7]);
+        expect(queryKeys.profit(TEST_COMPANY_ID, 30)).toEqual(['profit', TEST_COMPANY_ID, 30]);
+        expect(queryKeys.topProducts(TEST_COMPANY_ID, 7, 10)).toEqual(['topProducts', TEST_COMPANY_ID, 7, 10]);
     });
 });
 

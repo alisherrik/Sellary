@@ -1,6 +1,7 @@
 from decimal import Decimal
 from sqlalchemy import Column, Integer, Numeric, DateTime, ForeignKey, String, Index
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from core.database import Base
 
 
@@ -13,12 +14,12 @@ class SaleItem(Base):
     quantity = Column(Integer, nullable=False)
     quantity_returned = Column(Integer, nullable=False, default=0)  # Track returned quantity
     unit_price = Column(Numeric(10, 2), nullable=False)
-    tax_percent = Column(Numeric(5, 2), nullable=False)
-    tax_amount = Column(Numeric(10, 2), nullable=False)
+    tax_percent = Column(Numeric(5, 2), nullable=False, default=Decimal("0.00"))
+    tax_amount = Column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
     discount_amount = Column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
     subtotal = Column(Numeric(12, 2), nullable=False)
     total = Column(Numeric(12, 2), nullable=False)
-    created_at = Column(DateTime, server_default="now()")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product", back_populates="sale_items")

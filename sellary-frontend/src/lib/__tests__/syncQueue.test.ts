@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { addToSyncQueue, getSyncQueue, removeFromSyncQueue, SyncItem } from '../syncQueue';
+import { getTenantStorageKey, setCurrentCompanyId, SYNC_QUEUE_STORAGE_KEY } from '../session';
 
 /**
  * UNIT TESTS FOR SYNC QUEUE
@@ -19,11 +20,12 @@ vi.mock('idb-keyval', () => ({
 
 import { get, set } from 'idb-keyval';
 
-const QUEUE_KEY = 'offline-sync-queue';
+const QUEUE_KEY = getTenantStorageKey(SYNC_QUEUE_STORAGE_KEY, null);
 
 describe('syncQueue - addToSyncQueue', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        setCurrentCompanyId(null);
     });
 
     it('should add item to empty queue', async () => {
@@ -53,6 +55,8 @@ describe('syncQueue - addToSyncQueue', () => {
                     body: { total: 100 },
                     type: 'sale',
                     timestamp: expect.any(Number),
+                    retryCount: 0,
+                    status: 'pending',
                 }),
             ])
         );
@@ -65,6 +69,8 @@ describe('syncQueue - addToSyncQueue', () => {
             body: { total: 100 },
             type: 'sale',
             timestamp: expect.any(Number),
+            retryCount: 0,
+            status: 'pending',
         });
     });
 
@@ -166,6 +172,7 @@ describe('syncQueue - addToSyncQueue', () => {
 describe('syncQueue - getSyncQueue', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        setCurrentCompanyId(null);
     });
 
     it('should return empty array when no items in queue', async () => {
@@ -245,6 +252,7 @@ describe('syncQueue - getSyncQueue', () => {
 describe('syncQueue - removeFromSyncQueue', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        setCurrentCompanyId(null);
     });
 
     it('should remove item from queue by ID', async () => {
@@ -342,6 +350,7 @@ describe('syncQueue - removeFromSyncQueue', () => {
 describe('syncQueue - Integration Scenarios', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        setCurrentCompanyId(null);
     });
 
     it('should handle complete workflow: add, get, remove', async () => {

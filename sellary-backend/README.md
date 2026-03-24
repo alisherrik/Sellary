@@ -1,89 +1,117 @@
 # Sellary Backend
 
-FastAPI backend for the Sellary platform.
+FastAPI backend for Sellary with multi-company v1 support.
+
+## Multi-Company Defaults
+
+- One database
+- Shared schema
+- Tenant isolation through `company_id`
+- Users can belong to multiple companies through `company_memberships`
+- Auth flow is `login -> select company -> company-scoped access token`
+- Offline multi-company remains out of scope for this wave
 
 ## Setup
 
-1. Install dependencies:
+1. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Set up PostgreSQL database:
-```sql
-CREATE DATABASE sellary_db;
-```
-
-3. Configure environment:
+2. Configure `.env`
 ```bash
 cp .env.example .env
-# Edit .env with your database credentials
 ```
 
-4. Run database migrations:
+3. Apply migrations
 ```bash
 alembic upgrade head
 ```
 
-5. Create admin user:
+4. Bootstrap the first company and owner
 ```bash
-python seed_admin.py
+python bootstrap_company.py ^
+  --company-name "Sellary Demo" ^
+  --company-slug "sellary-demo" ^
+  --owner-username "admin" ^
+  --owner-email "admin@example.com" ^
+  --owner-password "admin123" ^
+  --owner-role "admin"
 ```
 
-6. Run the server:
+5. Optionally seed demo cashier and demo data
+```bash
+python seed_admin.py
+python seed_demo_data.py
+```
+
+6. Run the API
 ```bash
 uvicorn main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`
-API documentation at `http://localhost:8000/docs`
+API base URL: `http://localhost:8000`
 
-## Default Admin Credentials
+Docs: `http://localhost:8000/docs`
 
-- Username: `admin`
-- Password: `admin123`
+## Auth Contract
 
-## API Endpoints
+- `POST /api/auth/login`
+  - Returns `login_token`, `user`, and `companies[]`
+- `POST /api/auth/select-company`
+  - Exchanges `login_token` for a company-scoped `access_token`
+- `POST /api/auth/switch-company`
+  - Re-issues a company-scoped `access_token` for another membership
+- `GET /api/auth/me`
+  - Returns `user`, `current_company`, and `companies[]`
+- `POST /api/owner/auth/login`
+  - Returns an owner-only `access_token` for the global control panel
+- `GET /api/owner/session`
+  - Returns the current super admin owner session
+- `POST /api/owner/companies/{company_id}/enter`
+  - Opens a temporary admin company session without a stored membership
 
-### Authentication
-- POST `/api/auth/login` - Login
-- GET `/api/auth/me` - Get current user
-- POST `/api/auth/logout` - Logout
+All business endpoints require a company-scoped access token.
 
-### Products
-- GET `/api/products` - List products
-- POST `/api/products` - Create product
-- GET `/api/products/{id}` - Get product
-- PUT `/api/products/{id}` - Update product
-- DELETE `/api/products/{id}` - Delete product
-- GET `/api/products/barcode/{barcode}` - Find by barcode
-- GET `/api/products/search?q=` - Search products
+## Bootstrap Scripts
 
-### Sales
-- POST `/api/sales` - Create sale
-- GET `/api/sales` - List sales
-- GET `/api/sales/{id}` - Get sale details
-- POST `/api/sales/{id}/cancel` - Cancel sale
+- `python reset_database.py --yes`
+  - Fresh-start destructive reset for local/dev environments
+- `python bootstrap_company.py ...`
+  - Creates the first company and owner account
+- Schema creation/reset and migration upgrade flow also auto-create or update the owner-panel super admin when
+  `SUPER_ADMIN_USERNAME`, `SUPER_ADMIN_EMAIL`, and `SUPER_ADMIN_PASSWORD` are present in `.env`
+- `python attach_user_to_company.py ...`
+  - Attaches an existing or new user to a company
+- `python bootstrap_super_admin.py`
+  - Manual fallback to create or update the env-driven owner panel account
+- `python seed_admin.py`
+  - Ensures default demo company plus `admin` and `cashier`
+- `python seed_demo_data.py`
+  - Re-seeds deterministic demo tenant data for one company
 
-### Inventory
-- POST `/api/inventory/adjust` - Adjust stock
-- GET `/api/inventory/logs` - View inventory logs
-- GET `/api/inventory/valuation` - Get inventory value
+## Idempotent Endpoints
 
-### Reports
-- GET `/api/reports/dashboard` - Dashboard widgets
-- GET `/api/reports/daily-sales` - Daily sales report
-- GET `/api/reports/profit` - Profit report
-- GET `/api/reports/top-products` - Top selling products
+These endpoints require `Idempotency-Key` headers with 16-64 characters:
 
-### Categories
-- GET `/api/categories` - List categories
-- POST `/api/categories` - Create category
-- PUT `/api/categories/{id}` - Update category
-- DELETE `/api/categories/{id}` - Delete category
+- `POST /api/sales`
+- `POST /api/sales/{sale_id}/cancel`
+- `POST /api/sales/{sale_id}/return`
+- `POST /api/inventory/adjust`
+- `POST /api/purchase-orders/{po_id}/receive`
 
-### Customers
-- GET `/api/customers` - List customers
-- POST `/api/customers` - Create customer
-- PUT `/api/customers/{id}` - Update customer
-- DELETE `/api/customers/{id}` - Delete customer
+## Verification
+
+Backend test suite:
+```bash
+pytest tests/integration tests/unit
+```
+
+Compile smoke check:
+```bash
+python -m compileall api core models repositories schemas services main.py
+```
+
+## Runbook
+
+Operator steps and recovery notes live in `RUNBOOK.md`.

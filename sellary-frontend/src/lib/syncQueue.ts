@@ -1,4 +1,10 @@
 import { get, set } from 'idb-keyval';
+import {
+    SYNC_QUEUE_STORAGE_KEY,
+    getActiveAccessToken,
+    getTenantStorageKey,
+    getCurrentCompanyId,
+} from './session';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // OFFLINE QUEUE - IndexedDB Storage (Atomic, Durable)
@@ -30,7 +36,7 @@ export interface SyncResult {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // INDEXEDDB CONSTANTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const QUEUE_KEY = 'offline-sync-queue';
+const QUEUE_KEY = SYNC_QUEUE_STORAGE_KEY;
 const CONFIG_KEY = 'offline-sync-config';
 const DEFAULT_CONFIG: SyncConfig = {
     autoSync: true,
@@ -58,7 +64,7 @@ export async function setSyncConfig(config: SyncConfig): Promise<void> {
  * Survives: refresh, crash, update
  */
 export async function addToSyncQueue(item: Omit<SyncItem, 'id' | 'timestamp' | 'retryCount' | 'status'>): Promise<SyncItem> {
-    const queue = (await get<SyncItem[]>(QUEUE_KEY)) || [];
+    const queue = (await get<SyncItem[]>(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()))) || [];
     const newItem: SyncItem = {
         ...item,
         id: crypto.randomUUID(),
@@ -67,7 +73,7 @@ export async function addToSyncQueue(item: Omit<SyncItem, 'id' | 'timestamp' | '
         status: 'pending'
     };
     queue.push(newItem);
-    await set(QUEUE_KEY, queue);
+    await set(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()), queue);
     return newItem;
 }
 
@@ -75,7 +81,7 @@ export async function addToSyncQueue(item: Omit<SyncItem, 'id' | 'timestamp' | '
  * Get all items from queue (for UI display)
  */
 export async function getSyncQueue(): Promise<SyncItem[]> {
-    return (await get<SyncItem[]>(QUEUE_KEY)) || [];
+    return (await get<SyncItem[]>(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()))) || [];
 }
 
 /**
@@ -83,9 +89,9 @@ export async function getSyncQueue(): Promise<SyncItem[]> {
  * ATOMIC operation
  */
 export async function removeFromSyncQueue(id: string): Promise<void> {
-    const queue = (await get<SyncItem[]>(QUEUE_KEY)) || [];
+    const queue = (await get<SyncItem[]>(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()))) || [];
     const newQueue = queue.filter(item => item.id !== id);
-    await set(QUEUE_KEY, newQueue);
+    await set(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()), newQueue);
 }
 
 /**
@@ -93,11 +99,11 @@ export async function removeFromSyncQueue(id: string): Promise<void> {
  * Used during sync process
  */
 export async function updateSyncItem(id: string, updates: Partial<SyncItem>): Promise<void> {
-    const queue = (await get<SyncItem[]>(QUEUE_KEY)) || [];
+    const queue = (await get<SyncItem[]>(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()))) || [];
     const index = queue.findIndex(item => item.id === id);
     if (index !== -1) {
         queue[index] = { ...queue[index], ...updates };
-        await set(QUEUE_KEY, queue);
+        await set(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()), queue);
     }
 }
 
@@ -106,7 +112,7 @@ export async function updateSyncItem(id: string, updates: Partial<SyncItem>): Pr
  * Used by user manually clearing queue
  */
 export async function clearSyncQueue(): Promise<void> {
-    await set(QUEUE_KEY, []);
+    await set(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()), []);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -133,8 +139,7 @@ function sleep(ms: number): Promise<void> {
  * Get auth token from localStorage
  */
 function getAuthToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('token');
+    return getActiveAccessToken();
 }
 
 /**

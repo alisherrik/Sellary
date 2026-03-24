@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useServerHealth, ServerHealthProvider } from '../ServerHealthProvider';
@@ -39,6 +39,15 @@ const createWrapper = () => {
     return Wrapper;
 };
 
+beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+});
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
+
 describe('ServerHealthProvider - Initial State', () => {
     it('should start with checking state true and server unreachable (offline-first)', async () => {
         global.fetch = vi.fn(() =>
@@ -56,6 +65,10 @@ describe('ServerHealthProvider - Initial State', () => {
         expect(result.current.isChecking).toBe(true);
         expect(result.current.isServerReachable).toBe(false);
         expect(result.current.isNavigatorOnline).toBe(true);
+
+        await waitFor(() => {
+            expect(result.current.isChecking).toBe(false);
+        });
     });
 
     it('should complete health check and set server as reachable', async () => {
@@ -288,6 +301,10 @@ describe('ServerHealthProvider - Context Value', () => {
         });
 
         expect(typeof result.current.checkHealth).toBe('function');
+
+        await waitFor(() => {
+            expect(result.current.isChecking).toBe(false);
+        });
     });
 
     it('should provide isServerReachable boolean', async () => {
@@ -322,6 +339,10 @@ describe('ServerHealthProvider - Context Value', () => {
         });
 
         expect(typeof result.current.isNavigatorOnline).toBe('boolean');
+
+        await waitFor(() => {
+            expect(result.current.isChecking).toBe(false);
+        });
     });
 
     it('should provide isChecking boolean', async () => {
@@ -337,5 +358,9 @@ describe('ServerHealthProvider - Context Value', () => {
         });
 
         expect(typeof result.current.isChecking).toBe('boolean');
+
+        await waitFor(() => {
+            expect(result.current.isChecking).toBe(false);
+        });
     });
 });

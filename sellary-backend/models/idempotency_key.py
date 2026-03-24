@@ -1,7 +1,8 @@
 """
 Idempotency Key model for preventing duplicate request processing.
 """
-from sqlalchemy import Column, Integer, String, Text, DateTime, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, Index, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.database import Base
 
@@ -16,6 +17,7 @@ class IdempotencyKey(Base):
     __tablename__ = "idempotency_keys"
 
     id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     key = Column(String(64), nullable=False)  # UUID format
     user_id = Column(Integer, nullable=False)
     endpoint = Column(String(255), nullable=False)
@@ -24,6 +26,8 @@ class IdempotencyKey(Base):
     status_code = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
+    company = relationship("Company", back_populates="idempotency_keys")
+
     __table_args__ = (
-        Index('ix_idempotency_key_user_endpoint', 'key', 'user_id', 'endpoint', unique=True),
+        Index('ix_idempotency_key_company_user_endpoint', 'key', 'company_id', 'user_id', 'endpoint', unique=True),
     )

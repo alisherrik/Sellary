@@ -14,7 +14,7 @@ from core.security import get_password_hash
 class TestIdempotencyService:
     """Tests for idempotency key management."""
 
-    def test_store_and_retrieve_response(self, db_session):
+    def test_store_and_retrieve_response(self, db_session, default_company):
         """Test storing and retrieving cached response."""
         user = User(
             username="testuser",
@@ -30,6 +30,7 @@ class TestIdempotencyService:
         # Store a response
         service.store_response(
             key="test-key-123",
+            company_id=default_company.id,
             user_id=user.id,
             endpoint="/api/test",
             request_body={"param": "value"},
@@ -40,6 +41,7 @@ class TestIdempotencyService:
         # Retrieve the response
         cached = service.get_cached_response(
             key="test-key-123",
+            company_id=default_company.id,
             user_id=user.id,
             endpoint="/api/test",
             request_body={"param": "value"},
@@ -50,12 +52,13 @@ class TestIdempotencyService:
         assert response_body == {"result": "success"}
         assert status_code == 200
 
-    def test_get_nonexistent_key(self, db_session):
+    def test_get_nonexistent_key(self, db_session, default_company):
         """Test getting response for nonexistent key."""
         service = IdempotencyService(db_session)
 
         cached = service.get_cached_response(
             key="nonexistent-key",
+            company_id=default_company.id,
             user_id=1,
             endpoint="/api/test",
             request_body={},
@@ -63,7 +66,7 @@ class TestIdempotencyService:
 
         assert cached is None
 
-    def test_duplicate_key_raises_error(self, db_session):
+    def test_duplicate_key_raises_error(self, db_session, default_company):
         """Test that duplicate idempotency key raises error."""
         user = User(
             username="testuser",
@@ -79,6 +82,7 @@ class TestIdempotencyService:
         # Store first response
         service.store_response(
             key="duplicate-key",
+            company_id=default_company.id,
             user_id=user.id,
             endpoint="/api/test",
             request_body={},
@@ -90,6 +94,7 @@ class TestIdempotencyService:
         with pytest.raises(IdempotencyConflictError):
             service.store_response(
                 key="duplicate-key",
+                company_id=default_company.id,
                 user_id=user.id,
                 endpoint="/api/test",
                 request_body={},
@@ -97,7 +102,7 @@ class TestIdempotencyService:
                 status_code=200,
             )
 
-    def test_different_request_bodies_different_keys(self, db_session):
+    def test_different_request_bodies_different_keys(self, db_session, default_company):
         """Test that different request bodies create different idempotency records."""
         user = User(
             username="testuser",
@@ -113,6 +118,7 @@ class TestIdempotencyService:
         # Store first request
         service.store_response(
             key="key-123",
+            company_id=default_company.id,
             user_id=user.id,
             endpoint="/api/test",
             request_body={"param": "value1"},
@@ -123,6 +129,7 @@ class TestIdempotencyService:
         # Store second request with different body (should work)
         service.store_response(
             key="key-456",  # Different key
+            company_id=default_company.id,
             user_id=user.id,
             endpoint="/api/test",
             request_body={"param": "value2"},  # Different body
@@ -133,12 +140,14 @@ class TestIdempotencyService:
         # Both should be retrievable
         cached1 = service.get_cached_response(
             key="key-123",
+            company_id=default_company.id,
             user_id=user.id,
             endpoint="/api/test",
             request_body={"param": "value1"},
         )
         cached2 = service.get_cached_response(
             key="key-456",
+            company_id=default_company.id,
             user_id=user.id,
             endpoint="/api/test",
             request_body={"param": "value2"},
@@ -149,7 +158,7 @@ class TestIdempotencyService:
         assert cached1[0] == {"result": "first"}
         assert cached2[0] == {"result": "second"}
 
-    def test_idempotency_key_has_timestamp(self, db_session):
+    def test_idempotency_key_has_timestamp(self, db_session, default_company):
         """Test that idempotency keys have created_at timestamps."""
         user = User(
             username="testuser",
@@ -164,6 +173,7 @@ class TestIdempotencyService:
 
         service.store_response(
             key="expire-test",
+            company_id=default_company.id,
             user_id=user.id,
             endpoint="/api/test",
             request_body={},
@@ -184,17 +194,18 @@ class TestIdempotencyService:
 class TestInventoryAuditTrail:
     """Tests for inventory audit trail functionality."""
 
-    def test_inventory_log_records_changes(self, db_session):
+    def test_inventory_log_records_changes(self, db_session, default_company):
         """Test that inventory logs record all changes."""
         from models.product import Product, ProductType
         from models.category import Category
         from models.inventory_log import InventoryLog
 
-        category = Category(name="Test Category")
+        category = Category(company_id=default_company.id, name="Test Category")
         db_session.add(category)
         db_session.flush()
 
         product = Product(
+            company_id=default_company.id,
             name="Test Product",
             barcode="TEST123",
             category_id=category.id,
@@ -208,6 +219,7 @@ class TestInventoryAuditTrail:
 
         # Create an inventory log
         log = InventoryLog(
+            company_id=default_company.id,
             product_id=product.id,
             user_id=1,
             quantity_change=-10,
@@ -231,13 +243,13 @@ class TestInventoryAuditTrail:
         assert logs[0].reason == "Manual adjustment"
         assert logs[0].reference_type == "manual_adjust"
 
-    def test_inventory_log_includes_user_info(self, db_session):
+    def test_inventory_log_includes_user_info(self, db_session, default_company):
         """Test that inventory logs include user information."""
         from models.product import Product, ProductType
         from models.category import Category
         from models.inventory_log import InventoryLog
 
-        category = Category(name="Test Category")
+        category = Category(company_id=default_company.id, name="Test Category")
         db_session.add(category)
         db_session.flush()
 
@@ -251,6 +263,7 @@ class TestInventoryAuditTrail:
         db_session.flush()
 
         product = Product(
+            company_id=default_company.id,
             name="Test Product",
             barcode="TEST123",
             category_id=category.id,
@@ -263,6 +276,7 @@ class TestInventoryAuditTrail:
         db_session.flush()
 
         log = InventoryLog(
+            company_id=default_company.id,
             product_id=product.id,
             user_id=user.id,
             quantity_change=-5,
@@ -283,17 +297,18 @@ class TestInventoryAuditTrail:
         assert log_with_user.user is not None
         assert log_with_user.user.username == "testuser"
 
-    def test_inventory_log_references(self, db_session):
+    def test_inventory_log_references(self, db_session, default_company):
         """Test that inventory logs can reference sales/purchase orders."""
         from models.product import Product, ProductType
         from models.category import Category
         from models.inventory_log import InventoryLog
 
-        category = Category(name="Test Category")
+        category = Category(company_id=default_company.id, name="Test Category")
         db_session.add(category)
         db_session.flush()
 
         product = Product(
+            company_id=default_company.id,
             name="Test Product",
             barcode="TEST123",
             category_id=category.id,
@@ -307,6 +322,7 @@ class TestInventoryAuditTrail:
 
         # Create log referencing a sale
         log = InventoryLog(
+            company_id=default_company.id,
             product_id=product.id,
             user_id=1,
             quantity_change=-2,

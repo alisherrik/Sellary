@@ -1,363 +1,384 @@
-import random
-from decimal import Decimal
+"""
+Seed deterministic multi-company demo data for local development.
+
+The script scopes all demo data to a single company and safely re-seeds that
+company by clearing only its tenant-owned records first.
+"""
+import argparse
 from datetime import datetime, timedelta
-from faker import Faker
-from sqlalchemy import text
+from decimal import Decimal
+
+from bootstrap_utils import ensure_company, ensure_membership, ensure_schema, ensure_user
 from core.database import SessionLocal
 from models.category import Category
-from models.product import Product
-from models.user import User
 from models.customer import Customer
-from models.supplier import Supplier
-from models.sale import Sale, SaleStatus, PaymentMethod
-from models.sale_item import SaleItem
+from models.idempotency_key import IdempotencyKey
 from models.inventory_log import InventoryLog
-from models.sale_return import SaleReturn
-from models.sale_return import SaleReturnItem
-from core.security import get_password_hash
+from models.product import Product, ProductType
+from models.purchase_order import PurchaseOrder
+from models.purchase_order_item import PurchaseOrderItem
+from models.sale import PaymentMethod, Sale, SaleContextType, SaleStatus
+from models.sale_item import SaleItem
+from models.sale_return import SaleReturn, SaleReturnItem
+from models.supplier import Supplier
 
-# Initialize Faker with Russian locale
-fake = Faker('ru_RU')
 
-def cleanup_data(db):
-    print("🧹 Cleaning up existing data...")
-    try:
-        # Disable foreign key checks temporarily if needed, or delete in correct order
-        # For Postgres, TRUNCATE CASCADE is efficiently brute force
-        tables = [
-            "sale_return_items", "sale_returns", 
-            "inventory_logs", "sale_items", "sales", 
-            "products", "categories", "customers", "suppliers",
-            "purchase_order_items", "purchase_orders",
-            "idempotency_keys"
-        ]
-        
-        for table in tables:
-            try:
-                db.execute(text(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE"))
-            except Exception as e:
-                print(f"⚠️ Could not truncate {table} (might not exist): {e}")
-                
-        db.commit()
-        print("✅ Data wiped successfully.")
-    except Exception as e:
-        print(f"❌ Error during cleanup: {e}")
-        db.rollback()
+DEFAULT_COMPANY_NAME = "Sellary Demo"
+DEFAULT_COMPANY_SLUG = "sellary-demo"
 
-def create_demo_data():
+CATEGORY_PRODUCT_MAP: dict[str, list[tuple[str, Decimal, Decimal, int, ProductType]]] = {
+    "Beverages": [
+        ("Water 1.5L", Decimal("3.00"), Decimal("5.00"), 120, ProductType.ITEM),
+        ("Cola 0.5L", Decimal("4.00"), Decimal("7.00"), 90, ProductType.ITEM),
+        ("Lemon Tea", Decimal("5.00"), Decimal("8.00"), 70, ProductType.ITEM),
+    ],
+    "Snacks": [
+        ("Potato Chips", Decimal("6.00"), Decimal("10.00"), 60, ProductType.ITEM),
+        ("Chocolate Bar", Decimal("3.50"), Decimal("6.00"), 100, ProductType.ITEM),
+        ("Salted Nuts", Decimal("8.00"), Decimal("12.00"), 40, ProductType.ITEM),
+    ],
+    "Bakery": [
+        ("Bread", Decimal("2.00"), Decimal("4.00"), 80, ProductType.ITEM),
+        ("Croissant", Decimal("3.00"), Decimal("6.00"), 35, ProductType.ITEM),
+        ("Cheese Pie", Decimal("7.00"), Decimal("12.00"), 24, ProductType.ITEM),
+    ],
+    "Restaurant": [
+        ("Chicken Plov", Decimal("18.00"), Decimal("32.00"), 25, ProductType.DISH),
+        ("Beef Burger", Decimal("16.00"), Decimal("29.00"), 18, ProductType.DISH),
+        ("Caesar Salad", Decimal("12.00"), Decimal("24.00"), 20, ProductType.DISH),
+    ],
+}
+
+CUSTOMER_SEED = [
+    ("John Doe", "+992900000001", "john@example.com"),
+    ("Jane Smith", "+992900000002", "jane@example.com"),
+    ("Acme Office", "+992900000003", "office@acme.test"),
+    ("Walk-in VIP", "+992900000004", "vip@example.com"),
+]
+
+SUPPLIER_SEED = [
+    ("Fresh Foods LLC", "Rahim Supplier", "+992555100001", "sales@freshfoods.test"),
+    ("City Drinks", "Nodira Vendor", "+992555100002", "hello@citydrinks.test"),
+    ("Bakehouse Co", "Aziz Baker", "+992555100003", "ops@bakehouse.test"),
+]
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Seed deterministic Sellary demo data.")
+    parser.add_argument("--company-name", default=DEFAULT_COMPANY_NAME, help="Target company name")
+    parser.add_argument("--company-slug", default=DEFAULT_COMPANY_SLUG, help="Target company slug")
+    parser.add_argument("--admin-password", default="admin123", help="Admin password if admin is created")
+    parser.add_argument("--cashier-password", default="cashier123", help="Cashier password if cashier is created")
+    return parser.parse_args()
+
+
+def delete_company_data(db, company_id: int) -> None:
+    sale_return_ids = [
+        sale_return_id
+        for sale_return_id, in db.query(SaleReturn.id).filter(SaleReturn.company_id == company_id).all()
+    ]
+    sale_ids = [sale_id for sale_id, in db.query(Sale.id).filter(Sale.company_id == company_id).all()]
+    purchase_order_ids = [
+        po_id
+        for po_id, in db.query(PurchaseOrder.id).filter(PurchaseOrder.company_id == company_id).all()
+    ]
+
+    if sale_return_ids:
+        db.query(SaleReturnItem).filter(SaleReturnItem.sale_return_id.in_(sale_return_ids)).delete(
+            synchronize_session=False
+        )
+    if sale_ids:
+        db.query(SaleItem).filter(SaleItem.sale_id.in_(sale_ids)).delete(synchronize_session=False)
+    if purchase_order_ids:
+        db.query(PurchaseOrderItem).filter(
+            PurchaseOrderItem.purchase_order_id.in_(purchase_order_ids)
+        ).delete(synchronize_session=False)
+
+    db.query(InventoryLog).filter(InventoryLog.company_id == company_id).delete(synchronize_session=False)
+    db.query(SaleReturn).filter(SaleReturn.company_id == company_id).delete(synchronize_session=False)
+    db.query(Sale).filter(Sale.company_id == company_id).delete(synchronize_session=False)
+    db.query(PurchaseOrder).filter(PurchaseOrder.company_id == company_id).delete(synchronize_session=False)
+    db.query(IdempotencyKey).filter(IdempotencyKey.company_id == company_id).delete(synchronize_session=False)
+    db.query(Product).filter(Product.company_id == company_id).delete(synchronize_session=False)
+    db.query(Category).filter(Category.company_id == company_id).delete(synchronize_session=False)
+    db.query(Customer).filter(Customer.company_id == company_id).delete(synchronize_session=False)
+    db.query(Supplier).filter(Supplier.company_id == company_id).delete(synchronize_session=False)
+    db.flush()
+
+
+def seed_demo_data() -> None:
+    args = parse_args()
+    ensure_schema()
+
     db = SessionLocal()
     try:
-        # 1. Cleanup
-        cleanup_data(db)
-        
-        print("🌱 Starting Russian Food Market demo data generation...")
+        company, company_created = ensure_company(
+            db,
+            name=args.company_name,
+            slug=args.company_slug,
+        )
 
-        # 2. Ensure Users (Admin & Cashier)
-        # We don't truncate users to avoid locking ourselves out, but we ensure they exist.
-        # If users table was truncated (not in list above), we recreate them.
-        
-        print("👤 Checking/Creating Users...")
-        admin = db.query(User).filter(User.username == "admin").first()
-        if not admin:
-            admin = User(
-                username="admin", 
-                email="admin@example.com",
-                full_name="Администратор",
-                hashed_password=get_password_hash("admin123"), 
-                role="admin"
+        admin, admin_created = ensure_user(
+            db,
+            username="admin",
+            email="admin@example.com",
+            password=args.admin_password,
+            full_name="System Administrator",
+            role="admin",
+        )
+        ensure_membership(db, user=admin, company=company, role="admin", is_default=True)
+
+        cashier, cashier_created = ensure_user(
+            db,
+            username="cashier",
+            email="cashier@example.com",
+            password=args.cashier_password,
+            full_name="Front Cashier",
+            role="cashier",
+        )
+        ensure_membership(db, user=cashier, company=company, role="cashier", is_default=True)
+
+        delete_company_data(db, company.id)
+
+        categories: dict[str, Category] = {}
+        barcode_counter = 1
+        products: list[Product] = []
+
+        for category_name, product_rows in CATEGORY_PRODUCT_MAP.items():
+            category = Category(
+                company_id=company.id,
+                name=category_name,
+                description=f"Demo {category_name.lower()} catalog",
             )
-            db.add(admin)
-        
-        cashier = db.query(User).filter(User.username == "cashier").first()
-        if not cashier:
-            cashier = User(
-                username="cashier", 
-                email="cashier@example.com",
-                full_name="Кассир",
-                hashed_password=get_password_hash("cashier123"), 
-                role="cashier"
-            )
-            db.add(cashier)
-        db.commit()
-        print("✅ Users ready.")
+            db.add(category)
+            db.flush()
+            categories[category_name] = category
 
-        # 3. Create Categories (Russian)
-        print("📂 Creating Categories...")
-        categories_data = {
-            "Фрукты": "Свежие фрукты и ягоды",
-            "Овощи": "Свежие овощи и зелень",
-            "Молочные продукты": "Молоко, сыр, йогурты",
-            "Мясо и Птица": "Свежее мясо, курица, колбасы",
-            "Выпечка": "Хлеб, булочки, пироги",
-            "Напитки": "Вода, соки, газировка",
-            "Бакалея": "Крупы, макароны, масло, консервы",
-            "Сладости": "Конфеты, шоколад, печенье",
-            "Заморозка": "Пельмени, овощные смеси, мороженое"
-        }
-        
-        categories_map = {}
-        for name, desc in categories_data.items():
-            cat = Category(name=name, description=desc)
-            db.add(cat)
-            categories_map[name] = cat
-        db.commit()
-        for cat in categories_map.values(): db.refresh(cat)
-
-        # 4. Create Suppliers
-        print("🚚 Creating Suppliers...")
-        supplier_names = [
-            "ООО «Фермерские Продукты»", 
-            "ЗАО «Молочный Мир»", 
-            "ИП Иванов (Овощи)", 
-            "Хлебозавод №1", 
-            "Компания «Напитки Плюс»"
-        ]
-        suppliers = []
-        for name in supplier_names:
-            try:
-                # Sanitize phone: keep only digits and +
-                raw_phone = fake.phone_number()
-                clean_phone = "".join(c for c in raw_phone if c.isdigit() or c == '+')
-                
-                sup = Supplier(
-                    name=name[:100],
-                    contact_person=fake.name()[:50],
-                    phone=clean_phone[:20],
-                    email=fake.email()[:50],
-                    address=fake.address()
+            for product_name, cost_price, sell_price, stock_quantity, product_type in product_rows:
+                product = Product(
+                    company_id=company.id,
+                    name=product_name,
+                    barcode=f"DEMO-{barcode_counter:05d}" if product_type == ProductType.ITEM else None,
+                    description=f"Demo product for {category_name}",
+                    category_id=category.id,
+                    product_type=product_type,
+                    cost_price=cost_price,
+                    sell_price=sell_price,
+                    tax_percent=Decimal("10.00"),
+                    stock_quantity=stock_quantity,
+                    min_stock_level=max(5, stock_quantity // 8),
+                    is_active=True,
                 )
-                db.add(sup)
-                db.flush() # Check for errors immediately
-                suppliers.append(sup)
-            except Exception as e:
-                print(f"⚠️ Failed to create supplier {name}: {e}")
-                db.rollback()
-        db.commit()
-
-        # 5. Create Products
-        print("🍎 Creating Products...")
-        products = []
-        
-        # Helper to generate food products
-        food_products = [
-            ("Фрукты", [("Яблоки Голден", 15.0), ("Бананы", 12.0), ("Апельсины", 18.0), ("Виноград Киш-миш", 25.0), ("Лимоны", 20.0)]),
-            ("Овощи", [("Картофель", 5.0), ("Морковь", 6.0), ("Лук репчатый", 4.0), ("Помидоры Розовые", 22.0), ("Огурцы", 18.0)]),
-            ("Молочные продукты", [("Молоко 3.2%", 10.0), ("Творог 9%", 15.0), ("Сметана 20%", 12.0), ("Сыр Российский", 65.0), ("Масло сливочное", 25.0)]),
-            ("Мясо и Птица", [("Филе куриное", 35.0), ("Говядина мякоть", 85.0), ("Фарш домашний", 45.0), ("Колбаса Докторская", 40.0)]),
-            ("Выпечка", [("Хлеб белый", 4.0), ("Батон нарезной", 4.5), ("Булочка с маком", 5.0), ("Пирожок с капустой", 6.0)]),
-            ("Напитки", [("Вода без газа 1.5л", 5.0), ("Сок Яблочный 1л", 12.0), ("Кола 0.5л", 8.0), ("Чай черный", 15.0)]),
-            ("Бакалея", [("Макароны Перья", 8.0), ("Рис Краснодарский", 12.0), ("Гречка", 15.0), ("Масло подсолнечное", 18.0)]),
-            ("Сладости", [("Шоколад Молочный", 14.0), ("Печенье Овсяное", 10.0), ("Конфеты Ассорти", 55.0)]),
-        ]
-
-        total_products_target = 100
-        count = 0
-        
-        for cat_name, items in food_products:
-            cat = categories_map.get(cat_name)
-            if not cat: continue
-            
-            for prod_name, base_price in items:
-                try:
-                    cost = Decimal(base_price * random.uniform(0.7, 0.9)).quantize(Decimal("0.01"))
-                    sell = Decimal(base_price).quantize(Decimal("0.01"))
-                    
-                    prod = Product(
-                        barcode=fake.ean13(),
-                        name=prod_name[:100],
-                        description=f"Свежие {prod_name.lower()} от поставщика"[:255],
-                        category_id=cat.id,
-                        cost_price=cost,
-                        sell_price=sell,
-                        tax_percent=Decimal("0.00"), 
-                        stock_quantity=random.randint(20, 200),
-                        min_stock_level=10,
-                        is_active=True
-                    )
-                    db.add(prod)
-                    db.flush()
-                    products.append(prod)
-                    
-                    # Initial inventory log
-                    log = InventoryLog(
-                        product_id=prod.id,
-                        user_id=admin.id,
-                        quantity_change=prod.stock_quantity,
-                        previous_quantity=0,
-                        new_quantity=prod.stock_quantity,
-                        reason="Начальный остаток",
-                        reference_type="adjustment"
-                    )
-                    db.add(log)
-                    db.flush()
-                    
-                    count += 1
-                except Exception as e:
-                    print(f"⚠️ Failed to create product {prod_name}: {e}")
-                    db.rollback()
-        
-        db.commit()
-        print(f"✅ Created {len(products)} products.")
-
-        # 6. Create Customers
-        print("👥 Creating Customers...")
-        customers = []
-        for _ in range(15):
-            raw_phone = fake.phone_number()
-            clean_phone = "".join(c for c in raw_phone if c.isdigit() or c == '+')
-            
-            cust = Customer(
-                name=fake.name()[:50],
-                email=fake.email()[:50],
-                phone=clean_phone[:20],
-                address=fake.address()[:200]
-            )
-            db.add(cust)
-            customers.append(cust)
-        db.commit()
-        for c in customers: db.refresh(c)
-
-        # 7. Create Sales History
-        print("💰 Simulating Sales History...")
-        users = [admin, cashier]
-        
-        # Last 30 days
-        start_date = datetime.now() - timedelta(days=30)
-        
-        for i in range(50):
-            try:
-                sale_time = start_date + timedelta(days=random.randint(0, 30), hours=random.randint(9, 20))
-                cashier_user = random.choice(users)
-                customer = random.choice(customers) if random.random() > 0.4 else None
-                
-                # Create Sale
-                sale = Sale(
-                    customer_id=customer.id if customer else None,
-                    cashier_id=cashier_user.id,
-                    payment_method=random.choice(['cash', 'card', 'mobile']),
-                    status=SaleStatus.COMPLETED,
-                    created_at=sale_time,
-                    notes="Покупка в магазине"[:50]
-                )
-                db.add(sale)
+                barcode_counter += 1
+                db.add(product)
                 db.flush()
-                
-                # Add Items
-                subtotal = Decimal("0.00")
-                num_items = random.randint(1, 8)
-                sale_items_list = random.sample(products, num_items)
-                
-                original_items = []
-                
-                for prod in sale_items_list:
-                    qty = random.randint(1, 5)
-                    price = prod.sell_price
-                    line_total = price * qty
-                    
-                    s_item = SaleItem(
-                        sale_id=sale.id,
-                        product_id=prod.id,
-                        quantity=qty,
-                        unit_price=price,
-                        tax_percent=Decimal("0.00"),
-                        tax_amount=Decimal("0.00"),
-                        discount_amount=Decimal("0.00"),
-                        subtotal=line_total,
-                        total=line_total,
-                        quantity_returned=0
+                products.append(product)
+
+                db.add(
+                    InventoryLog(
+                        company_id=company.id,
+                        product_id=product.id,
+                        user_id=admin.id,
+                        quantity_change=stock_quantity,
+                        previous_quantity=0,
+                        new_quantity=stock_quantity,
+                        reason="Demo opening stock",
+                        reference_type="seed",
                     )
-                    db.add(s_item)
-                    db.flush()
-                    
-                    subtotal += line_total
-                    original_items.append(s_item)
-                    
-                    # Inventory Log
-                    log = InventoryLog(
-                        product_id=prod.id,
-                        user_id=cashier_user.id,
-                        quantity_change=-qty,
-                        previous_quantity=prod.stock_quantity,
-                        new_quantity=prod.stock_quantity - qty,
-                        reason=f"Продажа #{sale.id}"[:255],
+                )
+
+        customers: list[Customer] = []
+        for name, phone, email in CUSTOMER_SEED:
+            customer = Customer(
+                company_id=company.id,
+                name=name,
+                phone=phone,
+                email=email,
+                address="Demo customer address",
+                is_active=True,
+            )
+            db.add(customer)
+            db.flush()
+            customers.append(customer)
+
+        for supplier_name, contact_person, phone, email in SUPPLIER_SEED:
+            db.add(
+                Supplier(
+                    company_id=company.id,
+                    name=supplier_name,
+                    contact_person=contact_person,
+                    phone=phone,
+                    email=email,
+                    address="Demo supplier address",
+                    is_active=True,
+                )
+            )
+
+        sale_blueprints = [
+            {
+                "customer": customers[0],
+                "cashier": cashier,
+                "payment_method": PaymentMethod.CASH,
+                "context_type": SaleContextType.RETAIL,
+                "table_name": None,
+                "items": [(products[0], 2), (products[3], 1)],
+                "discount": Decimal("0.00"),
+                "created_at": datetime.now() - timedelta(days=2, hours=1),
+            },
+            {
+                "customer": customers[1],
+                "cashier": cashier,
+                "payment_method": PaymentMethod.CARD,
+                "context_type": SaleContextType.RETAIL,
+                "table_name": None,
+                "items": [(products[1], 1), (products[4], 3)],
+                "discount": Decimal("2.00"),
+                "created_at": datetime.now() - timedelta(days=1, hours=2),
+            },
+            {
+                "customer": None,
+                "cashier": cashier,
+                "payment_method": PaymentMethod.CASH,
+                "context_type": SaleContextType.RESTAURANT,
+                "table_name": "Table 3",
+                "items": [(products[9], 1), (products[11], 1)],
+                "discount": Decimal("0.00"),
+                "created_at": datetime.now() - timedelta(hours=5),
+            },
+        ]
+
+        seeded_sales: list[Sale] = []
+        for blueprint in sale_blueprints:
+            subtotal = Decimal("0.00")
+            tax_amount = Decimal("0.00")
+            sale = Sale(
+                company_id=company.id,
+                customer_id=blueprint["customer"].id if blueprint["customer"] else None,
+                cashier_id=blueprint["cashier"].id,
+                context_type=blueprint["context_type"],
+                table_name=blueprint["table_name"],
+                subtotal=Decimal("0.00"),
+                tax_amount=Decimal("0.00"),
+                discount_amount=blueprint["discount"],
+                total_amount=Decimal("0.00"),
+                payment_method=blueprint["payment_method"],
+                status=SaleStatus.COMPLETED,
+                notes="Demo seeded sale",
+                created_at=blueprint["created_at"],
+            )
+            db.add(sale)
+            db.flush()
+
+            for product, quantity in blueprint["items"]:
+                line_subtotal = (product.sell_price * quantity).quantize(Decimal("0.01"))
+                line_tax = (line_subtotal * Decimal("0.10")).quantize(Decimal("0.01"))
+                line_total = line_subtotal + line_tax
+                sale_item = SaleItem(
+                    sale_id=sale.id,
+                    product_id=product.id,
+                    quantity=quantity,
+                    quantity_returned=0,
+                    unit_price=product.sell_price,
+                    tax_percent=Decimal("10.00"),
+                    tax_amount=line_tax,
+                    discount_amount=Decimal("0.00"),
+                    subtotal=line_subtotal,
+                    total=line_total,
+                    created_at=blueprint["created_at"],
+                )
+                db.add(sale_item)
+
+                previous_quantity = product.stock_quantity
+                product.stock_quantity = previous_quantity - quantity
+
+                db.add(
+                    InventoryLog(
+                        company_id=company.id,
+                        product_id=product.id,
+                        user_id=blueprint["cashier"].id,
+                        quantity_change=-quantity,
+                        previous_quantity=previous_quantity,
+                        new_quantity=product.stock_quantity,
+                        reason=f"Demo sale #{sale.id}",
                         reference_type="sale",
                         reference_id=sale.id,
-                        created_at=sale_time
+                        created_at=blueprint["created_at"],
                     )
-                    db.add(log)
-                    
-                    # Update product stock (in-memory update only for simulation consistency)
-                    prod.stock_quantity -= qty
+                )
 
-                sale.subtotal = subtotal
-                sale.tax_amount = Decimal("0.00")
-                sale.total_amount = subtotal
-                
-                # Simulate Returns (10% chance)
-                if random.random() < 0.1:
-                    # Pick one item to return
-                    item_to_return = random.choice(original_items)
-                    return_qty = random.randint(1, item_to_return.quantity)
-                    
-                    item_to_return.quantity_returned = return_qty
-                    sale.status = SaleStatus.PARTIALLY_RETURNED if return_qty < item_to_return.quantity else SaleStatus.RETURNED
-                    
-                    if all(i.quantity == i.quantity_returned for i in original_items):
-                         sale.status = SaleStatus.RETURNED
+                subtotal += line_subtotal
+                tax_amount += line_tax
 
-                    # Create Return Record
-                    ret = SaleReturn(
-                        sale_id=sale.id,
-                        user_id=cashier_user.id,
-                        total_refund_amount=item_to_return.unit_price * return_qty,
-                        refund_method='cash',
-                        notes="Возврат товара"[:50],
-                        created_at=sale_time + timedelta(hours=1)
-                    )
-                    db.add(ret)
-                    db.flush()
-                    
-                    ret_item = SaleReturnItem(
-                        sale_return_id=ret.id,
-                        sale_item_id=item_to_return.id,
-                        quantity_returned=return_qty,
-                        refund_amount=item_to_return.unit_price * return_qty
-                    )
-                    db.add(ret_item)
-                    
-                    # Inventory Log for Return
-                    pk = item_to_return.product_id
-                    prod_ret = next(p for p in products if p.id == pk)
-                    log_ret = InventoryLog(
-                        product_id=pk,
-                        user_id=cashier_user.id,
-                        quantity_change=return_qty,
-                        previous_quantity=prod_ret.stock_quantity,
-                        new_quantity=prod_ret.stock_quantity + return_qty,
-                        reason=f"Возврат по чеку #{sale.id}"[:255],
-                        reference_type="return",
-                        reference_id=ret.id,
-                        created_at=sale_time + timedelta(hours=1)
-                    )
-                    db.add(log_ret)
-                    prod_ret.stock_quantity += return_qty
-                
-                db.commit() # Commit transaction for this sale
-            except Exception as e:
-                print(f"⚠️ Failed to create sale/return: {e}")
-                db.rollback()
+            sale.subtotal = subtotal
+            sale.tax_amount = tax_amount
+            sale.total_amount = subtotal + tax_amount - blueprint["discount"]
+            seeded_sales.append(sale)
 
-        print("✅ Sales history generated.")
-        print("✅ Sales history generated.")
-        print("🎉 Demo data creation COMPLETE!")
+        # Add one partial return so refund/report flows have realistic demo data.
+        return_sale = seeded_sales[0]
+        return_item = return_sale.items[0]
+        return_quantity = 1
+        refund_unit = (return_item.total / return_item.quantity).quantize(Decimal("0.01"))
+        refund_amount = (refund_unit * return_quantity).quantize(Decimal("0.01"))
 
-    except Exception as e:
-        print(f"❌ Critical error: {e}")
+        return_item.quantity_returned += return_quantity
+        returned_product = next(product for product in products if product.id == return_item.product_id)
+        previous_quantity = returned_product.stock_quantity
+        returned_product.stock_quantity = previous_quantity + return_quantity
+
+        sale_return = SaleReturn(
+            company_id=company.id,
+            sale_id=return_sale.id,
+            user_id=cashier.id,
+            total_refund_amount=refund_amount,
+            refund_method=PaymentMethod.CASH,
+            notes="Demo partial return",
+            created_at=datetime.now() - timedelta(hours=2),
+        )
+        db.add(sale_return)
+        db.flush()
+
+        db.add(
+            SaleReturnItem(
+                sale_return_id=sale_return.id,
+                sale_item_id=return_item.id,
+                quantity_returned=return_quantity,
+                refund_amount=refund_amount,
+            )
+        )
+        db.add(
+            InventoryLog(
+                company_id=company.id,
+                product_id=returned_product.id,
+                user_id=cashier.id,
+                quantity_change=return_quantity,
+                previous_quantity=previous_quantity,
+                new_quantity=returned_product.stock_quantity,
+                reason=f"Demo return #{sale_return.id}",
+                reference_type="sale_return",
+                reference_id=sale_return.id,
+                created_at=sale_return.created_at,
+            )
+        )
+        return_sale.status = SaleStatus.PARTIALLY_RETURNED
+
+        db.commit()
+
+        print("Demo data seed complete.")
+        print(f"Company: {company.name} ({company.slug}) [{'created' if company_created else 'existing'}]")
+        print(f"Admin: {admin.username} [{'created' if admin_created else 'existing'}]")
+        print(f"Cashier: {cashier.username} [{'created' if cashier_created else 'existing'}]")
+        print(f"Categories: {len(categories)}")
+        print(f"Products: {len(products)}")
+        print(f"Customers: {len(customers)}")
+        print(f"Sales: {len(seeded_sales)}")
+        print("Returns: 1")
+    except Exception:
         db.rollback()
-        import traceback
-        traceback.print_exc()
+        raise
     finally:
         db.close()
 
+
 if __name__ == "__main__":
-    create_demo_data()
+    seed_demo_data()

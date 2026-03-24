@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import OfflineGuard from '../OfflineGuard';
 import { ServerHealthProvider } from '@/providers/ServerHealthProvider';
@@ -39,6 +39,15 @@ const createWrapper = () => {
     Wrapper.displayName = 'TestWrapper';
     return Wrapper;
 };
+
+beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+});
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 describe('OfflineGuard - Loading State', () => {
     it('should show loading indicator while checking server health', async () => {

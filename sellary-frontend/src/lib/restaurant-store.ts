@@ -3,6 +3,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Product } from './types';
+import { RESTAURANT_STORAGE_KEY, createCompanyScopedJSONStorage } from './session';
+import { useAuthStore } from './store';
 
 export type TableStatus = 'empty' | 'ordering' | 'waiting' | 'served' | 'paying';
 
@@ -83,6 +85,7 @@ interface RestaurantState {
   getActiveOrdersCount: () => number;
   getOccupiedTablesCount: () => number;
   getTotalPendingAmount: () => number;
+  resetState: () => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -102,14 +105,20 @@ const DEFAULT_TABLES: Table[] = [
   { name: 'Терраса 2', status: 'empty', capacity: 4 },
 ];
 
+const createDefaultRestaurantState = () => ({
+  tables: DEFAULT_TABLES,
+  activeOrders: {},
+  selectedTable: null,
+  currentOrderItems: [],
+  selectedCategory: null,
+});
+
 export const useRestaurantStore = create<RestaurantState>()(
   persist(
     (set, get) => ({
-      tables: DEFAULT_TABLES,
-      activeOrders: {},
-      selectedTable: null,
-      currentOrderItems: [],
-      selectedCategory: null,
+      ...createDefaultRestaurantState(),
+
+      resetState: () => set(createDefaultRestaurantState()),
 
       initializeTables: () => {
         const state = get();
@@ -435,7 +444,8 @@ export const useRestaurantStore = create<RestaurantState>()(
       },
     }),
     {
-      name: 'restaurant-storage-v3',
+      name: RESTAURANT_STORAGE_KEY,
+      storage: createCompanyScopedJSONStorage(),
       partialize: (state) => ({
         tables: state.tables,
         activeOrders: state.activeOrders,
@@ -444,3 +454,17 @@ export const useRestaurantStore = create<RestaurantState>()(
     }
   )
 );
+
+if (typeof window !== 'undefined') {
+  useAuthStore.subscribe((state, previousState) => {
+    const companyId = state.currentCompany?.id ?? null;
+    const previousCompanyId = previousState.currentCompany?.id ?? null;
+
+    if (companyId === previousCompanyId) {
+      return;
+    }
+
+    useRestaurantStore.getState().resetState();
+    void useRestaurantStore.persist.rehydrate();
+  });
+}

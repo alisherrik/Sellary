@@ -1,23 +1,24 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional
+
+from api.dependencies import AuthContext, get_auth_context, require_manager_or_admin
 from core.database import get_db
-from core.state_machine import StateTransitionError
 from core.idempotency import (
-    IdempotencyService,
     IdempotencyConflictError,
+    IdempotencyService,
     require_idempotency_key,
 )
+from core.state_machine import StateTransitionError
 from schemas.purchase_order import (
     PurchaseOrderCreate,
-    PurchaseOrderUpdate,
     PurchaseOrderResponse,
-    ReceiveItemsRequest,
     PurchaseOrderStatus,
+    PurchaseOrderUpdate,
+    ReceiveItemsRequest,
 )
 from services.purchase_order_service import PurchaseOrderService
-from api.dependencies import get_current_user, require_manager_or_admin
-from models.user import User
 
 router = APIRouter(prefix="/purchase-orders", tags=["purchase-orders"])
 
@@ -31,9 +32,9 @@ def get_purchase_orders(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth: AuthContext = Depends(get_auth_context),
 ):
-    service = PurchaseOrderService(db)
+    service = PurchaseOrderService(db, auth.company_id)
     purchase_orders, _ = service.get_all(
         skip=skip,
         limit=limit,
@@ -49,26 +50,26 @@ def get_purchase_orders(
 def get_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth: AuthContext = Depends(get_auth_context),
 ):
-    service = PurchaseOrderService(db)
-    po = service.get_by_id(po_id)
-    if not po:
+    service = PurchaseOrderService(db, auth.company_id)
+    purchase_order = service.get_by_id(po_id)
+    if not purchase_order:
         raise HTTPException(status_code=404, detail="Purchase order not found")
-    return po
+    return purchase_order
 
 
 @router.post("", response_model=PurchaseOrderResponse, status_code=201)
 def create_purchase_order(
     po_create: PurchaseOrderCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_manager_or_admin),
 ):
-    service = PurchaseOrderService(db)
+    service = PurchaseOrderService(db, auth.company_id)
     try:
         return service.create(po_create)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.put("/{po_id}", response_model=PurchaseOrderResponse)
@@ -76,40 +77,32 @@ def update_purchase_order(
     po_id: int,
     po_update: PurchaseOrderUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_manager_or_admin),
 ):
-    """
-    Update a draft purchase order.
-    
-    Returns HTTP 409 Conflict if the PO is not in DRAFT status.
-    """
-    service = PurchaseOrderService(db)
+    service = PurchaseOrderService(db, auth.company_id)
     try:
         return service.update(po_id, po_update)
-    except StateTransitionError as e:
-        raise HTTPException(status_code=409, detail=e.message)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except StateTransitionError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.post("/{po_id}/send", response_model=PurchaseOrderResponse)
 def send_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_manager_or_admin),
 ):
-    """
-    Mark a draft purchase order as sent.
-    
-    Returns HTTP 409 Conflict if the PO is not in DRAFT status.
-    """
-    service = PurchaseOrderService(db)
+    service = PurchaseOrderService(db, auth.company_id)
     try:
         return service.send(po_id)
-    except StateTransitionError as e:
-        raise HTTPException(status_code=409, detail=e.message)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except StateTransitionError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.post("/{po_id}/receive", response_model=PurchaseOrderResponse)
@@ -117,92 +110,80 @@ def receive_items(
     po_id: int,
     receive_request: ReceiveItemsRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_manager_or_admin),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
-    """
-    Receive items from a purchase order (idempotent).
-    
-    Requires Idempotency-Key header. Allowed only for SENT or PARTIALLY_RECEIVED orders.
-    Returns HTTP 409 Conflict if the PO is RECEIVED, CANCELLED, or key was reused.
-    """
     endpoint = f"/api/purchase-orders/{po_id}/receive"
-    request_body = receive_request.dict()
-    
-    # Check for cached response
+    request_body = receive_request.model_dump()
+
     idempotency_service = IdempotencyService(db)
     try:
         cached = idempotency_service.get_cached_response(
             key=idempotency_key,
-            user_id=current_user.id,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
             endpoint=endpoint,
             request_body=request_body,
         )
         if cached:
-            response_body, status_code = cached
+            response_body, _ = cached
             return PurchaseOrderResponse(**response_body)
-    except IdempotencyConflictError as e:
-        raise HTTPException(status_code=409, detail=e.message)
-    
-    service = PurchaseOrderService(db)
+    except IdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+
+    service = PurchaseOrderService(db, auth.company_id)
     try:
-        result = service.receive_items(po_id, receive_request, current_user.id)
-        
-        # Store idempotency record
+        result = service.receive_items(po_id, receive_request, auth.user.id)
         idempotency_service.store_response(
             key=idempotency_key,
-            user_id=current_user.id,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
             endpoint=endpoint,
             request_body=request_body,
             response_body=result,
             status_code=200,
         )
-        
+        db.commit()
         return result
-    except IdempotencyConflictError as e:
-        raise HTTPException(status_code=409, detail=e.message)
-    except StateTransitionError as e:
-        raise HTTPException(status_code=409, detail=e.message)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except IdempotencyConflictError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.message)
+    except StateTransitionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.message)
+    except ValueError as exc:
+        db.rollback()
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.post("/{po_id}/cancel", response_model=PurchaseOrderResponse)
 def cancel_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_manager_or_admin),
 ):
-    """
-    Cancel a purchase order.
-    
-    Allowed for DRAFT, SENT, or PARTIALLY_RECEIVED orders.
-    Returns HTTP 409 Conflict if the PO is RECEIVED or already CANCELLED.
-    """
-    service = PurchaseOrderService(db)
+    service = PurchaseOrderService(db, auth.company_id)
     try:
         return service.cancel(po_id)
-    except StateTransitionError as e:
-        raise HTTPException(status_code=409, detail=e.message)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except StateTransitionError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.delete("/{po_id}", status_code=204)
 def delete_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_manager_or_admin),
 ):
-    """
-    Delete a draft purchase order.
-    
-    Returns HTTP 409 Conflict if the PO is not in DRAFT status.
-    """
-    service = PurchaseOrderService(db)
+    service = PurchaseOrderService(db, auth.company_id)
     try:
         service.delete(po_id)
-    except StateTransitionError as e:
-        raise HTTPException(status_code=409, detail=e.message)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except StateTransitionError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))

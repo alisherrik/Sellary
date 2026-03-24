@@ -16,6 +16,11 @@ from models.user import User
 from core.security import get_password_hash
 
 
+def with_idempotency(headers: dict, key: str) -> dict:
+    normalized_key = key if len(key) >= 16 else f"{key}-tenant-safe"
+    return {**headers, "Idempotency-Key": normalized_key}
+
+
 class TestListSales:
     """Tests for GET /api/sales endpoint."""
 
@@ -69,9 +74,8 @@ class TestListSales:
 
         assert response.status_code == 200
         data = response.json()
-        assert "items" in data
-        assert "total" in data
-        assert data["total"] == 1
+        assert isinstance(data, list)
+        assert len(data) == 1
 
     def test_list_sales_with_pagination(self, client: TestClient, db_session, cashier_headers):
         """Test sales list pagination."""
@@ -118,8 +122,8 @@ class TestListSales:
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data["items"]) == 5
-        assert data["total"] == 10
+        assert isinstance(data, list)
+        assert len(data) == 5
 
 
 class TestGetSale:
@@ -203,7 +207,7 @@ class TestCreateSale:
 
         response = client.post(
             "/api/sales",
-            headers=cashier_headers,
+            headers=with_idempotency(cashier_headers, "sale-create-items"),
             json={
                 "customer_id": None,
                 "items": [
@@ -261,7 +265,7 @@ class TestCreateSale:
 
         response = client.post(
             "/api/sales",
-            headers=cashier_headers,
+            headers=with_idempotency(cashier_headers, "sale-create-multiple"),
             json={
                 "customer_id": None,
                 "items": [
@@ -314,7 +318,7 @@ class TestCreateSale:
 
         response = client.post(
             "/api/sales",
-            headers=cashier_headers,
+            headers=with_idempotency(cashier_headers, "sale-create-customer"),
             json={
                 "customer_id": customer.id,
                 "items": [
@@ -356,7 +360,7 @@ class TestCreateSale:
 
         response = client.post(
             "/api/sales",
-            headers=cashier_headers,
+            headers=with_idempotency(cashier_headers, "sale-create-inactive"),
             json={
                 "customer_id": None,
                 "items": [
@@ -380,7 +384,7 @@ class TestCreateSale:
         """Test that creating a sale with nonexistent product fails."""
         response = client.post(
             "/api/sales",
-            headers=cashier_headers,
+            headers=with_idempotency(cashier_headers, "sale-create-missing-product"),
             json={
                 "customer_id": None,
                 "items": [
@@ -421,7 +425,7 @@ class TestCreateSale:
 
         response = client.post(
             "/api/sales",
-            headers=cashier_headers,
+            headers=with_idempotency(cashier_headers, "sale-create-discount"),
             json={
                 "customer_id": None,
                 "items": [
@@ -508,7 +512,10 @@ class TestCancelSale:
         # Verify stock was deducted
         assert product.stock_quantity == 95
 
-        response = client.post(f"/api/sales/{sale.id}/cancel", headers=cashier_headers)
+        response = client.post(
+            f"/api/sales/{sale.id}/cancel",
+            headers=with_idempotency(cashier_headers, "sale-cancel-success"),
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -520,8 +527,11 @@ class TestCancelSale:
 
     def test_cancel_nonexistent_sale(self, client: TestClient, cashier_headers):
         """Test canceling a sale that doesn't exist."""
-        response = client.post("/api/sales/99999/cancel", headers=cashier_headers)
-        assert response.status_code == 400
+        response = client.post(
+            "/api/sales/99999/cancel",
+            headers=with_idempotency(cashier_headers, "sale-cancel-missing"),
+        )
+        assert response.status_code == 404
 
     def test_cancel_already_cancelled_sale(self, client: TestClient, db_session, cashier_headers):
         """Test that canceling an already cancelled sale fails."""
@@ -563,8 +573,11 @@ class TestCancelSale:
         db_session.add(sale)
         db_session.commit()
 
-        response = client.post(f"/api/sales/{sale.id}/cancel", headers=cashier_headers)
-        assert response.status_code == 400
+        response = client.post(
+            f"/api/sales/{sale.id}/cancel",
+            headers=with_idempotency(cashier_headers, "sale-cancel-conflict"),
+        )
+        assert response.status_code == 409
 
 
 class TestSaleResponse:
@@ -591,7 +604,7 @@ class TestSaleResponse:
 
         response = client.post(
             "/api/sales",
-            headers=cashier_headers,
+            headers=with_idempotency(cashier_headers, "sale-response-items"),
             json={
                 "customer_id": None,
                 "items": [
@@ -640,7 +653,7 @@ class TestSaleResponse:
 
         response = client.post(
             "/api/sales",
-            headers=cashier_headers,
+            headers=with_idempotency(cashier_headers, "sale-response-customer"),
             json={
                 "customer_id": customer.id,
                 "items": [

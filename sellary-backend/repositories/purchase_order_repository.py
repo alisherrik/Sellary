@@ -10,19 +10,23 @@ class PurchaseOrderRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_by_id(self, po_id: int) -> Optional[PurchaseOrder]:
+    def get_by_id(self, company_id: int, po_id: int) -> Optional[PurchaseOrder]:
         return (
             self.db.query(PurchaseOrder)
             .options(
                 joinedload(PurchaseOrder.supplier),
                 joinedload(PurchaseOrder.items).joinedload(PurchaseOrderItem.product),
             )
-            .filter(PurchaseOrder.id == po_id)
+            .filter(
+                PurchaseOrder.company_id == company_id,
+                PurchaseOrder.id == po_id,
+            )
             .first()
         )
 
     def get_all(
         self,
+        company_id: int,
         skip: int = 0,
         limit: int = 50,
         supplier_id: Optional[int] = None,
@@ -30,7 +34,10 @@ class PurchaseOrderRepository:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> tuple[List[PurchaseOrder], int]:
-        query = self.db.query(PurchaseOrder).filter(PurchaseOrder.is_active == True)
+        query = self.db.query(PurchaseOrder).filter(
+            PurchaseOrder.company_id == company_id,
+            PurchaseOrder.is_active == True,
+        )
 
         if supplier_id:
             query = query.filter(PurchaseOrder.supplier_id == supplier_id)
@@ -80,16 +87,21 @@ class PurchaseOrderRepository:
         self.db.refresh(purchase_order)
         return purchase_order
 
-    def update_status(self, po_id: int, status: PurchaseOrderStatus) -> Optional[PurchaseOrder]:
-        po = self.get_by_id(po_id)
+    def update_status(
+        self,
+        company_id: int,
+        po_id: int,
+        status: PurchaseOrderStatus,
+    ) -> Optional[PurchaseOrder]:
+        po = self.get_by_id(company_id, po_id)
         if po:
             po.status = status
             self.db.commit()
             self.db.refresh(po)
         return po
 
-    def delete(self, po_id: int) -> bool:
-        po = self.get_by_id(po_id)
+    def delete(self, company_id: int, po_id: int) -> bool:
+        po = self.get_by_id(company_id, po_id)
         if po:
             self.db.delete(po)
             self.db.commit()

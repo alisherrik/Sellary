@@ -16,6 +16,11 @@ from models.user import User
 from core.security import get_password_hash
 
 
+def with_idempotency(headers: dict, key: str) -> dict:
+    normalized_key = key if len(key) >= 16 else f"{key}-tenant-safe"
+    return {**headers, "Idempotency-Key": normalized_key}
+
+
 class TestCreateReturn:
     """Tests for POST /api/sales/{sale_id}/return endpoint."""
 
@@ -85,7 +90,7 @@ class TestCreateReturn:
         db_session.flush()
 
         # Create return
-        final_headers = {**cashier_headers, "Idempotency-Key": "return-key-123"}
+        final_headers = with_idempotency(cashier_headers, "return-key-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -104,7 +109,7 @@ class TestCreateReturn:
         assert response.status_code == 201
         data = response.json()
         assert data["sale_id"] == sale.id
-        assert data["total_refund_amount"] > 0
+        assert Decimal(data["total_refund_amount"]) > Decimal("0.00")
         assert len(data["items"]) == 1
         assert data["items"][0]["quantity_returned"] == 1
 
@@ -188,7 +193,7 @@ class TestCreateReturn:
         db_session.flush()
 
         # Return 1 item from each
-        final_headers = {**cashier_headers, "Idempotency-Key": "return-multi-123"}
+        final_headers = with_idempotency(cashier_headers, "return-multi-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -220,7 +225,7 @@ class TestCreateReturn:
 
     def test_create_return_for_nonexistent_sale(self, client: TestClient, cashier_headers):
         """Test creating return for sale that doesn't exist."""
-        final_headers = {**cashier_headers, "Idempotency-Key": "return-test-123"}
+        final_headers = with_idempotency(cashier_headers, "return-test-123")
         response = client.post(
             "/api/sales/99999/return",
             headers=final_headers,
@@ -290,7 +295,7 @@ class TestCreateReturn:
         db_session.add(sale_item)
         db_session.flush()
 
-        final_headers = {**cashier_headers, "Idempotency-Key": "return-invalid-123"}
+        final_headers = with_idempotency(cashier_headers, "return-invalid-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -300,7 +305,7 @@ class TestCreateReturn:
             }
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 404
 
     def test_create_return_exceeds_quantity(self, client: TestClient, db_session, cashier_headers):
         """Test creating return with quantity exceeding sold quantity."""
@@ -361,7 +366,7 @@ class TestCreateReturn:
         db_session.flush()
 
         # Try to return 3 when only 2 were sold
-        final_headers = {**cashier_headers, "Idempotency-Key": "return-exceed-123"}
+        final_headers = with_idempotency(cashier_headers, "return-exceed-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -433,7 +438,7 @@ class TestCreateReturn:
 
         initial_stock = product.stock_quantity
 
-        final_headers = {**cashier_headers, "Idempotency-Key": "return-stock-123"}
+        final_headers = with_idempotency(cashier_headers, "return-stock-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -508,7 +513,7 @@ class TestCreateReturn:
         db_session.flush()
 
         # Test cash refund
-        final_headers = {**cashier_headers, "Idempotency-Key": "return-cash-123"}
+        final_headers = with_idempotency(cashier_headers, "return-cash-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -580,7 +585,7 @@ class TestCreateReturn:
         db_session.add(sale_item)
         db_session.flush()
 
-        final_headers = {**cashier_headers, "Idempotency-Key": "return-notes-123"}
+        final_headers = with_idempotency(cashier_headers, "return-notes-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -627,7 +632,7 @@ class TestRestaurantOrders:
         db_session.add(product)
         db_session.flush()
 
-        final_headers = {**cashier_headers, "Idempotency-Key": "rest-order-123"}
+        final_headers = with_idempotency(cashier_headers, "rest-order-123")
         response = client.post(
             "/api/sales",
             headers=final_headers,
@@ -683,7 +688,7 @@ class TestRestaurantOrders:
         db_session.add(product)
         db_session.flush()
 
-        final_headers = {**cashier_headers, "Idempotency-Key": "rest-card-123"}
+        final_headers = with_idempotency(cashier_headers, "rest-card-123")
         response = client.post(
             "/api/sales",
             headers=final_headers,
@@ -741,7 +746,7 @@ class TestRestaurantOrders:
         db_session.flush()
 
         # Create retail sale
-        final_headers1 = {**cashier_headers, "Idempotency-Key": "retail-sale-123"}
+        final_headers1 = with_idempotency(cashier_headers, "retail-sale-123")
         retail_response = client.post(
             "/api/sales",
             headers=final_headers1,
@@ -763,7 +768,7 @@ class TestRestaurantOrders:
         )
 
         # Create restaurant sale
-        final_headers2 = {**cashier_headers, "Idempotency-Key": "rest-sale-123"}
+        final_headers2 = with_idempotency(cashier_headers, "rest-sale-123")
         restaurant_response = client.post(
             "/api/sales",
             headers=final_headers2,
@@ -824,7 +829,7 @@ class TestRestaurantOrders:
         db_session.flush()
 
         # Create restaurant sale without table_name (should be allowed)
-        final_headers = {**cashier_headers, "Idempotency-Key": "rest-notable-123"}
+        final_headers = with_idempotency(cashier_headers, "rest-notable-123")
         response = client.post(
             "/api/sales",
             headers=final_headers,

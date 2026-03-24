@@ -7,15 +7,19 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function Home() {
   const router = useRouter();
-  const { isAuthenticated, token } = useAuthStore();
+  const { accessToken, isAuthenticated, hasHydrated } = useAuthStore();
 
   useEffect(() => {
-    if (token && isAuthenticated) {
+    if (!hasHydrated) {
+      return;
+    }
+
+    if (accessToken && isAuthenticated) {
       router.push('/pos');
     } else {
       router.push('/login');
     }
-  }, [isAuthenticated, token, router]);
+  }, [accessToken, hasHydrated, isAuthenticated, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">

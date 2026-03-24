@@ -1,49 +1,195 @@
 'use client';
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { User, CartItem, Product } from './types';
+import { createJSONStorage, persist } from 'zustand/middleware';
+
+import { authApi } from './api';
+import {
+  AUTH_STORAGE_KEY,
+  CART_STORAGE_KEY,
+  clearStoredSession,
+  createCompanyScopedJSONStorage,
+  getActiveAccessToken,
+  isOfflineMultiCompanyUnsupported,
+  setAccessTokenForCompany,
+  setCurrentCompanyId,
+  setLoginToken,
+} from './session';
+import type { CartItem, CompanySession, CompanySummary, Product, User } from './types';
+
+interface LoginResult {
+  requiresCompanySelection: boolean;
+  companies: CompanySummary[];
+  currentCompany?: CompanySummary;
+}
 
 interface AuthState {
   user: User | null;
-  token: string | null;
+  companies: CompanySummary[];
+  currentCompany: CompanySummary | null;
+  loginToken: string | null;
+  accessToken: string | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  hasHydrated: boolean;
+  login: (username: string, password: string) => Promise<LoginResult>;
+  selectCompany: (companyId: number) => Promise<CompanySummary>;
+  switchCompany: (companyId: number) => Promise<CompanySummary>;
+  acceptCompanySession: (session: CompanySession) => CompanySummary;
   logout: () => void;
-  fetchUser: () => Promise<void>;
+  fetchSession: () => Promise<void>;
 }
+
+const emptyAuthState = {
+  user: null,
+  companies: [],
+  currentCompany: null,
+  loginToken: null,
+  accessToken: null,
+  isAuthenticated: false,
+  hasHydrated: false,
+};
+
+const applyCompanySession = (
+  set: (partial: Partial<AuthState>) => void,
+  session: CompanySession,
+): CompanySummary => {
+  setCurrentCompanyId(session.current_company.id);
+  setLoginToken(null);
+  setAccessTokenForCompany(session.current_company.id, session.access_token);
+
+  set({
+    user: session.user,
+    companies: session.companies,
+    currentCompany: session.current_company,
+    loginToken: null,
+    accessToken: session.access_token,
+    isAuthenticated: true,
+    hasHydrated: true,
+  });
+
+  return session.current_company;
+};
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
-      user: null,
-      token: null,
-      isAuthenticated: false,
+    (set, get) => ({
+      ...emptyAuthState,
 
       login: async (username, password) => {
-        const { authApi } = await import('./api');
         const response = await authApi.login(username, password);
-        const { access_token, user } = response.data;
-        localStorage.setItem('token', access_token);
-        set({ user, token: access_token, isAuthenticated: true });
+        const session = response.data;
+
+        if (isOfflineMultiCompanyUnsupported(session.companies.length)) {
+          throw new Error(
+            'Multi-company login is disabled while offline mode is enabled. Set NEXT_PUBLIC_ENABLE_OFFLINE_MODE=false.',
+          );
+        }
+
+        setLoginToken(session.login_token);
+        set({
+          user: session.user,
+          companies: session.companies,
+          currentCompany: null,
+          loginToken: session.login_token,
+          accessToken: null,
+          isAuthenticated: false,
+          hasHydrated: true,
+        });
+
+        if (session.companies.length === 1) {
+          const currentCompany = await get().selectCompany(session.companies[0].id);
+          return {
+            requiresCompanySelection: false,
+            companies: session.companies,
+            currentCompany,
+          };
+        }
+
+        return {
+          requiresCompanySelection: true,
+          companies: session.companies,
+        };
       },
+
+      selectCompany: async (companyId) => {
+        const loginToken = get().loginToken;
+        if (!loginToken) {
+          throw new Error('Login session expired. Please sign in again.');
+        }
+
+        const response = await authApi.selectCompany(companyId, loginToken);
+        return applyCompanySession(set, response.data);
+      },
+
+      switchCompany: async (companyId) => {
+        if (isOfflineMultiCompanyUnsupported(get().companies.length)) {
+          throw new Error(
+            'Multi-company switching is disabled while offline mode is enabled. Set NEXT_PUBLIC_ENABLE_OFFLINE_MODE=false.',
+          );
+        }
+
+        const response = await authApi.switchCompany(companyId);
+        return applyCompanySession(set, response.data);
+      },
+
+      acceptCompanySession: (session) => applyCompanySession(set, session),
 
       logout: () => {
-        localStorage.removeItem('token');
-        set({ user: null, token: null, isAuthenticated: false });
+        clearStoredSession(get().companies.map((company) => company.id));
+        set({ ...emptyAuthState, hasHydrated: true });
       },
 
-      fetchUser: async () => {
-        const { authApi } = await import('./api');
+      fetchSession: async () => {
+        const activeToken = get().accessToken ?? getActiveAccessToken();
+        if (!activeToken) {
+          return;
+        }
+
         const response = await authApi.me();
-        set({ user: response.data, isAuthenticated: true });
+        const session = response.data;
+
+        setCurrentCompanyId(session.current_company.id);
+        setAccessTokenForCompany(session.current_company.id, activeToken);
+        set({
+          user: session.user,
+          companies: session.companies,
+          currentCompany: session.current_company,
+          accessToken: activeToken,
+          isAuthenticated: true,
+          hasHydrated: true,
+        });
       },
     }),
     {
-      name: 'auth-storage',
-      partialize: (state) => ({ user: state.user, token: state.token, isAuthenticated: state.isAuthenticated }),
-    }
-  )
+      name: AUTH_STORAGE_KEY,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        user: state.user,
+        companies: state.companies,
+        currentCompany: state.currentCompany,
+        loginToken: state.loginToken,
+        accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated,
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (!state) {
+          return;
+        }
+
+        const activeToken = getActiveAccessToken();
+        if (activeToken && state.currentCompany) {
+          state.accessToken = activeToken;
+          state.isAuthenticated = true;
+        }
+
+        state.hasHydrated = true;
+
+        if (!activeToken || !state.currentCompany) {
+          return;
+        }
+      },
+    },
+  ),
 );
 
 interface Session {
@@ -56,183 +202,208 @@ interface Session {
 interface CartState {
   sessions: Session[];
   activeSessionId: string;
-
-  // Session Management
   createSession: () => void;
   switchSession: (sessionId: string) => void;
   deleteSession: (sessionId: string) => void;
   renameSession: (sessionId: string, name: string) => void;
-
-  // Cart Operations (Current Session)
-  // items: CartItem[]; // Removed, derived in component
   addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: number) => void;
   updateQuantity: (productId: number, quantity: number) => void;
   setDiscount: (productId: number, discount: number) => void;
   clearCart: () => void;
-
-  // Calculations
   getSubtotal: () => number;
   getTax: () => number;
   getTotal: () => number;
   getItemCount: () => number;
+  resetState: () => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
+const createDefaultCartState = () => ({
+  sessions: [{ id: 'default', name: 'Продажа 1', items: [], createdAt: Date.now() }],
+  activeSessionId: 'default',
+});
+
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
-      sessions: [{ id: 'default', name: 'Продажа 1', items: [], createdAt: Date.now() }],
-      activeSessionId: 'default',
+      ...createDefaultCartState(),
 
-      // Removed getter 'items' to avoid persist middleware conflict.
-      // Logic moved to component selectors.
+      resetState: () => set(createDefaultCartState()),
 
-      createSession: () => set((state) => {
-        const newId = generateId();
-        return {
-          sessions: [
-            ...state.sessions,
-            { id: newId, name: `Продажа ${state.sessions.length + 1}`, items: [], createdAt: Date.now() }
-          ],
-          activeSessionId: newId
-        };
-      }),
+      createSession: () =>
+        set((state) => {
+          const newId = generateId();
+          return {
+            sessions: [
+              ...state.sessions,
+              {
+                id: newId,
+                name: `Продажа ${state.sessions.length + 1}`,
+                items: [],
+                createdAt: Date.now(),
+              },
+            ],
+            activeSessionId: newId,
+          };
+        }),
 
       switchSession: (sessionId) => set({ activeSessionId: sessionId }),
 
-      deleteSession: (sessionId) => set((state) => {
-        if (state.sessions.length <= 1) return state; // Don't delete last session
-        const newSessions = state.sessions.filter(s => s.id !== sessionId);
-        return {
-          sessions: newSessions,
-          activeSessionId: state.activeSessionId === sessionId ? newSessions[0].id : state.activeSessionId
-        };
-      }),
-
-      renameSession: (sessionId, name) => set((state) => ({
-        sessions: state.sessions.map(s => s.id === sessionId ? { ...s, name } : s)
-      })),
-
-      addItem: (product, quantity = 1) => {
+      deleteSession: (sessionId) =>
         set((state) => {
-          const sessionIndex = state.sessions.findIndex(s => s.id === state.activeSessionId);
-          if (sessionIndex === -1) return state;
+          if (state.sessions.length <= 1) {
+            return state;
+          }
+
+          const newSessions = state.sessions.filter((session) => session.id !== sessionId);
+          return {
+            sessions: newSessions,
+            activeSessionId:
+              state.activeSessionId === sessionId ? newSessions[0].id : state.activeSessionId,
+          };
+        }),
+
+      renameSession: (sessionId, name) =>
+        set((state) => ({
+          sessions: state.sessions.map((session) =>
+            session.id === sessionId ? { ...session, name } : session,
+          ),
+        })),
+
+      addItem: (product, quantity = 1) =>
+        set((state) => {
+          const sessionIndex = state.sessions.findIndex(
+            (session) => session.id === state.activeSessionId,
+          );
+          if (sessionIndex === -1) {
+            return state;
+          }
 
           const session = state.sessions[sessionIndex];
           const existingItem = session.items.find((item) => item.product.id === product.id);
 
-          let newItems;
-          if (existingItem) {
-            newItems = session.items.map((item) =>
-              item.product.id === product.id
-                ? { ...item, quantity: item.quantity + quantity }
-                : item
-            );
-          } else {
-            newItems = [...session.items, { product, quantity, discount: 0 }];
+          const newItems = existingItem
+            ? session.items.map((item) =>
+                item.product.id === product.id
+                  ? { ...item, quantity: item.quantity + quantity }
+                  : item,
+              )
+            : [...session.items, { product, quantity, discount: 0 }];
+
+          const newSessions = [...state.sessions];
+          newSessions[sessionIndex] = { ...session, items: newItems };
+          return { sessions: newSessions };
+        }),
+
+      removeItem: (productId) =>
+        set((state) => {
+          const sessionIndex = state.sessions.findIndex(
+            (session) => session.id === state.activeSessionId,
+          );
+          if (sessionIndex === -1) {
+            return state;
           }
 
-          const newSessions = [...state.sessions];
-          newSessions[sessionIndex] = { ...session, items: newItems };
-          return { sessions: newSessions };
-        });
-      },
-
-      removeItem: (productId) => {
-        set((state) => {
-          const sessionIndex = state.sessions.findIndex(s => s.id === state.activeSessionId);
-          if (sessionIndex === -1) return state;
-
           const session = state.sessions[sessionIndex];
-          const newItems = session.items.filter((item) => item.product.id !== productId);
-
           const newSessions = [...state.sessions];
-          newSessions[sessionIndex] = { ...session, items: newItems };
+          newSessions[sessionIndex] = {
+            ...session,
+            items: session.items.filter((item) => item.product.id !== productId),
+          };
           return { sessions: newSessions };
-        });
-      },
+        }),
 
-      updateQuantity: (productId, quantity) => {
+      updateQuantity: (productId, quantity) =>
         set((state) => {
-          const sessionIndex = state.sessions.findIndex(s => s.id === state.activeSessionId);
-          if (sessionIndex === -1) return state;
-
-          const session = state.sessions[sessionIndex];
-          const newItems = session.items.map((item) =>
-            item.product.id === productId ? { ...item, quantity } : item
+          const sessionIndex = state.sessions.findIndex(
+            (session) => session.id === state.activeSessionId,
           );
-
-          const newSessions = [...state.sessions];
-          newSessions[sessionIndex] = { ...session, items: newItems };
-          return { sessions: newSessions };
-        });
-      },
-
-      setDiscount: (productId, discount) => {
-        set((state) => {
-          const sessionIndex = state.sessions.findIndex(s => s.id === state.activeSessionId);
-          if (sessionIndex === -1) return state;
+          if (sessionIndex === -1) {
+            return state;
+          }
 
           const session = state.sessions[sessionIndex];
-          const newItems = session.items.map((item) =>
-            item.product.id === productId ? { ...item, discount } : item
-          );
-
           const newSessions = [...state.sessions];
-          newSessions[sessionIndex] = { ...session, items: newItems };
+          newSessions[sessionIndex] = {
+            ...session,
+            items: session.items.map((item) =>
+              item.product.id === productId ? { ...item, quantity } : item,
+            ),
+          };
           return { sessions: newSessions };
-        });
-      },
+        }),
 
-      clearCart: () => {
+      setDiscount: (productId, discount) =>
         set((state) => {
-          const sessionIndex = state.sessions.findIndex(s => s.id === state.activeSessionId);
-          if (sessionIndex === -1) return state;
+          const sessionIndex = state.sessions.findIndex(
+            (session) => session.id === state.activeSessionId,
+          );
+          if (sessionIndex === -1) {
+            return state;
+          }
+
+          const session = state.sessions[sessionIndex];
+          const newSessions = [...state.sessions];
+          newSessions[sessionIndex] = {
+            ...session,
+            items: session.items.map((item) =>
+              item.product.id === productId ? { ...item, discount } : item,
+            ),
+          };
+          return { sessions: newSessions };
+        }),
+
+      clearCart: () =>
+        set((state) => {
+          const sessionIndex = state.sessions.findIndex(
+            (session) => session.id === state.activeSessionId,
+          );
+          if (sessionIndex === -1) {
+            return state;
+          }
 
           const newSessions = [...state.sessions];
           newSessions[sessionIndex] = { ...newSessions[sessionIndex], items: [] };
           return { sessions: newSessions };
-        });
-      },
+        }),
 
       getSubtotal: () => {
-        const state = get();
-        const items = state.sessions.find(s => s.id === state.activeSessionId)?.items || [];
-        return items.reduce((sum, item) => {
-          return sum + Number(item.product.sell_price) * item.quantity;
-        }, 0);
+        const items =
+          get().sessions.find((session) => session.id === get().activeSessionId)?.items || [];
+        return items.reduce(
+          (sum, item) => sum + Number(item.product.sell_price) * item.quantity,
+          0,
+        );
       },
 
       getTax: () => {
-        const state = get();
-        const items = state.sessions.find(s => s.id === state.activeSessionId)?.items || [];
+        const items =
+          get().sessions.find((session) => session.id === get().activeSessionId)?.items || [];
         return items.reduce((sum, item) => {
-          const itemSubtotal = Number(item.product.sell_price) * item.quantity;
-          const tax = itemSubtotal * (Number(item.product.tax_percent) / 100);
-          return sum + tax;
+          const subtotal = Number(item.product.sell_price) * item.quantity;
+          return sum + subtotal * (Number(item.product.tax_percent) / 100);
         }, 0);
       },
 
-      getTotal: () => {
-        return get().getSubtotal() + get().getTax();
-      },
+      getTotal: () => get().getSubtotal() + get().getTax(),
 
       getItemCount: () => {
-        const state = get();
-        const items = state.sessions.find(s => s.id === state.activeSessionId)?.items || [];
+        const items =
+          get().sessions.find((session) => session.id === get().activeSessionId)?.items || [];
         return items.reduce((sum, item) => sum + item.quantity, 0);
       },
     }),
     {
-      name: 'cart-storage-v2', // Updated key to avoid conflict
+      name: CART_STORAGE_KEY,
+      storage: createCompanyScopedJSONStorage(),
       partialize: (state) => ({
         sessions: state.sessions,
-        activeSessionId: state.activeSessionId
+        activeSessionId: state.activeSessionId,
       }),
-    }
-  )
+    },
+  ),
 );
 
 interface UIState {
@@ -246,19 +417,22 @@ interface UIState {
 
 export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: true,
-  theme: (typeof window !== 'undefined' ? (localStorage.getItem('theme') as 'light' | 'dark') : 'light') || 'light',
+  theme:
+    (typeof window !== 'undefined'
+      ? (localStorage.getItem('theme') as 'light' | 'dark')
+      : 'light') || 'light',
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
   toggleTheme: () => {
     set((state) => {
-      const newTheme = state.theme === 'light' ? 'dark' : 'light';
-      localStorage.setItem('theme', newTheme);
+      const theme = state.theme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('theme', theme);
       if (typeof document !== 'undefined') {
-        document.documentElement.classList.toggle('dark', newTheme === 'dark');
+        document.documentElement.classList.toggle('dark', theme === 'dark');
       }
-      return { theme: newTheme };
+      return { theme };
     });
   },
 
@@ -270,3 +444,17 @@ export const useUIStore = create<UIState>((set) => ({
     set({ theme });
   },
 }));
+
+if (typeof window !== 'undefined') {
+  useAuthStore.subscribe((state, previousState) => {
+    const companyId = state.currentCompany?.id ?? null;
+    const previousCompanyId = previousState.currentCompany?.id ?? null;
+
+    if (companyId === previousCompanyId) {
+      return;
+    }
+
+    useCartStore.getState().resetState();
+    void useCartStore.persist.rehydrate();
+  });
+}

@@ -8,16 +8,26 @@ class CustomerRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_by_id(self, customer_id: int) -> Optional[Customer]:
-        return self.db.query(Customer).filter(Customer.id == customer_id).first()
+    def get_by_id(self, company_id: int, customer_id: int) -> Optional[Customer]:
+        return self.db.query(Customer).filter(
+            Customer.company_id == company_id,
+            Customer.id == customer_id,
+        ).first()
 
-    def get_by_phone(self, phone: str) -> Optional[Customer]:
-        return self.db.query(Customer).filter(Customer.phone == phone).first()
+    def get_by_phone(self, company_id: int, phone: str) -> Optional[Customer]:
+        return self.db.query(Customer).filter(
+            Customer.company_id == company_id,
+            Customer.phone == phone,
+        ).first()
 
     def get_all(
-        self, skip: int = 0, limit: int = 50, search: Optional[str] = None
+        self,
+        company_id: int,
+        skip: int = 0,
+        limit: int = 50,
+        search: Optional[str] = None,
     ) -> List[Customer]:
-        query = self.db.query(Customer)
+        query = self.db.query(Customer).filter(Customer.company_id == company_id)
         if search:
             query = query.filter(
                 or_(
@@ -39,8 +49,8 @@ class CustomerRepository:
         self.db.refresh(customer)
         return customer
 
-    def delete(self, customer_id: int) -> bool:
-        customer = self.get_by_id(customer_id)
+    def delete(self, company_id: int, customer_id: int) -> bool:
+        customer = self.get_by_id(company_id, customer_id)
         if customer:
             self.db.delete(customer)
             self.db.commit()

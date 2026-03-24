@@ -1,29 +1,33 @@
+from datetime import date, datetime
 from decimal import Decimal
 from typing import List
-from datetime import datetime, date
+
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
-from repositories.sale_repository import SaleRepository
-from repositories.product_repository import ProductRepository
-from repositories.inventory_repository import InventoryRepository
+
+from models.product import Product
 from models.sale import Sale, SaleStatus
 from models.sale_item import SaleItem
-from models.product import Product
+from repositories.inventory_repository import InventoryRepository
+from repositories.product_repository import ProductRepository
+from repositories.sale_repository import SaleRepository
 from schemas.report import (
-    DailySalesReport,
     DailySalesData,
-    ProfitReport,
-    TopProductReport,
-    TopProductItem,
+    DailySalesReport,
     DashboardWidgets,
     LowStockItem,
+    ProfitReport,
+    TopProductItem,
+    TopProductReport,
 )
 from services.calculation_service import CalculationService
+from services.tenant import resolve_company_id
 
 
 class ReportService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, company_id: int | None = None):
         self.db = db
+        self.company_id = resolve_company_id(db, company_id)
         self.sale_repo = SaleRepository(db)
         self.product_repo = ProductRepository(db)
         self.inventory_repo = InventoryRepository(db)
@@ -37,6 +41,7 @@ class ReportService:
             self.db.query(func.sum(Sale.total_amount))
             .filter(
                 and_(
+                    Sale.company_id == self.company_id,
                     Sale.created_at >= today_start,
                     Sale.created_at <= today_end,
                     Sale.status == SaleStatus.COMPLETED,
@@ -50,6 +55,7 @@ class ReportService:
             self.db.query(func.count(Sale.id))
             .filter(
                 and_(
+                    Sale.company_id == self.company_id,
                     Sale.created_at >= today_start,
                     Sale.created_at <= today_end,
                     Sale.status == SaleStatus.COMPLETED,
@@ -60,14 +66,15 @@ class ReportService:
         )
 
         today_profit = self._calculate_profit(today_start, today_end)
-
-        low_stock_products = self.product_repo.get_low_stock_products()
-
+        low_stock_products = self.product_repo.get_low_stock_products(self.company_id)
         top_products = self._get_top_products(today_start, today_end, limit=5)
 
         recent_sales = (
             self.db.query(Sale)
-            .filter(Sale.status == SaleStatus.COMPLETED)
+            .filter(
+                Sale.company_id == self.company_id,
+                Sale.status == SaleStatus.COMPLETED,
+            )
             .order_by(Sale.created_at.desc())
             .limit(10)
             .all()
@@ -80,29 +87,27 @@ class ReportService:
             low_stock_count=len(low_stock_products),
             low_stock_items=[
                 LowStockItem(
-                    product_id=p.id,
-                    product_name=p.name,
-                    barcode=p.barcode,
-                    current_stock=p.stock_quantity,
-                    min_stock_level=p.min_stock_level,
+                    product_id=product.id,
+                    product_name=product.name,
+                    barcode=product.barcode,
+                    current_stock=product.stock_quantity,
+                    min_stock_level=product.min_stock_level,
                 )
-                for p in low_stock_products[:10]
+                for product in low_stock_products[:10]
             ],
             top_products=top_products,
             recent_sales=[
                 {
-                    "id": s.id,
-                    "total_amount": str(s.total_amount),
-                    "payment_method": s.payment_method,
-                    "created_at": s.created_at.isoformat(),
+                    "id": sale.id,
+                    "total_amount": str(sale.total_amount),
+                    "payment_method": sale.payment_method,
+                    "created_at": sale.created_at.isoformat(),
                 }
-                for s in recent_sales
+                for sale in recent_sales
             ],
         )
 
-    def get_daily_sales(
-        self, start_date: datetime, end_date: datetime
-    ) -> DailySalesReport:
+    def get_daily_sales(self, start_date: datetime, end_date: datetime) -> DailySalesReport:
         results = (
             self.db.query(
                 func.date(Sale.created_at).label("sale_date"),
@@ -111,6 +116,7 @@ class ReportService:
             )
             .filter(
                 and_(
+                    Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
                     Sale.status == SaleStatus.COMPLETED,
@@ -123,30 +129,29 @@ class ReportService:
 
         data = [
             DailySalesData(
-                date=str(r.sale_date),
-                sales_count=r.count,
-                total_sales=r.total,
+                date=str(result.sale_date),
+                sales_count=result.count,
+                total_sales=result.total,
                 total_profit=Decimal("0.00"),
             )
-            for r in results
+            for result in results
         ]
 
         return DailySalesReport(
             period_start=start_date.isoformat(),
             period_end=end_date.isoformat(),
             data=data,
-            total_sales=sum(r.total_sales for r in data),
+            total_sales=sum(result.total_sales for result in data),
             total_profit=self._calculate_profit(start_date, end_date),
-            sales_count=sum(r.sales_count for r in data),
+            sales_count=sum(result.sales_count for result in data),
         )
 
-    def get_profit_report(
-        self, start_date: datetime, end_date: datetime
-    ) -> ProfitReport:
+    def get_profit_report(self, start_date: datetime, end_date: datetime) -> ProfitReport:
         revenue = (
             self.db.query(func.sum(Sale.total_amount))
             .filter(
                 and_(
+                    Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
                     Sale.status == SaleStatus.COMPLETED,
@@ -164,6 +169,7 @@ class ReportService:
             self.db.query(func.count(Sale.id))
             .filter(
                 and_(
+                    Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
                     Sale.status == SaleStatus.COMPLETED,
@@ -184,7 +190,10 @@ class ReportService:
         )
 
     def get_top_products(
-        self, start_date: datetime, end_date: datetime, limit: int = 10
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        limit: int = 10,
     ) -> TopProductReport:
         return TopProductReport(
             period_start=start_date.isoformat(),
@@ -193,7 +202,10 @@ class ReportService:
         )
 
     def _get_top_products(
-        self, start_date: datetime, end_date: datetime, limit: int = 10
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        limit: int = 10,
     ) -> List[TopProductItem]:
         results = (
             self.db.query(
@@ -207,6 +219,7 @@ class ReportService:
             .join(Sale, SaleItem.sale_id == Sale.id)
             .filter(
                 and_(
+                    Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
                     Sale.status == SaleStatus.COMPLETED,
@@ -218,32 +231,31 @@ class ReportService:
             .all()
         )
 
-        items = []
-        for r in results:
-            product = self.product_repo.get_by_id(r.id)
+        items: List[TopProductItem] = []
+        for result in results:
+            product = self.product_repo.get_by_id(self.company_id, result.id)
             profit_per_unit = product.sell_price - product.cost_price
-            profit = profit_per_unit * r.qty
+            profit = profit_per_unit * result.qty
 
             items.append(
                 TopProductItem(
-                    product_id=r.id,
-                    product_name=r.name,
-                    barcode=r.barcode,
-                    quantity_sold=int(r.qty),
-                    revenue=r.revenue,
+                    product_id=result.id,
+                    product_name=result.name,
+                    barcode=result.barcode,
+                    quantity_sold=int(result.qty),
+                    revenue=result.revenue,
                     profit=profit.quantize(Decimal("0.01")),
                 )
             )
 
         return items
 
-    def _calculate_profit(
-        self, start_date: datetime, end_date: datetime
-    ) -> Decimal:
+    def _calculate_profit(self, start_date: datetime, end_date: datetime) -> Decimal:
         revenue = (
             self.db.query(func.sum(Sale.total_amount))
             .filter(
                 and_(
+                    Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
                     Sale.status == SaleStatus.COMPLETED,
@@ -256,17 +268,14 @@ class ReportService:
         cost = self._calculate_cost(start_date, end_date)
         return revenue - cost
 
-    def _calculate_cost(
-        self, start_date: datetime, end_date: datetime
-    ) -> Decimal:
+    def _calculate_cost(self, start_date: datetime, end_date: datetime) -> Decimal:
         result = (
-            self.db.query(
-                func.sum(SaleItem.quantity * Product.cost_price)
-            )
+            self.db.query(func.sum(SaleItem.quantity * Product.cost_price))
             .join(Sale, SaleItem.sale_id == Sale.id)
             .join(Product, SaleItem.product_id == Product.id)
             .filter(
                 and_(
+                    Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
                     Sale.status == SaleStatus.COMPLETED,

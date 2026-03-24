@@ -1,5 +1,6 @@
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.orm import Session
 from alembic import context
 import sys
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
+from bootstrap_utils import ensure_super_admin
 from core.config import settings
 from core.database import Base
 from models import *  # Import all models
@@ -72,6 +74,16 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
+
+        session = Session(bind=connection)
+        try:
+            ensure_super_admin(session)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
 
 if context.is_offline_mode():

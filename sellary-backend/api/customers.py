@@ -1,12 +1,13 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional
+
+from api.dependencies import AuthContext, get_auth_context
 from core.database import get_db
-from schemas.customer import CustomerCreate, CustomerUpdate, Customer
-from repositories.customer_repository import CustomerRepository
 from models.customer import Customer as CustomerModel
-from api.dependencies import get_current_user
-from models.user import User
+from repositories.customer_repository import CustomerRepository
+from schemas.customer import Customer, CustomerCreate, CustomerUpdate
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -17,20 +18,20 @@ def get_customers(
     limit: int = Query(50, ge=1, le=200),
     search: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth: AuthContext = Depends(get_auth_context),
 ):
     repo = CustomerRepository(db)
-    return repo.get_all(skip=skip, limit=limit, search=search)
+    return repo.get_all(auth.company_id, skip=skip, limit=limit, search=search)
 
 
 @router.get("/{customer_id}", response_model=Customer)
 def get_customer(
     customer_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth: AuthContext = Depends(get_auth_context),
 ):
     repo = CustomerRepository(db)
-    customer = repo.get_by_id(customer_id)
+    customer = repo.get_by_id(auth.company_id, customer_id)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     return customer
@@ -40,12 +41,12 @@ def get_customer(
 def create_customer(
     customer_create: CustomerCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth: AuthContext = Depends(get_auth_context),
 ):
     repo = CustomerRepository(db)
-    if customer_create.phone and repo.get_by_phone(customer_create.phone):
+    if customer_create.phone and repo.get_by_phone(auth.company_id, customer_create.phone):
         raise HTTPException(status_code=400, detail="Customer with this phone already exists")
-    return repo.create(CustomerModel(**customer_create.model_dump()))
+    return repo.create(CustomerModel(company_id=auth.company_id, **customer_create.model_dump()))
 
 
 @router.put("/{customer_id}", response_model=Customer)
@@ -53,14 +54,19 @@ def update_customer(
     customer_id: int,
     customer_update: CustomerUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth: AuthContext = Depends(get_auth_context),
 ):
     repo = CustomerRepository(db)
-    customer = repo.get_by_id(customer_id)
+    customer = repo.get_by_id(auth.company_id, customer_id)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
 
     update_data = customer_update.model_dump(exclude_unset=True)
+    phone = update_data.get("phone")
+    if phone:
+        existing = repo.get_by_phone(auth.company_id, phone)
+        if existing and existing.id != customer_id:
+            raise HTTPException(status_code=400, detail="Customer with this phone already exists")
     for field, value in update_data.items():
         setattr(customer, field, value)
 
@@ -71,8 +77,8 @@ def update_customer(
 def delete_customer(
     customer_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth: AuthContext = Depends(get_auth_context),
 ):
     repo = CustomerRepository(db)
-    if not repo.delete(customer_id):
+    if not repo.delete(auth.company_id, customer_id):
         raise HTTPException(status_code=404, detail="Customer not found")

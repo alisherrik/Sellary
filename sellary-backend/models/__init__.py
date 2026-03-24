@@ -1,3 +1,5 @@
+from .company import Company
+from .company_membership import CompanyMembership
 from .user import User
 from .category import Category
 from .product import Product
@@ -12,6 +14,8 @@ from .purchase_order_item import PurchaseOrderItem
 from .idempotency_key import IdempotencyKey
 
 __all__ = [
+    "Company",
+    "CompanyMembership",
     "User",
     "Category",
     "Product",

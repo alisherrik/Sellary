@@ -12,9 +12,13 @@ export default function RestaurantLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
 
   useEffect(() => {
+    if (!hasHydrated) {
+      return;
+    }
+
     if (!isRestaurantEnabled) {
       router.replace('/pos');
       return;
@@ -23,7 +27,11 @@ export default function RestaurantLayout({
     if (!isAuthenticated) {
       router.replace('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
+
+  if (!hasHydrated) {
+    return null;
+  }
 
   if (!isAuthenticated || !isRestaurantEnabled) {
     return null;

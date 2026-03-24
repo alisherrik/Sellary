@@ -1,68 +1,55 @@
 """
-Seed script to create an admin user for Sellary.
-Run this after creating the database.
+Seed a default company with admin and cashier accounts for local development.
 """
+from bootstrap_utils import ensure_company, ensure_membership, ensure_schema, ensure_user
 from core.database import SessionLocal
-from core.security import get_password_hash
-from models.user import User
+
+DEFAULT_COMPANY_NAME = "Sellary Demo"
+DEFAULT_COMPANY_SLUG = "sellary-demo"
 
 
-def create_admin_user():
+def seed_default_users() -> None:
+    ensure_schema()
     db = SessionLocal()
     try:
-        existing = db.query(User).filter(User.username == "admin").first()
-        if existing:
-            print("Admin user already exists.")
-            return
+        company, _ = ensure_company(
+            db,
+            name=DEFAULT_COMPANY_NAME,
+            slug=DEFAULT_COMPANY_SLUG,
+        )
 
-        admin = User(
+        admin, admin_created = ensure_user(
+            db,
             username="admin",
             email="admin@example.com",
             full_name="System Administrator",
-            hashed_password=get_password_hash("admin123"),
+            password="admin123",
             role="admin",
-            is_active=True,
         )
-        db.add(admin)
-        db.commit()
-        print("Admin user created successfully!")
-        print("Username: admin")
-        print("Password: admin123")
-        print("Please change the password after first login.")
-    except Exception as e:
-        print(f"Error creating admin user: {e}")
-        db.rollback()
-    finally:
-        db.close()
+        ensure_membership(db, user=admin, company=company, role="admin", is_default=True)
 
-def create_cashier_user():
-    db = SessionLocal()
-    try:
-        existing = db.query(User).filter(User.username == "cashier").first()
-        if existing:
-            print("Cashier user already exists.")
-            return
-
-        cashier = User(
+        cashier, cashier_created = ensure_user(
+            db,
             username="cashier",
             email="cashier@example.com",
             full_name="Cashier",
-            hashed_password=get_password_hash("cashier123"),
+            password="cashier123",
             role="cashier",
-            is_active=True,
         )
-        db.add(cashier)
+        ensure_membership(db, user=cashier, company=company, role="cashier", is_default=True)
+
         db.commit()
-        print("Cashier user created successfully!")
-        print("Username: cashier")
-        print("Password: cashier123")
-        print("Please change the password after first login.")
-    except Exception as e:
-        print(f"Error creating admin user: {e}")
+
+        print("Default tenant seed complete.")
+        print(f"Company: {company.name} ({company.slug})")
+        print(f"Admin: admin / admin123 [{'created' if admin_created else 'existing'}]")
+        print(f"Cashier: cashier / cashier123 [{'created' if cashier_created else 'existing'}]")
+    except Exception:
         db.rollback()
+        raise
     finally:
         db.close()
 
+
 if __name__ == "__main__":
-    create_admin_user()
-    create_cashier_user()
+    seed_default_users()

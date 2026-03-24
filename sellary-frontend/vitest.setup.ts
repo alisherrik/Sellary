@@ -53,11 +53,23 @@ Object.defineProperty(window.navigator, 'onLine', {
     value: true,
 });
 
-// Mock localStorage
+// Mock localStorage with real in-memory behavior
+const localStorageState = new Map<string, string>();
 const localStorageMock = {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
+    getItem: vi.fn((key: string) => (localStorageState.has(key) ? localStorageState.get(key)! : null)),
+    setItem: vi.fn((key: string, value: string) => {
+        localStorageState.set(key, String(value));
+    }),
+    removeItem: vi.fn((key: string) => {
+        localStorageState.delete(key);
+    }),
+    clear: vi.fn(() => {
+        localStorageState.clear();
+    }),
 };
 global.localStorage = localStorageMock as any;
+Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+    configurable: true,
+});

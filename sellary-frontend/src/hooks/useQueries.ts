@@ -1,130 +1,140 @@
 import { useQuery, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
 import { reportsApi, productsApi, salesApi, suppliersApi, purchaseOrdersApi } from '@/lib/api';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
+import { useAuthStore } from '@/lib/store';
 import {
     Product, Sale, Supplier, PurchaseOrder,
     DailySalesReport, ProfitReport, TopProductsReport
 } from '@/lib/types';
 
+const tenantKey = (companyId: number | null) => companyId ?? 'no-company';
 
 // Query Keys
 export const queryKeys = {
-    dashboard: ['dashboard'] as const,
-    products: (params?: any) => ['products', params] as const,
-    sales: (params?: any) => ['sales', params] as const,
-    suppliers: (params?: any) => ['suppliers', params] as const,
-    purchaseOrders: (params?: any) => ['purchaseOrders', params] as const,
-    dailySales: (days: number) => ['dailySales', days] as const,
-    profit: (days: number) => ['profit', days] as const,
-    topProducts: (days: number, limit: number) => ['topProducts', days, limit] as const,
+    dashboard: (companyId: number | null) => ['dashboard', tenantKey(companyId)] as const,
+    products: (companyId: number | null, params?: any) => ['products', tenantKey(companyId), params] as const,
+    sales: (companyId: number | null, params?: any) => ['sales', tenantKey(companyId), params] as const,
+    suppliers: (companyId: number | null, params?: any) => ['suppliers', tenantKey(companyId), params] as const,
+    purchaseOrders: (companyId: number | null, params?: any) => ['purchaseOrders', tenantKey(companyId), params] as const,
+    dailySales: (companyId: number | null, days: number) => ['dailySales', tenantKey(companyId), days] as const,
+    profit: (companyId: number | null, days: number) => ['profit', tenantKey(companyId), days] as const,
+    topProducts: (companyId: number | null, days: number, limit: number) => ['topProducts', tenantKey(companyId), days, limit] as const,
 };
 
 // Dashboard Hook
 export function useDashboard() {
     const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
     return useQuery({
-        queryKey: queryKeys.dashboard,
+        queryKey: queryKeys.dashboard(companyId),
         queryFn: async () => {
             const response = await reportsApi.getDashboard();
             return response.data;
         },
-        enabled: isServerReachable,
+        enabled: isServerReachable && companyId !== null,
     });
 }
 
 // Products Hook
 export function useProducts(params?: any, options?: Partial<UseQueryOptions<Product[]>>) {
     const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
     return useQuery<Product[]>({
-        queryKey: queryKeys.products(params),
+        queryKey: queryKeys.products(companyId, params),
         queryFn: async () => {
             const response = await productsApi.getAll(params || { limit: 100 });
             return response.data;
         },
         ...options,
-        enabled: isServerReachable && (options?.enabled !== false),
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
     });
 }
 
 // Sales Hook
 export function useSales(params?: any, options?: Partial<UseQueryOptions<Sale[]>>) {
     const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
     return useQuery<Sale[]>({
-        queryKey: queryKeys.sales(params),
+        queryKey: queryKeys.sales(companyId, params),
         queryFn: async () => {
             const response = await salesApi.getAll(params || { limit: 100 });
             return response.data;
         },
         ...options,
-        enabled: isServerReachable && (options?.enabled !== false),
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
     });
 }
 
 // Suppliers Hook
 export function useSuppliers(params?: any, options?: Partial<UseQueryOptions<Supplier[]>>) {
     const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
     return useQuery<Supplier[]>({
-        queryKey: queryKeys.suppliers(params),
+        queryKey: queryKeys.suppliers(companyId, params),
         queryFn: async () => {
             const response = await suppliersApi.getAll(params || { limit: 100 });
             return response.data;
         },
         ...options,
-        enabled: isServerReachable && (options?.enabled !== false),
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
     });
 }
 
 // Purchase Orders Hook
 export function usePurchaseOrders(params?: any, options?: Partial<UseQueryOptions<PurchaseOrder[]>>) {
     const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
     return useQuery<PurchaseOrder[]>({
-        queryKey: queryKeys.purchaseOrders(params),
+        queryKey: queryKeys.purchaseOrders(companyId, params),
         queryFn: async () => {
             const response = await purchaseOrdersApi.getAll(params || { limit: 100 });
             return response.data;
         },
         ...options,
-        enabled: isServerReachable && (options?.enabled !== false),
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
     });
 }
 
 // Reports Hooks
 export function useDailySales(days: number, options?: Partial<UseQueryOptions<DailySalesReport>>) {
     const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
     return useQuery<DailySalesReport>({
-        queryKey: queryKeys.dailySales(days),
+        queryKey: queryKeys.dailySales(companyId, days),
         queryFn: async () => {
             const response = await reportsApi.getDailySales({ days });
             return response.data;
         },
         ...options,
-        enabled: isServerReachable && (options?.enabled !== false),
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
     });
 }
 
 export function useProfit(days: number, options?: Partial<UseQueryOptions<ProfitReport>>) {
     const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
     return useQuery<ProfitReport>({
-        queryKey: queryKeys.profit(days),
+        queryKey: queryKeys.profit(companyId, days),
         queryFn: async () => {
             const response = await reportsApi.getProfit({ days });
             return response.data;
         },
         ...options,
-        enabled: isServerReachable && (options?.enabled !== false),
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
     });
 }
 
 export function useTopProducts(days: number, limit: number = 10, options?: Partial<UseQueryOptions<TopProductsReport>>) {
     const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
     return useQuery<TopProductsReport>({
-        queryKey: queryKeys.topProducts(days, limit),
+        queryKey: queryKeys.topProducts(companyId, days, limit),
         queryFn: async () => {
             const response = await reportsApi.getTopProducts({ days, limit });
             return response.data;
         },
         ...options,
-        enabled: isServerReachable && (options?.enabled !== false),
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
     });
 }
 
@@ -133,11 +143,12 @@ export function useTopProducts(days: number, limit: number = 10, options?: Parti
 export function usePrefetchOnHover() {
     const queryClient = useQueryClient();
     const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
 
     const prefetchDashboard = () => {
-        if (!isServerReachable) return;
+        if (!isServerReachable || companyId === null) return;
         queryClient.prefetchQuery({
-            queryKey: queryKeys.dashboard,
+            queryKey: queryKeys.dashboard(companyId),
             queryFn: async () => {
                 const response = await reportsApi.getDashboard();
                 return response.data;
@@ -147,9 +158,9 @@ export function usePrefetchOnHover() {
     };
 
     const prefetchProducts = () => {
-        if (!isServerReachable) return;
+        if (!isServerReachable || companyId === null) return;
         queryClient.prefetchQuery({
-            queryKey: queryKeys.products({ limit: 100 }),
+            queryKey: queryKeys.products(companyId, { limit: 100 }),
             queryFn: async () => {
                 const response = await productsApi.getAll({ limit: 100 });
                 return response.data;
@@ -159,9 +170,9 @@ export function usePrefetchOnHover() {
     };
 
     const prefetchSales = () => {
-        if (!isServerReachable) return;
+        if (!isServerReachable || companyId === null) return;
         queryClient.prefetchQuery({
-            queryKey: queryKeys.sales({ limit: 100 }),
+            queryKey: queryKeys.sales(companyId, { limit: 100 }),
             queryFn: async () => {
                 const response = await salesApi.getAll({ limit: 100 });
                 return response.data;
@@ -171,9 +182,9 @@ export function usePrefetchOnHover() {
     };
 
     const prefetchSuppliers = () => {
-        if (!isServerReachable) return;
+        if (!isServerReachable || companyId === null) return;
         queryClient.prefetchQuery({
-            queryKey: queryKeys.suppliers({ limit: 100 }),
+            queryKey: queryKeys.suppliers(companyId, { limit: 100 }),
             queryFn: async () => {
                 const response = await suppliersApi.getAll({ limit: 100 });
                 return response.data;
@@ -183,9 +194,9 @@ export function usePrefetchOnHover() {
     };
 
     const prefetchPurchaseOrders = () => {
-        if (!isServerReachable) return;
+        if (!isServerReachable || companyId === null) return;
         queryClient.prefetchQuery({
-            queryKey: queryKeys.purchaseOrders({ limit: 100 }),
+            queryKey: queryKeys.purchaseOrders(companyId, { limit: 100 }),
             queryFn: async () => {
                 const response = await purchaseOrdersApi.getAll({ limit: 100 });
                 return response.data;

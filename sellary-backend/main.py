@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from api import (
+    admin_router,
     auth_router,
     products_router,
     sales_router,
@@ -12,6 +13,7 @@ from api import (
     suppliers_router,
     purchase_orders_router,
     meta_router,
+    owner_router,
 )
 
 def create_app() -> FastAPI:
@@ -31,6 +33,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(auth_router, prefix=settings.API_V1_STR)
+    app.include_router(admin_router, prefix=settings.API_V1_STR)
     app.include_router(products_router, prefix=settings.API_V1_STR)
     app.include_router(sales_router, prefix=settings.API_V1_STR)
     app.include_router(inventory_router, prefix=settings.API_V1_STR)
@@ -40,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(suppliers_router, prefix=settings.API_V1_STR)
     app.include_router(purchase_orders_router, prefix=settings.API_V1_STR)
     app.include_router(meta_router, prefix=settings.API_V1_STR)
+    app.include_router(owner_router, prefix=settings.API_V1_STR)
 
     return app
 

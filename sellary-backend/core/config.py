@@ -10,6 +10,14 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    LOGIN_TOKEN_EXPIRE_MINUTES: int = 10
+    OWNER_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+
+    # Bootstrap super admin
+    SUPER_ADMIN_USERNAME: str | None = None
+    SUPER_ADMIN_EMAIL: str | None = None
+    SUPER_ADMIN_PASSWORD: str | None = None
+    SUPER_ADMIN_FULL_NAME: str | None = None
 
     # API
     API_V1_STR: str = "/api"
