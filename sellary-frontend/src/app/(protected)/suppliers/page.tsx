@@ -115,14 +115,8 @@ export default function Suppliers() {
 
   return (
     <>
-      <div className="space-y-4 pb-4 sm:space-y-6">
+      <div className="h-full overflow-y-auto mobile-no-overscroll p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">Поставщики</h1>
-            <p className="text-xs text-gray-600 dark:text-gray-400 sm:text-base">
-              Управление базой поставщиков
-            </p>
-          </div>
           <button
             onClick={handleCreate}
             className="self-start rounded-lg bg-blue-500 px-3 py-2 text-sm text-white hover:bg-blue-600 sm:self-auto sm:px-4 sm:text-base"
@@ -157,51 +151,37 @@ export default function Suppliers() {
             <div className="p-8 text-center text-gray-500">Поставщики не найдены</div>
           ) : (
             <>
-              <div className="divide-y divide-gray-100 dark:divide-gray-700 sm:hidden">
+              <div className="space-y-2 sm:hidden">
                 {suppliers.map((supplier: Supplier) => (
-                  <div key={supplier.id} className="p-3">
-                    <div className="mb-2 flex items-start justify-between">
+                  <div key={supplier.id} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <div className="flex items-start justify-between">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{supplier.name}</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{supplier.name}</p>
                         {supplier.contact_person && (
-                          <p className="text-[10px] text-gray-500">{supplier.contact_person}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{supplier.contact_person}</p>
                         )}
                       </div>
-                      <div className="ml-2 flex gap-1">
-                        <button
-                          onClick={() => handleEdit(supplier)}
-                          className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
-                        >
-                          <PencilIcon className="h-5 w-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(supplier.id)}
-                          className="rounded-lg p-2 text-red-600 hover:bg-red-50"
-                        >
-                          <TrashIcon className="h-5 w-5" />
-                        </button>
-                      </div>
                     </div>
-
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <a href={`tel:${supplier.phone}`} className="flex items-center gap-1 text-blue-600">
-                        <PhoneIcon className="h-3 w-3" />
-                        {supplier.phone}
-                      </a>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      {supplier.phone && (
+                        <span className="flex items-center gap-1">
+                          <PhoneIcon className="h-3 w-3" /> {supplier.phone}
+                        </span>
+                      )}
                       {supplier.email && (
-                        <a
-                          href={`mailto:${supplier.email}`}
-                          className="flex max-w-[160px] items-center gap-1 truncate text-gray-500"
-                        >
-                          <EnvelopeIcon className="h-3 w-3" />
-                          <span className="truncate">{supplier.email}</span>
-                        </a>
+                        <span className="flex items-center gap-1">
+                          <EnvelopeIcon className="h-3 w-3" /> {supplier.email}
+                        </span>
                       )}
                     </div>
-
-                    {supplier.payment_terms && (
-                      <p className="mt-1 text-[10px] text-gray-500">Оплата: {supplier.payment_terms}</p>
-                    )}
+                    <div className="mt-2 flex justify-end gap-1">
+                      <button onClick={() => handleEdit(supplier)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-700 dark:hover:text-blue-400" aria-label="Редактировать">
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => handleDelete(supplier.id)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700 dark:hover:text-red-400" aria-label="Удалить">
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
