@@ -267,16 +267,8 @@ export default function Products() {
 
   return (
     <>
-      <div className="space-y-4 sm:space-y-6 pb-4">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Товары</h1>
-            <p className="text-xs sm:text-base text-gray-600 dark:text-gray-400">
-              Управление ассортиментом и категориями
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 self-start sm:self-auto">
+      <div className="h-full overflow-y-auto mobile-no-overscroll p-4">
+        <div className="flex flex-col sm:flex-row gap-2 mb-4">
             <button
               type="button"
               onClick={() => setShowCategoryManager(true)}
@@ -294,7 +286,6 @@ export default function Products() {
               <span className="hidden sm:inline">Добавить товар</span>
               <span className="sm:hidden">Добавить</span>
             </button>
-          </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-700">
@@ -333,38 +324,60 @@ export default function Products() {
             <div className="p-8 text-center text-gray-500">Товары не найдены</div>
           ) : (
             <>
-              <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
-                {products.map((product) => (
-                  <div key={product.id} className="p-3">
-                    <div className="mb-2 flex items-start justify-between">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{product.name}</p>
-                        <p className="text-[10px] text-gray-500">{product.barcode || 'Без штрихкода'}</p>
+              {/* Mobile product cards */}
+              <div className="space-y-2 sm:hidden">
+                {loading ? (
+                  <TableSkeleton />
+                ) : products.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-gray-500">Нет товаров</p>
+                ) : (
+                  products.map((product) => (
+                    <div
+                      key={product.id}
+                      className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
+                          {product.barcode && (
+                            <p className="text-xs text-gray-400">{product.barcode}</p>
+                          )}
+                        </div>
+                        <span className="ml-2 shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                          {product.category?.name || '—'}
+                        </span>
                       </div>
-                      <span
-                        className={`ml-2 flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${getStockStatusColor(product)}`}
-                      >
-                        {product.stock_quantity} {product.uom}
-                      </span>
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="flex gap-3 text-xs">
+                          <span className="text-gray-500">
+                            <span className="font-medium text-gray-900">{formatCurrency(product.sell_price)}</span> / {product.uom}
+                          </span>
+                          <span className="text-gray-500">
+                            Ост: <span className={`font-medium ${product.stock_quantity <= product.min_stock_level ? 'text-red-600' : 'text-gray-900'}`}>
+                              {product.stock_quantity}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleEditProduct(product)}
+                            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
+                            aria-label="Редактировать"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600"
+                            aria-label="Удалить"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-500">{product.category?.name || 'Без категории'}</p>
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">
-                          {formatCurrency(product.sell_price)}
-                        </p>
-                      </div>
-                      <div className="flex gap-1">
-                        <button type="button" onClick={() => handleEditProduct(product)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                          <PencilIcon className="w-5 h-5" />
-                        </button>
-                        <button type="button" onClick={() => handleDeleteProduct(product.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
-                          <TrashIcon className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
 
               <div className="hidden sm:block overflow-x-auto">
