@@ -1,7 +1,7 @@
 'use client';
 
 import toast from 'react-hot-toast';
-import { BanknotesIcon, Cog6ToothIcon, ServerIcon } from '@heroicons/react/24/outline';
+import { BanknotesIcon, ServerIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 
 import CompanyAdminSection from '@/components/settings/CompanyAdminSection';
@@ -40,17 +40,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-20">
-      <div className="flex items-center gap-3">
-        <div className="rounded-xl bg-blue-100 p-2">
-          <Cog6ToothIcon className="h-6 w-6 text-blue-600" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-sm text-gray-500">Adjust local preferences and company admin controls.</p>
-        </div>
-      </div>
-
+    <div className="h-full overflow-y-auto mobile-no-overscroll p-4 space-y-6">
       <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-4 sm:p-6">
           <div className="flex items-center gap-2">
