@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useCartStore } from '@/lib/store';
 import { salesApi } from '@/lib/api';
 import { formatCurrency, hotkeyManager, registerHotkeys } from '@/lib/utils';
@@ -32,7 +32,6 @@ export default function POS() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
   const [cardType, setCardType] = useState<'alif' | 'eskhata' | 'dc' | null>(null);
   const [loading, setLoading] = useState(false);
-  const [overallDiscount, setOverallDiscount] = useState(0);
   const [totalEdit, setTotalEdit] = useState<string | null>(null);
   const [priceEdits, setPriceEdits] = useState<Record<number, string>>({});
   const { isServerReachable } = useServerHealth();
@@ -40,6 +39,9 @@ export default function POS() {
   const {
     sessions,
     activeSessionId,
+    createSession,
+    switchSession,
+    deleteSession,
     addItem,
     removeItem,
     updateQuantity,
@@ -50,7 +52,16 @@ export default function POS() {
     getTotal,
     getItemCount,
   } = useCartStore();
-  const items = sessions.find((session) => session.id === activeSessionId)?.items ?? [];
+  const activeSession = sessions.find((session) => session.id === activeSessionId);
+  const items = useMemo(() => activeSession?.items ?? [], [activeSession]);
+  const [overallDiscounts, setOverallDiscounts] = useState<Record<string, number>>({});
+  const overallDiscount = overallDiscounts[activeSessionId] ?? 0;
+  const setActiveOverallDiscount = useCallback(
+    (discount: number) => {
+      setOverallDiscounts((prev) => ({ ...prev, [activeSessionId]: discount }));
+    },
+    [activeSessionId],
+  );
 
   useEffect(() => {
     registerHotkeys();
@@ -60,15 +71,24 @@ export default function POS() {
     };
   }, []);
 
+  useEffect(() => {
+    setShowPaymentModal(false);
+    setCardType(null);
+    setPaymentMethod('cash');
+    setTotalEdit(null);
+    setPriceEdits({});
+    setLoading(false);
+  }, [activeSessionId]);
+
   const resetCheckout = useCallback(() => {
     clearCart();
     setShowPaymentModal(false);
     setCardType(null);
     setPaymentMethod('cash');
-    setOverallDiscount(0);
+    setActiveOverallDiscount(0);
     setTotalEdit(null);
     setPriceEdits({});
-  }, [clearCart]);
+  }, [clearCart, setActiveOverallDiscount]);
 
   const completeSale = useCallback(async () => {
     if (items.length === 0) {
@@ -182,27 +202,78 @@ export default function POS() {
   const finalTotal = pricing.finalTotal;
   const hasOverallDiscount = overallDiscount !== 0;
   const isOverallMarkup = overallDiscount < 0;
+  const getSessionItemCount = (sessionItems: typeof items) =>
+    sessionItems.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <>
-      <div className="h-[calc(100vh-80px)] sm:h-[calc(100vh-100px)] flex flex-col gap-3 sm:gap-4">
-        <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white sm:text-2xl">Касса</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
-                Одна активная корзина, быстрый расчет и простой MVP-сценарий
-              </p>
-            </div>
-            <div className="rounded-xl bg-blue-50 px-3 py-2 text-right dark:bg-blue-900/20">
-              <div className="text-[11px] uppercase tracking-wide text-blue-600 dark:text-blue-300">
-                Корзина
-              </div>
-              <div className="text-base font-bold text-blue-700 dark:text-blue-200 sm:text-lg">
-                {itemCount}
-              </div>
-            </div>
+      <div className="h-full flex flex-col gap-3 sm:gap-4">
+        <div className="flex items-center gap-2 overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div
+            role="tablist"
+            aria-label="Активные продажи"
+            className="flex min-w-0 flex-1 items-center gap-2"
+          >
+            {sessions.map((session) => {
+              const isActive = session.id === activeSessionId;
+              const sessionItemCount = getSessionItemCount(session.items);
+
+              return (
+                <div
+                  key={session.id}
+                  className={`flex h-10 shrink-0 items-center rounded-xl border transition-colors ${
+                    isActive
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-200'
+                      : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={() => switchSession(session.id)}
+                    className="flex h-full min-w-0 items-center gap-2 px-3 text-xs font-bold sm:text-sm"
+                  >
+                    <span className="max-w-24 truncate sm:max-w-36">{session.name}</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                        isActive
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-100'
+                          : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-300'
+                      }`}
+                    >
+                      {sessionItemCount}
+                    </span>
+                  </button>
+                  {sessions.length > 1 && (
+                    <button
+                      type="button"
+                      aria-label={`Закрыть ${session.name}`}
+                      onClick={() => deleteSession(session.id)}
+                      className={`mr-1 rounded-lg p-1 transition-colors ${
+                        isActive
+                          ? 'text-blue-500 hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-800'
+                          : 'text-gray-400 hover:bg-gray-200 hover:text-red-500 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
+
+          <button
+            type="button"
+            aria-label="Новая продажа"
+            title="Новая продажа"
+            onClick={createSession}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition-colors hover:bg-blue-700"
+          >
+            <PlusIcon className="h-5 w-5" />
+          </button>
         </div>
 
         <div className="relative flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
@@ -365,7 +436,7 @@ const discountAmount = item.discount || 0;
                     }}
                     onBlur={() => {
                       if (totalEdit !== null) {
-                        setOverallDiscount(calculateDiscountFromEditedPrice(totalEdit, total - itemDiscounts));
+                        setActiveOverallDiscount(calculateDiscountFromEditedPrice(totalEdit, total - itemDiscounts));
                       }
                       setTotalEdit(null);
                     }}
@@ -394,7 +465,7 @@ const discountAmount = item.discount || 0;
                       }
                     </span>
                     <button
-                      onClick={() => setOverallDiscount(0)}
+                      onClick={() => setActiveOverallDiscount(0)}
                       className="text-[9px] text-gray-400 hover:text-red-500"
                     >
                       <XMarkIcon className="h-3 w-3" />
