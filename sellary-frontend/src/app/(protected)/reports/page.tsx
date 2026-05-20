@@ -60,29 +60,21 @@ export default function ReportsPage() {
 
   return (
     <OfflineGuard>
-      <div className="space-y-4 pb-4 sm:space-y-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">Отчеты</h1>
-            <p className="text-xs text-gray-600 dark:text-gray-400 sm:text-base">
-              Базовые показатели MVP: выручка, топ товаров и остатки
-            </p>
-          </div>
-          <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            {dayOptions.map((option) => (
-              <button
-                key={option}
-                onClick={() => setDays(option)}
-                className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors sm:text-sm ${
-                  option === days
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                }`}
-              >
-                {option} дн.
-              </button>
-            ))}
-          </div>
+      <div className="h-full overflow-y-auto mobile-no-overscroll p-4 space-y-4">
+        <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          {dayOptions.map((option) => (
+            <button
+              key={option}
+              onClick={() => setDays(option)}
+              className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors sm:text-sm ${
+                option === days
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+              }`}
+            >
+              {option} дн.
+            </button>
+          ))}
         </div>
 
         {salesLoading || dashboardLoading ? (
