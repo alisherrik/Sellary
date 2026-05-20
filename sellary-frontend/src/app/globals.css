@@ -137,3 +137,17 @@
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
+
+/* Mobile safe area utilities */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Prevent pull-to-refresh and overscroll on mobile */
+.mobile-no-overscroll {
+  overscroll-behavior: none;
+}
