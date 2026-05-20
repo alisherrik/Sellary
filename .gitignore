@@ -33,3 +33,6 @@ Thumbs.db
 nul
 debug_log.txt
 *.log
+
+# Local Netlify folder
+.netlify
