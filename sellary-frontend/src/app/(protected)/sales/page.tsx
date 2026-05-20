@@ -176,14 +176,8 @@ export default function SalesHistory() {
 
   return (
     <OfflineGuard>
-      <div className="space-y-4 pb-4 sm:space-y-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">История продаж</h1>
-            <p className="text-xs text-gray-600 dark:text-gray-400 sm:text-base">
-              Просмотр продаж, деталей чеков и возвратов
-            </p>
-          </div>
+      <div className="h-full overflow-y-auto mobile-no-overscroll p-4">
+        <div className="flex items-center justify-end">
           <button
             onClick={() => refetch()}
             className="flex items-center justify-center gap-2 self-start rounded-lg bg-blue-500 px-3 py-2 text-sm text-white hover:bg-blue-600 sm:self-auto sm:px-4 sm:text-base"
