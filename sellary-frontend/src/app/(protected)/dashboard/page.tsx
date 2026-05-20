@@ -53,14 +53,7 @@ export default function Dashboard() {
 
   return (
     <OfflineGuard>
-      <div className="space-y-4 pb-4 sm:space-y-6">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">Дашборд</h1>
-          <p className="text-xs text-gray-600 dark:text-gray-400 sm:text-base">
-            Ключевые показатели продаж и складских остатков на сегодня.
-          </p>
-        </div>
-
+      <div className="h-full overflow-y-auto mobile-no-overscroll p-4 space-y-4">
         {isLoading ? (
           <StatCardsSkeleton count={4} />
         ) : (
