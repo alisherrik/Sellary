@@ -46,6 +46,4 @@ env/
 .coverage
 htmlcov/
 
-# Alembic
-alembic/versions/*.py
-!alembic/versions/__init__.py
+# Alembic migrations are deploy artifacts and must be committed.
