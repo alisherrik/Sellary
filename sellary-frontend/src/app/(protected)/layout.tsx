@@ -4,7 +4,9 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 import Layout from '@/components/Layout';
+import MobileShell from '@/components/mobile/MobileShell';
 import { useAuthStore } from '@/lib/store';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export default function ProtectedLayout({
   children,
@@ -13,6 +15,7 @@ export default function ProtectedLayout({
 }) {
   const router = useRouter();
   const { accessToken, isAuthenticated, hasHydrated } = useAuthStore();
+  const isMobile = useMediaQuery('(max-width: 767px)');
 
   useEffect(() => {
     if (!hasHydrated) {
@@ -34,6 +37,10 @@ export default function ProtectedLayout({
 
   if (!accessToken || !isAuthenticated) {
     return null;
+  }
+
+  if (isMobile) {
+    return <MobileShell>{children}</MobileShell>;
   }
 
   return <Layout>{children}</Layout>;
