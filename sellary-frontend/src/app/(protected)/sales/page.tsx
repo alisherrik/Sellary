@@ -357,7 +357,7 @@ export default function SalesHistory() {
                           {item.product_name}
                         </p>
                         <p className="text-[10px] text-gray-500 sm:text-sm">
-                          {item.quantity} × {formatCurrency(item.unit_price)}
+                          {item.quantity} {item.uom} × {formatCurrency(item.unit_price)}
                           {item.quantity_returned > 0 && (
                             <span className="ml-1 text-orange-600 sm:ml-2">({item.quantity_returned} возв.)</span>
                           )}

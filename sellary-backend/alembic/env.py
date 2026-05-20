@@ -54,7 +54,7 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def run_migrations_online() -> None:
+def run_migrations_online(*, bootstrap: bool = True) -> None:
     """Run migrations in 'online' mode.
 
     In this scenario we need to create an Engine
@@ -75,18 +75,24 @@ def run_migrations_online() -> None:
         with context.begin_transaction():
             context.run_migrations()
 
-        session = Session(bind=connection)
-        try:
-            ensure_super_admin(session)
-            session.commit()
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+        if bootstrap:
+            session = Session(bind=connection)
+            try:
+                ensure_super_admin(session)
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+            finally:
+                session.close()
 
+
+_is_migration_command = any(
+    cmd in sys.argv
+    for cmd in ("upgrade", "downgrade", "heads", "current", "history", "stamp")
+)
 
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    run_migrations_online()
+    run_migrations_online(bootstrap=_is_migration_command)

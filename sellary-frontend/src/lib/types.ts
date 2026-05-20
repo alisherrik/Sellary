@@ -124,6 +124,7 @@ export interface Product {
   category_id?: number;
   category?: Category;
   product_type: ProductType;
+  uom: string;
   cost_price: string;
   sell_price: string;
   tax_percent: string;
@@ -149,6 +150,7 @@ export interface SaleItem {
   id: number;
   product_id: number;
   product_name: string;
+  uom: string;
   quantity: number;
   unit_price: string;
   tax_percent: string;
@@ -276,6 +278,7 @@ export interface PurchaseOrderItem {
     id: number;
     name: string;
     barcode?: string | null;
+    uom?: string;
   };
 }
 

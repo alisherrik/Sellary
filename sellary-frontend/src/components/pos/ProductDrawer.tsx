@@ -200,7 +200,7 @@ export default function ProductDrawer({ isOpen, onClose, onAddToCart }: ProductD
                                             ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                             : 'bg-red-100 text-red-700'
                                             }`}>
-                                            {product.stock_quantity}
+                                            {product.stock_quantity} {product.uom}
                                         </span>
                                     </div>
                                 </button>

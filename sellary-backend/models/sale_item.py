@@ -11,8 +11,8 @@ class SaleItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
-    quantity = Column(Integer, nullable=False)
-    quantity_returned = Column(Integer, nullable=False, default=0)  # Track returned quantity
+    quantity = Column(Numeric(10, 3), nullable=False)
+    quantity_returned = Column(Numeric(10, 3), nullable=False, default=0)  # Track returned quantity
     unit_price = Column(Numeric(10, 2), nullable=False)
     tax_percent = Column(Numeric(5, 2), nullable=False, default=Decimal("0.00"))
     tax_amount = Column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
@@ -31,6 +31,6 @@ class SaleItem(Base):
     )
     
     @property
-    def returnable_quantity(self) -> int:
+    def returnable_quantity(self):
         """Calculate how many items can still be returned."""
         return self.quantity - self.quantity_returned

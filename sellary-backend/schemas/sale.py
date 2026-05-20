@@ -31,10 +31,10 @@ class SaleStatus(str, Enum):
 
 class SaleItemCreate(BaseModel):
     product_id: int
-    quantity: int = Field(..., gt=0)
+    quantity: Decimal = Field(..., gt=0, decimal_places=3)
     unit_price: Decimal = Field(..., ge=0, decimal_places=2)
     tax_percent: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
-    discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
+    discount_amount: Decimal = Field(default=Decimal("0.00"), decimal_places=2)
 
 
 class SaleCreate(BaseModel):
@@ -42,7 +42,7 @@ class SaleCreate(BaseModel):
     items: List[SaleItemCreate]
     payment_method: PaymentMethod
     card_type: Optional[CardType] = None  # Required when payment_method is card
-    discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
+    discount_amount: Decimal = Field(default=Decimal("0.00"), decimal_places=2)
     notes: Optional[str] = None
     context_type: SaleContextType = Field(default=SaleContextType.RETAIL)
     table_name: Optional[str] = Field(None, max_length=50)
@@ -52,10 +52,11 @@ class SaleItemResponse(BaseModel):
     id: int
     product_id: int
     product_name: str
-    quantity: int
-    quantity_returned: int
-    quantity_returnable: int  # quantity - quantity_returned
-    can_return: bool  # quantity_returnable > 0
+    uom: str
+    quantity: Decimal
+    quantity_returned: Decimal
+    quantity_returnable: Decimal
+    can_return: bool
     unit_price: Decimal
     tax_percent: Decimal
     tax_amount: Decimal
@@ -65,9 +66,6 @@ class SaleItemResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-    def __getitem__(self, key: str):
-        return getattr(self, key)
 
 
 class Sale(BaseModel):

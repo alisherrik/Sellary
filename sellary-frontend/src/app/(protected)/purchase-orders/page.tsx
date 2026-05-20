@@ -187,7 +187,7 @@ export default function PurchaseOrders() {
             notes: formData.notes || null,
             items: items.map((item) => ({
                 product_id: parseInt(item.product_id),
-                quantity_ordered: parseInt(item.quantity_ordered),
+                quantity_ordered: parseFloat(item.quantity_ordered),
                 unit_cost: parseFloat(item.unit_cost),
             })),
         };
@@ -227,7 +227,7 @@ export default function PurchaseOrders() {
     const canDelete = (status: PurchaseOrderStatus) => status === 'draft';
 
     const calculateTotal = () => {
-        return items.reduce((sum, item) => sum + (parseInt(item.quantity_ordered) || 0) * (parseFloat(item.unit_cost) || 0), 0);
+        return items.reduce((sum, item) => sum + (parseFloat(item.quantity_ordered) || 0) * (parseFloat(item.unit_cost) || 0), 0);
     };
 
     return (
@@ -446,7 +446,8 @@ export default function PurchaseOrders() {
                                                 <input
                                                     type="number"
                                                     required
-                                                    min="1"
+                                                    min="0"
+                                                    step="0.001"
                                                     value={item.quantity_ordered}
                                                     onChange={(e) => updateItem(index, 'quantity_ordered', e.target.value)}
                                                     className="w-16 h-9 px-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-xs sm:text-sm text-center"
@@ -537,14 +538,14 @@ export default function PurchaseOrders() {
                                     {viewingPO.items.map((item) => (
                                         <div key={item.id} className="flex justify-between items-center p-2 sm:p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                                             <div className="min-w-0 flex-1">
-                                                <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white truncate">{item.product?.name}</p>
+                                                <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white truncate">{item.product?.name}{item.product?.uom ? ` (${item.product.uom})` : ''}</p>
                                                 <p className="text-[10px] sm:text-xs text-gray-500">
                                                     {item.quantity_received}/{item.quantity_ordered} получено
                                                 </p>
                                             </div>
                                             <div className="text-right flex-shrink-0 ml-2">
                                                 <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(item.subtotal)}</p>
-                                                <p className="text-[10px] sm:text-xs text-gray-500">{formatCurrency(item.unit_cost)}/шт</p>
+                                                <p className="text-[10px] sm:text-xs text-gray-500">{formatCurrency(item.unit_cost)}/{item.product?.uom || 'шт'}</p>
                                             </div>
                                         </div>
                                     ))}

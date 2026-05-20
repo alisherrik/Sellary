@@ -11,7 +11,7 @@ class CalculationService:
         getcontext().rounding = ROUND_HALF_UP
 
     @staticmethod
-    def calculate_item_subtotal(quantity: int, unit_price: Decimal) -> Decimal:
+    def calculate_item_subtotal(quantity: Decimal, unit_price: Decimal) -> Decimal:
         """Calculate subtotal for a sale item."""
         return (quantity * unit_price).quantize(Decimal("0.01"))
 
@@ -31,7 +31,7 @@ class CalculationService:
 
     @staticmethod
     def calculate_profit(
-        sell_price: Decimal, cost_price: Decimal, quantity: int = 1
+        sell_price: Decimal, cost_price: Decimal, quantity: Decimal = Decimal("1")
     ) -> Decimal:
         """Calculate profit amount."""
         return ((sell_price - cost_price) * quantity).quantize(Decimal("0.01"))

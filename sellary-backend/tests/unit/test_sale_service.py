@@ -849,7 +849,7 @@ class TestToResponse:
         result = service.get_by_id(test_sale.id)
 
         assert len(result.items) == 1
-        assert result.items[0]["product_name"] == "Test Product"
+        assert result.items[0].product_name == "Test Product"
 
     def test_to_response_includes_customer_info(self, db_session, test_sale):
         """Test that response includes customer information."""

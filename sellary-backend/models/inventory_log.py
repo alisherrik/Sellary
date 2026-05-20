@@ -11,9 +11,9 @@ class InventoryLog(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    quantity_change = Column(Integer, nullable=False)
-    previous_quantity = Column(Integer, nullable=False)
-    new_quantity = Column(Integer, nullable=False)
+    quantity_change = Column(Numeric(10, 3), nullable=False)
+    previous_quantity = Column(Numeric(10, 3), nullable=False)
+    new_quantity = Column(Numeric(10, 3), nullable=False)
     reason = Column(String(255))
     reference_type = Column(String(50))  # sale, adjustment, restock
     reference_id = Column(Integer)

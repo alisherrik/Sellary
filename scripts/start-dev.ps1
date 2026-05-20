@@ -1,5 +1,5 @@
 param(
-    [int]$BackendPort = 8000,
+    [int]$BackendPort = 8001,
     [int]$FrontendPort = 3000
 )
 

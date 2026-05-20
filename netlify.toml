@@ -1,0 +1,13 @@
+[build]
+base = "sellary-frontend"
+command = "npm run build"
+publish = ".next"
+
+[build.environment]
+NODE_VERSION = "20"
+NEXT_PUBLIC_API_URL = "/api"
+NEXT_PUBLIC_ENABLE_RESTAURANT = "false"
+NEXT_PUBLIC_ENABLE_OFFLINE_MODE = "false"
+
+# Set this in Netlify environment variables after the Railway backend URL exists:
+# NEXT_PUBLIC_API_PROXY_TARGET = "https://your-backend.up.railway.app"

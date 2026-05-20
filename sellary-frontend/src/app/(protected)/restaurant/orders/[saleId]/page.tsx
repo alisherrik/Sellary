@@ -8,12 +8,12 @@ import { formatCurrency } from '@/lib/utils';
 
 // Mock products data - replace with API call
 const mockProducts: Product[] = [
-  { id: 1, barcode: '1001', name: 'Плов', description: 'Традиционный узбекский плов', category_id: 1, product_type: 'dish', cost_price: '15.00', sell_price: '35.00', tax_percent: '0', stock_quantity: 100, min_stock_level: 10, is_active: true, created_at: '2024-01-01' },
-  { id: 2, barcode: '1002', name: 'Манты', description: 'Манты с мясом', category_id: 1, product_type: 'dish', cost_price: '10.00', sell_price: '25.00', tax_percent: '0', stock_quantity: 80, min_stock_level: 10, is_active: true, created_at: '2024-01-01' },
-  { id: 3, barcode: '1003', name: 'Шашлык', description: 'Шашлык из баранины', category_id: 2, product_type: 'dish', cost_price: '20.00', sell_price: '45.00', tax_percent: '0', stock_quantity: 50, min_stock_level: 5, is_active: true, created_at: '2024-01-01' },
-  { id: 4, barcode: '1004', name: 'Лагман', description: 'Узбекский лагман', category_id: 1, product_type: 'dish', cost_price: '8.00', sell_price: '20.00', tax_percent: '0', stock_quantity: 60, min_stock_level: 10, is_active: true, created_at: '2024-01-01' },
-  { id: 5, barcode: '1005', name: 'Самса', description: 'Самса с мясом', category_id: 3, product_type: 'dish', cost_price: '5.00', sell_price: '12.00', tax_percent: '0', stock_quantity: 100, min_stock_level: 20, is_active: true, created_at: '2024-01-01' },
-  { id: 6, barcode: '1006', name: 'Чай', description: 'Зеленый чай', category_id: 4, product_type: 'dish', cost_price: '1.00', sell_price: '3.00', tax_percent: '0', stock_quantity: 200, min_stock_level: 50, is_active: true, created_at: '2024-01-01' },
+  { id: 1, barcode: '1001', name: 'Плов', description: 'Традиционный узбекский плов', category_id: 1, product_type: 'dish', uom: 'dona', cost_price: '15.00', sell_price: '35.00', tax_percent: '0', stock_quantity: 100, min_stock_level: 10, is_active: true, created_at: '2024-01-01' },
+  { id: 2, barcode: '1002', name: 'Манты', description: 'Манты с мясом', category_id: 1, product_type: 'dish', uom: 'dona', cost_price: '10.00', sell_price: '25.00', tax_percent: '0', stock_quantity: 80, min_stock_level: 10, is_active: true, created_at: '2024-01-01' },
+  { id: 3, barcode: '1003', name: 'Шашлык', description: 'Шашлык из баранины', category_id: 2, product_type: 'dish', uom: 'dona', cost_price: '20.00', sell_price: '45.00', tax_percent: '0', stock_quantity: 50, min_stock_level: 5, is_active: true, created_at: '2024-01-01' },
+  { id: 4, barcode: '1004', name: 'Лагман', description: 'Узбекский лагман', category_id: 1, product_type: 'dish', uom: 'dona', cost_price: '8.00', sell_price: '20.00', tax_percent: '0', stock_quantity: 60, min_stock_level: 10, is_active: true, created_at: '2024-01-01' },
+  { id: 5, barcode: '1005', name: 'Самса', description: 'Самса с мясом', category_id: 3, product_type: 'dish', uom: 'dona', cost_price: '5.00', sell_price: '12.00', tax_percent: '0', stock_quantity: 100, min_stock_level: 20, is_active: true, created_at: '2024-01-01' },
+  { id: 6, barcode: '1006', name: 'Чай', description: 'Зеленый чай', category_id: 4, product_type: 'dish', uom: 'dona', cost_price: '1.00', sell_price: '3.00', tax_percent: '0', stock_quantity: 200, min_stock_level: 50, is_active: true, created_at: '2024-01-01' },
 ];
 
 const mockCategories = [

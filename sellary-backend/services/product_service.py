@@ -115,6 +115,7 @@ class ProductService:
                 if product.category
                 else None
             ),
+            uom=product.uom,
             cost_price=product.cost_price,
             sell_price=product.sell_price,
             tax_percent=product.tax_percent,

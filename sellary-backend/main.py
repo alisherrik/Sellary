@@ -1,6 +1,10 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
+from core.database import SessionLocal
+from bootstrap_utils import ensure_super_admin
 from api import (
     admin_router,
     auth_router,
@@ -16,12 +20,25 @@ from api import (
     owner_router,
 )
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db = SessionLocal()
+    try:
+        ensure_super_admin(db)
+        db.commit()
+    finally:
+        db.close()
+    yield
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.PROJECT_NAME,
         version=settings.VERSION,
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -60,7 +77,7 @@ def root():
     }
 
 
-@app.api_route("/health", methods=["GET", "POST"])
+@app.api_route("/health", methods=["GET", "POST", "OPTIONS"])
 def health_check():
     return {"status": "healthy"}
 
@@ -68,4 +85,4 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)

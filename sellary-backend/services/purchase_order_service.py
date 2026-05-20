@@ -197,7 +197,7 @@ class PurchaseOrderService:
         items_to_receive = {}
         for receive_item in receive_request.items:
             item_id = receive_item.get("item_id")
-            quantity_to_receive = receive_item.get("quantity_to_receive", 0)
+            quantity_to_receive = Decimal(str(receive_item.get("quantity_to_receive", 0)))
             if quantity_to_receive > 0:
                 items_to_receive[item_id] = quantity_to_receive
 

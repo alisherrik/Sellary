@@ -11,7 +11,7 @@ from models.sale import PaymentMethod
 class SaleReturnItemCreate(BaseModel):
     """Schema for creating a return item."""
     sale_item_id: int
-    quantity: int = Field(gt=0, description="Quantity to return")
+    quantity: Decimal = Field(gt=0, decimal_places=3, description="Quantity to return")
 
 
 class SaleReturnCreate(BaseModel):
@@ -26,7 +26,7 @@ class SaleReturnItemResponse(BaseModel):
     id: int
     sale_item_id: int
     product_name: str
-    quantity_returned: int
+    quantity_returned: Decimal
     refund_amount: Decimal
 
     class Config:

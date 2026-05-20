@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const offlineModeEnabled = process.env.NEXT_PUBLIC_ENABLE_OFFLINE_MODE === "true";
-const apiProxyTarget = (process.env.NEXT_PUBLIC_API_PROXY_TARGET || "http://127.0.0.1:8000").replace(/\/$/, "");
+const apiProxyTarget = (process.env.NEXT_PUBLIC_API_PROXY_TARGET || "http://127.0.0.1:8001").replace(/\/$/, "");
 
 const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",

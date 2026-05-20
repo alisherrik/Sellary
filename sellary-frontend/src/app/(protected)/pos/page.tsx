@@ -6,7 +6,6 @@ import { salesApi } from '@/lib/api';
 import { formatCurrency, hotkeyManager, registerHotkeys } from '@/lib/utils';
 import {
   PlusIcon,
-  MinusIcon,
   TrashIcon,
   BanknotesIcon,
   CreditCardIcon,
@@ -21,6 +20,11 @@ import toast from 'react-hot-toast';
 import { addToSyncQueue } from '@/lib/syncQueue';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { isOfflineModeEnabled } from '@/lib/features';
+import {
+  calculateDiscountFromEditedPrice,
+  calculatePosPricing,
+  formatEditableAmount,
+} from '@/lib/posPricing';
 
 export default function POS() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -28,6 +32,9 @@ export default function POS() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
   const [cardType, setCardType] = useState<'alif' | 'eskhata' | 'dc' | null>(null);
   const [loading, setLoading] = useState(false);
+  const [overallDiscount, setOverallDiscount] = useState(0);
+  const [totalEdit, setTotalEdit] = useState<string | null>(null);
+  const [priceEdits, setPriceEdits] = useState<Record<number, string>>({});
   const { isServerReachable } = useServerHealth();
 
   const {
@@ -36,6 +43,7 @@ export default function POS() {
     addItem,
     removeItem,
     updateQuantity,
+    setDiscount,
     clearCart,
     getSubtotal,
     getTax,
@@ -57,6 +65,9 @@ export default function POS() {
     setShowPaymentModal(false);
     setCardType(null);
     setPaymentMethod('cash');
+    setOverallDiscount(0);
+    setTotalEdit(null);
+    setPriceEdits({});
   }, [clearCart]);
 
   const completeSale = useCallback(async () => {
@@ -78,10 +89,10 @@ export default function POS() {
         quantity: item.quantity,
         unit_price: item.product.sell_price,
         tax_percent: item.product.tax_percent,
-        discount_amount: item.discount,
+        discount_amount: item.discount || 0,
       })),
       payment_method: paymentMethod,
-      discount_amount: 0,
+      discount_amount: items.reduce((sum, item) => sum + (item.discount || 0), 0) + overallDiscount,
     };
 
     if (paymentMethod === 'card' && cardType) {
@@ -135,7 +146,7 @@ export default function POS() {
     } finally {
       setLoading(false);
     }
-  }, [items, paymentMethod, cardType, isServerReachable, resetCheckout]);
+  }, [items, paymentMethod, cardType, isServerReachable, overallDiscount, resetCheckout]);
 
   useEffect(() => {
     hotkeyManager.register({
@@ -157,30 +168,20 @@ export default function POS() {
     });
   }, [showPaymentModal, items.length, isDrawerOpen, completeSale]);
 
-  const handleQuantityChange = (itemId: number, change: number) => {
-    const item = items.find((entry) => entry.product.id === itemId);
-    if (!item) {
-      return;
-    }
-
-    const nextQuantity = item.quantity + change;
-    if (nextQuantity <= 0) {
-      removeItem(itemId);
-      return;
-    }
-
-    if (nextQuantity > item.product.stock_quantity) {
-      toast.error(`Доступно: ${item.product.stock_quantity}`);
-      return;
-    }
-
-    updateQuantity(itemId, nextQuantity);
-  };
-
   const subtotal = getSubtotal();
   const tax = getTax();
   const total = getTotal();
   const itemCount = getItemCount();
+  const itemDiscounts = items.reduce((sum, item) => sum + (item.discount || 0), 0);
+  const pricing = calculatePosPricing({
+    subtotal,
+    tax,
+    itemDiscounts,
+    overallDiscount,
+  });
+  const finalTotal = pricing.finalTotal;
+  const hasOverallDiscount = overallDiscount !== 0;
+  const isOverallMarkup = overallDiscount < 0;
 
   return (
     <>
@@ -198,7 +199,7 @@ export default function POS() {
                 Корзина
               </div>
               <div className="text-base font-bold text-blue-700 dark:text-blue-200 sm:text-lg">
-                {itemCount} шт
+                {itemCount}
               </div>
             </div>
           </div>
@@ -213,43 +214,93 @@ export default function POS() {
                 <p className="text-xs sm:text-sm">Нажмите кнопку ниже, чтобы добавить товар</p>
               </div>
             ) : (
-              items.map((item) => (
+              items.map((item) => {
+                const sellPrice = Number(item.product.sell_price);
+const discountAmount = item.discount || 0;
+                const finalPrice = sellPrice - discountAmount;
+                const hasPriceAdjustment = discountAmount !== 0;
+                const isMarkup = discountAmount < 0;
+                const absDiscountAmount = Math.abs(discountAmount);
+                const priceChangePercent = sellPrice > 0
+                  ? (absDiscountAmount / sellPrice) * 100
+                  : 0;
+
+                return (
                 <div
                   key={item.product.id}
-                  className="flex items-center justify-between gap-2 rounded-xl bg-gray-50 p-2 transition-colors hover:bg-gray-100 dark:bg-gray-750/50 dark:hover:bg-gray-700 sm:gap-4 sm:p-4"
+                  className={`flex flex-col gap-1 rounded-xl p-2 transition-all sm:gap-2 sm:p-4 ${
+                    hasPriceAdjustment
+                      ? isMarkup
+                        ? 'bg-blue-50 ring-1 ring-blue-200 dark:bg-blue-900/10 dark:ring-blue-800'
+                        : 'bg-green-50 ring-1 ring-green-200 dark:bg-green-900/10 dark:ring-green-800'
+                      : 'bg-gray-50 hover:bg-gray-100 dark:bg-gray-750/50 dark:hover:bg-gray-700'
+                  }`}
                 >
+                  <div className="flex items-center justify-between gap-2 sm:gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-bold text-gray-900 dark:text-white sm:text-lg">
                       {item.product.name}
                     </div>
                     <div className="text-[10px] text-gray-500 sm:text-sm">
-                      {formatCurrency(item.product.sell_price)}
+                      {formatCurrency(sellPrice)} / {item.product.uom}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 sm:gap-3">
-                    <div className="flex items-center rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-800">
-                      <button
-                        onClick={() => handleQuantityChange(item.product.id, -1)}
-                        className="p-1.5 hover:text-blue-600 sm:p-3"
-                      >
-                        <MinusIcon className="h-3 w-3 sm:h-5 sm:w-5" />
-                      </button>
-                      <span className="w-6 text-center text-xs font-bold sm:w-10 sm:text-base">
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() => handleQuantityChange(item.product.id, 1)}
-                        className="p-1.5 hover:text-blue-600 sm:p-3"
-                      >
-                        <PlusIcon className="h-3 w-3 sm:h-5 sm:w-5" />
-                      </button>
-                    </div>
-
-                    <div className="min-w-[56px] text-right sm:min-w-[90px]">
-                      <div className="text-xs font-bold text-blue-600 sm:text-lg">
-                        {formatCurrency(Number(item.product.sell_price) * item.quantity)}
+                    <div className="flex items-center gap-1 sm:gap-3">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={item.quantity.toString()}
+                          onChange={(e) => {
+                            const parsed = parseFloat(e.target.value);
+                            const existing = items.find((entry) => entry.product.id === item.product.id);
+                            if (!existing) return;
+                            if (isNaN(parsed) || parsed <= 0) {
+                              removeItem(item.product.id);
+                              return;
+                            }
+                            if (parsed > existing.product.stock_quantity) {
+                              toast.error(`Доступно: ${existing.product.stock_quantity} ${existing.product.uom}`);
+                              return;
+                            }
+                            updateQuantity(item.product.id, parsed);
+                          }}
+                          className="w-16 rounded-lg border border-gray-200 bg-white px-2 py-1 text-center text-xs font-bold dark:border-gray-600 dark:bg-gray-800 sm:w-20 sm:text-sm"
+                        />
+                        <span className="text-[10px] text-gray-500 sm:text-xs">{item.product.uom}</span>
                       </div>
+
+                    <div className="min-w-[70px] text-right sm:min-w-[110px]">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={priceEdits[item.product.id] ?? formatEditableAmount(hasPriceAdjustment ? finalPrice : sellPrice)}
+                        onChange={(e) => {
+                          setPriceEdits((prev) => ({ ...prev, [item.product.id]: e.target.value }));
+                        }}
+                        onBlur={() => {
+                          const raw = priceEdits[item.product.id];
+                          if (raw !== undefined) {
+                            setDiscount(item.product.id, calculateDiscountFromEditedPrice(raw, sellPrice));
+                          }
+                          setPriceEdits((prev) => {
+                            const next = { ...prev };
+                            delete next[item.product.id];
+                            return next;
+                          });
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        }}
+                        className={`w-full rounded-lg border bg-white px-2 py-1 text-right text-xs font-bold focus:outline-none focus:ring-2 sm:text-sm ${
+                          isMarkup
+                            ? 'border-blue-300 text-blue-700 focus:ring-blue-400 dark:border-blue-700 dark:bg-gray-800 dark:text-blue-300'
+                            : hasPriceAdjustment
+                              ? 'border-green-300 text-green-700 focus:ring-green-400 dark:border-green-700 dark:bg-gray-800 dark:text-green-300'
+                              : 'border-gray-200 text-blue-600 focus:ring-blue-400 dark:border-gray-600 dark:bg-gray-800'
+                        }`}
+                      />
                     </div>
 
                     <button
@@ -259,8 +310,31 @@ export default function POS() {
                       <TrashIcon className="h-4 w-4 sm:h-6 sm:w-6" />
                     </button>
                   </div>
+                  </div>
+
+                  {hasPriceAdjustment && (
+                    <div className="flex items-center justify-end gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-medium ${
+                        isMarkup
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                          : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                      }`}>
+                        {isMarkup
+                          ? `+${formatCurrency(absDiscountAmount)} (+${priceChangePercent.toFixed(0)}%)`
+                          : `-${formatCurrency(absDiscountAmount)} (-${priceChangePercent.toFixed(0)}%)`
+                        }
+                      </span>
+                      <button
+                        onClick={() => setDiscount(item.product.id, 0)}
+                        className="text-[9px] text-gray-400 hover:text-red-500"
+                      >
+                        <XMarkIcon className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -275,8 +349,58 @@ export default function POS() {
               </button>
 
               <div className="flex-1 text-right">
-                <div className="text-[10px] text-gray-500 sm:text-xs">Итого</div>
-                <div className="text-lg font-black text-blue-600 sm:text-2xl">{formatCurrency(total)}</div>
+                <div className="flex items-center justify-end gap-2">
+                  <span className="text-[10px] text-gray-400 sm:text-xs">Итого</span>
+                  {hasOverallDiscount && (
+                    <span className="text-[10px] text-gray-400 line-through sm:text-xs">
+                      {formatCurrency(total)}
+                    </span>
+                  )}
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={totalEdit ?? formatEditableAmount(finalTotal)}
+                    onChange={(e) => {
+                      setTotalEdit(e.target.value);
+                    }}
+                    onBlur={() => {
+                      if (totalEdit !== null) {
+                        setOverallDiscount(calculateDiscountFromEditedPrice(totalEdit, total - itemDiscounts));
+                      }
+                      setTotalEdit(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    }}
+                    className={`w-28 rounded-lg border bg-white px-2 py-1 text-right text-lg font-black focus:outline-none focus:ring-2 sm:w-36 sm:text-2xl ${
+                      isOverallMarkup
+                        ? 'border-blue-300 text-blue-700 focus:ring-blue-400 dark:border-blue-700 dark:bg-gray-800 dark:text-blue-300'
+                        : hasOverallDiscount
+                          ? 'border-green-300 text-green-700 focus:ring-green-400 dark:border-green-700 dark:bg-gray-800 dark:text-green-300'
+                          : 'border-gray-200 text-blue-600 focus:ring-blue-400 dark:border-gray-600 dark:bg-gray-800'
+                    }`}
+                  />
+                </div>
+                {hasOverallDiscount && (
+                  <div className="mt-0.5 flex items-center justify-end gap-1">
+                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-medium ${
+                      isOverallMarkup
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                        : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                    }`}>
+                      {isOverallMarkup
+                        ? `Наценка +${formatCurrency(Math.abs(overallDiscount))}`
+                        : `Скидка -${formatCurrency(overallDiscount)}`
+                      }
+                    </span>
+                    <button
+                      onClick={() => setOverallDiscount(0)}
+                      className="text-[9px] text-gray-400 hover:text-red-500"
+                    >
+                      <XMarkIcon className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <button
@@ -328,6 +452,30 @@ export default function POS() {
                   <span>Subtotal</span>
                   <span>{formatCurrency(subtotal)}</span>
                 </div>
+                {itemDiscounts > 0 && (
+                  <div className="mt-1 flex items-center justify-between text-sm text-green-600">
+                    <span>Скидки на товары</span>
+                    <span>-{formatCurrency(itemDiscounts)}</span>
+                  </div>
+                )}
+                {itemDiscounts < 0 && (
+                  <div className="mt-1 flex items-center justify-between text-sm text-blue-600">
+                    <span>Наценки на товары</span>
+                    <span>+{formatCurrency(Math.abs(itemDiscounts))}</span>
+                  </div>
+                )}
+                {overallDiscount > 0 && (
+                  <div className="mt-1 flex items-center justify-between text-sm text-green-600">
+                    <span>Общая скидка</span>
+                    <span>-{formatCurrency(overallDiscount)}</span>
+                  </div>
+                )}
+                {overallDiscount < 0 && (
+                  <div className="mt-1 flex items-center justify-between text-sm text-blue-600">
+                    <span>Общая наценка</span>
+                    <span>+{formatCurrency(Math.abs(overallDiscount))}</span>
+                  </div>
+                )}
                 <div className="mt-2 flex items-center justify-between text-sm text-gray-500">
                   <span>Налог</span>
                   <span>{formatCurrency(tax)}</span>
@@ -335,7 +483,7 @@ export default function POS() {
                 <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
                   <div className="text-xs text-gray-500">К оплате</div>
                   <div className="text-3xl font-black text-blue-600 sm:text-5xl">
-                    {formatCurrency(total)}
+                    {formatCurrency(finalTotal)}
                   </div>
                 </div>
               </div>

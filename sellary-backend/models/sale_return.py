@@ -54,7 +54,7 @@ class SaleReturnItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     sale_return_id = Column(Integer, ForeignKey("sale_returns.id"), nullable=False)
     sale_item_id = Column(Integer, ForeignKey("sale_items.id"), nullable=False)
-    quantity_returned = Column(Integer, nullable=False)
+    quantity_returned = Column(Numeric(10, 3), nullable=False)
     refund_amount = Column(Numeric(12, 2), nullable=False)
 
     # Relationships

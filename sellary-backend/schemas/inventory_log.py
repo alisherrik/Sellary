@@ -10,9 +10,9 @@ class InventoryLog(BaseModel):
     product_name: str
     user_id: int
     user_name: str
-    quantity_change: int
-    previous_quantity: int
-    new_quantity: int
+    quantity_change: Decimal
+    previous_quantity: Decimal
+    new_quantity: Decimal
     reason: Optional[str]
     reference_type: Optional[str]
     reference_id: Optional[int]
@@ -24,5 +24,5 @@ class InventoryLog(BaseModel):
 
 class InventoryAdjustment(BaseModel):
     product_id: int
-    quantity_change: int
+    quantity_change: Decimal
     reason: str

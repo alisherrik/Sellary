@@ -24,6 +24,7 @@ const emptyProductForm = {
   name: '',
   description: '',
   category_id: '',
+  uom: 'dona',
   cost_price: '',
   sell_price: '',
   tax_percent: '0',
@@ -199,6 +200,7 @@ export default function Products() {
       name: product.name,
       description: product.description || '',
       category_id: product.category_id?.toString() || '',
+      uom: product.uom || 'dona',
       cost_price: product.cost_price,
       sell_price: product.sell_price,
       tax_percent: product.tax_percent,
@@ -226,8 +228,8 @@ export default function Products() {
       cost_price: parseFloat(formData.cost_price),
       sell_price: parseFloat(formData.sell_price),
       tax_percent: parseFloat(formData.tax_percent),
-      stock_quantity: parseInt(formData.stock_quantity, 10),
-      min_stock_level: parseInt(formData.min_stock_level, 10),
+      stock_quantity: parseFloat(formData.stock_quantity),
+      min_stock_level: parseFloat(formData.min_stock_level),
       category_id: formData.category_id ? parseInt(formData.category_id, 10) : null,
     };
 
@@ -342,7 +344,7 @@ export default function Products() {
                       <span
                         className={`ml-2 flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${getStockStatusColor(product)}`}
                       >
-                        {product.stock_quantity} шт
+                        {product.stock_quantity} {product.uom}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -372,6 +374,7 @@ export default function Products() {
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Штрихкод</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Наименование</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Категория</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Ед.</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Цена</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Остаток</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Действия</th>
@@ -383,6 +386,7 @@ export default function Products() {
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{product.barcode || '-'}</td>
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{product.name}</td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{product.category?.name || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{product.uom}</td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(product.sell_price)}</td>
                         <td className="px-4 py-3">
                           <span className={`rounded-full px-2 py-1 text-xs font-medium ${getStockStatusColor(product)}`}>
@@ -438,6 +442,22 @@ export default function Products() {
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Единица измерения</label>
+                  <select
+                    value={formData.uom}
+                    onChange={(e) => setFormData({ ...formData, uom: e.target.value })}
+                    className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
+                  >
+                    <option value="dona">дона (штука)</option>
+                    <option value="metr">метр</option>
+                    <option value="kg">кг</option>
+                    <option value="litr">литр</option>
+                    <option value="juft">пара</option>
+                    <option value="quti">коробка</option>
+                    <option value="komplekt">комплект</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Категория</label>
@@ -510,6 +530,7 @@ export default function Products() {
                     type="number"
                     required
                     min="0"
+                    step="0.001"
                     value={formData.stock_quantity}
                     onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
                     className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
@@ -520,6 +541,7 @@ export default function Products() {
                   <input
                     type="number"
                     min="0"
+                    step="0.001"
                     value={formData.min_stock_level}
                     onChange={(e) => setFormData({ ...formData, min_stock_level: e.target.value })}
                     className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"

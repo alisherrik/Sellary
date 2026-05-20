@@ -15,7 +15,7 @@ class PurchaseOrderStatus(str, Enum):
 
 class PurchaseOrderItemBase(BaseModel):
     product_id: int = Field(..., gt=0)
-    quantity_ordered: int = Field(..., gt=0)
+    quantity_ordered: Decimal = Field(..., gt=0, decimal_places=3)
     unit_cost: Decimal = Field(..., ge=0, decimal_places=2)
 
 
@@ -25,7 +25,7 @@ class PurchaseOrderItemCreate(PurchaseOrderItemBase):
 
 class PurchaseOrderItemResponse(PurchaseOrderItemBase):
     id: int
-    quantity_received: int
+    quantity_received: Decimal
     subtotal: Decimal
     product: Optional[dict] = None
 

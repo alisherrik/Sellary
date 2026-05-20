@@ -254,6 +254,7 @@ class SaleService:
                     "id": item.id,
                     "product_id": item.product_id,
                     "product_name": item.product.name,
+                    "uom": item.product.uom,
                     "quantity": item.quantity,
                     "quantity_returned": getattr(item, "quantity_returned", 0) or 0,
                     "quantity_returnable": item.quantity - (getattr(item, "quantity_returned", 0) or 0),

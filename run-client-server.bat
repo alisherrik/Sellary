@@ -31,12 +31,12 @@ if /I "%SELLARY_DRY_RUN%"=="1" (
     exit /b 0
 )
 
-call :is_port_listening 8000
+call :is_port_listening 8001
 if errorlevel 1 (
     start "Sellary Backend" cmd /k "cd /d ""%BACKEND_DIR%"" && ""%BACKEND_PYTHON%"" main.py"
     timeout /t 3 /nobreak >nul
 ) else (
-    echo Sellary backend already running on http://localhost:8000
+    echo Sellary backend already running on http://localhost:8001
 )
 
 call :is_port_listening 3000
@@ -50,7 +50,7 @@ if errorlevel 1 (
     echo Sellary frontend already running on http://localhost:3000
 )
 
-echo Sellary backend: http://localhost:8000
+echo Sellary backend: http://localhost:8001
 echo Sellary frontend: http://localhost:3000
 
 endlocal

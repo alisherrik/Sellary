@@ -17,7 +17,7 @@ import type {
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
 export const API_PROXY_TARGET = (
-  process.env.NEXT_PUBLIC_API_PROXY_TARGET || 'http://127.0.0.1:8000'
+  process.env.NEXT_PUBLIC_API_PROXY_TARGET || 'http://127.0.0.1:8001'
 ).replace(/\/$/, '');
 
 const api = axios.create({
