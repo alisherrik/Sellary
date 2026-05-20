@@ -233,13 +233,9 @@ export default function PurchaseOrders() {
     return (
         <>
 
-            <div className="space-y-4 sm:space-y-6 pb-4">
+            <div className="h-full overflow-y-auto mobile-no-overscroll p-4">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-                    <div>
-                        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Закупки</h1>
-                        <p className="text-xs sm:text-base text-gray-600 dark:text-gray-400">Заказы у поставщиков</p>
-                    </div>
                     <button
                         onClick={handleCreate}
                         className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm sm:text-base self-start sm:self-auto"
