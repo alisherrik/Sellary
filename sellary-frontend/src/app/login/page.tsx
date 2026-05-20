@@ -149,7 +149,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#dbeafe,_transparent_35%),linear-gradient(135deg,_#0f172a,_#1e293b_45%,_#111827)] px-4 py-10">
+    <div className="min-h-dvh min-h-screen bg-[radial-gradient(circle_at_top,_#dbeafe,_transparent_35%),linear-gradient(135deg,_#0f172a,_#1e293b_45%,_#111827)] px-4 py-10">
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-[32px] border border-white/10 bg-white shadow-2xl lg:grid-cols-[1.1fr_0.9fr]">
           <div className="hidden bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
