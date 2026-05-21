@@ -241,6 +241,10 @@ class PurchaseOrderService:
             new_quantity = previous_quantity + quantity_to_receive
             product.stock_quantity = new_quantity
 
+            total_cost_before = previous_quantity * product.cost_price
+            cost_added = quantity_to_receive * po_item.unit_cost
+            product.cost_price = ((total_cost_before + cost_added) / new_quantity).quantize(Decimal("0.01"))
+
             self.inventory_repo.create_log(
                 company_id=self.company_id,
                 product_id=product.id,
