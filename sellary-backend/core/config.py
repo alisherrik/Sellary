@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     OWNER_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
     # Environment detection
-    SELLARY_ENV: str = "development"
+    SELLARY_ENV: str = "production"
 
     # Bootstrap super admin
     SUPER_ADMIN_USERNAME: str | None = None

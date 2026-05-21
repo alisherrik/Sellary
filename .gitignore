@@ -36,3 +36,5 @@ debug_log.txt
 
 # Local Netlify folder
 .netlify
+
+supabase/.temp/
