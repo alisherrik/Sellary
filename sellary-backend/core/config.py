@@ -1,5 +1,11 @@
-from pydantic_settings import BaseSettings
+import warnings
 from functools import lru_cache
+
+from pydantic_settings import BaseSettings
+
+
+def _parse_cors_origins(value: str) -> list[str]:
+    return [origin.strip() for origin in value.split(",") if origin.strip()]
 
 
 class Settings(BaseSettings):
@@ -9,9 +15,12 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     LOGIN_TOKEN_EXPIRE_MINUTES: int = 10
     OWNER_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+
+    # Environment detection
+    SELLARY_ENV: str = "development"
 
     # Bootstrap super admin
     SUPER_ADMIN_USERNAME: str | None = None
@@ -24,7 +33,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Sellary"
     VERSION: str = "1.0.0"
 
-    # CORS
+    # CORS — defaults for local dev; set BACKEND_CORS_ORIGINS_RAW in production
     BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:5173",
         "http://localhost:3000",
@@ -43,10 +52,33 @@ class Settings(BaseSettings):
         "http://192.168.1.108:3001",
         "http://192.168.1.108:3002",
     ]
+    BACKEND_CORS_ORIGINS_RAW: str = ""
 
     # Pagination
     DEFAULT_PAGE_SIZE: int = 50
     MAX_PAGE_SIZE: int = 200
+
+    def model_post_init(self, __context) -> None:
+        if self.BACKEND_CORS_ORIGINS_RAW:
+            self.BACKEND_CORS_ORIGINS = _parse_cors_origins(self.BACKEND_CORS_ORIGINS_RAW)
+
+        is_prod = self.SELLARY_ENV == "production"
+        unsafe_keys = (
+            "your-secret-key-change-in-production",
+            "your-secret-key-change-in-production-use-openssl-rand-hex-32",
+        )
+        if self.SECRET_KEY in unsafe_keys or len(self.SECRET_KEY) < 32:
+            if is_prod:
+                raise ValueError(
+                    "Production requires a strong SECRET_KEY (>=32 chars, not the default). "
+                    "Generate with: openssl rand -hex 32"
+                )
+            warnings.warn(
+                "Using default/weak SECRET_KEY. This is unsafe for production. "
+                "Set SECRET_KEY in .env before deploying.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
     class Config:
         env_file = ".env"

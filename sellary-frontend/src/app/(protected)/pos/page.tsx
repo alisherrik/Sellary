@@ -103,16 +103,22 @@ export default function POS() {
 
     setLoading(true);
 
-    const saleData: any = {
-      items: items.map((item) => ({
+    const saleItems = items.map((item) => {
+      const hasMarkup = item.discount < 0;
+      return {
         product_id: item.product.id,
         quantity: item.quantity,
-        unit_price: item.product.sell_price,
+        unit_price: hasMarkup
+          ? item.product.sell_price + Math.abs(item.discount)
+          : item.product.sell_price,
         tax_percent: item.product.tax_percent,
-        discount_amount: item.discount || 0,
-      })),
+        discount_amount: Math.max(0, item.discount || 0),
+      };
+    });
+    const saleData: any = {
+      items: saleItems,
       payment_method: paymentMethod,
-      discount_amount: items.reduce((sum, item) => sum + (item.discount || 0), 0) + overallDiscount,
+      discount_amount: Math.max(0, items.reduce((sum, item) => sum + Math.max(0, item.discount || 0), 0) + overallDiscount),
     };
 
     if (paymentMethod === 'card' && cardType) {

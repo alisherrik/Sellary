@@ -88,7 +88,8 @@ class ProductRepository:
     def delete(self, company_id: int, product_id: int) -> bool:
         product = self.get_by_id(company_id, product_id)
         if product:
-            self.db.delete(product)
+            product.is_active = False
+            self.db.flush()
             self.db.commit()
             return True
         return False

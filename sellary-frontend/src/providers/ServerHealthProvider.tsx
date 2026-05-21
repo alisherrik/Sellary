@@ -11,10 +11,8 @@ import React, {
 import toast from 'react-hot-toast';
 
 import { isOfflineModeEnabled } from '@/lib/features';
-import { API_PROXY_TARGET } from '@/lib/api';
 import { getSyncConfig, processQueue, setSyncConfig } from '@/lib/syncQueue';
 
-const HEALTH_CHECK_BASE_URL = API_PROXY_TARGET;
 const HEALTH_CHECK_TIMEOUT = 3000;
 
 interface ServerHealthContextType {
@@ -108,7 +106,7 @@ export function ServerHealthProvider({ children }: { children: React.ReactNode }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT);
 
-      const response = await fetch(`${HEALTH_CHECK_BASE_URL}/health`, {
+      const response = await fetch(`/health`, {
         method: 'POST',
         signal: controller.signal,
         headers: {

@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from api.dependencies import OwnerContext, require_super_admin
 from core.database import get_db
+from core.rate_limiter import owner_login_rate_limiter
 from schemas.admin import (
     ManagedCompanyCreate,
     ManagedCompanyResponse,
@@ -25,7 +26,17 @@ router = APIRouter(prefix="/owner", tags=["owner"])
 
 
 @router.post("/auth/login", response_model=OwnerLoginResponse)
-def owner_login(payload: OwnerLoginRequest, db: Session = Depends(get_db)):
+def owner_login(request: Request, payload: OwnerLoginRequest, db: Session = Depends(get_db)):
+    client_ip = (
+        request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or (request.client.host if request.client else "unknown")
+    )
+    if owner_login_rate_limiter.is_rate_limited(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later.",
+        )
+
     auth_service = AuthService(db)
     user = auth_service.authenticate_owner(payload.username, payload.password)
     if not user:
@@ -33,6 +44,7 @@ def owner_login(payload: OwnerLoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
         )
+    owner_login_rate_limiter.reset_key(client_ip)
     return auth_service.create_owner_login_response(user)
 
 

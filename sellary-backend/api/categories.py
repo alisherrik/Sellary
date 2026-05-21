@@ -31,7 +31,7 @@ def get_category(
 ):
     repo = CategoryRepository(db)
     category = repo.get_by_id(auth.company_id, category_id)
-    if not category:
+    if not category or not category.is_active:
         raise HTTPException(status_code=404, detail="Category not found")
     return category
 

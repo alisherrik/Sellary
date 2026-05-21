@@ -24,6 +24,26 @@ class PurchaseOrderRepository:
             .first()
         )
 
+    def get_by_id_for_update(self, company_id: int, po_id: int) -> Optional[PurchaseOrder]:
+        return (
+            self.db.query(PurchaseOrder)
+            .filter(
+                PurchaseOrder.company_id == company_id,
+                PurchaseOrder.id == po_id,
+            )
+            .with_for_update()
+            .first()
+        )
+
+    def get_po_items_for_update(self, po_id: int) -> List[PurchaseOrderItem]:
+        return (
+            self.db.query(PurchaseOrderItem)
+            .filter(PurchaseOrderItem.purchase_order_id == po_id)
+            .order_by(PurchaseOrderItem.id)
+            .with_for_update()
+            .all()
+        )
+
     def get_all(
         self,
         company_id: int,

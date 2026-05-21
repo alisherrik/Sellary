@@ -197,8 +197,8 @@ class TestGetAll:
         assert len(sales) == 1
         assert sales[0].cashier_id == cashier1.id
 
-    def test_get_all_returns_only_completed(self, db_session):
-        """Test that cancelled sales are not returned by default."""
+    def test_get_all_filters_by_status(self, db_session):
+        """Test that sales can be filtered by status."""
         category = Category(name="Test Category")
         db_session.add(category)
         db_session.flush()
@@ -247,7 +247,7 @@ class TestGetAll:
         db_session.commit()
 
         service = SaleService(db_session)
-        sales, total = service.get_all()
+        sales, total = service.get_all(status=SaleStatus.COMPLETED)
 
         assert len(sales) == 1
         assert sales[0].status == SaleStatus.COMPLETED
@@ -645,6 +645,74 @@ class TestCreateSale:
         assert logs[0].reference_type == "sale"
         assert logs[0].reference_id == result.id
 
+    def test_create_sale_card_without_card_type(self, db_session):
+        """Test that card payment without card_type is rejected by schema."""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValueError, match="card_type"):
+            SaleCreate(
+                items=[
+                    SaleItemCreate(
+                        product_id=1,
+                        quantity=1,
+                        unit_price=Decimal("15.00"),
+                    )
+                ],
+                payment_method=PaymentMethod.CARD,
+                card_type=None,
+            )
+
+    def test_create_sale_empty_items(self, db_session):
+        """Test that empty items list is rejected by schema."""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="1"):
+            SaleCreate(
+                items=[],
+                payment_method=PaymentMethod.CASH,
+            )
+
+    def test_create_sale_negative_discount(self, db_session):
+        """Test that negative discount is rejected."""
+        category = Category(name="Test Category")
+        db_session.add(category)
+        db_session.flush()
+
+        product = Product(
+            name="Test Product",
+            barcode="NEGDISC1",
+            category_id=category.id,
+            cost_price=Decimal("10.00"),
+            sell_price=Decimal("15.00"),
+            stock_quantity=100,
+            is_active=True,
+        )
+        db_session.add(product)
+
+        cashier = User(
+            username="cashier",
+            email="cashier@test.com",
+            hashed_password=get_password_hash("password"),
+            role="cashier",
+        )
+        db_session.add(cashier)
+        db_session.flush()
+
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="0"):
+            SaleCreate(
+                items=[
+                    SaleItemCreate(
+                        product_id=product.id,
+                        quantity=1,
+                        unit_price=Decimal("15.00"),
+                        discount_amount=Decimal("-5.00"),
+                    )
+                ],
+                payment_method=PaymentMethod.CASH,
+            )
+
 
 class TestCancelSale:
     """Tests for canceling sales."""
@@ -768,6 +836,75 @@ class TestCancelSale:
         service = SaleService(db_session)
         with pytest.raises(Exception):  # StateTransitionError
             service.cancel(sale.id, cashier.id)
+
+    def test_double_cancel_does_not_restore_stock_twice(self, db_session):
+        """Test that cancelling an already-cancelled sale does not double-restore stock."""
+        category = Category(name="Test Category")
+        db_session.add(category)
+        db_session.flush()
+
+        product = Product(
+            name="Test Product",
+            barcode="DOUBLE1",
+            category_id=category.id,
+            cost_price=Decimal("10.00"),
+            sell_price=Decimal("15.00"),
+            stock_quantity=100,
+            is_active=True,
+        )
+        db_session.add(product)
+
+        customer = Customer(name="Test Customer")
+        db_session.add(customer)
+
+        cashier = User(
+            username="cashier",
+            email="cashier@test.com",
+            hashed_password=get_password_hash("password"),
+            role="cashier",
+        )
+        db_session.add(cashier)
+        db_session.flush()
+
+        sale = Sale(
+            customer_id=customer.id,
+            cashier_id=cashier.id,
+            subtotal=Decimal("30.00"),
+            tax_amount=Decimal("3.00"),
+            total_amount=Decimal("33.00"),
+            payment_method=PaymentMethod.CASH,
+            status=SaleStatus.COMPLETED,
+        )
+        db_session.add(sale)
+        db_session.flush()
+
+        sale_item = SaleItem(
+            sale_id=sale.id,
+            product_id=product.id,
+            quantity=5,
+            unit_price=Decimal("15.00"),
+            tax_percent=Decimal("10.00"),
+            tax_amount=Decimal("3.00"),
+            subtotal=Decimal("30.00"),
+            total=Decimal("33.00"),
+        )
+        db_session.add(sale_item)
+        product.stock_quantity -= 5
+        db_session.commit()
+
+        assert product.stock_quantity == 95
+
+        service = SaleService(db_session)
+        result = service.cancel(sale.id, cashier.id)
+        assert result.status == SaleStatus.CANCELLED
+        db_session.refresh(product)
+        assert product.stock_quantity == 100
+
+        with pytest.raises(Exception):
+            service.cancel(sale.id, cashier.id)
+
+        db_session.refresh(product)
+        assert product.stock_quantity == 100
 
     def test_cancel_creates_inventory_log(self, db_session):
         """Test that canceling a sale creates inventory log entries."""

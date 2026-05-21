@@ -32,7 +32,7 @@ def get_customer(
 ):
     repo = CustomerRepository(db)
     customer = repo.get_by_id(auth.company_id, customer_id)
-    if not customer:
+    if not customer or not customer.is_active:
         raise HTTPException(status_code=404, detail="Customer not found")
     return customer
 

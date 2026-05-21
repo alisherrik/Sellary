@@ -111,7 +111,7 @@ class TestCreateReturn:
         assert data["sale_id"] == sale.id
         assert Decimal(data["total_refund_amount"]) > Decimal("0.00")
         assert len(data["items"]) == 1
-        assert data["items"][0]["quantity_returned"] == 1
+        assert Decimal(data["items"][0]["quantity_returned"]) == 1
 
     def test_create_return_multiple_items(self, client: TestClient, db_session, cashier_headers):
         """Test creating a return with multiple items."""

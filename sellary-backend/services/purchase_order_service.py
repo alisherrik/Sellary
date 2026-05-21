@@ -159,7 +159,7 @@ class PurchaseOrderService:
         return self._to_response(purchase_order)
 
     def send(self, po_id: int) -> PurchaseOrderResponse:
-        purchase_order = self.po_repo.get_by_id(self.company_id, po_id)
+        purchase_order = self.po_repo.get_by_id_for_update(self.company_id, po_id)
         if not purchase_order:
             raise ValueError(f"Purchase order with id {po_id} not found")
 
@@ -169,11 +169,8 @@ class PurchaseOrderService:
             po_id=po_id,
         )
 
-        purchase_order = self.po_repo.update_status(
-            self.company_id,
-            po_id,
-            PurchaseOrderStatus.SENT,
-        )
+        purchase_order.status = PurchaseOrderStatus.SENT
+        self.db.flush()
         return self._to_response(purchase_order)
 
     def receive_items(
@@ -182,7 +179,7 @@ class PurchaseOrderService:
         receive_request: ReceiveItemsRequest,
         user_id: int,
     ) -> PurchaseOrderResponse:
-        purchase_order = self.po_repo.get_by_id(self.company_id, po_id)
+        purchase_order = self.po_repo.get_by_id_for_update(self.company_id, po_id)
         if not purchase_order:
             raise ValueError(f"Purchase order with id {po_id} not found")
 
@@ -204,13 +201,18 @@ class PurchaseOrderService:
         if not items_to_receive:
             raise ValueError("No items to receive")
 
-        product_ids = []
-        po_item_map = {}
-        for po_item in purchase_order.items:
-            if po_item.id in items_to_receive:
-                product_ids.append(po_item.product_id)
-                po_item_map[po_item.id] = po_item
+        locked_po_items = self.po_repo.get_po_items_for_update(po_id)
+        po_item_map = {item.id: item for item in locked_po_items}
 
+        product_ids = []
+        for item_id in items_to_receive:
+            po_item = po_item_map.get(item_id)
+            if not po_item:
+                raise ValueError(f"Purchase order item with id {item_id} not found")
+            if po_item.product_id not in product_ids:
+                product_ids.append(po_item.product_id)
+
+        product_ids.sort()
         locked_products = self.product_repo.get_multiple_for_update(
             self.company_id,
             product_ids,
@@ -253,7 +255,7 @@ class PurchaseOrderService:
 
             po_item.quantity_received += quantity_to_receive
 
-        for po_item in purchase_order.items:
+        for po_item in locked_po_items:
             if po_item.quantity_received < po_item.quantity_ordered:
                 all_fully_received = False
                 break
@@ -267,7 +269,7 @@ class PurchaseOrderService:
         return self._to_response(purchase_order)
 
     def cancel(self, po_id: int) -> PurchaseOrderResponse:
-        purchase_order = self.po_repo.get_by_id(self.company_id, po_id)
+        purchase_order = self.po_repo.get_by_id_for_update(self.company_id, po_id)
         if not purchase_order:
             raise ValueError(f"Purchase order with id {po_id} not found")
 
@@ -277,11 +279,8 @@ class PurchaseOrderService:
             po_id=po_id,
         )
 
-        purchase_order = self.po_repo.update_status(
-            self.company_id,
-            po_id,
-            PurchaseOrderStatus.CANCELLED,
-        )
+        purchase_order.status = PurchaseOrderStatus.CANCELLED
+        self.db.flush()
         return self._to_response(purchase_order)
 
     def delete(self, po_id: int) -> bool:

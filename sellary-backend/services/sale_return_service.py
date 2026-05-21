@@ -33,7 +33,7 @@ class SaleReturnService:
         return_data: SaleReturnCreate,
         user_id: int,
     ) -> SaleReturnResponse:
-        sale = self.sale_repo.get_by_id(self.company_id, sale_id)
+        sale = self.sale_repo.get_by_id_for_update(self.company_id, sale_id)
         if not sale:
             raise ValueError(f"Sale with id {sale_id} not found")
 
@@ -45,7 +45,8 @@ class SaleReturnService:
                 target_status="return",
             )
 
-        sale_item_map = {item.id: item for item in sale.items}
+        locked_items = self.sale_repo.get_sale_items_for_update(sale_id)
+        sale_item_map = {item.id: item for item in locked_items}
         product_ids = []
         for return_item in return_data.items:
             sale_item = sale_item_map.get(return_item.sale_item_id)
@@ -61,8 +62,10 @@ class SaleReturnService:
                     f"(sold: {sale_item.quantity}, already returned: {sale_item.quantity_returned})"
                 )
 
-            product_ids.append(sale_item.product_id)
+            if sale_item.product_id not in product_ids:
+                product_ids.append(sale_item.product_id)
 
+        product_ids.sort()
         locked_products = self.product_repo.get_multiple_for_update(
             self.company_id,
             product_ids,
@@ -75,6 +78,11 @@ class SaleReturnService:
         for return_item in return_data.items:
             sale_item = sale_item_map[return_item.sale_item_id]
             product = product_map[sale_item.product_id]
+
+            if sale_item.quantity <= 0:
+                raise ValueError(
+                    f"Sale item {sale_item.id} has invalid quantity {sale_item.quantity}"
+                )
 
             unit_refund = sale_item.total / sale_item.quantity
             item_refund = unit_refund * return_item.quantity
@@ -118,7 +126,7 @@ class SaleReturnService:
 
         all_fully_returned = all(
             item.quantity_returned >= item.quantity
-            for item in sale.items
+            for item in locked_items
         )
         sale.status = (
             SaleStatus.RETURNED

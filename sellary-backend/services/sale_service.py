@@ -39,6 +39,7 @@ class SaleService:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         cashier_id: Optional[int] = None,
+        status: Optional[SaleStatus] = None,
         context_type: Optional[SaleContextType] = None,
     ) -> Tuple[List[SaleResponse], int]:
         sales, total = self.sale_repo.get_all(
@@ -48,7 +49,7 @@ class SaleService:
             start_date=start_date,
             end_date=end_date,
             cashier_id=cashier_id,
-            status=SaleStatus.COMPLETED,
+            status=status,
             context_type=context_type,
         )
         return [self._to_response(sale) for sale in sales], total
@@ -134,6 +135,9 @@ class SaleService:
 
         total_amount = subtotal + tax_amount - sale_create.discount_amount
 
+        if total_amount < 0:
+            raise ValueError("Sale total cannot be negative")
+
         if sale_create.customer_id:
             customer = self.customer_repo.get_by_id(
                 self.company_id,
@@ -178,7 +182,7 @@ class SaleService:
         return self._to_response(sale)
 
     def cancel(self, sale_id: int, user_id: int) -> SaleResponse:
-        sale = self.sale_repo.get_by_id(self.company_id, sale_id)
+        sale = self.sale_repo.get_by_id_for_update(self.company_id, sale_id)
         if not sale:
             raise ValueError(f"Sale with id {sale_id} not found")
 
@@ -188,14 +192,15 @@ class SaleService:
             sale_id=sale_id,
         )
 
-        product_ids = [item.product_id for item in sale.items]
+        locked_items = self.sale_repo.get_sale_items_for_update(sale_id)
+        product_ids = sorted(item.product_id for item in locked_items)
         locked_products = self.product_repo.get_multiple_for_update(
             self.company_id,
             product_ids,
         )
         product_map = {product.id: product for product in locked_products}
 
-        for item in sale.items:
+        for item in locked_items:
             product = product_map.get(item.product_id)
             if product:
                 previous_quantity = product.stock_quantity
@@ -216,9 +221,9 @@ class SaleService:
 
         sale.status = SaleStatus.CANCELLED
         self.db.flush()
-        return self._to_response(sale)
+        return self._to_response(sale, items_override=locked_items)
 
-    def _to_response(self, sale: Sale) -> SaleResponse:
+    def _to_response(self, sale: Sale, items_override=None) -> SaleResponse:
         refunded_amount = Decimal("0.00")
         try:
             for sale_return in getattr(sale, "returns", []) or []:
@@ -228,6 +233,8 @@ class SaleService:
 
         remaining_refundable = sale.total_amount - refunded_amount
         can_return = sale.status in (SaleStatus.COMPLETED, SaleStatus.PARTIALLY_RETURNED)
+
+        items_source = items_override if items_override is not None else sale.items
 
         return SaleResponse(
             id=sale.id,
@@ -268,6 +275,6 @@ class SaleService:
                     "subtotal": item.subtotal,
                     "total": item.total,
                 }
-                for item in sale.items
+                for item in items_source
             ],
         )

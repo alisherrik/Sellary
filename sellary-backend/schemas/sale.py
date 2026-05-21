@@ -1,5 +1,5 @@
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -34,18 +34,26 @@ class SaleItemCreate(BaseModel):
     quantity: Decimal = Field(..., gt=0, decimal_places=3)
     unit_price: Decimal = Field(..., ge=0, decimal_places=2)
     tax_percent: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
-    discount_amount: Decimal = Field(default=Decimal("0.00"), decimal_places=2)
+    discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
 
 
 class SaleCreate(BaseModel):
     customer_id: Optional[int] = None
-    items: List[SaleItemCreate]
+    items: List[SaleItemCreate] = Field(..., min_length=1)
     payment_method: PaymentMethod
-    card_type: Optional[CardType] = None  # Required when payment_method is card
-    discount_amount: Decimal = Field(default=Decimal("0.00"), decimal_places=2)
+    card_type: Optional[CardType] = None
+    discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
     notes: Optional[str] = None
     context_type: SaleContextType = Field(default=SaleContextType.RETAIL)
     table_name: Optional[str] = Field(None, max_length=50)
+
+    @model_validator(mode="after")
+    def validate_card_type(self):
+        if self.payment_method == PaymentMethod.CARD and not self.card_type:
+            raise ValueError("card_type is required when payment_method is card")
+        if self.payment_method != PaymentMethod.CARD and self.card_type:
+            raise ValueError("card_type must not be set when payment_method is not card")
+        return self
 
 
 class SaleItemResponse(BaseModel):

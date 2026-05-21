@@ -94,13 +94,99 @@ def send_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_manager_or_admin),
+    idempotency_key: str = Depends(require_idempotency_key),
 ):
+    endpoint = f"/api/purchase-orders/{po_id}/send"
+    request_body = {"po_id": po_id}
+
+    idempotency_service = IdempotencyService(db)
+    try:
+        cached = idempotency_service.get_cached_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+        )
+        if cached:
+            response_body, _ = cached
+            return PurchaseOrderResponse(**response_body)
+    except IdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+
     service = PurchaseOrderService(db, auth.company_id)
     try:
-        return service.send(po_id)
+        result = service.send(po_id)
+        idempotency_service.store_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+            response_body=result,
+            status_code=200,
+        )
+        db.commit()
+        return result
+    except IdempotencyConflictError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.message)
     except StateTransitionError as exc:
+        db.rollback()
         raise HTTPException(status_code=409, detail=exc.message)
     except ValueError as exc:
+        db.rollback()
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+
+
+@router.post("/{po_id}/cancel", response_model=PurchaseOrderResponse)
+def cancel_purchase_order(
+    po_id: int,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_manager_or_admin),
+    idempotency_key: str = Depends(require_idempotency_key),
+):
+    endpoint = f"/api/purchase-orders/{po_id}/cancel"
+    request_body = {"po_id": po_id}
+
+    idempotency_service = IdempotencyService(db)
+    try:
+        cached = idempotency_service.get_cached_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+        )
+        if cached:
+            response_body, _ = cached
+            return PurchaseOrderResponse(**response_body)
+    except IdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+
+    service = PurchaseOrderService(db, auth.company_id)
+    try:
+        result = service.cancel(po_id)
+        idempotency_service.store_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+            response_body=result,
+            status_code=200,
+        )
+        db.commit()
+        return result
+    except IdempotencyConflictError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.message)
+    except StateTransitionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.message)
+    except ValueError as exc:
+        db.rollback()
         status_code = 404 if "not found" in str(exc).lower() else 400
         raise HTTPException(status_code=status_code, detail=str(exc))
 

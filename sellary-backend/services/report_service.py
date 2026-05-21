@@ -2,12 +2,13 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import List
 
-from sqlalchemy import and_, func
+from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session
 
 from models.product import Product
 from models.sale import Sale, SaleStatus
 from models.sale_item import SaleItem
+from models.sale_return import SaleReturn
 from repositories.inventory_repository import InventoryRepository
 from repositories.product_repository import ProductRepository
 from repositories.sale_repository import SaleRepository
@@ -24,6 +25,9 @@ from services.calculation_service import CalculationService
 from services.tenant import resolve_company_id
 
 
+NON_CANCELLED_STATUSES = [SaleStatus.COMPLETED, SaleStatus.PARTIALLY_RETURNED, SaleStatus.RETURNED]
+
+
 class ReportService:
     def __init__(self, db: Session, company_id: int | None = None):
         self.db = db
@@ -33,22 +37,43 @@ class ReportService:
         self.inventory_repo = InventoryRepository(db)
         self.calc = CalculationService
 
+    def _net_revenue_subquery(self):
+        refund_sub = (
+            self.db.query(
+                SaleReturn.sale_id,
+                func.coalesce(func.sum(SaleReturn.total_refund_amount), Decimal("0.00")).label("refund_total"),
+            )
+            .filter(SaleReturn.company_id == self.company_id)
+            .group_by(SaleReturn.sale_id)
+            .subquery()
+        )
+        return refund_sub
+
     def get_dashboard_widgets(self) -> DashboardWidgets:
         today_start = datetime.combine(date.today(), datetime.min.time())
         today_end = datetime.combine(date.today(), datetime.max.time())
 
+        refund_sub = self._net_revenue_subquery()
+
         today_sales = (
-            self.db.query(func.sum(Sale.total_amount))
+            self.db.query(
+                func.coalesce(
+                    func.sum(
+                        Sale.total_amount - func.coalesce(refund_sub.c.refund_total, Decimal("0.00"))
+                    ),
+                    Decimal("0.00"),
+                )
+            )
+            .outerjoin(refund_sub, Sale.id == refund_sub.c.sale_id)
             .filter(
                 and_(
                     Sale.company_id == self.company_id,
                     Sale.created_at >= today_start,
                     Sale.created_at <= today_end,
-                    Sale.status == SaleStatus.COMPLETED,
+                    Sale.status.in_(NON_CANCELLED_STATUSES),
                 )
             )
             .scalar()
-            or Decimal("0.00")
         )
 
         today_sales_count = (
@@ -58,7 +83,7 @@ class ReportService:
                     Sale.company_id == self.company_id,
                     Sale.created_at >= today_start,
                     Sale.created_at <= today_end,
-                    Sale.status == SaleStatus.COMPLETED,
+                    Sale.status.in_(NON_CANCELLED_STATUSES),
                 )
             )
             .scalar()
@@ -73,7 +98,7 @@ class ReportService:
             self.db.query(Sale)
             .filter(
                 Sale.company_id == self.company_id,
-                Sale.status == SaleStatus.COMPLETED,
+                Sale.status.in_(NON_CANCELLED_STATUSES),
             )
             .order_by(Sale.created_at.desc())
             .limit(10)
@@ -81,7 +106,7 @@ class ReportService:
         )
 
         return DashboardWidgets(
-            today_sales=today_sales,
+            today_sales=Decimal(str(today_sales)) if today_sales else Decimal("0.00"),
             today_profit=today_profit,
             today_sales_count=today_sales_count,
             low_stock_count=len(low_stock_products),
@@ -108,18 +133,23 @@ class ReportService:
         )
 
     def get_daily_sales(self, start_date: datetime, end_date: datetime) -> DailySalesReport:
+        refund_sub = self._net_revenue_subquery()
+
         results = (
             self.db.query(
                 func.date(Sale.created_at).label("sale_date"),
                 func.count(Sale.id).label("count"),
-                func.sum(Sale.total_amount).label("total"),
+                func.sum(
+                    Sale.total_amount - func.coalesce(refund_sub.c.refund_total, Decimal("0.00"))
+                ).label("total"),
             )
+            .outerjoin(refund_sub, Sale.id == refund_sub.c.sale_id)
             .filter(
                 and_(
                     Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
-                    Sale.status == SaleStatus.COMPLETED,
+                    Sale.status.in_(NON_CANCELLED_STATUSES),
                 )
             )
             .group_by(func.date(Sale.created_at))
@@ -147,19 +177,28 @@ class ReportService:
         )
 
     def get_profit_report(self, start_date: datetime, end_date: datetime) -> ProfitReport:
+        refund_sub = self._net_revenue_subquery()
+
         revenue = (
-            self.db.query(func.sum(Sale.total_amount))
+            self.db.query(
+                func.coalesce(
+                    func.sum(
+                        Sale.total_amount - func.coalesce(refund_sub.c.refund_total, Decimal("0.00"))
+                    ),
+                    Decimal("0.00"),
+                )
+            )
+            .outerjoin(refund_sub, Sale.id == refund_sub.c.sale_id)
             .filter(
                 and_(
                     Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
-                    Sale.status == SaleStatus.COMPLETED,
+                    Sale.status.in_(NON_CANCELLED_STATUSES),
                 )
             )
             .scalar()
-            or Decimal("0.00")
-        )
+        ) or Decimal("0.00")
 
         cost = self._calculate_cost(start_date, end_date)
         profit = revenue - cost
@@ -172,7 +211,7 @@ class ReportService:
                     Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
-                    Sale.status == SaleStatus.COMPLETED,
+                    Sale.status.in_(NON_CANCELLED_STATUSES),
                 )
             )
             .scalar()
@@ -212,8 +251,14 @@ class ReportService:
                 Product.id,
                 Product.name,
                 Product.barcode,
-                func.sum(SaleItem.quantity).label("qty"),
-                func.sum(SaleItem.subtotal).label("revenue"),
+                Product.cost_price,
+                Product.sell_price,
+                func.sum(SaleItem.quantity - SaleItem.quantity_returned).label("qty"),
+                func.sum(
+                    SaleItem.subtotal
+                    * (SaleItem.quantity - SaleItem.quantity_returned)
+                    / func.nullif(SaleItem.quantity, 0)
+                ).label("revenue"),
             )
             .join(SaleItem, Product.id == SaleItem.product_id)
             .join(Sale, SaleItem.sale_id == Sale.id)
@@ -222,19 +267,22 @@ class ReportService:
                     Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
-                    Sale.status == SaleStatus.COMPLETED,
+                    Sale.status.in_(NON_CANCELLED_STATUSES),
                 )
             )
             .group_by(Product.id)
-            .order_by(func.sum(SaleItem.quantity).desc())
+            .order_by(func.sum(SaleItem.quantity - SaleItem.quantity_returned).desc())
             .limit(limit)
             .all()
         )
 
         items: List[TopProductItem] = []
         for result in results:
-            product = self.product_repo.get_by_id(self.company_id, result.id)
-            profit_per_unit = product.sell_price - product.cost_price
+            profit_per_unit = (
+                Decimal(str(result.sell_price)) - Decimal(str(result.cost_price))
+                if result.sell_price and result.cost_price
+                else Decimal("0.00")
+            )
             profit = profit_per_unit * result.qty
 
             items.append(
@@ -243,7 +291,7 @@ class ReportService:
                     product_name=result.name,
                     barcode=result.barcode,
                     quantity_sold=int(result.qty),
-                    revenue=result.revenue,
+                    revenue=Decimal(str(result.revenue)) if result.revenue else Decimal("0.00"),
                     profit=profit.quantize(Decimal("0.01")),
                 )
             )
@@ -251,26 +299,39 @@ class ReportService:
         return items
 
     def _calculate_profit(self, start_date: datetime, end_date: datetime) -> Decimal:
+        refund_sub = self._net_revenue_subquery()
+
         revenue = (
-            self.db.query(func.sum(Sale.total_amount))
+            self.db.query(
+                func.coalesce(
+                    func.sum(
+                        Sale.total_amount - func.coalesce(refund_sub.c.refund_total, Decimal("0.00"))
+                    ),
+                    Decimal("0.00"),
+                )
+            )
+            .outerjoin(refund_sub, Sale.id == refund_sub.c.sale_id)
             .filter(
                 and_(
                     Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
-                    Sale.status == SaleStatus.COMPLETED,
+                    Sale.status.in_(NON_CANCELLED_STATUSES),
                 )
             )
             .scalar()
-            or Decimal("0.00")
-        )
+        ) or Decimal("0.00")
 
         cost = self._calculate_cost(start_date, end_date)
         return revenue - cost
 
     def _calculate_cost(self, start_date: datetime, end_date: datetime) -> Decimal:
         result = (
-            self.db.query(func.sum(SaleItem.quantity * Product.cost_price))
+            self.db.query(
+                func.sum(
+                    (SaleItem.quantity - SaleItem.quantity_returned) * Product.cost_price
+                )
+            )
             .join(Sale, SaleItem.sale_id == Sale.id)
             .join(Product, SaleItem.product_id == Product.id)
             .filter(
@@ -278,7 +339,7 @@ class ReportService:
                     Sale.company_id == self.company_id,
                     Sale.created_at >= start_date,
                     Sale.created_at <= end_date,
-                    Sale.status == SaleStatus.COMPLETED,
+                    Sale.status.in_(NON_CANCELLED_STATUSES),
                 )
             )
             .scalar()

@@ -18,6 +18,23 @@ class SaleRepository:
             .first()
         )
 
+    def get_by_id_for_update(self, company_id: int, sale_id: int) -> Optional[Sale]:
+        return (
+            self.db.query(Sale)
+            .filter(Sale.company_id == company_id, Sale.id == sale_id)
+            .with_for_update()
+            .first()
+        )
+
+    def get_sale_items_for_update(self, sale_id: int) -> List[SaleItem]:
+        return (
+            self.db.query(SaleItem)
+            .filter(SaleItem.sale_id == sale_id)
+            .order_by(SaleItem.id)
+            .with_for_update()
+            .all()
+        )
+
     def get_all(
         self,
         company_id: int,

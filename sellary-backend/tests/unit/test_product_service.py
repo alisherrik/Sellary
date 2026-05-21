@@ -434,8 +434,13 @@ class TestDelete:
 
         assert result is True
 
-        # Verify product is deleted
-        assert service.get_by_id(product.id) is None
+        db_session.refresh(product)
+        assert product.is_active is False
+
+        db_session.expire_all()
+        deleted_product = service.get_by_id(product.id)
+        assert deleted_product is not None
+        assert deleted_product.is_active is False
 
     def test_delete_nonexistent_product(self, db_session):
         """Test deleting a product that doesn't exist."""

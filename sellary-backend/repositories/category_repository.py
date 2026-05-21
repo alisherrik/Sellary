@@ -45,7 +45,8 @@ class CategoryRepository:
     def delete(self, company_id: int, category_id: int) -> bool:
         category = self.get_by_id(company_id, category_id)
         if category:
-            self.db.delete(category)
+            category.is_active = False
+            self.db.flush()
             self.db.commit()
             return True
         return False

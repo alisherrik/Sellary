@@ -12,7 +12,7 @@ from core.idempotency import (
     require_idempotency_key,
 )
 from core.state_machine import StateTransitionError
-from schemas.sale import SaleContextType, SaleCreate, SaleResponse
+from schemas.sale import SaleContextType, SaleCreate, SaleResponse, SaleStatus
 from schemas.sale_return import SaleReturnCreate, SaleReturnResponse
 from services.sale_return_service import SaleReturnService
 from services.sale_service import SaleService
@@ -80,6 +80,7 @@ def get_sales(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     cashier_id: Optional[int] = None,
+    status: Optional[SaleStatus] = None,
     context_type: Optional[SaleContextType] = None,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context),
@@ -91,6 +92,7 @@ def get_sales(
         start_date=start_date,
         end_date=end_date,
         cashier_id=cashier_id,
+        status=status,
         context_type=context_type,
     )
     return sales

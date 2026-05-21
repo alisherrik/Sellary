@@ -66,7 +66,7 @@ def get_product(
 ):
     service = ProductService(db, auth.company_id)
     product = service.get_by_id(product_id)
-    if not product:
+    if not product or not product.is_active:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
 

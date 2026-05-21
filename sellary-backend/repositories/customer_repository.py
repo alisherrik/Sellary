@@ -26,8 +26,11 @@ class CustomerRepository:
         skip: int = 0,
         limit: int = 50,
         search: Optional[str] = None,
+        active_only: bool = True,
     ) -> List[Customer]:
         query = self.db.query(Customer).filter(Customer.company_id == company_id)
+        if active_only:
+            query = query.filter(Customer.is_active == True)
         if search:
             query = query.filter(
                 or_(
@@ -52,7 +55,8 @@ class CustomerRepository:
     def delete(self, company_id: int, customer_id: int) -> bool:
         customer = self.get_by_id(company_id, customer_id)
         if customer:
-            self.db.delete(customer)
+            customer.is_active = False
+            self.db.flush()
             self.db.commit()
             return True
         return False

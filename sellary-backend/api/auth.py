@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from core.database import get_db
+from core.rate_limiter import login_rate_limiter
 from schemas.user import (
     AuthSession,
     CompanySelectRequest,
@@ -23,7 +24,17 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(user_login: UserLogin, db: Session = Depends(get_db)):
+def login(request: Request, user_login: UserLogin, db: Session = Depends(get_db)):
+    client_ip = (
+        request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or (request.client.host if request.client else "unknown")
+    )
+    if login_rate_limiter.is_rate_limited(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later.",
+        )
+
     auth_service = AuthService(db)
     user = auth_service.authenticate(user_login.username, user_login.password)
 
@@ -34,6 +45,7 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)):
         )
 
     try:
+        login_rate_limiter.reset_key(client_ip)
         return auth_service.create_login_response(user)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))

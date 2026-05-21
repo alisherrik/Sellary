@@ -20,6 +20,7 @@ export interface SyncItem {
     retryCount: number;            // 0-5 max
     lastError?: string;            // Error message for UI
     status: 'pending' | 'syncing' | 'failed'; // For UI display
+    idempotencyKey?: string;       // Stable key for idempotent endpoints
 }
 
 export interface SyncConfig {
@@ -63,14 +64,15 @@ export async function setSyncConfig(config: SyncConfig): Promise<void> {
  * Add item to sync queue (ATOMIC operation)
  * Survives: refresh, crash, update
  */
-export async function addToSyncQueue(item: Omit<SyncItem, 'id' | 'timestamp' | 'retryCount' | 'status'>): Promise<SyncItem> {
+export async function addToSyncQueue(item: Omit<SyncItem, 'id' | 'timestamp' | 'retryCount' | 'status' | 'idempotencyKey'>): Promise<SyncItem> {
     const queue = (await get<SyncItem[]>(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()))) || [];
     const newItem: SyncItem = {
         ...item,
         id: crypto.randomUUID(),
         timestamp: Date.now(),
         retryCount: 0,
-        status: 'pending'
+        status: 'pending',
+        idempotencyKey: item.type === 'sale' ? crypto.randomUUID() : undefined,
     };
     queue.push(newItem);
     await set(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()), queue);
@@ -171,16 +173,30 @@ async function processSyncItem(item: SyncItem, config: SyncConfig): Promise<bool
             headers['Authorization'] = `Bearer ${token}`;
         }
 
+        if (item.idempotencyKey) {
+            headers['Idempotency-Key'] = item.idempotencyKey;
+        }
+
         const response = await fetch(item.url, {
             method: item.method,
             headers,
             body: item.method !== 'GET' ? JSON.stringify(item.body) : undefined,
         });
 
-        // SUCCESS: 200-299 or 4xx (client error, won't succeed on retry)
-        if (response.ok || response.status >= 400 && response.status < 500) {
+        if (response.ok) {
             await removeFromSyncQueue(item.id);
             return true;
+        }
+
+        if (response.status >= 400 && response.status < 500) {
+            const errorMsg = `Client error: ${response.status} ${response.statusText}`;
+            console.warn(`Sync failed for ${item.id}: ${errorMsg}`);
+            await updateSyncItem(item.id, {
+                status: 'failed',
+                retryCount: item.retryCount + 1,
+                lastError: errorMsg,
+            });
+            return false;
         }
 
         // SERVER ERROR: 5xx - will retry
