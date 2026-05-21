@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { BanknotesIcon, ServerIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
@@ -33,6 +34,22 @@ function StatusBadge({
 export default function SettingsPage() {
   const { currency, setCurrency } = useSettingsStore();
   const { isServerReachable, isChecking } = useServerHealth();
+  const [backendVersion, setBackendVersion] = useState<string | null>(null);
+
+  const frontendVersion = process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0';
+
+  useEffect(() => {
+    if (isServerReachable) {
+      fetch('/health', { method: 'GET' })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.version) {
+            setBackendVersion(data.version);
+          }
+        })
+        .catch(() => setBackendVersion(null));
+    }
+  }, [isServerReachable]);
 
   const handleCurrencyChange = (code: CurrencyCode) => {
     setCurrency(code);
@@ -134,6 +151,38 @@ export default function SettingsPage() {
             <div className="mt-3">
               <StatusBadge enabled={isOfflineModeEnabled} />
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="border-b border-gray-100 p-4 sm:p-6">
+          <div className="flex items-center gap-2">
+            <ServerIcon className="h-5 w-5 text-gray-500" />
+            <h2 className="text-lg font-semibold text-gray-900">Version</h2>
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            Deployed versions of server and client.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 p-4 sm:p-6 md:grid-cols-2">
+          <div className="rounded-xl bg-slate-50 p-4">
+            <div className="text-sm font-medium text-slate-900">Server</div>
+            <div className="mt-1 text-2xl font-bold text-gray-900">
+              {isServerReachable && backendVersion ? `v${backendVersion}` : '—'}
+            </div>
+            <div className="mt-1 text-xs text-gray-500">
+              {isChecking ? 'Checking...' : isServerReachable ? 'Railway' : 'Unreachable'}
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 p-4">
+            <div className="text-sm font-medium text-slate-900">Client</div>
+            <div className="mt-1 text-2xl font-bold text-gray-900">
+              v{frontendVersion}
+            </div>
+            <div className="mt-1 text-xs text-gray-500">Netlify</div>
           </div>
         </div>
       </section>

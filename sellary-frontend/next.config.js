@@ -43,6 +43,9 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 });
 
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version || "1.0.0",
+  },
   async rewrites() {
     return [
       {

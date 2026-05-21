@@ -93,7 +93,11 @@ def root():
 
 @app.api_route("/health", methods=["GET", "POST", "OPTIONS"])
 def health_check():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "name": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+    }
 
 
 if __name__ == "__main__":
