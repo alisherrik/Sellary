@@ -56,7 +56,8 @@ class SupplierRepository:
     def delete(self, company_id: int, supplier_id: int) -> bool:
         supplier = self.get_by_id(company_id, supplier_id)
         if supplier:
-            self.db.delete(supplier)
+            supplier.is_active = False
+            self.db.flush()
             self.db.commit()
             return True
         return False

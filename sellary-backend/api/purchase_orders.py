@@ -243,22 +243,6 @@ def receive_items(
         raise HTTPException(status_code=status_code, detail=str(exc))
 
 
-@router.post("/{po_id}/cancel", response_model=PurchaseOrderResponse)
-def cancel_purchase_order(
-    po_id: int,
-    db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
-):
-    service = PurchaseOrderService(db, auth.company_id)
-    try:
-        return service.cancel(po_id)
-    except StateTransitionError as exc:
-        raise HTTPException(status_code=409, detail=exc.message)
-    except ValueError as exc:
-        status_code = 404 if "not found" in str(exc).lower() else 400
-        raise HTTPException(status_code=status_code, detail=str(exc))
-
-
 @router.delete("/{po_id}", status_code=204)
 def delete_purchase_order(
     po_id: int,

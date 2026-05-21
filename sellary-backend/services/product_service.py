@@ -69,6 +69,7 @@ class ProductService:
             raise ValueError(f"Product with id {product_id} not found")
 
         update_data = product_update.model_dump(exclude_unset=True)
+        update_data.pop("stock_quantity", None)
         barcode = update_data.get("barcode")
         if barcode:
             existing = self.product_repo.get_by_barcode(self.company_id, barcode)

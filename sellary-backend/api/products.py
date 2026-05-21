@@ -44,7 +44,7 @@ def get_product_by_barcode(
 ):
     service = ProductService(db, auth.company_id)
     product = service.get_by_barcode(barcode)
-    if not product:
+    if not product or not product.is_active:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
 

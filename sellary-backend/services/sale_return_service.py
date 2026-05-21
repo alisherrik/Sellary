@@ -84,7 +84,11 @@ class SaleReturnService:
                     f"Sale item {sale_item.id} has invalid quantity {sale_item.quantity}"
                 )
 
-            unit_refund = sale_item.total / sale_item.quantity
+            item_final_total = max(
+                Decimal("0.00"),
+                sale_item.total - sale_item.allocated_sale_discount_amount
+            )
+            unit_refund = item_final_total / sale_item.quantity
             item_refund = unit_refund * return_item.quantity
             total_refund += item_refund
 

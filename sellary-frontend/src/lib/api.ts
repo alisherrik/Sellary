@@ -260,14 +260,20 @@ export const purchaseOrdersApi = {
   getById: (id: number) => api.get(`/purchase-orders/${id}`),
   create: (data: any) => api.post('/purchase-orders', data),
   update: (id: number, data: any) => api.put(`/purchase-orders/${id}`, data),
-  send: (id: number) => api.post(`/purchase-orders/${id}/send`),
+  send: (id: number, idempotencyKey?: string) => {
+    const key = idempotencyKey || generateIdempotencyKey();
+    return api.post(`/purchase-orders/${id}/send`, {}, { headers: { 'Idempotency-Key': key } });
+  },
   receive: (id: number, data: any, idempotencyKey?: string) => {
     const key = idempotencyKey || generateIdempotencyKey();
     return api.post(`/purchase-orders/${id}/receive`, data, {
       headers: { 'Idempotency-Key': key },
     });
   },
-  cancel: (id: number) => api.post(`/purchase-orders/${id}/cancel`),
+  cancel: (id: number, idempotencyKey?: string) => {
+    const key = idempotencyKey || generateIdempotencyKey();
+    return api.post(`/purchase-orders/${id}/cancel`, {}, { headers: { 'Idempotency-Key': key } });
+  },
   delete: (id: number) => api.delete(`/purchase-orders/${id}`),
 };
 

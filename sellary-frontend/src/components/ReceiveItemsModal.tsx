@@ -133,7 +133,7 @@ export default function ReceiveItemsModal({ purchaseOrder, onClose, onSuccess }:
                       onChange={(e) =>
                         setReceivingItems({
                           ...receivingItems,
-                          [item.id]: parseInt(e.target.value) || 0,
+                          [item.id]: parseFloat(e.target.value) || 0,
                         })
                       }
                       className={`w-20 h-8 sm:h-9 px-2 text-center rounded-lg border text-sm ${!isValid && qty > 0 ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-700`}

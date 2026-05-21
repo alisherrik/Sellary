@@ -19,6 +19,9 @@ class SaleItem(Base):
     discount_amount = Column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
     subtotal = Column(Numeric(12, 2), nullable=False)
     total = Column(Numeric(12, 2), nullable=False)
+    allocated_sale_discount_amount = Column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
+    unit_cost_at_sale = Column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
+    cost_total_at_sale = Column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     sale = relationship("Sale", back_populates="items")

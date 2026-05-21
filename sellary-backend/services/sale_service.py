@@ -113,6 +113,8 @@ class SaleService:
                 discount_amount=item_create.discount_amount,
                 subtotal=item_subtotal,
                 total=item_total,
+                unit_cost_at_sale=product.cost_price,
+                cost_total_at_sale=(item_create.quantity * product.cost_price).quantize(Decimal("0.01")),
                 created_at=datetime.now(),
             )
             items.append(item)
@@ -134,6 +136,17 @@ class SaleService:
             )
 
         total_amount = subtotal + tax_amount - sale_create.discount_amount
+
+        if sale_create.discount_amount > 0 and (subtotal + tax_amount) > 0:
+            discount_ratio = sale_create.discount_amount / (subtotal + tax_amount)
+            for item in items:
+                item.allocated_sale_discount_amount = (
+                    (item.subtotal + item.tax_amount) * discount_ratio
+                ).quantize(Decimal("0.01"))
+            items[-1].allocated_sale_discount_amount += (
+                sale_create.discount_amount
+                - sum(i.allocated_sale_discount_amount for i in items)
+            )
 
         if total_amount < 0:
             raise ValueError("Sale total cannot be negative")

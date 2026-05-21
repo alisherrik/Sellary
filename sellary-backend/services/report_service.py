@@ -329,11 +329,10 @@ class ReportService:
         result = (
             self.db.query(
                 func.sum(
-                    (SaleItem.quantity - SaleItem.quantity_returned) * Product.cost_price
+                    (SaleItem.quantity - SaleItem.quantity_returned) * SaleItem.unit_cost_at_sale
                 )
             )
             .join(Sale, SaleItem.sale_id == Sale.id)
-            .join(Product, SaleItem.product_id == Product.id)
             .filter(
                 and_(
                     Sale.company_id == self.company_id,
