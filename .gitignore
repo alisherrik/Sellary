@@ -38,3 +38,4 @@ debug_log.txt
 .netlify
 
 supabase/.temp/
+sellary-backend/supabase/.temp/
