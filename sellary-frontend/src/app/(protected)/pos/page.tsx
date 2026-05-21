@@ -428,56 +428,10 @@ const discountAmount = item.discount || 0;
               <div className="flex-1 text-right">
                 <div className="flex items-center justify-end gap-2">
                   <span className="text-[10px] text-gray-400 sm:text-xs">Итого</span>
-                  {hasOverallDiscount && (
-                    <span className="text-[10px] text-gray-400 line-through sm:text-xs">
-                      {formatCurrency(total)}
-                    </span>
-                  )}
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={totalEdit ?? formatEditableAmount(finalTotal)}
-                    onChange={(e) => {
-                      setTotalEdit(e.target.value);
-                    }}
-                    onBlur={() => {
-                      if (totalEdit !== null) {
-                        setActiveOverallDiscount(calculateDiscountFromEditedPrice(totalEdit, total - itemDiscounts));
-                      }
-                      setTotalEdit(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                    }}
-                    className={`w-28 rounded-lg border bg-white px-2 py-1 text-right text-lg font-black focus:outline-none focus:ring-2 sm:w-36 sm:text-2xl ${
-                      isOverallMarkup
-                        ? 'border-blue-300 text-blue-700 focus:ring-blue-400 dark:border-blue-700 dark:bg-gray-800 dark:text-blue-300'
-                        : hasOverallDiscount
-                          ? 'border-green-300 text-green-700 focus:ring-green-400 dark:border-green-700 dark:bg-gray-800 dark:text-green-300'
-                          : 'border-gray-200 text-blue-600 focus:ring-blue-400 dark:border-gray-600 dark:bg-gray-800'
-                    }`}
-                  />
+                  <span className="text-right text-2xl font-black text-blue-600">
+                    {formatCurrency(finalTotal)}
+                  </span>
                 </div>
-                {hasOverallDiscount && (
-                  <div className="mt-0.5 flex items-center justify-end gap-1">
-                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-medium ${
-                      isOverallMarkup
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                        : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                    }`}>
-                      {isOverallMarkup
-                        ? `Наценка +${formatCurrency(Math.abs(overallDiscount))}`
-                        : `Скидка -${formatCurrency(overallDiscount)}`
-                      }
-                    </span>
-                    <button
-                      onClick={() => setActiveOverallDiscount(0)}
-                      className="text-[9px] text-gray-400 hover:text-red-500"
-                    >
-                      <XMarkIcon className="h-3 w-3" />
-                    </button>
-                  </div>
-                )}
               </div>
 
               <button
