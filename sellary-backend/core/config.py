@@ -51,6 +51,7 @@ class Settings(BaseSettings):
         "http://192.168.1.108:3000",
         "http://192.168.1.108:3001",
         "http://192.168.1.108:3002",
+        "https://sellary-client.netlify.app",
     ]
     BACKEND_CORS_ORIGINS_RAW: str = ""
 
