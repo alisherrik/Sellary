@@ -54,7 +54,7 @@ class SaleService:
         )
         return [self._to_response(sale) for sale in sales], total
 
-    def create(self, sale_create: SaleCreate, cashier_id: int) -> SaleResponse:
+    def create(self, sale_create: SaleCreate, cashier_id: int, offline_sync: bool = False) -> SaleResponse:
         product_ids = [item.product_id for item in sale_create.items]
         locked_products = self.product_repo.get_multiple_for_update(
             self.company_id,
@@ -76,7 +76,7 @@ class SaleService:
             product = product_map[product_id]
             if not product.is_active:
                 raise ValueError(f"Product '{product.name}' is not active")
-            if product.stock_quantity < requested_quantity:
+            if not offline_sync and product.stock_quantity < requested_quantity:
                 raise ValueError(
                     f"Insufficient stock for '{product.name}'. "
                     f"Available: {product.stock_quantity}, Required: {requested_quantity}"
@@ -135,6 +135,22 @@ class SaleService:
                 }
             )
 
+        sync_warnings = None
+        if offline_sync:
+            sync_warnings = []
+            for product_id, requested_quantity in requested_quantities.items():
+                product = product_map[product_id]
+                if product.stock_quantity < 0:
+                    available = product.stock_quantity + requested_quantity
+                    sync_warnings.append({
+                        "type": "oversold",
+                        "product_id": str(product_id),
+                        "product_name": product.name,
+                        "requested": float(requested_quantity),
+                        "available": float(available),
+                        "new_balance": float(product.stock_quantity),
+                    })
+
         total_amount = subtotal + tax_amount - sale_create.discount_amount
 
         if sale_create.discount_amount > 0 and (subtotal + tax_amount) > 0:
@@ -192,7 +208,7 @@ class SaleService:
             )
 
         self.db.flush()
-        return self._to_response(sale)
+        return self._to_response(sale, sync_warnings=sync_warnings)
 
     def cancel(self, sale_id: int, user_id: int) -> SaleResponse:
         sale = self.sale_repo.get_by_id_for_update(self.company_id, sale_id)
@@ -236,7 +252,7 @@ class SaleService:
         self.db.flush()
         return self._to_response(sale, items_override=locked_items)
 
-    def _to_response(self, sale: Sale, items_override=None) -> SaleResponse:
+    def _to_response(self, sale: Sale, items_override=None, sync_warnings=None) -> SaleResponse:
         refunded_amount = Decimal("0.00")
         try:
             for sale_return in getattr(sale, "returns", []) or []:
@@ -290,4 +306,5 @@ class SaleService:
                 }
                 for item in items_source
             ],
+            sync_warnings=sync_warnings,
         )

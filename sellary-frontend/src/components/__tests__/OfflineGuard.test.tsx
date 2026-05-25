@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import OfflineGuard from '../OfflineGuard';
 import { ServerHealthProvider } from '@/providers/ServerHealthProvider';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -159,7 +159,7 @@ describe('OfflineGuard - Online Mode', () => {
 });
 
 describe('OfflineGuard - Offline Mode', () => {
-    it('should show fallback UI when server is unreachable', async () => {
+    it('should show offline banner when server is unreachable', async () => {
         global.fetch = vi.fn(() =>
             Promise.reject(new Error('Network error'))
         );
@@ -172,11 +172,11 @@ describe('OfflineGuard - Offline Mode', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByText(/офлайн режим/i)).toBeInTheDocument();
+            expect(screen.getByText(/офлайн/i)).toBeInTheDocument();
         });
     });
 
-    it('should NOT render children when server is unreachable', async () => {
+    it('should STILL render children when server is unreachable (softened behavior)', async () => {
         global.fetch = vi.fn(() =>
             Promise.reject(new Error('Network error'))
         );
@@ -189,11 +189,11 @@ describe('OfflineGuard - Offline Mode', () => {
         );
 
         await waitFor(() => {
-            expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+            expect(screen.getByText('Protected Content')).toBeInTheDocument();
         });
     });
 
-    it('should show waiting message when offline', async () => {
+    it('should show stale data warning when offline', async () => {
         global.fetch = vi.fn(() =>
             Promise.reject(new Error('Network error'))
         );
@@ -206,11 +206,11 @@ describe('OfflineGuard - Offline Mode', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByText(/ожидание сервера/i)).toBeInTheDocument();
+            expect(screen.getByText(/данные могут быть неактуальны/i)).toBeInTheDocument();
         });
     });
 
-    it('should display appropriate offline message', async () => {
+    it('should display offline banner text', async () => {
         global.fetch = vi.fn(() =>
             Promise.reject(new Error('Network error'))
         );
@@ -223,7 +223,57 @@ describe('OfflineGuard - Offline Mode', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByText(/информация на этой странице/i)).toBeInTheDocument();
+            expect(screen.getByText(/Офлайн/i)).toBeInTheDocument();
+        });
+    });
+});
+
+describe('OfflineGuard - Banner Dismissible', () => {
+    it('should dismiss banner when close button is clicked', async () => {
+        global.fetch = vi.fn(() =>
+            Promise.reject(new Error('Network error'))
+        );
+
+        render(
+            <OfflineGuard>
+                <div>Protected Content</div>
+            </OfflineGuard>,
+            { wrapper: createWrapper() }
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText(/офлайн/i)).toBeInTheDocument();
+        });
+
+        const closeButton = screen.getByLabelText('Закрыть');
+        fireEvent.click(closeButton);
+
+        await waitFor(() => {
+            expect(screen.queryByText(/офлайн/i)).not.toBeInTheDocument();
+        });
+    });
+
+    it('should show children normally after banner dismissed', async () => {
+        global.fetch = vi.fn(() =>
+            Promise.reject(new Error('Network error'))
+        );
+
+        render(
+            <OfflineGuard>
+                <div>Protected Content</div>
+            </OfflineGuard>,
+            { wrapper: createWrapper() }
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText(/офлайн/i)).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByLabelText('Закрыть'));
+
+        await waitFor(() => {
+            expect(screen.queryByText(/офлайн/i)).not.toBeInTheDocument();
+            expect(screen.getByText('Protected Content')).toBeInTheDocument();
         });
     });
 });

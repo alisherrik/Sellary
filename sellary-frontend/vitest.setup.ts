@@ -53,6 +53,14 @@ Object.defineProperty(window.navigator, 'onLine', {
     value: true,
 });
 
+// Mock navigator.storage for storage availability checks
+Object.defineProperty(window.navigator, 'storage', {
+    writable: true,
+    value: {
+        estimate: vi.fn(() => Promise.resolve({ usage: 10 * 1024 * 1024, quota: 100 * 1024 * 1024 })),
+    },
+});
+
 // Mock localStorage with real in-memory behavior
 const localStorageState = new Map<string, string>();
 const localStorageMock = {

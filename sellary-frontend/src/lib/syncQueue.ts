@@ -10,6 +10,13 @@ import {
 // OFFLINE QUEUE - IndexedDB Storage (Atomic, Durable)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+export interface SyncWarning {
+    product_name: string;
+    requested: number;
+    available: number;
+    new_balance: number;
+}
+
 export interface SyncItem {
     id: string;                    // UUID
     url: string;                   // '/api/sales'
@@ -21,6 +28,7 @@ export interface SyncItem {
     lastError?: string;            // Error message for UI
     status: 'pending' | 'syncing' | 'failed'; // For UI display
     idempotencyKey?: string;       // Stable key for idempotent endpoints
+    syncWarnings?: SyncWarning[];  // Warnings from sync response (stock oversell etc.)
 }
 
 export interface SyncConfig {
@@ -64,15 +72,38 @@ export async function setSyncConfig(config: SyncConfig): Promise<void> {
  * Add item to sync queue (ATOMIC operation)
  * Survives: refresh, crash, update
  */
-export async function addToSyncQueue(item: Omit<SyncItem, 'id' | 'timestamp' | 'retryCount' | 'status' | 'idempotencyKey'>): Promise<SyncItem> {
+export async function addToSyncQueue(item: Omit<SyncItem, 'id' | 'timestamp' | 'retryCount' | 'status'>): Promise<SyncItem> {
     const queue = (await get<SyncItem[]>(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()))) || [];
+
+    // NOTE: read-modify-write is not atomic across tabs.
+    // Multi-tab usage is unsupported for sync queue operations.
+
+    // Client-side dedup: skip if an item with the same idempotencyKey already exists
+    const newIdempotencyKey = item.idempotencyKey ?? (item.type === 'sale' ? crypto.randomUUID() : undefined);
+    if (newIdempotencyKey) {
+        const existing = queue.find(q => q.idempotencyKey === newIdempotencyKey);
+        if (existing) {
+            return existing;
+        }
+    }
+
+    // Max items cap
+    if (queue.length >= 400) {
+        window.dispatchEvent(new CustomEvent('sync-queue-warning', {
+            detail: { message: 'Очередь синхронизации переполнена (макс. 500 чеков).' }
+        }));
+    }
+    if (queue.length >= 500) {
+        throw new Error('Очередь синхронизации переполнена (макс. 500 чеков).');
+    }
+
     const newItem: SyncItem = {
         ...item,
         id: crypto.randomUUID(),
         timestamp: Date.now(),
         retryCount: 0,
         status: 'pending',
-        idempotencyKey: item.type === 'sale' ? crypto.randomUUID() : undefined,
+        idempotencyKey: newIdempotencyKey,
     };
     queue.push(newItem);
     await set(getTenantStorageKey(QUEUE_KEY, getCurrentCompanyId()), queue);
@@ -177,6 +208,10 @@ async function processSyncItem(item: SyncItem, config: SyncConfig): Promise<bool
             headers['Idempotency-Key'] = item.idempotencyKey;
         }
 
+        if (item.url === '/api/sales' && item.method === 'POST') {
+            headers['X-Offline-Sync'] = 'true';
+        }
+
         const response = await fetch(item.url, {
             method: item.method,
             headers,
@@ -184,6 +219,35 @@ async function processSyncItem(item: SyncItem, config: SyncConfig): Promise<bool
         });
 
         if (response.ok) {
+            let responseData: any = null;
+            try {
+                responseData = await response.json();
+            } catch {
+                // Response may not be JSON (e.g. 204 No Content)
+            }
+
+            // Post-sync verification: best-effort confirm sale exists on the server.
+            // A transient GET failure does NOT invalidate a successful POST.
+            if (item.url === '/api/sales' && item.method === 'POST' && responseData?.id) {
+                try {
+                    const verifyResponse = await fetch(`/api/sales/${responseData.id}`, {
+                        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                    });
+                    if (!verifyResponse.ok) {
+                        console.warn(`Post-sync verification warning: sale ${responseData.id} returned ${verifyResponse.status}`);
+                    }
+                } catch (verifyError) {
+                    console.warn(`Post-sync verification warning: could not reach /api/sales/${responseData.id}`, verifyError);
+                }
+            }
+
+            // Store sync_warnings on the item for UI display
+            if (responseData?.sync_warnings && Array.isArray(responseData.sync_warnings)) {
+                await updateSyncItem(item.id, {
+                    syncWarnings: responseData.sync_warnings,
+                });
+            }
+
             await removeFromSyncQueue(item.id);
             return true;
         }

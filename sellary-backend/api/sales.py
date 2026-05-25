@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from api.dependencies import AuthContext, get_auth_context
@@ -26,6 +26,7 @@ def create_sale(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context),
     idempotency_key: str = Depends(require_idempotency_key),
+    x_offline_sync: Optional[str] = Header(None, alias="X-Offline-Sync"),
 ):
     """
     Create a new sale (idempotent).
@@ -53,7 +54,7 @@ def create_sale(
 
     service = SaleService(db, auth.company_id)
     try:
-        result = service.create(sale_create, auth.user.id)
+        result = service.create(sale_create, auth.user.id, offline_sync=(x_offline_sync == "true"))
         idempotency_service.store_response(
             key=idempotency_key,
             company_id=auth.company_id,

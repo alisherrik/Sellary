@@ -5,6 +5,15 @@ from datetime import datetime
 from enum import Enum
 
 
+class SaleSyncWarning(BaseModel):
+    type: str
+    product_id: str
+    product_name: str
+    requested: float
+    available: float
+    new_balance: float
+
+
 class PaymentMethod(str, Enum):
     CASH = "cash"
     CARD = "card"
@@ -103,3 +112,4 @@ class Sale(BaseModel):
 
 class SaleResponse(Sale):
     items: List[SaleItemResponse]
+    sync_warnings: Optional[List[SaleSyncWarning]] = None

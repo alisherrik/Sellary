@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { addToSyncQueue, getSyncQueue, removeFromSyncQueue, SyncItem } from '../syncQueue';
+import { addToSyncQueue, getSyncQueue, removeFromSyncQueue, processQueue, updateSyncItem, SyncItem } from '../syncQueue';
 import { getTenantStorageKey, setCurrentCompanyId, SYNC_QUEUE_STORAGE_KEY } from '../session';
 
 /**
@@ -417,6 +417,130 @@ describe('syncQueue - Integration Scenarios', () => {
     });
 });
 
+describe('syncQueue - Deduplication by idempotencyKey', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        setCurrentCompanyId(null);
+    });
+
+    it('should skip adding item with same idempotencyKey', async () => {
+        const existingItem: SyncItem = {
+            id: 'existing-id',
+            url: '/api/sales',
+            method: 'POST',
+            body: { total: 100 },
+            timestamp: Date.now(),
+            type: 'sale',
+            retryCount: 0,
+            status: 'pending',
+            idempotencyKey: 'dedup-key-123',
+        };
+
+        vi.mocked(get).mockResolvedValue([existingItem]);
+        vi.mocked(set).mockResolvedValue(undefined);
+
+        const result = await addToSyncQueue({
+            url: '/api/sales',
+            method: 'POST',
+            body: { total: 200 },
+            type: 'sale',
+            idempotencyKey: 'dedup-key-123',
+        });
+
+        expect(result).toEqual(existingItem);
+        expect(set).not.toHaveBeenCalled();
+    });
+
+    it('should allow different idempotencyKeys', async () => {
+        const existingItem: SyncItem = {
+            id: 'existing-id',
+            url: '/api/sales',
+            method: 'POST',
+            body: { total: 100 },
+            timestamp: Date.now(),
+            type: 'sale',
+            retryCount: 0,
+            status: 'pending',
+            idempotencyKey: 'key-1',
+        };
+
+        vi.mocked(get).mockResolvedValue([existingItem]);
+        vi.mocked(set).mockResolvedValue(undefined);
+
+        const result = await addToSyncQueue({
+            url: '/api/sales',
+            method: 'POST',
+            body: { total: 200 },
+            type: 'sale',
+            idempotencyKey: 'key-2',
+        });
+
+        expect(result.id).not.toBe(existingItem.id);
+        expect(result.idempotencyKey).toBe('key-2');
+        expect(set).toHaveBeenCalled();
+    });
+});
+
+describe('syncQueue - Max Items Limit (500)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        setCurrentCompanyId(null);
+    });
+
+    it('should throw when adding 501st item', async () => {
+        const fullQueue: SyncItem[] = Array.from({ length: 500 }, (_, i) => ({
+            id: `id-${i}`,
+            url: `/api/sales/${i}`,
+            method: 'POST',
+            body: { total: i * 100 },
+            timestamp: Date.now() - i,
+            type: 'sale' as const,
+            retryCount: 0,
+            status: 'pending' as const,
+            idempotencyKey: `key-${i}`,
+        }));
+
+        vi.mocked(get).mockResolvedValue(fullQueue);
+        vi.mocked(set).mockResolvedValue(undefined);
+
+        await expect(
+            addToSyncQueue({
+                url: '/api/sales/501',
+                method: 'POST',
+                body: { total: 50100 },
+                type: 'sale',
+            })
+        ).rejects.toThrow('Очередь синхронизации переполнена');
+    });
+
+    it('should allow 500th item', async () => {
+        const queue499: SyncItem[] = Array.from({ length: 499 }, (_, i) => ({
+            id: `id-${i}`,
+            url: `/api/sales/${i}`,
+            method: 'POST',
+            body: { total: i * 100 },
+            timestamp: Date.now() - i,
+            type: 'sale' as const,
+            retryCount: 0,
+            status: 'pending' as const,
+            idempotencyKey: `key-${i}`,
+        }));
+
+        vi.mocked(get).mockResolvedValue(queue499);
+        vi.mocked(set).mockResolvedValue(undefined);
+
+        const result = await addToSyncQueue({
+            url: '/api/sales/500',
+            method: 'POST',
+            body: { total: 50000 },
+            type: 'sale',
+        });
+
+        expect(result).toBeDefined();
+        expect(set).toHaveBeenCalled();
+    });
+});
+
 describe('syncQueue - Edge Cases', () => {
     it('should handle concurrent adds to queue', async () => {
         vi.mocked(get).mockResolvedValue([]);
@@ -508,5 +632,166 @@ describe('syncQueue - Edge Cases', () => {
 
             expect(result.method).toBe(method);
         }
+    });
+});
+
+describe('syncQueue - processQueue replay', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        setCurrentCompanyId(null);
+    });
+
+    it('should inject _offline_sync flag into replay requests', async () => {
+        const queueItem: SyncItem = {
+            id: 'replay-1',
+            url: '/api/sales',
+            method: 'POST',
+            body: { total: 100 },
+            timestamp: Date.now(),
+            type: 'sale',
+            retryCount: 0,
+            status: 'pending',
+            idempotencyKey: 'ik-replay-1',
+        };
+
+        vi.mocked(get).mockImplementation((key: unknown) => {
+            if (typeof key === 'string' && key.includes('offline-sync-config')) {
+                return Promise.resolve({ autoSync: true, maxRetries: 5 });
+            }
+            return Promise.resolve([queueItem]);
+        });
+
+        const mockFetch = vi.fn(() =>
+            Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve({ id: 'sale-1' }),
+            } as Response)
+        );
+        global.fetch = mockFetch;
+
+        const result = await processQueue(true);
+
+        expect(result.processed).toBe(1);
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+
+        const postCallArgs = mockFetch.mock.calls[0];
+        const requestHeaders = postCallArgs[1].headers;
+        expect(requestHeaders['X-Offline-Sync']).toBe('true');
+        const requestBody = JSON.parse(postCallArgs[1].body);
+        expect(requestBody.total).toBe(100);
+    });
+
+    it('should verify sale exists after successful POST replay', async () => {
+        const queueItem: SyncItem = {
+            id: 'replay-2',
+            url: '/api/sales',
+            method: 'POST',
+            body: { total: 200 },
+            timestamp: Date.now(),
+            type: 'sale',
+            retryCount: 0,
+            status: 'pending',
+            idempotencyKey: 'ik-replay-2',
+        };
+
+        vi.mocked(get).mockImplementation((key: unknown) => {
+            if (typeof key === 'string' && key.includes('offline-sync-config')) {
+                return Promise.resolve({ autoSync: true, maxRetries: 5 });
+            }
+            return Promise.resolve([queueItem]);
+        });
+
+        let postCalled = false;
+        const mockFetch = vi.fn((url: string) => {
+            if (url === '/api/sales' && !postCalled) {
+                postCalled = true;
+                return Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    json: () => Promise.resolve({ id: 'sale-2' }),
+                } as Response);
+            }
+            if (url === '/api/sales/sale-2') {
+                return Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    json: () => Promise.resolve({ id: 'sale-2', total: 200 }),
+                } as Response);
+            }
+            return Promise.reject(new Error('Unexpected URL'));
+        });
+        global.fetch = mockFetch;
+
+        const result = await processQueue(true);
+
+        expect(result.processed).toBe(1);
+        expect(mockFetch).toHaveBeenCalledWith('/api/sales/sale-2', expect.anything());
+    });
+
+    it('should store sync_warnings on queue item after replay', async () => {
+        const queueItem: SyncItem = {
+            id: 'replay-3',
+            url: '/api/sales',
+            method: 'POST',
+            body: { total: 300 },
+            timestamp: Date.now(),
+            type: 'sale',
+            retryCount: 0,
+            status: 'pending',
+            idempotencyKey: 'ik-replay-3',
+        };
+
+        const syncWarnings = [
+            { product_name: 'Товар А', requested: 5, available: 3, new_balance: -2 },
+            { product_name: 'Товар Б', requested: 10, available: 8, new_balance: -2 },
+        ];
+
+        vi.mocked(get).mockImplementation((key: unknown) => {
+            if (typeof key === 'string' && key.includes('offline-sync-config')) {
+                return Promise.resolve({ autoSync: true, maxRetries: 5 });
+            }
+            return Promise.resolve([queueItem]);
+        });
+
+        const updatedItems: SyncItem[] = [];
+        vi.mocked(set).mockImplementation((_key: unknown, value: unknown) => {
+            if (Array.isArray(value) && value.length > 0) {
+                const item = value[0];
+                if (item && typeof item === 'object' && 'syncWarnings' in item) {
+                    updatedItems.push(item as SyncItem);
+                }
+            }
+            return Promise.resolve(undefined);
+        });
+
+        let postCalled = false;
+        const mockFetch = vi.fn((url: string) => {
+            if (url === '/api/sales' && !postCalled) {
+                postCalled = true;
+                return Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    json: () => Promise.resolve({ id: 'sale-3', sync_warnings: syncWarnings }),
+                } as Response);
+            }
+            if (url === '/api/sales/sale-3') {
+                return Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    json: () => Promise.resolve({ id: 'sale-3' }),
+                } as Response);
+            }
+            return Promise.reject(new Error('Unexpected URL'));
+        });
+        global.fetch = mockFetch;
+
+        const result = await processQueue(true);
+
+        expect(result.processed).toBe(1);
+        expect(updatedItems.length).toBeGreaterThan(0);
+        const updatedItem = updatedItems.find(i => i.id === 'replay-3');
+        expect(updatedItem).toBeDefined();
+        expect(updatedItem!.syncWarnings).toEqual(syncWarnings);
     });
 });

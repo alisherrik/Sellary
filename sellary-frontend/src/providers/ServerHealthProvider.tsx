@@ -11,7 +11,9 @@ import React, {
 import toast from 'react-hot-toast';
 
 import { isOfflineModeEnabled } from '@/lib/features';
+import { isStorageAvailable, getStorageErrorMessage } from '@/lib/storage';
 import { getSyncConfig, processQueue, setSyncConfig } from '@/lib/syncQueue';
+import { onSWUpdate, registerSW } from '@/lib/sw';
 
 const HEALTH_CHECK_TIMEOUT = 3000;
 
@@ -61,6 +63,12 @@ export function ServerHealthProvider({ children }: { children: React.ReactNode }
 
     if (!isServerReachable) {
       toast.error('Нет связи с сервером');
+      return;
+    }
+
+    const storageAvailable = await isStorageAvailable();
+    if (!storageAvailable) {
+      toast.error(getStorageErrorMessage());
       return;
     }
 
@@ -164,22 +172,29 @@ export function ServerHealthProvider({ children }: { children: React.ReactNode }
 
     if (isServerReachable && !previousServerReachable.current && !isChecking) {
       if (autoSync) {
-        processQueue()
-          .then(({ processed, failed, skipped }) => {
-            if (skipped) {
-              return;
-            }
+        isStorageAvailable().then((available) => {
+          if (!available) {
+            toast.error(getStorageErrorMessage());
+            return;
+          }
 
-            if (processed > 0) {
-              toast.success(`Синхронизировано: ${processed} чеков`, { icon: '✅' });
-            }
-            if (failed > 0) {
-              toast.error(`Не синхронизировано: ${failed} чеков`, { icon: '⚠️' });
-            }
-          })
-          .catch((error) => {
-            console.error('Failed to process sync queue:', error);
-          });
+          processQueue()
+            .then(({ processed, failed, skipped }) => {
+              if (skipped) {
+                return;
+              }
+
+              if (processed > 0) {
+                toast.success(`Синхронизировано: ${processed} чеков`, { icon: '✅' });
+              }
+              if (failed > 0) {
+                toast.error(`Не синхронизировано: ${failed} чеков`, { icon: '⚠️' });
+              }
+            })
+            .catch((error) => {
+              console.error('Failed to process sync queue:', error);
+            });
+        });
       } else {
         toast('Сервер доступен. Синхронизируйте данные вручную.', { icon: 'ℹ️' });
       }
@@ -187,6 +202,36 @@ export function ServerHealthProvider({ children }: { children: React.ReactNode }
 
     previousServerReachable.current = isServerReachable;
   }, [autoSync, isChecking, isServerReachable]);
+
+  useEffect(() => {
+    if (!isOfflineModeEnabled) {
+      return;
+    }
+
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      toast.error(detail?.message || 'Ошибка очереди синхронизации');
+    };
+
+    window.addEventListener('sync-queue-warning', handler);
+    return () => window.removeEventListener('sync-queue-warning', handler);
+  }, []);
+
+  useEffect(() => {
+    if (!isOfflineModeEnabled) {
+      return;
+    }
+
+    registerSW();
+
+    onSWUpdate(() => {
+      toast('Новая версия доступна. Обновите страницу.', {
+        duration: 0,
+        icon: '🔄',
+        style: { cursor: 'pointer' },
+      });
+    });
+  }, []);
 
   return (
     <ServerHealthContext.Provider
