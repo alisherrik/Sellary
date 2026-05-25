@@ -132,7 +132,7 @@ export default function Layout({ children }: LayoutProps) {
         } lg:block`}
       >
         <div className="flex h-16 items-center justify-between border-b border-gray-200 px-6">
-          <Link href="/pos" className="text-xl font-bold text-gray-900 transition-colors hover:text-blue-600">
+          <Link href="/pos" prefetch={false} className="text-xl font-bold text-gray-900 transition-colors hover:text-blue-600">
             Sellary
           </Link>
           <button

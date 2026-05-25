@@ -127,6 +127,18 @@ export default function LoginPage() {
   }
 
   if (!isServerReachable) {
+    if (isOfflineModeEnabled && accessToken && currentCompany) {
+      router.replace('/pos');
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
+          <div className="text-center">
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+            <p className="mt-4 text-sm text-slate-300">Entering offline mode...</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
         <div className="w-full max-w-md rounded-3xl border border-red-500/20 bg-white p-8 text-center shadow-2xl">

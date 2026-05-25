@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { getSyncQueue } from '@/lib/syncQueue';
-import { CloudArrowUpIcon, ArrowPathIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
-import { Switch } from '@headlessui/react';
+import { CloudArrowUpIcon, ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { isOfflineModeEnabled } from '@/lib/features';
 
@@ -78,9 +77,11 @@ export default function SyncControls() {
                             Автоматически отправлять данные при появлении сети
                         </p>
                     </div>
-                    <Switch
-                        checked={autoSync}
-                        onChange={toggleAutoSync}
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={autoSync}
+                        onClick={toggleAutoSync}
                         className={clsx(
                             autoSync ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600',
                             'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2'
@@ -93,7 +94,7 @@ export default function SyncControls() {
                                 'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out'
                             )}
                         />
-                    </Switch>
+                    </button>
                 </div>
 
                 {/* Manual Sync Button */}

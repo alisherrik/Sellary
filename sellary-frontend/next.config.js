@@ -15,6 +15,12 @@ const nextConfig = {
     ];
   },
   reactStrictMode: true,
+  experimental: {
+    optimizePackageImports: ['@heroicons/react', 'recharts', 'date-fns'],
+  },
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
+  },
 };
 
 const pwaConfig = {

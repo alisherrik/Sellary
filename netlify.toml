@@ -1,14 +1,14 @@
 [build]
 base = "sellary-frontend"
 command = "npm run build"
-publish = ".next"
+publish = "sellary-frontend/.next"
 
 [build.environment]
 NODE_VERSION = "20"
 NEXT_PUBLIC_API_URL = "/api"
 NEXT_PUBLIC_API_PROXY_TARGET = "https://sellary-production-30ec.up.railway.app"
 NEXT_PUBLIC_ENABLE_RESTAURANT = "false"
-NEXT_PUBLIC_ENABLE_OFFLINE_MODE = "false"
+NEXT_PUBLIC_ENABLE_OFFLINE_MODE = "true"
 
 [[plugins]]
 package = "@netlify/plugin-nextjs"

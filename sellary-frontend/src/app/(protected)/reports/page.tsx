@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import OfflineGuard from '@/components/OfflineGuard';
 import { CardSkeleton, ChartSkeleton, StatCardsSkeleton } from '@/components/skeletons';
 import { useDailySales, useDashboard, useTopProducts } from '@/hooks/useQueries';
@@ -11,15 +12,11 @@ import {
   ShoppingBagIcon,
 } from '@heroicons/react/24/outline';
 import { useState } from 'react';
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+
+const SalesChart = dynamic(() => import('@/components/reports/SalesChart'), {
+  ssr: false,
+  loading: () => <ChartSkeleton />,
+});
 
 const dayOptions = [7, 30, 90];
 
@@ -105,39 +102,25 @@ export default function ReportsPage() {
         )}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr,1fr] sm:gap-6">
-          {salesLoading ? (
-            <div className="space-y-4">
-              <CardSkeleton />
-              <ChartSkeleton />
-            </div>
-          ) : (
-            <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-5">
-              <div className="mb-4">
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
-                  Динамика продаж
-                </h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
-                  Общая выручка за последние {days} дней
-                </p>
-              </div>
-
-              {!salesData || salesData.data.length === 0 ? (
-                <div className="rounded-xl bg-gray-50 px-4 py-10 text-center text-sm text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-                  Недостаточно данных для графика
+              {salesLoading ? (
+                <div className="space-y-4">
+                  <CardSkeleton />
+                  <ChartSkeleton />
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={260}>
-                  <LineChart data={salesData.data}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                    <Line type="monotone" dataKey="total_sales" stroke="#2563eb" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-5">
+                  <div className="mb-4">
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
+                      Динамика продаж
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
+                      Общая выручка за последние {days} дней
+                    </p>
+                  </div>
+
+                  <SalesChart data={salesData?.data ?? []} days={days} />
+                </div>
               )}
-            </div>
-          )}
 
           <div className="space-y-4 sm:space-y-6">
             {topProductsLoading ? (

@@ -7,6 +7,29 @@ import {
 } from './session';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// UUID GENERATION (secure-context safe)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function generateUUID(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+        const arr = new Uint8Array(16);
+        crypto.getRandomValues(arr);
+        arr[6] = (arr[6] & 0x0f) | 0x40;
+        arr[8] = (arr[8] & 0x3f) | 0x80;
+        const hex = Array.from(arr, (b) => b.toString(16).padStart(2, '0'));
+        return `${hex[0]}${hex[1]}${hex[2]}${hex[3]}-${hex[4]}${hex[5]}-${hex[6]}${hex[7]}-${hex[8]}${hex[9]}-${hex[10]}${hex[11]}${hex[12]}${hex[13]}${hex[14]}${hex[15]}`;
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // OFFLINE QUEUE - IndexedDB Storage (Atomic, Durable)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -79,7 +102,7 @@ export async function addToSyncQueue(item: Omit<SyncItem, 'id' | 'timestamp' | '
     // Multi-tab usage is unsupported for sync queue operations.
 
     // Client-side dedup: skip if an item with the same idempotencyKey already exists
-    const newIdempotencyKey = item.idempotencyKey ?? (item.type === 'sale' ? crypto.randomUUID() : undefined);
+    const newIdempotencyKey = item.idempotencyKey ?? (item.type === 'sale' ? generateUUID() : undefined);
     if (newIdempotencyKey) {
         const existing = queue.find(q => q.idempotencyKey === newIdempotencyKey);
         if (existing) {
@@ -99,7 +122,7 @@ export async function addToSyncQueue(item: Omit<SyncItem, 'id' | 'timestamp' | '
 
     const newItem: SyncItem = {
         ...item,
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         timestamp: Date.now(),
         retryCount: 0,
         status: 'pending',
@@ -218,12 +241,20 @@ async function processSyncItem(item: SyncItem, config: SyncConfig): Promise<bool
             body: item.method !== 'GET' ? JSON.stringify(item.body) : undefined,
         });
 
-        if (response.ok) {
+        if (response.ok || response.status === 409) {
             let responseData: any = null;
             try {
                 responseData = await response.json();
             } catch {
                 // Response may not be JSON (e.g. 204 No Content)
+            }
+
+            // 409 Conflict means idempotency key already consumed — server accepted a prior request.
+            // Treat as success and remove from queue.
+            if (response.status === 409) {
+                console.log(`Sync item ${item.id}: idempotency key already consumed (409), removing from queue`);
+                await removeFromSyncQueue(item.id);
+                return true;
             }
 
             // Post-sync verification: best-effort confirm sale exists on the server.

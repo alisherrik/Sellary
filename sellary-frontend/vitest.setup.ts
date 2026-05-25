@@ -35,10 +35,16 @@ const indexedDB = {
     databases: vi.fn(() => Promise.resolve([])),
 };
 
-// Mock window.crypto.randomUUID
+// Mock window.crypto (randomUUID + getRandomValues for offline-safe UUID generation)
 Object.defineProperty(global, 'crypto', {
     value: {
         randomUUID: () => 'test-uuid-' + Math.random().toString(36).substr(2, 9),
+        getRandomValues: (arr: Uint8Array) => {
+            for (let i = 0; i < arr.length; i++) {
+                arr[i] = Math.floor(Math.random() * 256);
+            }
+            return arr;
+        },
     },
     writable: true,
     configurable: true,

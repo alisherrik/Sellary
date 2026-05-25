@@ -48,7 +48,7 @@ export default function SyncStatusPanel() {
     };
 
     updateStatus();
-    const interval = setInterval(updateStatus, 2000); // Update every 2s
+    const interval = setInterval(updateStatus, 5000);
 
     return () => clearInterval(interval);
   }, [isExpanded]);
