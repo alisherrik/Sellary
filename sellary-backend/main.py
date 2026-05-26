@@ -20,6 +20,7 @@ from api import (
     purchase_orders_router,
     meta_router,
     owner_router,
+    sync_router,
 )
 
 
@@ -75,6 +76,7 @@ def create_app() -> FastAPI:
     app.include_router(purchase_orders_router, prefix=settings.API_V1_STR)
     app.include_router(meta_router, prefix=settings.API_V1_STR)
     app.include_router(owner_router, prefix=settings.API_V1_STR)
+    app.include_router(sync_router, prefix=settings.API_V1_STR)
 
     return app
 

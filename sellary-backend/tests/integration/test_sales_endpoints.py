@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import datetime
 from fastapi.testclient import TestClient
 
-from models.sale import Sale, SaleStatus, PaymentMethod, SaleContextType
+from models.sale import Sale, SaleStatus, PaymentMethod
 from models.sale_item import SaleItem
 from models.product import Product
 from models.category import Category
@@ -221,7 +221,6 @@ class TestCreateSale:
                 ],
                 "payment_method": "cash",
                 "discount_amount": "0.00",
-                "context_type": "retail",
             }
         )
 
@@ -286,7 +285,6 @@ class TestCreateSale:
                 ],
                 "payment_method": "cash",
                 "discount_amount": "0.00",
-                "context_type": "retail",
             }
         )
 
@@ -332,7 +330,6 @@ class TestCreateSale:
                 ],
                 "payment_method": "cash",
                 "discount_amount": "0.00",
-                "context_type": "retail",
             }
         )
 
@@ -374,7 +371,6 @@ class TestCreateSale:
                 ],
                 "payment_method": "cash",
                 "discount_amount": "0.00",
-                "context_type": "retail",
             }
         )
 
@@ -398,7 +394,6 @@ class TestCreateSale:
                 ],
                 "payment_method": "cash",
                 "discount_amount": "0.00",
-                "context_type": "retail",
             }
         )
 
@@ -439,7 +434,6 @@ class TestCreateSale:
                 ],
                 "payment_method": "cash",
                 "discount_amount": "5.00",  # $5 discount
-                "context_type": "retail",
             }
         )
 
@@ -618,7 +612,6 @@ class TestSaleResponse:
                 ],
                 "payment_method": "cash",
                 "discount_amount": "0.00",
-                "context_type": "retail",
             }
         )
 
@@ -667,7 +660,6 @@ class TestSaleResponse:
                 ],
                 "payment_method": "cash",
                 "discount_amount": "0.00",
-                "context_type": "retail",
             }
         )
 

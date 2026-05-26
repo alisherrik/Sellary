@@ -17,11 +17,6 @@ from core.database import Base
 import enum
 
 
-class ProductType(str, enum.Enum):
-    ITEM = "item"
-    DISH = "dish"
-
-
 class Product(Base):
     __tablename__ = "products"
     __table_args__ = (
@@ -30,10 +25,6 @@ class Product(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
-    product_type = Column(
-        SQLEnum(ProductType, values_callable=lambda x: [e.value for e in x], create_constraint=False, native_enum=True, name='producttype'),
-        default=ProductType.ITEM
-    )
     barcode = Column(String(50), index=True, nullable=True)
     name = Column(String(200), index=True, nullable=False)
     description = Column(String(500))

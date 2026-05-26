@@ -1,6 +1,6 @@
 from decimal import Decimal
 from sqlalchemy.orm import Session, joinedload
-from models.sale import Sale, SaleStatus, SaleContextType
+from models.sale import Sale, SaleStatus
 from models.sale_item import SaleItem
 from typing import Optional, List, Tuple
 from datetime import datetime
@@ -44,7 +44,6 @@ class SaleRepository:
         end_date: Optional[datetime] = None,
         cashier_id: Optional[int] = None,
         status: Optional[SaleStatus] = None,
-        context_type: Optional[SaleContextType] = None,
     ) -> Tuple[List[Sale], int]:
         query = self.db.query(Sale).options(
             joinedload(Sale.items),
@@ -59,8 +58,6 @@ class SaleRepository:
             query = query.filter(Sale.cashier_id == cashier_id)
         if status:
             query = query.filter(Sale.status == status)
-        if context_type:
-            query = query.filter(Sale.context_type == context_type)
 
         query = query.order_by(Sale.created_at.desc())
 

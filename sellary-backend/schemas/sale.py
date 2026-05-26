@@ -5,15 +5,6 @@ from datetime import datetime
 from enum import Enum
 
 
-class SaleSyncWarning(BaseModel):
-    type: str
-    product_id: str
-    product_name: str
-    requested: float
-    available: float
-    new_balance: float
-
-
 class PaymentMethod(str, Enum):
     CASH = "cash"
     CARD = "card"
@@ -24,11 +15,6 @@ class CardType(str, Enum):
     ALIF = "alif"
     ESKHATA = "eskhata"
     DC = "dc"
-
-
-class SaleContextType(str, Enum):
-    RETAIL = "retail"
-    RESTAURANT = "restaurant"
 
 
 class SaleStatus(str, Enum):
@@ -53,8 +39,6 @@ class SaleCreate(BaseModel):
     card_type: Optional[CardType] = None
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
     notes: Optional[str] = None
-    context_type: SaleContextType = Field(default=SaleContextType.RETAIL)
-    table_name: Optional[str] = Field(None, max_length=50)
 
     @model_validator(mode="after")
     def validate_card_type(self):
@@ -102,8 +86,6 @@ class Sale(BaseModel):
     status: SaleStatus
     can_return: bool  # True if sale can be returned
     notes: Optional[str]
-    context_type: SaleContextType
-    table_name: Optional[str]
     created_at: datetime
 
     class Config:
@@ -112,4 +94,3 @@ class Sale(BaseModel):
 
 class SaleResponse(Sale):
     items: List[SaleItemResponse]
-    sync_warnings: Optional[List[SaleSyncWarning]] = None

@@ -6,9 +6,9 @@ from decimal import Decimal
 from datetime import datetime
 
 from services.sale_service import SaleService
-from models.sale import Sale, SaleStatus, PaymentMethod, SaleContextType
+from models.sale import Sale, SaleStatus, PaymentMethod
 from models.sale_item import SaleItem
-from models.product import Product, ProductType
+from models.product import Product
 from models.category import Category
 from models.customer import Customer
 from models.user import User
@@ -296,7 +296,6 @@ class TestCreateSale:
             ],
             payment_method=PaymentMethod.CASH,
             discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
         )
 
         service = SaleService(db_session)
@@ -350,7 +349,6 @@ class TestCreateSale:
             ],
             payment_method=PaymentMethod.CASH,
             discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
         )
 
         service = SaleService(db_session)
@@ -398,7 +396,6 @@ class TestCreateSale:
             ],
             payment_method=PaymentMethod.CASH,
             discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
         )
 
         service = SaleService(db_session)
@@ -429,7 +426,6 @@ class TestCreateSale:
             ],
             payment_method=PaymentMethod.CASH,
             discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
         )
 
         service = SaleService(db_session)
@@ -475,7 +471,6 @@ class TestCreateSale:
             ],
             payment_method=PaymentMethod.CASH,
             discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
         )
 
         service = SaleService(db_session)
@@ -525,7 +520,6 @@ class TestCreateSale:
             ],
             payment_method=PaymentMethod.CASH,
             discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
         )
 
         service = SaleService(db_session)
@@ -575,7 +569,6 @@ class TestCreateSale:
             ],
             payment_method=PaymentMethod.CASH,
             discount_amount=Decimal("5.00"),  # $5 discount
-            context_type=SaleContextType.RETAIL,
         )
 
         service = SaleService(db_session)
@@ -626,7 +619,6 @@ class TestCreateSale:
             ],
             payment_method=PaymentMethod.CASH,
             discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
         )
 
         service = SaleService(db_session)
@@ -1094,261 +1086,3 @@ class TestToResponse:
         result = service.get_by_id(cancelled_sale.id)
 
         assert result.can_return is False
-
-
-class TestOfflineSync:
-    """Tests for offline sync mode in sale creation."""
-
-    def test_offline_sync_allows_overselling(self, db_session):
-        """When offline_sync=True, a sale with insufficient stock should succeed."""
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Low Stock Product",
-            barcode="LOWSTOCK1",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            tax_percent=Decimal("10.00"),
-            stock_quantity=5,
-            is_active=True,
-        )
-        db_session.add(product)
-
-        cashier = User(
-            username="cashier_offline_os",
-            email="cashier_offline_os@test.com",
-            hashed_password=get_password_hash("password"),
-            role="cashier",
-        )
-        db_session.add(cashier)
-        db_session.flush()
-
-        sale_create = SaleCreate(
-            customer_id=None,
-            items=[
-                SaleItemCreate(
-                    product_id=product.id,
-                    quantity=10,
-                    unit_price=Decimal("15.00"),
-                    tax_percent=Decimal("10.00"),
-                    discount_amount=Decimal("0.00"),
-                )
-            ],
-            payment_method=PaymentMethod.CASH,
-            discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
-        )
-
-        service = SaleService(db_session)
-        result = service.create(sale_create, cashier_id=cashier.id, offline_sync=True)
-
-        assert result.id is not None
-
-    def test_offline_sync_returns_warnings_for_oversold(self, db_session):
-        """When offline_sync=True and an item causes negative stock, response includes sync_warnings."""
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Low Stock Product",
-            barcode="LOWSTOCK2",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            tax_percent=Decimal("10.00"),
-            stock_quantity=3,
-            is_active=True,
-        )
-        db_session.add(product)
-
-        cashier = User(
-            username="cashier_offline_warn",
-            email="cashier_offline_warn@test.com",
-            hashed_password=get_password_hash("password"),
-            role="cashier",
-        )
-        db_session.add(cashier)
-        db_session.flush()
-
-        sale_create = SaleCreate(
-            customer_id=None,
-            items=[
-                SaleItemCreate(
-                    product_id=product.id,
-                    quantity=10,
-                    unit_price=Decimal("15.00"),
-                    tax_percent=Decimal("10.00"),
-                    discount_amount=Decimal("0.00"),
-                )
-            ],
-            payment_method=PaymentMethod.CASH,
-            discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
-        )
-
-        service = SaleService(db_session)
-        result = service.create(sale_create, cashier_id=cashier.id, offline_sync=True)
-
-        assert result.sync_warnings is not None
-        assert len(result.sync_warnings) == 1
-        warning = result.sync_warnings[0]
-        assert warning.type == "oversold"
-        assert warning.product_id == str(product.id)
-        assert warning.requested == 10.0
-        assert warning.available == 3.0
-        assert warning.new_balance == -7.0
-
-    def test_offline_sync_no_warnings_when_stock_sufficient(self, db_session):
-        """When offline_sync=True but stock is sufficient, sync_warnings should be empty."""
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Plenty Stock",
-            barcode="PLENTY1",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            tax_percent=Decimal("10.00"),
-            stock_quantity=100,
-            is_active=True,
-        )
-        db_session.add(product)
-
-        cashier = User(
-            username="cashier_offline_suff",
-            email="cashier_offline_suff@test.com",
-            hashed_password=get_password_hash("password"),
-            role="cashier",
-        )
-        db_session.add(cashier)
-        db_session.flush()
-
-        sale_create = SaleCreate(
-            customer_id=None,
-            items=[
-                SaleItemCreate(
-                    product_id=product.id,
-                    quantity=5,
-                    unit_price=Decimal("15.00"),
-                    tax_percent=Decimal("10.00"),
-                    discount_amount=Decimal("0.00"),
-                )
-            ],
-            payment_method=PaymentMethod.CASH,
-            discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
-        )
-
-        service = SaleService(db_session)
-        result = service.create(sale_create, cashier_id=cashier.id, offline_sync=True)
-
-        assert result.sync_warnings == []
-
-    def test_normal_sale_still_rejects_insufficient_stock(self, db_session):
-        """When offline_sync=False (default), insufficient stock should still raise ValueError."""
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Low Stock Product",
-            barcode="LOWSTOCK3",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            tax_percent=Decimal("10.00"),
-            stock_quantity=2,
-            is_active=True,
-        )
-        db_session.add(product)
-
-        cashier = User(
-            username="cashier_normal_rej",
-            email="cashier_normal_rej@test.com",
-            hashed_password=get_password_hash("password"),
-            role="cashier",
-        )
-        db_session.add(cashier)
-        db_session.flush()
-
-        sale_create = SaleCreate(
-            customer_id=None,
-            items=[
-                SaleItemCreate(
-                    product_id=product.id,
-                    quantity=10,
-                    unit_price=Decimal("15.00"),
-                    tax_percent=Decimal("10.00"),
-                    discount_amount=Decimal("0.00"),
-                )
-            ],
-            payment_method=PaymentMethod.CASH,
-            discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
-        )
-
-        service = SaleService(db_session)
-        with pytest.raises(ValueError, match="Insufficient stock"):
-            service.create(sale_create, cashier_id=cashier.id)
-
-    def test_sync_warnings_contain_correct_fields(self, db_session):
-        """Verify each warning has type, product_id, product_name, requested, available, new_balance."""
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Widget A",
-            barcode="WIDGETA1",
-            category_id=category.id,
-            cost_price=Decimal("5.00"),
-            sell_price=Decimal("10.00"),
-            tax_percent=Decimal("10.00"),
-            stock_quantity=2,
-            is_active=True,
-        )
-        db_session.add(product)
-
-        cashier = User(
-            username="cashier_fields",
-            email="cashier_fields@test.com",
-            hashed_password=get_password_hash("password"),
-            role="cashier",
-        )
-        db_session.add(cashier)
-        db_session.flush()
-
-        sale_create = SaleCreate(
-            customer_id=None,
-            items=[
-                SaleItemCreate(
-                    product_id=product.id,
-                    quantity=8,
-                    unit_price=Decimal("10.00"),
-                    tax_percent=Decimal("10.00"),
-                    discount_amount=Decimal("0.00"),
-                )
-            ],
-            payment_method=PaymentMethod.CASH,
-            discount_amount=Decimal("0.00"),
-            context_type=SaleContextType.RETAIL,
-        )
-
-        service = SaleService(db_session)
-        result = service.create(sale_create, cashier_id=cashier.id, offline_sync=True)
-
-        assert result.sync_warnings is not None
-        assert len(result.sync_warnings) == 1
-        warning = result.sync_warnings[0]
-        assert warning.type == "oversold"
-        assert warning.product_id == str(product.id)
-        assert warning.product_name == "Widget A"
-        assert warning.requested == 8.0
-        assert warning.available == 2.0
-        assert warning.new_balance == -6.0

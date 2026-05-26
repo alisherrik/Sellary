@@ -196,7 +196,7 @@ class TestInventoryAuditTrail:
 
     def test_inventory_log_records_changes(self, db_session, default_company):
         """Test that inventory logs record all changes."""
-        from models.product import Product, ProductType
+        from models.product import Product
         from models.category import Category
         from models.inventory_log import InventoryLog
 
@@ -212,7 +212,6 @@ class TestInventoryAuditTrail:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -245,7 +244,7 @@ class TestInventoryAuditTrail:
 
     def test_inventory_log_includes_user_info(self, db_session, default_company):
         """Test that inventory logs include user information."""
-        from models.product import Product, ProductType
+        from models.product import Product
         from models.category import Category
         from models.inventory_log import InventoryLog
 
@@ -270,7 +269,6 @@ class TestInventoryAuditTrail:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -299,7 +297,7 @@ class TestInventoryAuditTrail:
 
     def test_inventory_log_references(self, db_session, default_company):
         """Test that inventory logs can reference sales/purchase orders."""
-        from models.product import Product, ProductType
+        from models.product import Product
         from models.category import Category
         from models.inventory_log import InventoryLog
 
@@ -315,7 +313,6 @@ class TestInventoryAuditTrail:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()

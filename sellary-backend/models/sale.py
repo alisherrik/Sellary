@@ -25,11 +25,6 @@ class CardType(str, enum.Enum):
     DC = "dc"
 
 
-class SaleContextType(str, enum.Enum):
-    RETAIL = "retail"
-    RESTAURANT = "restaurant"
-
-
 def enum_values(enum_class: type[enum.Enum]) -> list[str]:
     return [member.value for member in enum_class]
 
@@ -41,17 +36,6 @@ class Sale(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
     cashier_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    context_type = Column(
-        SQLEnum(
-            SaleContextType,
-            values_callable=enum_values,
-            create_constraint=False,
-            native_enum=True,
-            name="salecontexttype",
-        ),
-        default=SaleContextType.RETAIL, index=True
-    )
-    table_name = Column(String(50), nullable=True)
     subtotal = Column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     tax_amount = Column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     discount_amount = Column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))

@@ -5,7 +5,7 @@ import pytest
 from decimal import Decimal
 from fastapi.testclient import TestClient
 
-from models.product import Product, ProductType
+from models.product import Product
 from models.category import Category
 
 

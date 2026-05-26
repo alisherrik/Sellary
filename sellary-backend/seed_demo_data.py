@@ -14,10 +14,10 @@ from models.category import Category
 from models.customer import Customer
 from models.idempotency_key import IdempotencyKey
 from models.inventory_log import InventoryLog
-from models.product import Product, ProductType
+from models.product import Product
 from models.purchase_order import PurchaseOrder
 from models.purchase_order_item import PurchaseOrderItem
-from models.sale import PaymentMethod, Sale, SaleContextType, SaleStatus
+from models.sale import PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
 from models.sale_return import SaleReturn, SaleReturnItem
 from models.supplier import Supplier
@@ -26,26 +26,21 @@ from models.supplier import Supplier
 DEFAULT_COMPANY_NAME = "Sellary Demo"
 DEFAULT_COMPANY_SLUG = "sellary-demo"
 
-CATEGORY_PRODUCT_MAP: dict[str, list[tuple[str, Decimal, Decimal, int, ProductType]]] = {
+CATEGORY_PRODUCT_MAP: dict[str, list[tuple[str, Decimal, Decimal, int]]] = {
     "Beverages": [
-        ("Water 1.5L", Decimal("3.00"), Decimal("5.00"), 120, ProductType.ITEM),
-        ("Cola 0.5L", Decimal("4.00"), Decimal("7.00"), 90, ProductType.ITEM),
-        ("Lemon Tea", Decimal("5.00"), Decimal("8.00"), 70, ProductType.ITEM),
+        ("Water 1.5L", Decimal("3.00"), Decimal("5.00"), 120),
+        ("Cola 0.5L", Decimal("4.00"), Decimal("7.00"), 90),
+        ("Lemon Tea", Decimal("5.00"), Decimal("8.00"), 70),
     ],
     "Snacks": [
-        ("Potato Chips", Decimal("6.00"), Decimal("10.00"), 60, ProductType.ITEM),
-        ("Chocolate Bar", Decimal("3.50"), Decimal("6.00"), 100, ProductType.ITEM),
-        ("Salted Nuts", Decimal("8.00"), Decimal("12.00"), 40, ProductType.ITEM),
+        ("Potato Chips", Decimal("6.00"), Decimal("10.00"), 60),
+        ("Chocolate Bar", Decimal("3.50"), Decimal("6.00"), 100),
+        ("Salted Nuts", Decimal("8.00"), Decimal("12.00"), 40),
     ],
     "Bakery": [
-        ("Bread", Decimal("2.00"), Decimal("4.00"), 80, ProductType.ITEM),
-        ("Croissant", Decimal("3.00"), Decimal("6.00"), 35, ProductType.ITEM),
-        ("Cheese Pie", Decimal("7.00"), Decimal("12.00"), 24, ProductType.ITEM),
-    ],
-    "Restaurant": [
-        ("Chicken Plov", Decimal("18.00"), Decimal("32.00"), 25, ProductType.DISH),
-        ("Beef Burger", Decimal("16.00"), Decimal("29.00"), 18, ProductType.DISH),
-        ("Caesar Salad", Decimal("12.00"), Decimal("24.00"), 20, ProductType.DISH),
+        ("Bread", Decimal("2.00"), Decimal("4.00"), 80),
+        ("Croissant", Decimal("3.00"), Decimal("6.00"), 35),
+        ("Cheese Pie", Decimal("7.00"), Decimal("12.00"), 24),
     ],
 }
 
@@ -154,14 +149,13 @@ def seed_demo_data() -> None:
             db.flush()
             categories[category_name] = category
 
-            for product_name, cost_price, sell_price, stock_quantity, product_type in product_rows:
+            for product_name, cost_price, sell_price, stock_quantity in product_rows:
                 product = Product(
                     company_id=company.id,
                     name=product_name,
-                    barcode=f"DEMO-{barcode_counter:05d}" if product_type == ProductType.ITEM else None,
+                    barcode=f"DEMO-{barcode_counter:05d}",
                     description=f"Demo product for {category_name}",
                     category_id=category.id,
-                    product_type=product_type,
                     cost_price=cost_price,
                     sell_price=sell_price,
                     tax_percent=Decimal("10.00"),
@@ -219,8 +213,6 @@ def seed_demo_data() -> None:
                 "customer": customers[0],
                 "cashier": cashier,
                 "payment_method": PaymentMethod.CASH,
-                "context_type": SaleContextType.RETAIL,
-                "table_name": None,
                 "items": [(products[0], 2), (products[3], 1)],
                 "discount": Decimal("0.00"),
                 "created_at": datetime.now() - timedelta(days=2, hours=1),
@@ -229,21 +221,9 @@ def seed_demo_data() -> None:
                 "customer": customers[1],
                 "cashier": cashier,
                 "payment_method": PaymentMethod.CARD,
-                "context_type": SaleContextType.RETAIL,
-                "table_name": None,
                 "items": [(products[1], 1), (products[4], 3)],
                 "discount": Decimal("2.00"),
                 "created_at": datetime.now() - timedelta(days=1, hours=2),
-            },
-            {
-                "customer": None,
-                "cashier": cashier,
-                "payment_method": PaymentMethod.CASH,
-                "context_type": SaleContextType.RESTAURANT,
-                "table_name": "Table 3",
-                "items": [(products[9], 1), (products[11], 1)],
-                "discount": Decimal("0.00"),
-                "created_at": datetime.now() - timedelta(hours=5),
             },
         ]
 
@@ -255,8 +235,6 @@ def seed_demo_data() -> None:
                 company_id=company.id,
                 customer_id=blueprint["customer"].id if blueprint["customer"] else None,
                 cashier_id=blueprint["cashier"].id,
-                context_type=blueprint["context_type"],
-                table_name=blueprint["table_name"],
                 subtotal=Decimal("0.00"),
                 tax_amount=Decimal("0.00"),
                 discount_amount=blueprint["discount"],

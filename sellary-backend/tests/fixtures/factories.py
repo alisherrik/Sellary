@@ -6,10 +6,10 @@ from decimal import Decimal
 from datetime import datetime
 
 from models.user import User
-from models.product import Product, ProductType
+from models.product import Product
 from models.category import Category
 from models.customer import Customer
-from models.sale import Sale, SaleStatus, PaymentMethod, SaleContextType
+from models.sale import Sale, SaleStatus, PaymentMethod
 from models.sale_item import SaleItem
 
 
@@ -74,14 +74,6 @@ class ProductFactory(factory.alchemy.SQLAlchemyModelFactory):
     stock_quantity = 100
     min_stock_level = 5
     is_active = True
-    product_type = ProductType.ITEM
-
-
-class ProductDishFactory(ProductFactory):
-    """Factory for creating dish products."""
-
-    product_type = ProductType.DISH
-    name = factory.Sequence(lambda n: f"Dish {n}")
 
 
 class CustomerFactory(factory.alchemy.SQLAlchemyModelFactory):
@@ -106,7 +98,6 @@ class SaleFactory(factory.alchemy.SQLAlchemyModelFactory):
 
     customer = factory.SubFactory(CustomerFactory)
     cashier = factory.SubFactory(UserFactory)
-    context_type = SaleContextType.RETAIL
     subtotal = Decimal("100.00")
     tax_amount = Decimal("10.00")
     discount_amount = Decimal("0.00")

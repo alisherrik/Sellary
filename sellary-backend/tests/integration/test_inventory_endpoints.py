@@ -5,7 +5,7 @@ import pytest
 from decimal import Decimal
 from fastapi.testclient import TestClient
 
-from models.product import Product, ProductType
+from models.product import Product
 from models.category import Category
 from models.inventory_log import InventoryLog
 
@@ -31,7 +31,6 @@ class TestGetInventoryLogs:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -68,7 +67,6 @@ class TestGetInventoryLogs:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -105,7 +103,6 @@ class TestGetInventoryLogs:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         product2 = Product(
             name="Product 2",
@@ -114,7 +111,6 @@ class TestGetInventoryLogs:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=50,
-            product_type=ProductType.ITEM,
         )
         db_session.add_all([product1, product2])
         db_session.flush()
@@ -166,7 +162,6 @@ class TestAdjustStock:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -200,7 +195,6 @@ class TestAdjustStock:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -231,7 +225,6 @@ class TestAdjustStock:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -261,7 +254,6 @@ class TestAdjustStock:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -292,7 +284,6 @@ class TestAdjustStock:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=50,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -322,7 +313,6 @@ class TestAdjustStock:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -356,7 +346,6 @@ class TestInventoryValuation:
             sell_price=Decimal("15.00"),
             stock_quantity=100,
             is_active=True,
-            product_type=ProductType.ITEM,
         )
         product2 = Product(
             name="Product 2",
@@ -366,7 +355,6 @@ class TestInventoryValuation:
             sell_price=Decimal("30.00"),
             stock_quantity=50,
             is_active=True,
-            product_type=ProductType.ITEM,
         )
         db_session.add_all([product1, product2])
         db_session.flush()
@@ -399,7 +387,6 @@ class TestInventoryValuation:
             sell_price=Decimal("15.00"),
             stock_quantity=100,
             is_active=True,
-            product_type=ProductType.ITEM,
         )
         inactive_product = Product(
             name="Inactive Product",
@@ -409,7 +396,6 @@ class TestInventoryValuation:
             sell_price=Decimal("75.00"),
             stock_quantity=200,
             is_active=False,
-            product_type=ProductType.ITEM,
         )
         db_session.add_all([active_product, inactive_product])
         db_session.flush()

@@ -123,7 +123,6 @@ class ProductService:
             stock_quantity=product.stock_quantity,
             min_stock_level=product.min_stock_level,
             is_active=product.is_active,
-            product_type=product.product_type,
             created_at=product.created_at,
             updated_at=product.updated_at,
             profit_percent=profit_percent,

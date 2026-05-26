@@ -25,9 +25,9 @@ from models.company import Company
 from models.company_membership import CompanyMembership
 from models.customer import Customer
 from models.inventory_log import InventoryLog
-from models.product import Product, ProductType
+from models.product import Product
 from models.purchase_order import PurchaseOrder
-from models.sale import PaymentMethod, Sale, SaleContextType, SaleStatus
+from models.sale import PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
 from models.sale_return import SaleReturn
 from models.supplier import Supplier
@@ -323,7 +323,6 @@ def test_product(db_session: Session, default_company: Company, test_category: C
         stock_quantity=100,
         min_stock_level=5,
         is_active=True,
-        product_type=ProductType.ITEM,
     )
     db_session.add(product)
     db_session.flush()
@@ -347,7 +346,6 @@ def test_products_bulk(db_session: Session, default_company: Company, test_categ
             stock_quantity=100 - i * 10,
             min_stock_level=5,
             is_active=True,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         products.append(product)
@@ -388,7 +386,6 @@ def test_sale(
         company_id=default_company.id,
         customer_id=test_customer.id,
         cashier_id=cashier_user.id,
-        context_type=SaleContextType.RETAIL,
         subtotal=Decimal("30.00"),
         tax_amount=Decimal("3.00"),
         discount_amount=Decimal("0.00"),

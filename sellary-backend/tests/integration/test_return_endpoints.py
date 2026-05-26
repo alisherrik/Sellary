@@ -7,9 +7,9 @@ from decimal import Decimal
 from datetime import datetime
 from fastapi.testclient import TestClient
 
-from models.sale import Sale, SaleStatus, PaymentMethod, SaleContextType
+from models.sale import Sale, SaleStatus, PaymentMethod
 from models.sale_item import SaleItem
-from models.product import Product, ProductType
+from models.product import Product
 from models.category import Category
 from models.customer import Customer
 from models.user import User
@@ -48,7 +48,6 @@ class TestCreateReturn:
             sell_price=Decimal("15.00"),
             tax_percent=Decimal("10.00"),
             stock_quantity=98,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -61,7 +60,6 @@ class TestCreateReturn:
         sale = Sale(
             customer_id=customer.id,
             cashier_id=user.id,
-            context_type=SaleContextType.RETAIL,
             subtotal=Decimal("30.00"),
             tax_amount=Decimal("3.00"),
             total_amount=Decimal("33.00"),
@@ -135,7 +133,6 @@ class TestCreateReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=90,
-            product_type=ProductType.ITEM,
         )
         product2 = Product(
             name="Product 2",
@@ -144,7 +141,6 @@ class TestCreateReturn:
             cost_price=Decimal("20.00"),
             sell_price=Decimal("25.00"),
             stock_quantity=80,
-            product_type=ProductType.ITEM,
         )
         db_session.add_all([product1, product2])
         db_session.flush()
@@ -259,7 +255,6 @@ class TestCreateReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -329,7 +324,6 @@ class TestCreateReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -400,7 +394,6 @@ class TestCreateReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=95,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -476,7 +469,6 @@ class TestCreateReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -549,7 +541,6 @@ class TestCreateReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -601,262 +592,6 @@ class TestCreateReturn:
         assert "Customer changed mind" in data["notes"]
 
 
-class TestRestaurantOrders:
-    """Tests for restaurant order functionality."""
-
-    def test_create_restaurant_order(self, client: TestClient, db_session, cashier_headers):
-        """Test creating a restaurant order with table assignment."""
-        user = User(
-            username=f"cashier_{uuid.uuid4().hex[:8]}",
-            email=f"cashier_{uuid.uuid4().hex[:8]}@test.com",
-            hashed_password=get_password_hash("password123"),
-            role="cashier",
-        )
-        db_session.add(user)
-        db_session.flush()
-
-        category = Category(name="Restaurant Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Restaurant Dish",
-            barcode="DISH001",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            tax_percent=Decimal("10.00"),
-            stock_quantity=100,
-            product_type=ProductType.DISH,
-        )
-        db_session.add(product)
-        db_session.flush()
-
-        final_headers = with_idempotency(cashier_headers, "rest-order-123")
-        response = client.post(
-            "/api/sales",
-            headers=final_headers,
-            json={
-                "customer_id": None,
-                "items": [
-                    {
-                        "product_id": product.id,
-                        "quantity": 1,
-                        "unit_price": "15.00",
-                        "tax_percent": "10.00",
-                        "discount_amount": "0.00",
-                    }
-                ],
-                "payment_method": "cash",
-                "discount_amount": "0.00",
-                "context_type": "restaurant",
-                "table_name": "Table 5",
-            }
-        )
-
-        assert response.status_code == 201
-        data = response.json()
-        assert data["context_type"] == "restaurant"
-        assert data["table_name"] == "Table 5"
-        assert data["payment_method"] == "cash"
-
-    def test_create_restaurant_order_with_card_payment(self, client: TestClient, db_session, cashier_headers):
-        """Test creating restaurant order with card payment."""
-        user = User(
-            username=f"cashier_{uuid.uuid4().hex[:8]}",
-            email=f"cashier_{uuid.uuid4().hex[:8]}@test.com",
-            hashed_password=get_password_hash("password123"),
-            role="cashier",
-        )
-        db_session.add(user)
-        db_session.flush()
-
-        category = Category(name="Restaurant Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Expensive Dish",
-            barcode="DISH002",
-            category_id=category.id,
-            cost_price=Decimal("50.00"),
-            sell_price=Decimal("100.00"),
-            tax_percent=Decimal("10.00"),
-            stock_quantity=100,
-            product_type=ProductType.DISH,
-        )
-        db_session.add(product)
-        db_session.flush()
-
-        final_headers = with_idempotency(cashier_headers, "rest-card-123")
-        response = client.post(
-            "/api/sales",
-            headers=final_headers,
-            json={
-                "customer_id": None,
-                "items": [
-                    {
-                        "product_id": product.id,
-                        "quantity": 1,
-                        "unit_price": "100.00",
-                        "tax_percent": "10.00",
-                        "discount_amount": "0.00",
-                    }
-                ],
-                "payment_method": "card",
-                "card_type": "alif",
-                "discount_amount": "0.00",
-                "context_type": "restaurant",
-                "table_name": "VIP Table 1",
-            }
-        )
-
-        assert response.status_code == 201
-        data = response.json()
-        assert data["payment_method"] == "card"
-        assert data["card_type"] == "alif"
-        assert data["context_type"] == "restaurant"
-
-    def test_get_restaurant_sales_only(self, client: TestClient, db_session, cashier_headers):
-        """Test filtering sales to get only restaurant orders."""
-        user = User(
-            username=f"cashier_{uuid.uuid4().hex[:8]}",
-            email=f"cashier_{uuid.uuid4().hex[:8]}@test.com",
-            hashed_password=get_password_hash("password123"),
-            role="cashier",
-        )
-        db_session.add(user)
-        db_session.flush()
-
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Test Product",
-            barcode="TEST123",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            tax_percent=Decimal("10.00"),
-            stock_quantity=100,
-            product_type=ProductType.ITEM,
-        )
-        db_session.add(product)
-        db_session.flush()
-
-        # Create retail sale
-        final_headers1 = with_idempotency(cashier_headers, "retail-sale-123")
-        retail_response = client.post(
-            "/api/sales",
-            headers=final_headers1,
-            json={
-                "customer_id": None,
-                "items": [
-                    {
-                        "product_id": product.id,
-                        "quantity": 1,
-                        "unit_price": "15.00",
-                        "tax_percent": "10.00",
-                        "discount_amount": "0.00",
-                    }
-                ],
-                "payment_method": "cash",
-                "discount_amount": "0.00",
-                "context_type": "retail",
-            }
-        )
-
-        # Create restaurant sale
-        final_headers2 = with_idempotency(cashier_headers, "rest-sale-123")
-        restaurant_response = client.post(
-            "/api/sales",
-            headers=final_headers2,
-            json={
-                "customer_id": None,
-                "items": [
-                    {
-                        "product_id": product.id,
-                        "quantity": 1,
-                        "unit_price": "15.00",
-                        "tax_percent": "10.00",
-                        "discount_amount": "0.00",
-                    }
-                ],
-                "payment_method": "cash",
-                "discount_amount": "0.00",
-                "context_type": "restaurant",
-                "table_name": "Table 1",
-            }
-        )
-
-        # Get only restaurant sales
-        response = client.get(
-            "/api/sales?context_type=restaurant",
-            headers=cashier_headers
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
-        assert all(s["context_type"] == "restaurant" for s in data)
-
-    def test_restaurant_order_without_table_name(self, client: TestClient, db_session, cashier_headers):
-        """Test creating restaurant order without table name."""
-        user = User(
-            username=f"cashier_{uuid.uuid4().hex[:8]}",
-            email=f"cashier_{uuid.uuid4().hex[:8]}@test.com",
-            hashed_password=get_password_hash("password123"),
-            role="cashier",
-        )
-        db_session.add(user)
-        db_session.flush()
-
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Test Product",
-            barcode="TEST123",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            stock_quantity=100,
-            product_type=ProductType.ITEM,
-        )
-        db_session.add(product)
-        db_session.flush()
-
-        # Create restaurant sale without table_name (should be allowed)
-        final_headers = with_idempotency(cashier_headers, "rest-notable-123")
-        response = client.post(
-            "/api/sales",
-            headers=final_headers,
-            json={
-                "customer_id": None,
-                "items": [
-                    {
-                        "product_id": product.id,
-                        "quantity": 1,
-                        "unit_price": "15.00",
-                        "tax_percent": "10.00",
-                        "discount_amount": "0.00",
-                    }
-                ],
-                "payment_method": "cash",
-                "discount_amount": "0.00",
-                "context_type": "restaurant",
-            }
-        )
-
-        # Should succeed - table_name is optional
-        assert response.status_code == 201
-        data = response.json()
-        assert data["context_type"] == "restaurant"
-        assert data.get("table_name") is None
-
-
 class TestReturnHistory:
     """Tests for getting return history."""
 
@@ -884,7 +619,6 @@ class TestReturnHistory:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -950,7 +684,6 @@ class TestReturnHistory:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()

@@ -6,10 +6,10 @@ from decimal import Decimal
 from datetime import datetime
 
 from services.sale_return_service import SaleReturnService
-from models.sale import Sale, SaleStatus, PaymentMethod, SaleContextType
+from models.sale import Sale, SaleStatus, PaymentMethod
 from models.sale_item import SaleItem
 from models.sale_return import SaleReturn, SaleReturnItem
-from models.product import Product, ProductType
+from models.product import Product
 from models.category import Category
 from models.customer import Customer
 from models.user import User
@@ -45,7 +45,6 @@ class TestProcessReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=90,  # After some sales
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -59,7 +58,6 @@ class TestProcessReturn:
         sale = Sale(
             customer_id=customer.id,
             cashier_id=user.id,
-            context_type=SaleContextType.RETAIL,
             subtotal=Decimal("30.00"),
             tax_amount=Decimal("3.00"),
             total_amount=Decimal("33.00"),
@@ -133,7 +131,6 @@ class TestProcessReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=95,
-            product_type=ProductType.ITEM,
         )
         product2 = Product(
             name="Product 2",
@@ -142,7 +139,6 @@ class TestProcessReturn:
             cost_price=Decimal("20.00"),
             sell_price=Decimal("25.00"),
             stock_quantity=80,
-            product_type=ProductType.ITEM,
         )
         db_session.add_all([product1, product2])
         db_session.flush()
@@ -154,7 +150,6 @@ class TestProcessReturn:
         sale = Sale(
             customer_id=customer.id,
             cashier_id=user.id,
-            context_type=SaleContextType.RETAIL,
             subtotal=Decimal("80.00"),
             tax_amount=Decimal("8.00"),
             total_amount=Decimal("88.00"),
@@ -242,7 +237,6 @@ class TestProcessReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -295,7 +289,6 @@ class TestProcessReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -348,7 +341,6 @@ class TestProcessReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -416,7 +408,6 @@ class TestProcessReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=95,  # After sale deduction
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -488,7 +479,6 @@ class TestProcessReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=95,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -563,7 +553,6 @@ class TestProcessReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=95,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -634,7 +623,6 @@ class TestProcessReturn:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=95,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -711,7 +699,6 @@ class TestGetReturnsForSale:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -796,7 +783,6 @@ class TestRefundCalculation:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -869,7 +855,6 @@ class TestRefundCalculation:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
         db_session.flush()
@@ -920,189 +905,3 @@ class TestRefundCalculation:
         expected = Decimal("28.00") / 2
         assert result.total_refund_amount == expected
 
-
-class TestRestaurantSales:
-    """Tests for restaurant-specific sale functionality."""
-
-    def test_create_restaurant_sale_with_table(self, db_session):
-        """Test creating a restaurant sale with table assignment."""
-        from schemas.sale import SaleCreate, SaleItemCreate
-        from services.sale_service import SaleService
-
-        user = User(
-            username="cashier",
-            email="cashier@test.com",
-            hashed_password=get_password_hash("password"),
-            role="cashier",
-        )
-        db_session.add(user)
-        db_session.flush()
-
-        category = Category(name="Restaurant Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Dish",
-            barcode="DISH001",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            stock_quantity=100,
-            product_type=ProductType.DISH,  # Restaurant dish
-        )
-        db_session.add(product)
-        db_session.flush()
-
-        sale_create = SaleCreate(
-            customer_id=None,
-            items=[
-                SaleItemCreate(
-                    product_id=product.id,
-                    quantity=1,
-                    unit_price=Decimal("15.00"),
-                    tax_percent=Decimal("10.00"),
-                    discount_amount=Decimal("0.00"),
-                )
-            ],
-            payment_method="cash",
-            discount_amount=Decimal("0.00"),
-            context_type="restaurant",
-            table_name="Table 5",
-        )
-
-        service = SaleService(db_session)
-        result = service.create(sale_create, user.id)
-
-        assert result.context_type == "restaurant"
-        assert result.table_name == "Table 5"
-
-    def test_get_sales_filtered_by_restaurant_context(self, db_session):
-        """Test filtering sales by restaurant context."""
-        from schemas.sale import SaleCreate, SaleItemCreate
-        from services.sale_service import SaleService
-
-        user = User(
-            username="cashier",
-            email="cashier@test.com",
-            hashed_password=get_password_hash("password"),
-            role="cashier",
-        )
-        db_session.add(user)
-        db_session.flush()
-
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Test Product",
-            barcode="TEST123",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            stock_quantity=100,
-            product_type=ProductType.ITEM,
-        )
-        db_session.add(product)
-        db_session.flush()
-
-        # Create retail sale
-        retail_sale = SaleCreate(
-            customer_id=None,
-            items=[
-                SaleItemCreate(
-                    product_id=product.id,
-                    quantity=1,
-                    unit_price=Decimal("15.00"),
-                    tax_percent=Decimal("10.00"),
-                    discount_amount=Decimal("0.00"),
-                )
-            ],
-            payment_method="cash",
-            discount_amount=Decimal("0.00"),
-            context_type="retail",
-        )
-
-        # Create restaurant sale
-        restaurant_sale = SaleCreate(
-            customer_id=None,
-            items=[
-                SaleItemCreate(
-                    product_id=product.id,
-                    quantity=1,
-                    unit_price=Decimal("15.00"),
-                    tax_percent=Decimal("10.00"),
-                    discount_amount=Decimal("0.00"),
-                )
-            ],
-            payment_method="cash",
-            discount_amount=Decimal("0.00"),
-            context_type="restaurant",
-            table_name="Table 1",
-        )
-
-        service = SaleService(db_session)
-        service.create(retail_sale, user.id)
-        service.create(restaurant_sale, user.id)
-
-        # Get only restaurant sales
-        from models.sale import SaleContextType
-        sales, total = service.get_all(context_type=SaleContextType.RESTAURANT)
-
-        assert total == 1
-        assert all(s.context_type == "restaurant" for s in sales)
-
-    def test_get_sales_with_table_filtering(self, db_session):
-        """Test that restaurant sales include table information."""
-        from schemas.sale import SaleCreate, SaleItemCreate
-        from services.sale_service import SaleService
-
-        user = User(
-            username="cashier",
-            email="cashier@test.com",
-            hashed_password=get_password_hash("password"),
-            role="cashier",
-        )
-        db_session.add(user)
-        db_session.flush()
-
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Test Product",
-            barcode="TEST123",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            stock_quantity=100,
-            product_type=ProductType.ITEM,
-        )
-        db_session.add(product)
-        db_session.flush()
-
-        sale_create = SaleCreate(
-            customer_id=None,
-            items=[
-                SaleItemCreate(
-                    product_id=product.id,
-                    quantity=1,
-                    unit_price=Decimal("15.00"),
-                    tax_percent=Decimal("10.00"),
-                    discount_amount=Decimal("0.00"),
-                )
-            ],
-            payment_method="cash",
-            discount_amount=Decimal("0.00"),
-            context_type="restaurant",
-            table_name="Table 5",
-        )
-
-        service = SaleService(db_session)
-        result = service.create(sale_create, user.id)
-
-        # Verify table information is included
-        assert result.table_name == "Table 5"
-        assert result.context_type == "restaurant"

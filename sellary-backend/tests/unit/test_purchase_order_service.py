@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from models.product import Product, ProductType
+from models.product import Product
 from models.purchase_order import PurchaseOrder, PurchaseOrderStatus
 from models.purchase_order_item import PurchaseOrderItem
 from models.supplier import Supplier
@@ -20,7 +20,6 @@ class TestPurchaseOrderReceiveItems:
             stock_quantity=Decimal("0"),
             min_stock_level=0,
             is_active=True,
-            product_type=ProductType.ITEM,
         )
         db_session.add(product)
 

@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import datetime
 from fastapi.testclient import TestClient
 
-from models.product import Product, ProductType
+from models.product import Product
 from models.category import Category
 from models.supplier import Supplier
 
@@ -35,7 +35,6 @@ def _create_product(db_session, category):
         cost_price=Decimal("10.00"),
         sell_price=Decimal("20.00"),
         stock_quantity=0,
-        product_type=ProductType.ITEM,
     )
     db_session.add(product)
     db_session.flush()
