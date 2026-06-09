@@ -1,7 +1,8 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "RAILPACK"
+    "builder": "RAILPACK",
+    "watch": ["*.py", "api/**", "core/**", "models/**", "repositories/**", "schemas/**", "services/**", "alembic/**", "requirements.txt"]
   },
   "deploy": {
     "preDeployCommand": "alembic upgrade head",

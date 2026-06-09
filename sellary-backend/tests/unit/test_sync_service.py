@@ -196,6 +196,97 @@ class TestSyncSales:
         db_session.refresh(test_product)
         assert test_product.stock_quantity == 100 - 200
 
+    def test_sync_sale_rejects_oversell_when_disabled(
+        self, monkeypatch, db_session, default_company, cashier_user, test_product
+    ):
+        monkeypatch.setattr("services.sync_service.settings.SYNC_ALLOW_OVERSELL", False)
+        test_product.stock_quantity = Decimal("1")
+
+        sale_create = self._make_sale(
+            client_sale_id="client-oversell",
+            idempotency_key="oversell-key-0001",
+            product_id=test_product.id,
+            quantity=2,
+            sell_price=test_product.sell_price,
+            paid_amount=Decimal("100.00"),
+        )
+
+        service = SyncService(db_session)
+        result = service.sync_sales(
+            default_company, cashier_user,
+            SyncSalesRequest(sales=[sale_create]),
+        )
+
+        r = result.results[0]
+        assert r.status == "failed"
+        assert "Insufficient stock" in r.error
+        assert test_product.stock_quantity == Decimal("1")
+
+    def test_sync_sale_duplicate_product_oversell_rejected(
+        self, monkeypatch, db_session, default_company, cashier_user, test_product
+    ):
+        monkeypatch.setattr("services.sync_service.settings.SYNC_ALLOW_OVERSELL", False)
+        test_product.stock_quantity = Decimal("1")
+
+        sale_create = SyncSaleCreate(
+            client_sale_id="client-dup-oversell",
+            idempotency_key="dup-oversell-key-0001",
+            created_at_client=datetime.now(timezone.utc),
+            payment_method="cash",
+            discount_amount=Decimal("0"),
+            paid_amount=Decimal("100.00"),
+            change_amount=Decimal("0"),
+            items=[
+                SyncSaleItemCreate(
+                    product_id=test_product.id,
+                    quantity=1,
+                    sell_price=test_product.sell_price,
+                ),
+                SyncSaleItemCreate(
+                    product_id=test_product.id,
+                    quantity=1,
+                    sell_price=test_product.sell_price,
+                ),
+            ],
+        )
+
+        service = SyncService(db_session)
+        result = service.sync_sales(
+            default_company, cashier_user,
+            SyncSalesRequest(sales=[sale_create]),
+        )
+
+        r = result.results[0]
+        assert r.status == "failed"
+        assert "Insufficient stock" in r.error
+        assert test_product.stock_quantity == Decimal("1")
+
+    def test_sync_sale_allows_oversell_when_enabled(
+        self, monkeypatch, db_session, default_company, cashier_user, test_product
+    ):
+        monkeypatch.setattr("services.sync_service.settings.SYNC_ALLOW_OVERSELL", True)
+        test_product.stock_quantity = Decimal("1")
+
+        sale_create = self._make_sale(
+            client_sale_id="client-allow",
+            idempotency_key="allow-key-0001",
+            product_id=test_product.id,
+            quantity=2,
+            sell_price=test_product.sell_price,
+            paid_amount=Decimal("100.00"),
+        )
+
+        service = SyncService(db_session)
+        result = service.sync_sales(
+            default_company, cashier_user,
+            SyncSalesRequest(sales=[sale_create]),
+        )
+
+        r = result.results[0]
+        assert r.status == "synced"
+        assert r.warnings
+        assert any(w.type == "oversold" for w in r.warnings)
+
     def test_sync_missing_product_fails(
         self, db_session, default_company, cashier_user
     ):

@@ -1,14 +1,17 @@
 # Sellary loyihasi bo'yicha MVP tavsiya hisoboti
 
-Sana: 2026-03-17
+Sana: 2026-03-17 (Yangilangan: 2026-05-26)
+
+> **2026-05-26 yangilanishi:** Ushbu hujjatdagi asosiy tavsiyalar amalga oshirildi:
+> - Restaurant moduli frontend va backend'dan to'liq olib tashlandi
+> - PWA/Service Worker offline rejimi olib tashlandi, o'rniga Tauri ish stoli kassir ilovasi (`sellary-cashier`) qo'shildi
+> - Offline sync endi outbox pattern orqali Tauri ilovasi ichida ishlaydi
 
 ## Qisqa xulosa
 
 Mening bahom:
 
 - Retail POS MVP sifatida: `6.5/10`
-- Restaurant MVP sifatida: `3/10`
-- Offline-first MVP sifatida: `2.5/10`
 
 Asosiy tavsiya:
 
@@ -29,9 +32,9 @@ Kuchli tomonlari:
 
 Zaif tomonlari:
 
-- Loyiha scope'i chalkash: retail POS, restaurant va offline/PWA bir joyga qo'shilgan.
-- Restaurant qismi haqiqiy backend flow emas, ko'proq local-state demo ko'rinishida.
-- Offline sync arxitekturasi xavfli va release uchun hali tayyor emas.
+- ~~Loyiha scope'i chalkash: retail POS, restaurant va offline/PWA bir joyga qo'shilgan.~~ ✅ Hal qilindi: Restaurant olib tashlandi, offline Tauri orqali amalga oshirildi.
+- ~~Restaurant qismi haqiqiy backend flow emas, ko'proq local-state demo ko'rinishida.~~ ✅ Restaurant butunlay olib tashlandi.
+- ~~Offline sync arxitekturasi xavfli va release uchun hali tayyor emas.~~ ✅ PWA offline olib tashlandi, Tauri outbox sync bilan almashtirildi.
 - Ba'zi joylarda demo/logik tavakkallar bor.
 - Testlarni ishonchli ishga tushirish ham hozircha silliq emas.
 
@@ -134,7 +137,9 @@ Lekin bu hisobotlar "advanced BI" bo'lishi shart emas. Tez va ishonchli bo'lsa b
 
 ## Hozircha disable qilishni tavsiya qilaman
 
-### 1. Restaurant modulini to'liq yashirish
+> **Yangilanish:** #1 (Restaurant) va #2 (Offline sync/PWA) bajarildi. Restaurant olib tashlandi, PWA offline Tauri outbox sync bilan almashtirildi.
+
+### 1. ~~Restaurant modulini to'liq yashirish~~ ✅ BAJARILDI
 
 Sabab:
 
@@ -147,9 +152,9 @@ Tavsiya:
 
 - Sidebar'dan `Restaurant` ni olib tashlash
 - `restaurant/*` route'larni MVP build'da yashirish
-- Restaurantni alohida phase-2 ga chiqarish
+- ~~Restaurantni alohida phase-2 ga chiqarish~~ ✅ Restaurant butunlay olib tashlandi, qayta qo'shilmaydi.
 
-### 2. Offline sync / auto-sync / PWA murakkab qismlarini disable qilish
+### 2. ~~Offline sync / auto-sync / PWA murakkab qismlarini disable qilish~~ ✅ BAJARILDI
 
 Sabab:
 
@@ -163,7 +168,7 @@ Tavsiya:
 - Hozircha offline queue UI'ni yashirish
 - Auto sync'ni o'chirish
 - Service worker/PWA marketingini MVP da ishlatmaslik
-- Birinchi release'ni online-only qiling
+- ~~Birinchi release'ni online-only qiling~~ ✅ Offline endi Tauri ish stoli ilovasi orqali ishlaydi (outbox sync).
 
 ### 3. Multi-session POS ni soddalashtirish
 
@@ -202,12 +207,12 @@ Quyidagilarni qo'shmaslik kerak:
 - Receipt print integratsiyasi
 - Telegram yoki email notification
 - Complex analytics
-- Restaurant + retail ni bitta release'da birga sotish
-- Offline-first release
+- ~~Restaurant + retail ni bitta release'da birga sotish~~ ✅ Restaurant olib tashlandi
+- ~~Offline-first release~~ ✅ Tauri orqali offline ishlaydi
 
 Eng katta xato bo'ladi:
 
-**Bir vaqtning o'zida 3 ta product bo'lishga urinish: retail POS + restaurant POS + offline POS**
+**~~Bir vaqtning o'zida 3 ta product bo'lishga urinish: retail POS + restaurant POS + offline POS~~** ✅ Hal qilindi.
 
 Bu MVP ni cho'zadi, sifatini tushiradi va pilotni yiqitadi.
 
@@ -306,9 +311,9 @@ MVP uchun full i18n shart emas, lekin asosiy ekranlar bitta aniq tilda bo'lishi 
 
 ### Hozircha kesamiz
 
-- Restaurant
-- Offline sync
-- Auto sync controls
+- ~~Restaurant~~ ✅ Olib tashlandi
+- ~~Offline sync~~ ✅ Tauri outbox sync bilan almashtirildi
+- ~~Auto sync controls~~ ✅ Olib tashlandi
 - Multi-session POS
 - Advanced settings
 - Har qanday "demo" flow
@@ -320,8 +325,8 @@ MVP uchun full i18n shart emas, lekin asosiy ekranlar bitta aniq tilda bo'lishi 
 Birinchi navbatda:
 
 1. Retail scope'ni freeze qilish
-2. Restaurant navigation va route'larni yashirish
-3. Offline sync'ni disable qilish
+2. ~~Restaurant navigation va route'larni yashirish~~ ✅ Bajarildi (tamomila olib tashlandi)
+3. ~~Offline sync'ni disable qilish~~ ✅ Bajarildi (Tauri bilan almashtirildi)
 4. Oversell'ni bloklash
 5. `create_all` ni olib tashlash
 6. Env konfiguratsiyani tozalash
@@ -365,8 +370,8 @@ Ichida:
 
 Tashqarida:
 
-- Restaurant
-- Offline mode
+- ~~Restaurant~~ ✅ Olib tashlandi
+- ~~Offline mode~~ ✅ Tauri orqali ishlaydi
 - Advanced automation
 - Complex analytics
 
@@ -390,8 +395,8 @@ MVP ni tez va to'g'ri chiqarish uchun:
 
 Hozir eng to'g'ri qaror:
 
-- restaurant'ni kesish
-- offline'ni kesish
+- ~~restaurant'ni kesish~~ ✅ Bajarildi
+- ~~offline'ni kesish~~ ✅ Tauri bilan hal qilindi
 - stock correctness'ni mustahkamlash
 - POS flow'ni juda silliq qilish
 - supplier/purchase qismni qoldirish

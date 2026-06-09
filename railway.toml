@@ -1,0 +1,2 @@
+[build]
+watch = ["sellary-backend/**"]

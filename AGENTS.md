@@ -2,9 +2,10 @@
 
 ## Overview
 
-Sellary is a retail POS, inventory, and supplier management system. Two-package monorepo:
+Sellary is a retail POS, inventory, and supplier management system. Three-package monorepo:
 - **sellary-backend** — Python 3+ / FastAPI / PostgreSQL / SQLAlchemy / Alembic
 - **sellary-frontend** — Next.js 14 (App Router) / TypeScript / Tailwind / Zustand / TanStack Query
+- **sellary-cashier** — Tauri 2 / React / TypeScript / Vite (desktop cashier app for offline POS)
 
 Backend port is **8001**, not 8000. Frontend proxies `NEXT_PUBLIC_API_PROXY_TARGET` (defaults to `http://127.0.0.1:8001`).
 
@@ -53,6 +54,15 @@ npx vitest --coverage  # coverage
 npx playwright test    # e2e tests
 ```
 
+### Tauri Cashier (sellary-cashier)
+
+```bash
+npm run dev             # Vite dev server (port 1420)
+npm run build           # TypeScript + Vite build
+npm run tauri dev       # Tauri dev mode (desktop)
+npm run tauri build     # Tauri production build (desktop installer)
+```
+
 ## Architecture
 
 ### Auth flow (multi-company v1)
@@ -87,8 +97,6 @@ Next.js App Router with route groups: `(protected)/` for authenticated pages, `l
 - Test DB isolation uses **transaction rollback** — use `session.flush()` not `session.commit()` in tests.
 - The codebase has **mixed languages**: code/docstrings in English, UI in Russian, some docs in Uzbek and English. Do not change the language of existing content without explicit instruction.
 - **Stock overselling** `Allow overselling for demo purposes` exists in `sale_service.py`. This is a known risk for production.
-- **Restaurant and offline mode** are disabled by default (`NEXT_PUBLIC_ENABLE_RESTAURANT=false`, `NEXT_PUBLIC_ENABLE_OFFLINE_MODE=false`). They are Phase 2 features.
-- **Offline tests** (`tests/offline-*.spec.ts`) are excluded from `vitest.config.ts` and should not be run in regular test suites.
 - `.env` files are gitignored. Copy from `.env.example` files.
 - Alembic migration files (`alembic/versions/*.py`) are gitignored — do not commit generated migrations.
 - Frontend duplicate layers exist: `src/api.ts` vs `src/lib/api.ts`, `src/store/` vs `src/lib/store.ts`. Be careful about which is canonical when editing.

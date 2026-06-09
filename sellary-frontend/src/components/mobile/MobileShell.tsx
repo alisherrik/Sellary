@@ -19,7 +19,6 @@ const headerTitles: Record<string, string> = {
   '/purchase-orders': 'Закупки',
   '/reports': 'Отчеты',
   '/settings': 'Настройки',
-  '/restaurant': 'Ресторан',
 };
 
 function getHeaderTitle(pathname: string): string {

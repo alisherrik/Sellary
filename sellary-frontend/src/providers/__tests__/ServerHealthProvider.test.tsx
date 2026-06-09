@@ -1,20 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useServerHealth, ServerHealthProvider } from '../ServerHealthProvider';
-
-// Mock syncQueue to prevent IndexedDB calls in tests
-vi.mock('@/lib/syncQueue', () => ({
-    addToSyncQueue: vi.fn(),
-    getSyncQueue: vi.fn(() => Promise.resolve([])),
-    removeFromSyncQueue: vi.fn(),
-    updateSyncItem: vi.fn(),
-    clearSyncQueue: vi.fn(),
-    getQueueStatus: vi.fn(() => Promise.resolve({ total: 0, pending: 0, syncing: 0, failed: 0 })),
-    getSyncConfig: vi.fn(() => Promise.resolve({ autoSync: true, maxRetries: 5 })),
-    setSyncConfig: vi.fn(),
-    processQueue: vi.fn(() => Promise.resolve({ processed: 0, failed: 0, skipped: false })),
-}));
 
 /**
  * UNIT TESTS FOR SERVER HEALTH PROVIDER
@@ -49,7 +36,7 @@ afterEach(() => {
 });
 
 describe('ServerHealthProvider - Initial State', () => {
-    it('should start with checking state true and server unreachable (offline-first)', async () => {
+    it('should start with isServerReachable true and isChecking false', async () => {
         global.fetch = vi.fn(() =>
             Promise.resolve({
                 ok: true,
@@ -61,13 +48,12 @@ describe('ServerHealthProvider - Initial State', () => {
             wrapper: createWrapper(),
         });
 
-        // Initial state should have checking true and server as unreachable
-        expect(result.current.isChecking).toBe(true);
-        expect(result.current.isServerReachable).toBe(false);
+        // Initial state is optimistic: server reachable
+        expect(result.current.isServerReachable).toBe(true);
         expect(result.current.isNavigatorOnline).toBe(true);
 
         await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
+            expect(result.current.isServerReachable).toBe(true);
         });
     });
 
@@ -84,13 +70,9 @@ describe('ServerHealthProvider - Initial State', () => {
             wrapper: createWrapper(),
         });
 
-        // Wait for health check to complete
         await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
+            expect(mockFetch).toHaveBeenCalled();
         });
-
-        expect(mockFetch).toHaveBeenCalled();
-        expect(result.current.isServerReachable).toBe(true);
     });
 });
 
@@ -108,129 +90,12 @@ describe('ServerHealthProvider - Health Check Logic', () => {
             wrapper: createWrapper(),
         });
 
-        // Wait for health check to complete
         await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
-        });
-
-        expect(result.current.isServerReachable).toBe(true);
-    });
-
-    it('should set server as unreachable when health check fails', async () => {
-        const mockFetch = vi.fn(() =>
-            Promise.reject(new Error('Network error'))
-        );
-        global.fetch = mockFetch;
-
-        const { result } = renderHook(() => useServerHealth(), {
-            wrapper: createWrapper(),
-        });
-
-        // Wait for health check to complete
-        await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
-        });
-
-        expect(result.current.isServerReachable).toBe(false);
-    });
-
-    it('should set server as unreachable when server returns 500', async () => {
-        const mockFetch = vi.fn(() =>
-            Promise.resolve({
-                ok: false,
-                status: 500,
-            } as Response)
-        );
-        global.fetch = mockFetch;
-
-        const { result } = renderHook(() => useServerHealth(), {
-            wrapper: createWrapper(),
-        });
-
-        await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
-        });
-
-        expect(result.current.isServerReachable).toBe(false);
-    });
-
-    it('should set server as UNREACHABLE when server returns 401 (ZERO TRUST: only 200 OK = online)', async () => {
-        const mockFetch = vi.fn(() =>
-            Promise.resolve({
-                ok: false,
-                status: 401,
-            } as Response)
-        );
-        global.fetch = mockFetch;
-
-        const { result } = renderHook(() => useServerHealth(), {
-            wrapper: createWrapper(),
-        });
-
-        await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
-        });
-
-        // ZERO TRUST: 401 is NOT reachable (only 200 OK is reachable)
-        expect(result.current.isServerReachable).toBe(false);
-    });
-});
-
-describe('ServerHealthProvider - Manual Health Check', () => {
-    it('should allow manual health check invocation', async () => {
-        const mockFetch = vi.fn(() =>
-            Promise.resolve({
-                ok: true,
-                status: 200,
-            } as Response)
-        );
-        global.fetch = mockFetch;
-
-        const { result } = renderHook(() => useServerHealth(), {
-            wrapper: createWrapper(),
-        });
-
-        // Wait for initial check
-        await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
-        });
-
-        const initialCallCount = mockFetch.mock.calls.length;
-
-        // Trigger manual health check
-        await act(async () => {
-            await result.current.checkHealth();
-        });
-
-        // Should have made another call
-        expect(mockFetch.mock.calls.length).toBeGreaterThan(initialCallCount);
-    });
-});
-
-describe('ServerHealthProvider - State Transitions', () => {
-    it('should transition from checking to reachable when server is up', async () => {
-        global.fetch = vi.fn(() =>
-            Promise.resolve({
-                ok: true,
-                status: 200,
-            } as Response)
-        );
-
-        const { result } = renderHook(() => useServerHealth(), {
-            wrapper: createWrapper(),
-        });
-
-        // Initially checking
-        expect(result.current.isChecking).toBe(true);
-
-        // Then completes
-        await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
             expect(result.current.isServerReachable).toBe(true);
         });
     });
 
-    it('should transition from checking to unreachable when server is down', async () => {
+    it('should set server as unreachable when health check fails', async () => {
         global.fetch = vi.fn(() =>
             Promise.reject(new Error('Network error'))
         );
@@ -239,12 +104,40 @@ describe('ServerHealthProvider - State Transitions', () => {
             wrapper: createWrapper(),
         });
 
-        // Initially checking
-        expect(result.current.isChecking).toBe(true);
-
-        // Then completes with unreachable
         await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
+            expect(result.current.isServerReachable).toBe(false);
+        });
+    });
+});
+
+describe('ServerHealthProvider - State Transitions', () => {
+    it('should transition to reachable when server is up', async () => {
+        global.fetch = vi.fn(() =>
+            Promise.resolve({
+                ok: true,
+                status: 200,
+            } as Response)
+        );
+
+        const { result } = renderHook(() => useServerHealth(), {
+            wrapper: createWrapper(),
+        });
+
+        await waitFor(() => {
+            expect(result.current.isServerReachable).toBe(true);
+        });
+    });
+
+    it('should transition to unreachable when server is down', async () => {
+        global.fetch = vi.fn(() =>
+            Promise.reject(new Error('Network error'))
+        );
+
+        const { result } = renderHook(() => useServerHealth(), {
+            wrapper: createWrapper(),
+        });
+
+        await waitFor(() => {
             expect(result.current.isServerReachable).toBe(false);
         });
     });
@@ -260,17 +153,13 @@ describe('ServerHealthProvider - Error Handling', () => {
             wrapper: createWrapper(),
         });
 
-        // Should not throw
         await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
+            expect(result.current.isServerReachable).toBe(false);
         });
-
-        expect(result.current.isServerReachable).toBe(false);
     });
 
     it('should handle timeout errors gracefully', async () => {
         global.fetch = vi.fn(() =>
-            // Immediate rejection to simulate timeout
             Promise.reject(new DOMException('Aborted', 'AbortError'))
         );
 
@@ -278,21 +167,16 @@ describe('ServerHealthProvider - Error Handling', () => {
             wrapper: createWrapper(),
         });
 
-        // Should handle gracefully
         await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
+            expect(result.current.isServerReachable).toBe(false);
         });
-
-        expect(result.current.isServerReachable).toBe(false);
     });
-});
 
-describe('ServerHealthProvider - Context Value', () => {
-    it('should provide checkHealth function', async () => {
+    it('should mark server as unreachable on 503 response', async () => {
         global.fetch = vi.fn(() =>
             Promise.resolve({
-                ok: true,
-                status: 200,
+                ok: false,
+                status: 503,
             } as Response)
         );
 
@@ -300,13 +184,13 @@ describe('ServerHealthProvider - Context Value', () => {
             wrapper: createWrapper(),
         });
 
-        expect(typeof result.current.checkHealth).toBe('function');
-
         await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
+            expect(result.current.isServerReachable).toBe(false);
         });
     });
+});
 
+describe('ServerHealthProvider - Context Value', () => {
     it('should provide isServerReachable boolean', async () => {
         global.fetch = vi.fn(() =>
             Promise.resolve({
@@ -317,10 +201,6 @@ describe('ServerHealthProvider - Context Value', () => {
 
         const { result } = renderHook(() => useServerHealth(), {
             wrapper: createWrapper(),
-        });
-
-        await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
         });
 
         expect(typeof result.current.isServerReachable).toBe('boolean');
@@ -339,10 +219,6 @@ describe('ServerHealthProvider - Context Value', () => {
         });
 
         expect(typeof result.current.isNavigatorOnline).toBe('boolean');
-
-        await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
-        });
     });
 
     it('should provide isChecking boolean', async () => {
@@ -358,9 +234,22 @@ describe('ServerHealthProvider - Context Value', () => {
         });
 
         expect(typeof result.current.isChecking).toBe('boolean');
+    });
+
+    it('should provide lastCheckedAt', async () => {
+        global.fetch = vi.fn(() =>
+            Promise.resolve({
+                ok: true,
+                status: 200,
+            } as Response)
+        );
+
+        const { result } = renderHook(() => useServerHealth(), {
+            wrapper: createWrapper(),
+        });
 
         await waitFor(() => {
-            expect(result.current.isChecking).toBe(false);
+            expect(result.current.lastCheckedAt).toBeInstanceOf(Date);
         });
     });
 });

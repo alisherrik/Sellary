@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     DEFAULT_PAGE_SIZE: int = 50
     MAX_PAGE_SIZE: int = 200
 
+    # Sync
+    SYNC_ALLOW_OVERSELL: bool = True
+
     def model_post_init(self, __context) -> None:
         if self.BACKEND_CORS_ORIGINS_RAW:
             self.BACKEND_CORS_ORIGINS = _parse_cors_origins(self.BACKEND_CORS_ORIGINS_RAW)

@@ -1,7 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import OfflineGuard from '@/components/OfflineGuard';
 import { CardSkeleton, ChartSkeleton, StatCardsSkeleton } from '@/components/skeletons';
 import { useDailySales, useDashboard, useTopProducts } from '@/hooks/useQueries';
 import { formatCurrency, formatNumber } from '@/lib/utils';
@@ -56,7 +55,6 @@ export default function ReportsPage() {
     : [];
 
   return (
-    <OfflineGuard>
       <div className="h-full overflow-y-auto mobile-no-overscroll p-4 space-y-4">
         <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-800">
           {dayOptions.map((option) => (
@@ -205,6 +203,5 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
-    </OfflineGuard>
   );
 }

@@ -11,7 +11,6 @@ import {
   ShoppingBagIcon,
 } from '@heroicons/react/24/outline';
 
-import { isOfflineModeEnabled } from '@/lib/features';
 import { useAuthStore } from '@/lib/store';
 import type { CompanySummary } from '@/lib/types';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
@@ -127,18 +126,6 @@ export default function LoginPage() {
   }
 
   if (!isServerReachable) {
-    if (isOfflineModeEnabled && accessToken && currentCompany) {
-      router.replace('/pos');
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-          <div className="text-center">
-            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-            <p className="mt-4 text-sm text-slate-300">Entering offline mode...</p>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
         <div className="w-full max-w-md rounded-3xl border border-red-500/20 bg-white p-8 text-center shadow-2xl">
@@ -181,12 +168,6 @@ export default function LoginPage() {
                 One login can access multiple companies. After sign-in, choose the company you
                 want to work in and Sellary will scope the whole session to that tenant.
               </p>
-              {isOfflineModeEnabled && (
-                <p className="mt-4 text-xs leading-5 text-amber-300">
-                  Offline mode is enabled. Multi-company sessions stay blocked until
-                  `NEXT_PUBLIC_ENABLE_OFFLINE_MODE=false`.
-                </p>
-              )}
             </div>
           </div>
 

@@ -11,10 +11,6 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
-vi.mock('@/lib/features', () => ({
-  isRestaurantEnabled: false,
-}));
-
 describe('MoreSheet', () => {
   it('renders nothing when closed', () => {
     const { container } = render(<MoreSheet isOpen={false} onClose={vi.fn()} />);

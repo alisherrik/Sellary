@@ -19,10 +19,6 @@ vi.mock('@/lib/api', () => ({
   },
 }));
 
-vi.mock('@/lib/syncQueue', () => ({
-  addToSyncQueue: vi.fn(),
-}));
-
 vi.mock('react-hot-toast', () => ({
   default: {
     error: vi.fn(),

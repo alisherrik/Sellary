@@ -16,14 +16,11 @@ import {
   ArrowUturnLeftIcon,
   Bars3Icon,
   XMarkIcon,
-  BuildingStorefrontIcon,
   Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '@/lib/store';
 import { usePrefetchOnHover } from '@/hooks/useQueries';
-import ConnectionStatus from './ui/ConnectionStatus';
-import SyncStatusPanel from './SyncStatusPanel';
-import { isOfflineModeEnabled, isRestaurantEnabled } from '@/lib/features';
+import { ConnectionStatus } from './ui/ConnectionStatus';
 
 interface LayoutProps {
   children: ReactNode;
@@ -31,7 +28,6 @@ interface LayoutProps {
 
 const navigation = [
   { name: 'Касса', href: '/pos', icon: ShoppingBagIcon, prefetchKey: null },
-  { name: 'Ресторан', href: '/restaurant', icon: BuildingStorefrontIcon, prefetchKey: null },
   { name: 'Дашборд', href: '/dashboard', icon: HomeIcon, prefetchKey: 'dashboard' },
   { name: 'История продаж', href: '/sales', icon: ArrowUturnLeftIcon, prefetchKey: 'sales' },
   { name: 'Товары', href: '/products', icon: CubeIcon, prefetchKey: 'products' },
@@ -49,10 +45,6 @@ export default function Layout({ children }: LayoutProps) {
   const prefetch = usePrefetchOnHover();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | ''>(currentCompany?.id ?? '');
-  const visibleNavigation = navigation.filter(
-    (item) => item.href !== '/restaurant' || isRestaurantEnabled
-  );
-
   useEffect(() => {
     setSelectedCompanyId(currentCompany?.id ?? '');
   }, [currentCompany?.id]);
@@ -145,7 +137,7 @@ export default function Layout({ children }: LayoutProps) {
 
         <nav className="mt-6 px-3">
           <div className="space-y-1">
-            {visibleNavigation.map((item) => {
+            {navigation.map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.href !== '/pos' && item.href !== '/dashboard' && pathname.startsWith(item.href));
@@ -183,7 +175,7 @@ export default function Layout({ children }: LayoutProps) {
             <select
               value={selectedCompanyId}
               onChange={handleCompanyChange}
-              disabled={companies.length <= 1 || isOfflineModeEnabled}
+              disabled={companies.length <= 1}
               className="mt-3 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-100"
             >
               {companies.map((company) => (
@@ -192,11 +184,6 @@ export default function Layout({ children }: LayoutProps) {
                 </option>
               ))}
             </select>
-            {isOfflineModeEnabled && companies.length > 1 && (
-              <p className="mt-2 text-[11px] leading-4 text-amber-600">
-                Multi-company switching is disabled while offline mode is enabled.
-              </p>
-            )}
           </div>
           <div className="flex items-center mb-3">
             <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
@@ -222,8 +209,6 @@ export default function Layout({ children }: LayoutProps) {
       </div>
 
       <div className="min-h-screen transition-all duration-300 lg:ml-64">
-        <SyncStatusPanel />
-
         <header className="sticky top-0 z-30 bg-white shadow-sm">
           <div className="flex h-14 items-center justify-between px-4 sm:h-16 sm:px-6">
             <button

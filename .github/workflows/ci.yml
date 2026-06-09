@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: sellary-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Compile
+        run: python -m compileall api core models repositories schemas services main.py
+      - name: Tests
+        run: pytest tests/integration tests/unit -q
+
+  frontend:
+    name: Frontend
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: sellary-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: sellary-frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Unit tests
+        run: npx vitest run
+      - name: Build
+        run: npm run build
+
+  cashier:
+    name: Tauri Cashier
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: sellary-cashier
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: sellary-cashier/package-lock.json
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Frontend build
+        run: npm run build
+      - name: Tauri build
+        if: github.event_name == 'workflow_dispatch'
+        run: npm run tauri:build

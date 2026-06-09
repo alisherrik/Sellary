@@ -1,17 +1,15 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import QueryProvider from '@/components/QueryProvider'
+import { QueryProvider } from '@/components/QueryProvider'
 import { ServerHealthProvider } from '@/providers/ServerHealthProvider'
 import { Toaster } from 'react-hot-toast'
-import { isOfflineModeEnabled } from '@/lib/features'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Sellary',
   description: 'Автоматизация торговли',
-  manifest: isOfflineModeEnabled ? '/manifest.json' : undefined,
 }
 
 export default function RootLayout({

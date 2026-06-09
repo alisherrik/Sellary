@@ -76,7 +76,7 @@
   }
 }
 
-/* Restaurant UI Animations */
+/* Mobile UI Animations */
 @keyframes slide-up {
   from {
     transform: translateY(100%);

@@ -8,7 +8,6 @@ import {
   ShoppingCartIcon,
   ArrowTrendingUpIcon,
 } from '@heroicons/react/24/outline';
-import OfflineGuard from '@/components/OfflineGuard';
 import { StatCardsSkeleton, CardSkeleton } from '@/components/skeletons';
 import { useDashboard } from '@/hooks/useQueries';
 import { formatCurrency, formatNumber } from '@/lib/utils';
@@ -52,7 +51,6 @@ export default function Dashboard() {
     : [];
 
   return (
-    <OfflineGuard>
       <div className="h-full overflow-y-auto mobile-no-overscroll p-4 space-y-4">
         {isLoading ? (
           <StatCardsSkeleton count={4} />
@@ -225,6 +223,5 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-    </OfflineGuard>
   );
 }

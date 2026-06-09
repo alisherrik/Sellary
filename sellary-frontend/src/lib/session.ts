@@ -2,13 +2,8 @@
 
 import { createJSONStorage, type StateStorage } from 'zustand/middleware';
 
-import { isOfflineModeEnabled } from './features';
-
 export const AUTH_STORAGE_KEY = 'auth-storage-v2';
 export const CART_STORAGE_KEY = 'cart-storage-v3';
-export const RESTAURANT_STORAGE_KEY = 'restaurant-storage-v4';
-export const QUERY_STORAGE_KEY = 'react-query-cache';
-export const SYNC_QUEUE_STORAGE_KEY = 'offline-sync-queue';
 
 const CURRENT_COMPANY_KEY = 'sellary:current-company-id';
 const LOGIN_TOKEN_KEY = 'sellary:login-token';
@@ -119,9 +114,6 @@ export const clearStoredSession = (companyIds: Array<number | string> = []): voi
   setLoginToken(null);
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
 };
-
-export const isOfflineMultiCompanyUnsupported = (companyCount: number): boolean =>
-  isOfflineModeEnabled && companyCount > 1;
 
 const companyScopedStorage: StateStorage = {
   getItem: (name) => {

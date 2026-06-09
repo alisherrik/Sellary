@@ -1,5 +1,4 @@
-export type SaleContextType = 'retail' | 'restaurant';
-export type ProductType = 'item' | 'dish';
+export type ProductType = 'item';
 export type GlobalUserRole = 'standard' | 'super_admin';
 export type UserRole = 'admin' | 'manager' | 'cashier';
 export type PurchaseOrderStatus =
@@ -181,8 +180,6 @@ export interface Sale {
   status: SaleStatus;
   can_return?: boolean;
   notes?: string;
-  context_type: SaleContextType;
-  table_name?: string;
   created_at: string;
   items: SaleItem[];
 }

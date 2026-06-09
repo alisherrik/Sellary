@@ -6,8 +6,6 @@ import { BanknotesIcon, ServerIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 
 import CompanyAdminSection from '@/components/settings/CompanyAdminSection';
-import SyncControls from '@/components/settings/SyncControls';
-import { isOfflineModeEnabled, isRestaurantEnabled } from '@/lib/features';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { CURRENCIES, CurrencyCode, useSettingsStore } from '@/store/settingsStore';
 
@@ -101,10 +99,6 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
-        <SyncControls />
-      </div>
-
       <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
         <div className="border-b border-gray-100 p-4 sm:p-6">
           <div className="flex items-center gap-2">
@@ -116,7 +110,7 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 p-4 sm:p-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 p-4 sm:p-6 md:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-xl bg-slate-50 p-4">
             <div className="text-sm font-medium text-slate-900">Backend</div>
             <div className="mt-3">
@@ -139,19 +133,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Restaurant</div>
-            <div className="mt-3">
-              <StatusBadge enabled={isRestaurantEnabled} />
-            </div>
-          </div>
-
-          <div className="rounded-xl bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Offline Sync</div>
-            <div className="mt-3">
-              <StatusBadge enabled={isOfflineModeEnabled} />
-            </div>
-          </div>
         </div>
       </section>
 

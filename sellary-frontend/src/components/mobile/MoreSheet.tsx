@@ -6,9 +6,7 @@ import {
   TruckIcon,
   ChartBarIcon,
   Cog6ToothIcon,
-  BuildingStorefrontIcon,
 } from '@heroicons/react/24/outline';
-import { isRestaurantEnabled } from '@/lib/features';
 
 const moreItems = [
   { label: 'Поставщики', href: '/suppliers', icon: UserGroupIcon },
@@ -32,10 +30,6 @@ export default function MoreSheet({ isOpen, onClose }: MoreSheetProps) {
     onClose();
   };
 
-  const visibleItems = isRestaurantEnabled
-    ? [{ label: 'Ресторан', href: '/restaurant', icon: BuildingStorefrontIcon }, ...moreItems]
-    : moreItems;
-
   return (
     <div className="fixed inset-0 z-50">
       <div
@@ -47,7 +41,7 @@ export default function MoreSheet({ isOpen, onClose }: MoreSheetProps) {
         <div className="mt-4 px-4 pb-8">
           <h2 className="mb-3 text-sm font-semibold text-gray-500">Меню</h2>
           <div className="space-y-1">
-            {visibleItems.map((item) => (
+            {moreItems.map((item) => (
               <button
                 key={item.href}
                 onClick={() => handleNavigate(item.href)}

@@ -10,7 +10,6 @@ import {
   clearStoredSession,
   createCompanyScopedJSONStorage,
   getActiveAccessToken,
-  isOfflineMultiCompanyUnsupported,
   setAccessTokenForCompany,
   setCurrentCompanyId,
   setLoginToken,
@@ -79,12 +78,6 @@ export const useAuthStore = create<AuthState>()(
         const response = await authApi.login(username, password);
         const session = response.data;
 
-        if (isOfflineMultiCompanyUnsupported(session.companies.length)) {
-          throw new Error(
-            'Multi-company login is disabled while offline mode is enabled. Set NEXT_PUBLIC_ENABLE_OFFLINE_MODE=false.',
-          );
-        }
-
         setLoginToken(session.login_token);
         set({
           user: session.user,
@@ -122,12 +115,6 @@ export const useAuthStore = create<AuthState>()(
       },
 
       switchCompany: async (companyId) => {
-        if (isOfflineMultiCompanyUnsupported(get().companies.length)) {
-          throw new Error(
-            'Multi-company switching is disabled while offline mode is enabled. Set NEXT_PUBLIC_ENABLE_OFFLINE_MODE=false.',
-          );
-        }
-
         const response = await authApi.switchCompany(companyId);
         return applyCompanySession(set, response.data);
       },

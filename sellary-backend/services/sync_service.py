@@ -4,6 +4,7 @@ from typing import List
 
 from sqlalchemy.orm import Session
 
+from core.config import settings
 from core.idempotency import IdempotencyConflictError, IdempotencyService
 from models.company import Company
 from models.product import Product
@@ -197,6 +198,10 @@ class SyncService:
         subtotal = Decimal("0.00")
         items: list[SaleItem] = []
         stock_changes: list[dict] = []
+        original_stock = {
+            pid: product_map[pid].stock_quantity
+            for pid in set(product_ids)
+        }
 
         for item_create in sale_create.items:
             product = product_map[item_create.product_id]
@@ -242,6 +247,17 @@ class SyncService:
             )
 
             if new_quantity < 0:
+                if not settings.SYNC_ALLOW_OVERSELL:
+                    for pid, original_qty in original_stock.items():
+                        product_map[pid].stock_quantity = original_qty
+                    return SyncSaleResult(
+                        client_sale_id=sale_create.client_sale_id,
+                        status="failed",
+                        error=(
+                            f"Insufficient stock for '{product.name}'. "
+                            f"Available: {previous_quantity}, Required: {item_create.quantity}"
+                        ),
+                    )
                 warnings.append(
                     SyncWarning(
                         type="oversold",
@@ -259,9 +275,8 @@ class SyncService:
         ).quantize(Decimal("0.01"))
 
         if total_amount < 0:
-            for change in stock_changes:
-                product = product_map[change["product_id"]]
-                product.stock_quantity = change["previous_quantity"]
+            for pid, original_qty in original_stock.items():
+                product_map[pid].stock_quantity = original_qty
             return SyncSaleResult(
                 client_sale_id=sale_create.client_sale_id,
                 status="failed",

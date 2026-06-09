@@ -17,9 +17,7 @@ import {
 
 import ProductDrawer from '@/components/pos/ProductDrawer';
 import toast from 'react-hot-toast';
-import { addToSyncQueue } from '@/lib/syncQueue';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
-import { isOfflineModeEnabled } from '@/lib/features';
 import {
   calculateDiscountFromEditedPrice,
   calculatePosPricing,
@@ -126,21 +124,7 @@ export default function POS() {
     }
 
     if (!isServerReachable) {
-      if (!isOfflineModeEnabled) {
-        toast.error('Нет связи с сервером. В MVP офлайн-продажи отключены.');
-        setLoading(false);
-        return;
-      }
-
-      await addToSyncQueue({
-        url: '/api/sales',
-        method: 'POST',
-        body: saleData,
-        type: 'sale',
-      });
-
-      toast.success('Чек сохранен в очереди');
-      resetCheckout();
+      toast.error('Нет связи с сервером. Проверьте подключение к интернету.');
       setLoading(false);
       return;
     }
@@ -150,25 +134,7 @@ export default function POS() {
       toast.success('Продажа завершена');
       resetCheckout();
     } catch (error: any) {
-      const isNetworkError =
-        error.message === 'Network Error' ||
-        error.code === 'ERR_NETWORK' ||
-        error.code === 'ERR_INTERNET_DISCONNECTED';
-      const shouldQueue = isNetworkError || error.response?.status >= 500;
-
-      if (shouldQueue && isOfflineModeEnabled) {
-        await addToSyncQueue({
-          url: '/api/sales',
-          method: 'POST',
-          body: saleData,
-          type: 'sale',
-        });
-
-        toast.success('Чек сохранен в очереди');
-        resetCheckout();
-      } else {
-        toast.error(error.response?.data?.detail || 'Не удалось завершить продажу');
-      }
+      toast.error(error.response?.data?.detail || 'Не удалось завершить продажу');
     } finally {
       setLoading(false);
     }

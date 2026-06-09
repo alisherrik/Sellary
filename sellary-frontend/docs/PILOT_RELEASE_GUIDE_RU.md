@@ -15,9 +15,9 @@
 
 ## 2. Что не входит в пилот
 
-- Ресторанный режим
-- Оффлайн-first продажи
-- PWA как основной рабочий режим
+- ~~Ресторанный режим~~ Удален из системы
+- ~~Оффлайн-first продажи~~ Заменены на Tauri десктоп-приложение кассира
+- ~~PWA как основной рабочий режим~~ Удален
 - Сложные multi-cart сценарии кассира
 
 ## 3. Pre-Release Checklist
@@ -34,9 +34,7 @@
 ### Frontend
 
 - `NEXT_PUBLIC_API_URL=/api`
-- `NEXT_PUBLIC_API_PROXY_TARGET=http://127.0.0.1:8000`
-- `NEXT_PUBLIC_ENABLE_RESTAURANT=false`
-- `NEXT_PUBLIC_ENABLE_OFFLINE_MODE=false`
+- `NEXT_PUBLIC_API_PROXY_TARGET=http://127.0.0.1:8001`
 
 ### Backend
 

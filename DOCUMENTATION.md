@@ -374,9 +374,16 @@ purchase_orders ──┬── supplier (many-to-one)
 ## API Endpoints
 
 ### Authentication
+
+Multi-company auth flow:
+1. Login returns a `login_token` (short-lived).
+2. User picks a company, exchanges for a company-scoped `access_token`.
+3. All business endpoints require a company-scoped access token.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/auth/login` | User login |
+| POST | `/api/auth/select-company` | Select company, get access token |
 | POST | `/api/auth/logout` | User logout |
 | GET | `/api/auth/me` | Get current user |
 
@@ -443,6 +450,15 @@ purchase_orders ──┬── supplier (many-to-one)
 | GET | `/api/inventory/logs` | Stock change history |
 | GET | `/api/inventory/valuation` | Current inventory value |
 
+### Sync (Tauri Cashier)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/sync/bootstrap` | Download products/categories for offline catalog |
+| POST | `/api/sync/sales` | Push offline sales to server |
+| GET | `/api/sync/status` | Check sync status of pending sales |
+
+Requires company-scoped `access_token`.
+
 ---
 
 ## Limitations & What's NOT Included
@@ -460,8 +476,10 @@ purchase_orders ──┬── supplier (many-to-one)
 | Return/refund processing | ❌ | Can only cancel sales |
 | Expense tracking | ❌ | No expense management |
 | Employee scheduling | ❌ | No shift management |
-| Offline mode | ❌ | Requires internet connection |
-| Mobile app | ❌ | Web only |
+| Restaurant module | ❌ | Removed from codebase — out of scope |
+| PWA / offline web sync | ❌ | Removed — replaced by Tauri cashier |
+| Offline mode | ✅ | Via Tauri desktop cashier app |
+| Mobile app | ❌ | Desktop app via Tauri |
 | Multi-currency | ❌ | Single currency only |
 | Tax configuration | ❌ | Per-product tax only |
 | Email notifications | ❌ | No email alerts |
@@ -500,8 +518,8 @@ cp .env.example .env
 # Run migrations
 python -m alembic upgrade head
 
-# Seed admin user
-python seed_admin.py
+# Bootstrap company and admin user
+python bootstrap_company.py --company-name "Sellary Demo" --company-slug "sellary-demo" --owner-username "admin" --owner-email "admin@example.com" --owner-password "admin123" --owner-role "admin"
 
 # Start server
 python main.py

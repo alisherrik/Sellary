@@ -13,7 +13,6 @@ import { formatCurrency } from '@/lib/utils';
 import { TableSkeleton } from '@/components/skeletons';
 import { Sale, SaleItem } from '@/lib/types';
 import { useSales } from '@/hooks/useQueries';
-import OfflineGuard from '@/components/OfflineGuard';
 
 interface SaleReturnItem {
   id: number;
@@ -175,7 +174,7 @@ export default function SalesHistory() {
     selectedSale?.items.find((item) => item.id === id);
 
   return (
-    <OfflineGuard>
+    <>
       <div className="h-full overflow-y-auto mobile-no-overscroll p-4">
         <div className="flex items-center justify-end">
           <button
@@ -538,6 +537,6 @@ export default function SalesHistory() {
           </div>
         </div>
       )}
-    </OfflineGuard>
+    </>
   );
 }

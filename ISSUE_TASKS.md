@@ -1,8 +1,21 @@
 # Sellary Issue Tasks
 
-Updated: 2026-03-17
+Updated: 2026-05-26
 
-This backlog turns the current MVP issues into actionable tasks. Priority is based on release risk for the retail POS MVP.
+## Current P1
+
+- Tauri mobile initialization and device testing.
+- Tauri session restore with secure token storage.
+- Cashier sync stuck-state recovery.
+- Cashier unit test coverage.
+- Railway auto-deploy root directory hardening.
+
+## Current P2
+
+- Configurable sync oversell policy.
+- Catalog refresh UX.
+- CI workflow.
+- Release checklist.
 
 ## P0 - Must fix before pilot
 
@@ -146,32 +159,16 @@ Done when:
 
 ## P2 - Keep out of MVP
 
-### [ ] T10. Keep restaurant as Phase 2 only
+### [x] T10. Keep restaurant as Phase 2 only (RESOLVED - removed from codebase)
 
-Problem:
-- Restaurant flow is still local-state driven and not fully persisted to the backend.
+Resolved: Restaurant module has been fully removed from frontend and backend. All restaurant routes,
+components, stores, and feature flags are deleted. Not part of the Sellary product.
 
-Work:
-- Keep the restaurant feature flag disabled by default.
-- Avoid enabling restaurant routes in pilot deployments.
-- Document that restaurant remains out of scope for Retail MVP.
+### [x] T11. Keep offline sync as Phase 2 only (RESOLVED - removed from codebase, replaced by Tauri)
 
-Done when:
-- Restaurant is clearly treated as a non-MVP module in deployment and release docs.
-
-### [ ] T11. Keep offline sync as Phase 2 only
-
-Problem:
-- Offline queue and replay logic are still a higher-risk area than the online retail flow.
-
-Work:
-- Keep offline mode disabled by default.
-- Avoid marketing or promising offline-first behavior in the MVP.
-- Revisit only after the online retail flow is stable and verified.
-
-Done when:
-- Pilot configuration is online-only.
-- Offline sync does not block retail MVP release.
+Resolved: PWA/Service Worker offline mode has been fully removed from frontend. Offline sync
+has been replaced by the Tauri desktop cashier app (`sellary-cashier`), which provides
+native offline POS capability with outbox sync.
 
 ## Suggested execution order
 
@@ -184,3 +181,5 @@ Done when:
 7. T7 update idempotency tests
 8. T8 refresh stale backend tests
 9. T9 full verification pass
+
+T10 and T11 resolved: Restaurant removed, PWA offline replaced by Tauri cashier app.
