@@ -54,6 +54,19 @@ export const printReceipt = (sale: any): void => {
   const printWindow = window.open('', '', 'width=400,height=600');
   if (!printWindow) return;
 
+  const paymentLabels: Record<string, string> = {
+    cash: 'Наличные',
+    card: 'Карта',
+    mobile: 'Мобильный',
+  };
+  const cardLabels: Record<string, string> = {
+    alif: 'Alif', eskhata: 'Эсхата', dc: 'DC',
+  };
+  const paymentLabel =
+    sale.payment_method === 'card' && sale.card_type
+      ? `${paymentLabels.card} (${cardLabels[sale.card_type] ?? sale.card_type})`
+      : paymentLabels[sale.payment_method] ?? sale.payment_method;
+
   const itemsHtml = sale.items
     .map(
       (item: any) => `
@@ -152,7 +165,7 @@ export const printReceipt = (sale: any): void => {
         </tr>
         <tr>
           <td>Оплата:</td>
-          <td>${sale.payment_method.toUpperCase() === 'CASH' ? 'НАЛИЧНЫЕ' : 'КАРТА'}</td>
+          <td>${paymentLabel}</td>
         </tr>
       </table>
       <div class="footer">

@@ -72,11 +72,11 @@ export default function Layout({ children }: LayoutProps) {
       await switchCompany(companyId);
       queryClient.clear();
       router.replace('/pos');
-      toast.success('Company switched successfully.');
+      toast.success('Компания успешно переключена.');
     } catch (error: any) {
       setSelectedCompanyId(currentCompany?.id ?? '');
       toast.error(
-        error?.response?.data?.detail || error?.message || 'Could not switch company.',
+        error?.response?.data?.detail || error?.message || 'Не удалось переключить компанию.',
       );
     }
   };
@@ -164,13 +164,13 @@ export default function Layout({ children }: LayoutProps) {
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
           <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">
-              Company
+              Компания
             </p>
             <p className="mt-2 truncate text-sm font-semibold text-gray-900">
-              {currentCompany?.name || 'No company selected'}
+              {currentCompany?.name || 'Компания не выбрана'}
             </p>
             <p className="mt-1 text-xs capitalize text-gray-500">
-              {currentCompany?.role || 'No role'}
+              {currentCompany?.role || 'Без роли'}
             </p>
             <select
               value={selectedCompanyId}
@@ -195,7 +195,7 @@ export default function Layout({ children }: LayoutProps) {
               <p className="truncate text-sm font-medium text-gray-900">
                 {user?.full_name || user?.username}
               </p>
-              <p className="text-xs text-gray-500 truncate">{currentCompany?.slug || 'No tenant'}</p>
+              <p className="text-xs text-gray-500 truncate">{currentCompany?.slug || 'Нет компании'}</p>
             </div>
           </div>
           <button
@@ -208,8 +208,8 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </div>
 
-      <div className="min-h-screen transition-all duration-300 lg:ml-64">
-        <header className="sticky top-0 z-30 bg-white shadow-sm">
+      <div className="flex h-screen flex-col overflow-hidden transition-all duration-300 lg:ml-64">
+        <header className="z-30 flex-none bg-white shadow-sm">
           <div className="flex h-14 items-center justify-between px-4 sm:h-16 sm:px-6">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -221,7 +221,7 @@ export default function Layout({ children }: LayoutProps) {
             <div className="flex items-center space-x-4">
               <ConnectionStatus />
               <div className="hidden sm:block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                {currentCompany?.name || 'No company'}
+                {currentCompany?.name || 'Нет компании'}
               </div>
               <span className="text-xs sm:text-sm text-gray-600">
                 {new Date().toLocaleDateString('ru-RU', {
@@ -234,7 +234,7 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </header>
 
-        <main className="p-3 pb-20 sm:p-6 sm:pb-6">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto p-3 pb-20 sm:p-6 sm:pb-6">{children}</main>
       </div>
     </div>
   );

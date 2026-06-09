@@ -64,7 +64,7 @@ export default function LoginPage() {
     event.preventDefault();
 
     if (!isServerReachable) {
-      toast.error('Server is unavailable. Login is blocked until the API comes back online.');
+      toast.error('Сервер недоступен. Вход заблокирован, пока API не вернётся в сеть.');
       return;
     }
 
@@ -78,13 +78,13 @@ export default function LoginPage() {
             result.companies[0]?.id ??
             null,
         );
-        toast.success('Choose the company you want to work in.');
+        toast.success('Выберите компанию, в которой хотите работать.');
       } else {
-        toast.success('Login successful.');
+        toast.success('Вход выполнен успешно.');
         router.replace('/pos');
       }
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || error?.message || 'Login failed.');
+      toast.error(error?.response?.data?.detail || error?.message || 'Не удалось войти.');
     } finally {
       setSubmitting(false);
     }
@@ -94,18 +94,18 @@ export default function LoginPage() {
     event.preventDefault();
 
     if (!selectedCompanyId) {
-      toast.error('Choose a company first.');
+      toast.error('Сначала выберите компанию.');
       return;
     }
 
     setSelectingCompany(true);
     try {
       await selectCompany(selectedCompanyId);
-      toast.success('Company selected.');
+      toast.success('Компания выбрана.');
       router.replace('/pos');
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.detail || error?.message || 'Could not open that company.',
+        error?.response?.data?.detail || error?.message || 'Не удалось открыть эту компанию.',
       );
     } finally {
       setSelectingCompany(false);
@@ -118,7 +118,7 @@ export default function LoginPage() {
         <div className="text-center">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-white" />
           <p className="mt-4 text-sm text-slate-300">
-            {!hasHydrated ? 'Restoring session...' : 'Checking backend connection...'}
+            {!hasHydrated ? 'Восстановление сессии...' : 'Проверка соединения с сервером...'}
           </p>
         </div>
       </div>
@@ -132,15 +132,15 @@ export default function LoginPage() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-600">
             <ServerIcon className="h-8 w-8" />
           </div>
-          <h1 className="mt-6 text-2xl font-bold text-slate-900">Server Unavailable</h1>
+          <h1 className="mt-6 text-2xl font-bold text-slate-900">Сервер недоступен</h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            Login is disabled until the backend becomes reachable again.
+            Вход отключён, пока сервер снова не станет доступен.
           </p>
           <button
             onClick={() => window.location.reload()}
             className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-700"
           >
-            Retry connection
+            Повторить подключение
           </button>
         </div>
       </div>
@@ -158,15 +158,15 @@ export default function LoginPage() {
               </div>
               <h1 className="mt-8 text-4xl font-black tracking-tight">Sellary</h1>
               <p className="mt-4 max-w-sm text-sm leading-7 text-slate-300">
-                Company-aware POS access with clean session boundaries and fast switching.
+                POS-доступ с учётом компаний, чёткими границами сессий и быстрым переключением.
               </p>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Session rules</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Правила сессии</p>
               <p className="mt-3 text-sm leading-6 text-slate-200">
-                One login can access multiple companies. After sign-in, choose the company you
-                want to work in and Sellary will scope the whole session to that tenant.
+                Один вход даёт доступ к нескольким компаниям. После входа выберите нужную
+                компанию, и Sellary ограничит всю сессию этой компанией.
               </p>
             </div>
           </div>
@@ -183,17 +183,17 @@ export default function LoginPage() {
               <>
                 <div className="mb-8">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-600">
-                    Step 1
+                    Шаг 1
                   </p>
-                  <h2 className="mt-2 text-3xl font-bold text-slate-900">Sign in</h2>
+                  <h2 className="mt-2 text-3xl font-bold text-slate-900">Вход</h2>
                   <p className="mt-2 text-sm text-slate-500">
-                    Enter your credentials to load the companies attached to your account.
+                    Введите данные для входа, чтобы загрузить компании, привязанные к вашему аккаунту.
                   </p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-5">
                   <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">Username</span>
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Имя пользователя</span>
                     <input
                       value={username}
                       onChange={(event) => setUsername(event.target.value)}
@@ -204,7 +204,7 @@ export default function LoginPage() {
                   </label>
 
                   <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">Password</span>
+                    <span className="mb-2 block text-sm font-medium text-slate-700">Пароль</span>
                     <div className="relative">
                       <input
                         value={password}
@@ -233,7 +233,7 @@ export default function LoginPage() {
                     disabled={submitting}
                     className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
                   >
-                    {submitting ? 'Loading companies...' : 'Continue'}
+                    {submitting ? 'Загрузка компаний...' : 'Продолжить'}
                   </button>
                 </form>
               </>
@@ -241,11 +241,11 @@ export default function LoginPage() {
               <>
                 <div className="mb-8">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-600">
-                    Step 2
+                    Шаг 2
                   </p>
-                  <h2 className="mt-2 text-3xl font-bold text-slate-900">Choose Company</h2>
+                  <h2 className="mt-2 text-3xl font-bold text-slate-900">Выбор компании</h2>
                   <p className="mt-2 text-sm text-slate-500">
-                    Your identity is loaded. Pick the company that should scope this session.
+                    Ваши данные загружены. Выберите компанию для этой сессии.
                   </p>
                 </div>
 
@@ -279,7 +279,7 @@ export default function LoginPage() {
                           <p className="mt-1 text-xs text-slate-500">{company.slug}</p>
                           <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-400">
                             {company.role}
-                            {company.is_default ? ' • default' : ''}
+                            {company.is_default ? ' • по умолчанию' : ''}
                           </p>
                         </div>
                       </label>
@@ -295,14 +295,14 @@ export default function LoginPage() {
                       }}
                       className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border border-slate-200 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
-                      Back
+                      Назад
                     </button>
                     <button
                       type="submit"
                       disabled={selectingCompany || selectedCompanyId === null}
                       className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
                     >
-                      {selectingCompany ? 'Opening company...' : 'Open workspace'}
+                      {selectingCompany ? 'Открытие компании...' : 'Открыть рабочее пространство'}
                     </button>
                   </div>
                 </form>

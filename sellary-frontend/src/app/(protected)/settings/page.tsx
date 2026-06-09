@@ -11,8 +11,8 @@ import { CURRENCIES, CurrencyCode, useSettingsStore } from '@/store/settingsStor
 
 function StatusBadge({
   enabled,
-  activeLabel = 'Enabled',
-  inactiveLabel = 'Disabled',
+  activeLabel = 'Включено',
+  inactiveLabel = 'Отключено',
 }: {
   enabled: boolean;
   activeLabel?: string;
@@ -51,7 +51,7 @@ export default function SettingsPage() {
 
   const handleCurrencyChange = (code: CurrencyCode) => {
     setCurrency(code);
-    toast.success(`Currency changed to ${CURRENCIES[code].name}.`);
+    toast.success(`Валюта изменена на ${CURRENCIES[code].name}.`);
   };
 
   return (
@@ -60,10 +60,10 @@ export default function SettingsPage() {
         <div className="border-b border-gray-100 p-4 sm:p-6">
           <div className="flex items-center gap-2">
             <BanknotesIcon className="h-5 w-5 text-gray-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Currency</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Валюта</h2>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            Choose the default currency used across prices, reports, and receipts.
+            Выберите валюту по умолчанию, используемую в ценах, отчётах и чеках.
           </p>
         </div>
 
@@ -103,10 +103,10 @@ export default function SettingsPage() {
         <div className="border-b border-gray-100 p-4 sm:p-6">
           <div className="flex items-center gap-2">
             <ServerIcon className="h-5 w-5 text-gray-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Release Status</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Статус релиза</h2>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            Quick visibility into which MVP modules are currently available.
+            Быстрый обзор того, какие модули MVP доступны в данный момент.
           </p>
         </div>
 
@@ -115,21 +115,21 @@ export default function SettingsPage() {
             <div className="text-sm font-medium text-slate-900">Backend</div>
             <div className="mt-3">
               {isChecking ? (
-                <StatusBadge enabled={false} activeLabel="Online" inactiveLabel="Checking" />
+                <StatusBadge enabled={false} activeLabel="В сети" inactiveLabel="Проверка" />
               ) : (
                 <StatusBadge
                   enabled={isServerReachable}
-                  activeLabel="Online"
-                  inactiveLabel="Offline"
+                  activeLabel="В сети"
+                  inactiveLabel="Не в сети"
                 />
               )}
             </div>
           </div>
 
           <div className="rounded-xl bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Retail POS</div>
+            <div className="text-sm font-medium text-slate-900">Розничная касса</div>
             <div className="mt-3">
-              <StatusBadge enabled activeLabel="Live" inactiveLabel="Disabled" />
+              <StatusBadge enabled activeLabel="Активно" inactiveLabel="Отключено" />
             </div>
           </div>
 
@@ -140,26 +140,26 @@ export default function SettingsPage() {
         <div className="border-b border-gray-100 p-4 sm:p-6">
           <div className="flex items-center gap-2">
             <ServerIcon className="h-5 w-5 text-gray-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Version</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Версия</h2>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            Deployed versions of server and client.
+            Развёрнутые версии сервера и клиента.
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 p-4 sm:p-6 md:grid-cols-2">
           <div className="rounded-xl bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Server</div>
+            <div className="text-sm font-medium text-slate-900">Сервер</div>
             <div className="mt-1 text-2xl font-bold text-gray-900">
               {isServerReachable && backendVersion ? `v${backendVersion}` : '—'}
             </div>
             <div className="mt-1 text-xs text-gray-500">
-              {isChecking ? 'Checking...' : isServerReachable ? 'Railway' : 'Unreachable'}
+              {isChecking ? 'Проверка...' : isServerReachable ? 'Railway' : 'Недоступен'}
             </div>
           </div>
 
           <div className="rounded-xl bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Client</div>
+            <div className="text-sm font-medium text-slate-900">Клиент</div>
             <div className="mt-1 text-2xl font-bold text-gray-900">
               v{frontendVersion}
             </div>

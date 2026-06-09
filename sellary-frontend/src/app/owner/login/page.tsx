@@ -31,10 +31,10 @@ export default function OwnerLoginPage() {
     setSubmitting(true);
     try {
       await login(username, password);
-      toast.success('Owner session opened.');
+      toast.success('Сессия владельца открыта.');
       router.replace('/owner');
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || error?.message || 'Owner login failed.');
+      toast.error(error?.response?.data?.detail || error?.message || 'Не удалось войти как владелец.');
     } finally {
       setSubmitting(false);
     }
@@ -43,7 +43,7 @@ export default function OwnerLoginPage() {
   if (!hasHydrated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-300">
-        Restoring owner session...
+        Восстановление сессии владельца...
       </div>
     );
   }
@@ -57,18 +57,18 @@ export default function OwnerLoginPage() {
               <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
                 <ShieldCheckIcon className="h-8 w-8" />
               </div>
-              <h1 className="mt-8 text-4xl font-black tracking-tight">Sellary Owner</h1>
+              <h1 className="mt-8 text-4xl font-black tracking-tight">Владелец Sellary</h1>
               <p className="mt-4 max-w-sm text-sm leading-7 text-slate-300">
-                Global control for companies, memberships, and owner-only entry into tenant
-                sessions.
+                Глобальное управление компаниями, участниками и вход только для владельца в сессии
+                арендаторов.
               </p>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Access</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Доступ</p>
               <p className="mt-3 text-sm leading-6 text-slate-200">
-                This login is reserved for the app owner and does not open a company session until
-                you explicitly enter one from the panel.
+                Этот вход предназначен для владельца приложения и не открывает сессию компании, пока
+                вы явно не войдёте в неё из панели.
               </p>
             </div>
           </div>
@@ -76,17 +76,17 @@ export default function OwnerLoginPage() {
           <div className="p-6 sm:p-8 lg:p-10">
             <div className="mb-8">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-600">
-                Owner Access
+                Доступ владельца
               </p>
-              <h2 className="mt-2 text-3xl font-bold text-slate-900">Sign in to the control panel</h2>
+              <h2 className="mt-2 text-3xl font-bold text-slate-900">Вход в панель управления</h2>
               <p className="mt-2 text-sm text-slate-500">
-                Use the env-bootstrapped super admin credentials.
+                Используйте учётные данные суперадминистратора из переменных окружения.
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">Username</span>
+                <span className="mb-2 block text-sm font-medium text-slate-700">Имя пользователя</span>
                 <input
                   value={username}
                   onChange={(event) => setUsername(event.target.value)}
@@ -97,7 +97,7 @@ export default function OwnerLoginPage() {
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">Password</span>
+                <span className="mb-2 block text-sm font-medium text-slate-700">Пароль</span>
                 <div className="relative">
                   <input
                     value={password}
@@ -126,7 +126,7 @@ export default function OwnerLoginPage() {
                 disabled={submitting}
                 className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                {submitting ? 'Opening owner panel...' : 'Continue'}
+                {submitting ? 'Вход...' : 'Войти'}
               </button>
             </form>
           </div>

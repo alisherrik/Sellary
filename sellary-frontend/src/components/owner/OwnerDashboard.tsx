@@ -69,7 +69,7 @@ export default function OwnerDashboard() {
       setCompanies(companiesResponse.data);
       setMemberships(membershipsResponse.data);
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || error?.message || 'Could not load owner data.');
+      toast.error(error?.response?.data?.detail || error?.message || 'Не удалось загрузить данные владельца.');
     } finally {
       setLoading(false);
     }
@@ -84,10 +84,10 @@ export default function OwnerDashboard() {
     try {
       await ownerApi.createUser(userForm);
       setUserForm(emptyUserForm);
-      toast.success('User created.');
+      toast.success('Пользователь создан.');
       await loadAll();
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || error?.message || 'Could not create user.');
+      toast.error(error?.response?.data?.detail || error?.message || 'Не удалось создать пользователя.');
     }
   };
 
@@ -103,10 +103,10 @@ export default function OwnerDashboard() {
         is_active: editingUser.is_active,
       });
       setEditingUser(null);
-      toast.success('User updated.');
+      toast.success('Пользователь обновлён.');
       await loadAll();
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || error?.message || 'Could not update user.');
+      toast.error(error?.response?.data?.detail || error?.message || 'Не удалось обновить пользователя.');
     }
   };
 
@@ -115,10 +115,10 @@ export default function OwnerDashboard() {
     try {
       await ownerApi.createCompany(companyForm);
       setCompanyForm(emptyCompanyForm);
-      toast.success('Company created.');
+      toast.success('Компания создана.');
       await loadAll();
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || error?.message || 'Could not create company.');
+      toast.error(error?.response?.data?.detail || error?.message || 'Не удалось создать компанию.');
     }
   };
 
@@ -133,17 +133,17 @@ export default function OwnerDashboard() {
         is_active: editingCompany.is_active,
       });
       setEditingCompany(null);
-      toast.success('Company updated.');
+      toast.success('Компания обновлена.');
       await loadAll();
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || error?.message || 'Could not update company.');
+      toast.error(error?.response?.data?.detail || error?.message || 'Не удалось обновить компанию.');
     }
   };
 
   const handleCreateMembership = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!membershipForm.user_id || !membershipForm.company_id) {
-      toast.error('Choose both a user and a company.');
+      toast.error('Выберите и пользователя, и компанию.');
       return;
     }
 
@@ -156,11 +156,11 @@ export default function OwnerDashboard() {
         is_active: membershipForm.is_active,
       });
       setMembershipForm(emptyMembershipForm);
-      toast.success('Membership created.');
+      toast.success('Участие создано.');
       await loadAll();
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.detail || error?.message || 'Could not create membership.',
+        error?.response?.data?.detail || error?.message || 'Не удалось создать участие.',
       );
     }
   };
@@ -176,11 +176,11 @@ export default function OwnerDashboard() {
         is_active: editingMembership.is_active,
       });
       setEditingMembership(null);
-      toast.success('Membership updated.');
+      toast.success('Участие обновлено.');
       await loadAll();
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.detail || error?.message || 'Could not update membership.',
+        error?.response?.data?.detail || error?.message || 'Не удалось обновить участие.',
       );
     }
   };
@@ -189,10 +189,10 @@ export default function OwnerDashboard() {
     try {
       const response = await ownerApi.enterCompany(companyId);
       useAuthStore.getState().acceptCompanySession(response.data);
-      toast.success('Company session opened.');
+      toast.success('Сессия компании открыта.');
       router.push('/pos');
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || error?.message || 'Could not enter company.');
+      toast.error(error?.response?.data?.detail || error?.message || 'Не удалось войти в компанию.');
     }
   };
 
@@ -207,11 +207,11 @@ export default function OwnerDashboard() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-700">
-              Owner Panel
+              Панель владельца
             </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-950">Sellary Control Center</h1>
+            <h1 className="mt-1 text-2xl font-bold text-slate-950">Центр управления Sellary</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Signed in as {user?.full_name || user?.username || 'Owner'}
+              Вы вошли как {user?.full_name || user?.username || 'Владелец'}
             </p>
           </div>
 
@@ -220,21 +220,21 @@ export default function OwnerDashboard() {
             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             <ArrowRightStartOnRectangleIcon className="h-5 w-5" />
-            Sign out
+            Выйти
           </button>
         </div>
       </header>
 
       <main className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6">
         <section className="grid gap-4 md:grid-cols-3">
-          <SummaryCard title="Users" value={String(users.length)} description="Directory accounts" icon={UserGroupIcon} />
-          <SummaryCard title="Companies" value={String(companies.length)} description="Tenant workspaces" icon={BuildingOffice2Icon} />
-          <SummaryCard title="Memberships" value={String(memberships.length)} description="Company access assignments" icon={ShieldCheckIcon} />
+          <SummaryCard title="Пользователи" value={String(users.length)} description="Учётные записи каталога" icon={UserGroupIcon} />
+          <SummaryCard title="Компании" value={String(companies.length)} description="Рабочие пространства арендаторов" icon={BuildingOffice2Icon} />
+          <SummaryCard title="Участники" value={String(memberships.length)} description="Назначения доступа к компаниям" icon={ShieldCheckIcon} />
         </section>
 
         {loading ? (
           <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
-            Loading owner data...
+            Загрузка данных владельца...
           </section>
         ) : (
           <>
@@ -293,26 +293,26 @@ function UsersSection({
   onSave: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
 }) {
   return (
-    <SectionCard title="Users" description="Create standard users and update their core profile state.">
+    <SectionCard title="Пользователи" description="Создавайте обычных пользователей и обновляйте их основные данные профиля.">
       <form onSubmit={onCreate} className="grid gap-3 border-b border-slate-200 pb-5 md:grid-cols-5">
-        <TextInput value={form.username} onChange={(value) => onFormChange((current) => ({ ...current, username: value }))} placeholder="Username" required />
+        <TextInput value={form.username} onChange={(value) => onFormChange((current) => ({ ...current, username: value }))} placeholder="Имя пользователя" required />
         <TextInput value={form.email} onChange={(value) => onFormChange((current) => ({ ...current, email: value }))} placeholder="Email" required type="email" />
-        <TextInput value={form.full_name} onChange={(value) => onFormChange((current) => ({ ...current, full_name: value }))} placeholder="Full name" />
-        <TextInput value={form.password} onChange={(value) => onFormChange((current) => ({ ...current, password: value }))} placeholder="Password" required type="password" />
-        <PrimaryButton label="Create user" />
+        <TextInput value={form.full_name} onChange={(value) => onFormChange((current) => ({ ...current, full_name: value }))} placeholder="Полное имя" />
+        <TextInput value={form.password} onChange={(value) => onFormChange((current) => ({ ...current, password: value }))} placeholder="Пароль" required type="password" />
+        <PrimaryButton label="Создать пользователя" />
       </form>
 
       <div className="overflow-x-auto pt-5">
         <table className="min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-slate-500">
             <tr>
-              <th className="px-3 py-2 font-medium">Username</th>
+              <th className="px-3 py-2 font-medium">Имя пользователя</th>
               <th className="px-3 py-2 font-medium">Email</th>
-              <th className="px-3 py-2 font-medium">Full name</th>
-              <th className="px-3 py-2 font-medium">Global role</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Memberships</th>
-              <th className="px-3 py-2 font-medium">Actions</th>
+              <th className="px-3 py-2 font-medium">Полное имя</th>
+              <th className="px-3 py-2 font-medium">Глобальная роль</th>
+              <th className="px-3 py-2 font-medium">Статус</th>
+              <th className="px-3 py-2 font-medium">Участники</th>
+              <th className="px-3 py-2 font-medium">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -325,17 +325,17 @@ function UsersSection({
                   <td className="px-3 py-3">{isEditing ? <InlineInput value={editingUser.full_name || ''} onChange={(value) => onEditChange((current) => current ? { ...current, full_name: value } : current)} /> : managedUser.full_name || '—'}</td>
                   <td className="px-3 py-3">{managedUser.global_role}</td>
                   <td className="px-3 py-3">
-                    {isEditing ? <Checkbox checked={editingUser.is_active} onChange={(checked) => onEditChange((current) => current ? { ...current, is_active: checked } : current)} label="Active" /> : managedUser.is_active ? 'Active' : 'Disabled'}
+                    {isEditing ? <Checkbox checked={editingUser.is_active} onChange={(checked) => onEditChange((current) => current ? { ...current, is_active: checked } : current)} label="Активен" /> : managedUser.is_active ? 'Активен' : 'Неактивен'}
                   </td>
                   <td className="px-3 py-3">{managedUser.memberships.length}</td>
                   <td className="px-3 py-3">
                     {isEditing ? (
                       <form onSubmit={onSave} className="flex gap-2">
-                        <ActionButton label="Save" tone="primary" />
-                        <ActionButton label="Cancel" tone="secondary" type="button" onClick={() => onEditChange(null)} />
+                        <ActionButton label="Сохранить" tone="primary" />
+                        <ActionButton label="Отмена" tone="secondary" type="button" onClick={() => onEditChange(null)} />
                       </form>
                     ) : (
-                      <ActionButton label="Edit" tone="secondary" type="button" onClick={() => onEditChange(managedUser)} />
+                      <ActionButton label="Изменить" tone="secondary" type="button" onClick={() => onEditChange(managedUser)} />
                     )}
                   </td>
                 </tr>
@@ -368,22 +368,22 @@ function CompaniesSection({
   onEnterCompany: (companyId: number) => Promise<void>;
 }) {
   return (
-    <SectionCard title="Companies" description="Create companies, adjust slugs, deactivate tenants, and open a live company session.">
+    <SectionCard title="Компании" description="Создавайте компании, изменяйте slug, деактивируйте арендаторов и открывайте активную сессию компании.">
       <form onSubmit={onCreate} className="grid gap-3 border-b border-slate-200 pb-5 md:grid-cols-4">
-        <TextInput value={form.name} onChange={(value) => onFormChange((current) => ({ ...current, name: value }))} placeholder="Company name" required />
-        <TextInput value={form.slug} onChange={(value) => onFormChange((current) => ({ ...current, slug: value }))} placeholder="Slug (optional)" />
-        <Checkbox checked={form.is_active} onChange={(checked) => onFormChange((current) => ({ ...current, is_active: checked }))} label="Active" />
-        <PrimaryButton label="Create company" />
+        <TextInput value={form.name} onChange={(value) => onFormChange((current) => ({ ...current, name: value }))} placeholder="Название компании" required />
+        <TextInput value={form.slug} onChange={(value) => onFormChange((current) => ({ ...current, slug: value }))} placeholder="Slug (необязательно)" />
+        <Checkbox checked={form.is_active} onChange={(checked) => onFormChange((current) => ({ ...current, is_active: checked }))} label="Активен" />
+        <PrimaryButton label="Создать компанию" />
       </form>
 
       <div className="overflow-x-auto pt-5">
         <table className="min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-slate-500">
             <tr>
-              <th className="px-3 py-2 font-medium">Name</th>
+              <th className="px-3 py-2 font-medium">Название</th>
               <th className="px-3 py-2 font-medium">Slug</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Actions</th>
+              <th className="px-3 py-2 font-medium">Статус</th>
+              <th className="px-3 py-2 font-medium">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -393,16 +393,16 @@ function CompaniesSection({
                 <tr key={company.id} className="border-t border-slate-100">
                   <td className="px-3 py-3">{isEditing ? <InlineInput value={editingCompany.name} onChange={(value) => onEditChange((current) => current ? { ...current, name: value } : current)} /> : company.name}</td>
                   <td className="px-3 py-3">{isEditing ? <InlineInput value={editingCompany.slug} onChange={(value) => onEditChange((current) => current ? { ...current, slug: value } : current)} /> : company.slug}</td>
-                  <td className="px-3 py-3">{isEditing ? <Checkbox checked={editingCompany.is_active} onChange={(checked) => onEditChange((current) => current ? { ...current, is_active: checked } : current)} label="Active" /> : company.is_active ? 'Active' : 'Disabled'}</td>
+                  <td className="px-3 py-3">{isEditing ? <Checkbox checked={editingCompany.is_active} onChange={(checked) => onEditChange((current) => current ? { ...current, is_active: checked } : current)} label="Активен" /> : company.is_active ? 'Активен' : 'Неактивен'}</td>
                   <td className="px-3 py-3">
                     <div className="flex flex-wrap gap-2">
                       {isEditing ? (
                         <form onSubmit={onSave} className="flex gap-2">
-                          <ActionButton label="Save" tone="primary" />
-                          <ActionButton label="Cancel" tone="secondary" type="button" onClick={() => onEditChange(null)} />
+                          <ActionButton label="Сохранить" tone="primary" />
+                          <ActionButton label="Отмена" tone="secondary" type="button" onClick={() => onEditChange(null)} />
                         </form>
                       ) : (
-                        <ActionButton label="Edit" tone="secondary" type="button" onClick={() => onEditChange(company)} />
+                        <ActionButton label="Изменить" tone="secondary" type="button" onClick={() => onEditChange(company)} />
                       )}
                       <button
                         type="button"
@@ -410,7 +410,7 @@ function CompaniesSection({
                         className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700"
                       >
                         <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                        Enter company
+                        Войти в компанию
                       </button>
                     </div>
                   </td>
@@ -446,10 +446,10 @@ function MembershipsSection({
   onSave: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
 }) {
   return (
-    <SectionCard title="Memberships" description="Attach users to companies, set tenant roles, and choose default companies.">
+    <SectionCard title="Участники" description="Привязывайте пользователей к компаниям, назначайте роли арендаторов и выбирайте компании по умолчанию.">
       <form onSubmit={onCreate} className="grid gap-3 border-b border-slate-200 pb-5 md:grid-cols-5">
         <select value={form.user_id} onChange={(event) => onFormChange((current) => ({ ...current, user_id: event.target.value }))} required className="h-11 rounded-xl border border-slate-200 px-3 text-sm">
-          <option value="">Choose user</option>
+          <option value="">Выберите пользователя</option>
           {users.map((managedUser) => (
             <option key={managedUser.id} value={managedUser.id}>
               {managedUser.username}
@@ -457,7 +457,7 @@ function MembershipsSection({
           ))}
         </select>
         <select value={form.company_id} onChange={(event) => onFormChange((current) => ({ ...current, company_id: event.target.value }))} required className="h-11 rounded-xl border border-slate-200 px-3 text-sm">
-          <option value="">Choose company</option>
+          <option value="">Выберите компанию</option>
           {companies.map((company) => (
             <option key={company.id} value={company.id}>
               {company.name}
@@ -472,22 +472,22 @@ function MembershipsSection({
           ))}
         </select>
         <div className="grid grid-cols-2 gap-3">
-          <Checkbox checked={form.is_default} onChange={(checked) => onFormChange((current) => ({ ...current, is_default: checked }))} label="Default" />
-          <Checkbox checked={form.is_active} onChange={(checked) => onFormChange((current) => ({ ...current, is_active: checked }))} label="Active" />
+          <Checkbox checked={form.is_default} onChange={(checked) => onFormChange((current) => ({ ...current, is_default: checked }))} label="По умолчанию" />
+          <Checkbox checked={form.is_active} onChange={(checked) => onFormChange((current) => ({ ...current, is_active: checked }))} label="Активен" />
         </div>
-        <PrimaryButton label="Create membership" />
+        <PrimaryButton label="Создать участие" />
       </form>
 
       <div className="overflow-x-auto pt-5">
         <table className="min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-slate-500">
             <tr>
-              <th className="px-3 py-2 font-medium">User</th>
-              <th className="px-3 py-2 font-medium">Company</th>
-              <th className="px-3 py-2 font-medium">Role</th>
-              <th className="px-3 py-2 font-medium">Default</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Actions</th>
+              <th className="px-3 py-2 font-medium">Пользователь</th>
+              <th className="px-3 py-2 font-medium">Компания</th>
+              <th className="px-3 py-2 font-medium">Роль</th>
+              <th className="px-3 py-2 font-medium">По умолчанию</th>
+              <th className="px-3 py-2 font-medium">Статус</th>
+              <th className="px-3 py-2 font-medium">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -513,16 +513,16 @@ function MembershipsSection({
                       membership.role
                     )}
                   </td>
-                  <td className="px-3 py-3">{isEditing ? <input type="checkbox" checked={editingMembership.is_default} onChange={(event) => onEditChange((current) => current ? { ...current, is_default: event.target.checked } : current)} /> : membership.is_default ? 'Yes' : 'No'}</td>
-                  <td className="px-3 py-3">{isEditing ? <input type="checkbox" checked={editingMembership.is_active} onChange={(event) => onEditChange((current) => current ? { ...current, is_active: event.target.checked } : current)} /> : membership.is_active ? 'Active' : 'Disabled'}</td>
+                  <td className="px-3 py-3">{isEditing ? <input type="checkbox" checked={editingMembership.is_default} onChange={(event) => onEditChange((current) => current ? { ...current, is_default: event.target.checked } : current)} /> : membership.is_default ? 'Да' : 'Нет'}</td>
+                  <td className="px-3 py-3">{isEditing ? <input type="checkbox" checked={editingMembership.is_active} onChange={(event) => onEditChange((current) => current ? { ...current, is_active: event.target.checked } : current)} /> : membership.is_active ? 'Активен' : 'Неактивен'}</td>
                   <td className="px-3 py-3">
                     {isEditing ? (
                       <form onSubmit={onSave} className="flex gap-2">
-                        <ActionButton label="Save" tone="primary" />
-                        <ActionButton label="Cancel" tone="secondary" type="button" onClick={() => onEditChange(null)} />
+                        <ActionButton label="Сохранить" tone="primary" />
+                        <ActionButton label="Отмена" tone="secondary" type="button" onClick={() => onEditChange(null)} />
                       </form>
                     ) : (
-                      <ActionButton label="Edit" tone="secondary" type="button" onClick={() => onEditChange(membership)} />
+                      <ActionButton label="Изменить" tone="secondary" type="button" onClick={() => onEditChange(membership)} />
                     )}
                   </td>
                 </tr>

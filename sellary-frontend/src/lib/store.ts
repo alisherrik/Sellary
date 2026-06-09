@@ -107,7 +107,7 @@ export const useAuthStore = create<AuthState>()(
       selectCompany: async (companyId) => {
         const loginToken = get().loginToken;
         if (!loginToken) {
-          throw new Error('Login session expired. Please sign in again.');
+          throw new Error('Сессия входа истекла. Войдите снова.');
         }
 
         const response = await authApi.selectCompany(companyId, loginToken);

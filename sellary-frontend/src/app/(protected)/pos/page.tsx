@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useCartStore } from '@/lib/store';
 import { salesApi } from '@/lib/api';
-import { formatCurrency, hotkeyManager, registerHotkeys } from '@/lib/utils';
+import { formatCurrency, hotkeyManager, printReceipt, registerHotkeys } from '@/lib/utils';
 import {
   PlusIcon,
   TrashIcon,
@@ -13,6 +13,7 @@ import {
   XMarkIcon,
   ShoppingBagIcon,
   ArchiveBoxXMarkIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 
 import ProductDrawer from '@/components/pos/ProductDrawer';
@@ -24,6 +25,21 @@ import {
   formatEditableAmount,
 } from '@/lib/posPricing';
 
+const PAYMENT_METHODS = [
+  { id: 'cash', label: 'Наличные', Icon: BanknotesIcon },
+  { id: 'card', label: 'Карта', Icon: CreditCardIcon },
+  { id: 'mobile', label: 'Мобильный', Icon: DevicePhoneMobileIcon },
+] as const;
+
+// One selection vocabulary across the register: the brand blue tint + a checkmark cue,
+// the same pattern payment methods use. Banks are told apart by name, not by hue
+// (Two-Accent Rule: Register Blue for action/selection, never a third decorative color).
+const CARD_TYPES = [
+  { id: 'alif', label: 'Alif' },
+  { id: 'eskhata', label: 'Eskhata' },
+  { id: 'dc', label: 'DC' },
+] as const;
+
 export default function POS() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -32,7 +48,43 @@ export default function POS() {
   const [loading, setLoading] = useState(false);
   const [totalEdit, setTotalEdit] = useState<string | null>(null);
   const [priceEdits, setPriceEdits] = useState<Record<number, string>>({});
+  const [qtyEdits, setQtyEdits] = useState<Record<number, string>>({});
   const { isServerReachable } = useServerHealth();
+
+  // Two-button confirm in a toast for destructive actions. Keyboard- and touch-reachable,
+  // one consistent confirmation vocabulary across clear-cart and tab-close.
+  const confirmAction = useCallback(
+    (message: string, confirmLabel: string, onConfirm: () => void) => {
+      toast(
+        (t) => (
+          <div className="flex flex-col gap-3">
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{message}</span>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => toast.dismiss(t.id)}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  onConfirm();
+                }}
+                className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1"
+              >
+                {confirmLabel}
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: 6000 },
+      );
+    },
+    [],
+  );
 
   const {
     sessions,
@@ -75,6 +127,7 @@ export default function POS() {
     setPaymentMethod('cash');
     setTotalEdit(null);
     setPriceEdits({});
+    setQtyEdits({});
     setLoading(false);
   }, [activeSessionId]);
 
@@ -86,6 +139,7 @@ export default function POS() {
     setActiveOverallDiscount(0);
     setTotalEdit(null);
     setPriceEdits({});
+    setQtyEdits({});
   }, [clearCart, setActiveOverallDiscount]);
 
   const completeSale = useCallback(async () => {
@@ -130,8 +184,9 @@ export default function POS() {
     }
 
     try {
-      await salesApi.create(saleData);
+      const { data: sale } = await salesApi.create(saleData);
       toast.success('Продажа завершена');
+      printReceipt(sale);
       resetCheckout();
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Не удалось завершить продажу');
@@ -150,15 +205,26 @@ export default function POS() {
           setShowPaymentModal(true);
         }
       },
-      description: 'Complete sale',
+      description: 'Завершить продажу',
     });
 
     hotkeyManager.register({
       key: 'F2',
       handler: () => setIsDrawerOpen(true),
-      description: 'Open Product Drawer',
+      description: 'Открыть каталог товаров',
     });
   }, [showPaymentModal, items.length, isDrawerOpen, completeSale]);
+
+  // Esc closes the payment modal. The register is keyboard- and scanner-driven;
+  // every modal needs an emergency exit without reaching for the mouse.
+  useEffect(() => {
+    if (!showPaymentModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowPaymentModal(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showPaymentModal]);
 
   const subtotal = getSubtotal();
   const tax = getTax();
@@ -205,7 +271,7 @@ export default function POS() {
                     aria-selected={isActive}
                     aria-current={isActive ? 'page' : undefined}
                     onClick={() => switchSession(session.id)}
-                    className="flex h-full min-w-0 items-center gap-2 px-3 text-xs font-bold sm:text-sm"
+                    className="flex h-full min-w-0 items-center gap-2 rounded-xl px-3 text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 sm:text-sm"
                   >
                     <span className="max-w-24 truncate sm:max-w-36">{session.name}</span>
                     <span
@@ -222,11 +288,21 @@ export default function POS() {
                     <button
                       type="button"
                       aria-label={`Закрыть ${session.name}`}
-                      onClick={() => deleteSession(session.id)}
-                      className={`mr-1 rounded-lg p-1 transition-colors ${
+                      onClick={() => {
+                        if (sessionItemCount > 0) {
+                          confirmAction(
+                            `Закрыть «${session.name}»? Товаров в корзине: ${sessionItemCount}.`,
+                            'Закрыть',
+                            () => deleteSession(session.id),
+                          );
+                        } else {
+                          deleteSession(session.id);
+                        }
+                      }}
+                      className={`mr-1 rounded-lg p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${
                         isActive
-                          ? 'text-blue-500 hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-800'
-                          : 'text-gray-400 hover:bg-gray-200 hover:text-red-500 dark:hover:bg-gray-800'
+                          ? 'text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:text-blue-300 dark:hover:bg-blue-800'
+                          : 'text-gray-500 hover:bg-gray-200 hover:text-red-500 dark:text-gray-400 dark:hover:bg-gray-800'
                       }`}
                     >
                       <XMarkIcon className="h-4 w-4" />
@@ -242,19 +318,19 @@ export default function POS() {
             aria-label="Новая продажа"
             title="Новая продажа"
             onClick={createSession}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition-colors hover:bg-blue-700"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           >
             <PlusIcon className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="relative flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
-          <div className="flex-1 space-y-2 overflow-y-auto p-2 pb-28 sm:space-y-3 sm:p-4 sm:pb-32">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2 pb-28 sm:space-y-3 sm:p-4 sm:pb-32">
             {items.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-gray-300 dark:text-gray-600">
-                <ShoppingBagIcon className="mb-4 h-16 w-16 opacity-50 sm:h-24 sm:w-24" />
-                <p className="text-sm font-medium sm:text-lg">Корзина пуста</p>
-                <p className="text-xs sm:text-sm">Нажмите кнопку ниже, чтобы добавить товар</p>
+              <div className="flex h-full flex-col items-center justify-center">
+                <ShoppingBagIcon className="mb-4 h-16 w-16 text-gray-300 dark:text-gray-600 sm:h-24 sm:w-24" />
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300 sm:text-lg">Корзина пуста</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">Нажмите кнопку ниже, чтобы добавить товар</p>
               </div>
             ) : (
               items.map((item) => {
@@ -294,22 +370,33 @@ const discountAmount = item.discount || 0;
                         <input
                           type="text"
                           inputMode="decimal"
-                          value={item.quantity.toString()}
+                          aria-label={`Количество: ${item.product.name}`}
+                          value={qtyEdits[item.product.id] ?? item.quantity.toString()}
                           onChange={(e) => {
-                            const parsed = parseFloat(e.target.value);
-                            const existing = items.find((entry) => entry.product.id === item.product.id);
-                            if (!existing) return;
-                            if (isNaN(parsed) || parsed <= 0) {
-                              removeItem(item.product.id);
-                              return;
-                            }
-                            if (parsed > existing.product.stock_quantity) {
-                              toast.error(`Доступно: ${existing.product.stock_quantity} ${existing.product.uom}`);
+                            // Hold the raw text while editing; never delete the line mid-type.
+                            setQtyEdits((prev) => ({ ...prev, [item.product.id]: e.target.value }));
+                          }}
+                          onBlur={() => {
+                            const raw = qtyEdits[item.product.id];
+                            setQtyEdits((prev) => {
+                              const next = { ...prev };
+                              delete next[item.product.id];
+                              return next;
+                            });
+                            if (raw === undefined) return;
+                            const parsed = parseFloat(raw.replace(',', '.'));
+                            // Invalid or empty: keep the line, revert to the last valid quantity.
+                            if (isNaN(parsed) || parsed <= 0) return;
+                            if (parsed > item.product.stock_quantity) {
+                              toast.error(`Доступно: ${item.product.stock_quantity} ${item.product.uom}`);
                               return;
                             }
                             updateQuantity(item.product.id, parsed);
                           }}
-                          className="w-16 rounded-lg border border-gray-200 bg-white px-2 py-1 text-center text-xs font-bold dark:border-gray-600 dark:bg-gray-800 sm:w-20 sm:text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                          }}
+                          className="w-16 rounded-lg border border-gray-200 bg-white px-2 py-1 text-center text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 dark:border-gray-600 dark:bg-gray-800 sm:w-20 sm:text-sm"
                         />
                         <span className="text-[10px] text-gray-500 sm:text-xs">{item.product.uom}</span>
                       </div>
@@ -347,10 +434,12 @@ const discountAmount = item.discount || 0;
                     </div>
 
                     <button
+                      type="button"
+                      aria-label={`Удалить ${item.product.name}`}
                       onClick={() => removeItem(item.product.id)}
-                      className="p-1 text-gray-400 hover:text-red-500 sm:p-2"
+                      className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-gray-700"
                     >
-                      <TrashIcon className="h-4 w-4 sm:h-6 sm:w-6" />
+                      <TrashIcon className="h-5 w-5 sm:h-6 sm:w-6" />
                     </button>
                   </div>
                   </div>
@@ -368,10 +457,12 @@ const discountAmount = item.discount || 0;
                         }
                       </span>
                       <button
+                        type="button"
+                        aria-label="Сбросить корректировку цены"
                         onClick={() => setDiscount(item.product.id, 0)}
-                        className="text-[9px] text-gray-400 hover:text-red-500"
+                        className="rounded p-0.5 text-gray-500 transition-colors hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                       >
-                        <XMarkIcon className="h-3 w-3" />
+                        <XMarkIcon className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   )}
@@ -385,15 +476,16 @@ const discountAmount = item.discount || 0;
             <div className="flex items-center justify-between gap-2 sm:gap-4">
               <button
                 onClick={() => setIsDrawerOpen(true)}
-                className="flex flex-shrink-0 items-center justify-center gap-1 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white shadow-lg transition-all hover:bg-blue-700 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
+                className="flex min-h-[44px] flex-shrink-0 items-center justify-center gap-1 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white shadow-lg transition-all hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
               >
                 <PlusIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span className="hidden sm:inline">Товар</span>
+                <kbd className="ml-1 hidden rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold lg:inline">F2</kbd>
               </button>
 
               <div className="flex-1 text-right">
                 <div className="flex items-center justify-end gap-2">
-                  <span className="text-[10px] text-gray-400 sm:text-xs">Итого</span>
+                  <span className="text-[10px] text-gray-600 dark:text-gray-300 sm:text-xs">Итого</span>
                   <span className="text-right text-2xl font-black text-blue-600">
                     {formatCurrency(finalTotal)}
                   </span>
@@ -403,16 +495,21 @@ const discountAmount = item.discount || 0;
               <button
                 onClick={() => items.length > 0 && setShowPaymentModal(true)}
                 disabled={items.length === 0}
-                className="rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300 sm:px-8 sm:py-3 sm:text-lg"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-400 sm:px-8 sm:py-3 sm:text-lg"
               >
                 Оплатить
+                <kbd className="hidden rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold lg:inline">Enter</kbd>
               </button>
             </div>
 
             {items.length > 0 && (
               <button
-                onClick={() => clearCart()}
-                className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 sm:py-2 sm:text-sm"
+                onClick={() =>
+                  confirmAction('Очистить корзину? Все товары будут удалены.', 'Очистить', () =>
+                    clearCart(),
+                  )
+                }
+                className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 sm:py-2 sm:text-sm"
               >
                 <ArchiveBoxXMarkIcon className="h-3 w-3 sm:h-4 sm:w-4" />
                 Очистить корзину
@@ -439,14 +536,19 @@ const discountAmount = item.discount || 0;
             <div className="relative max-h-[90vh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl dark:bg-gray-800 sm:max-w-lg sm:rounded-3xl sm:p-6">
               <div className="mb-4 flex items-center justify-between sm:mb-6">
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white sm:text-2xl">Оплата</h2>
-                <button onClick={() => setShowPaymentModal(false)}>
-                  <XMarkIcon className="h-5 w-5 text-gray-400 sm:h-6 sm:w-6" />
+                <button
+                  type="button"
+                  aria-label="Закрыть"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="rounded-lg p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <XMarkIcon className="h-5 w-5 sm:h-6 sm:w-6" />
                 </button>
               </div>
 
               <div className="mb-4 rounded-2xl bg-gray-50 p-4 dark:bg-gray-900 sm:mb-6">
                 <div className="flex items-center justify-between text-sm text-gray-500">
-                  <span>Subtotal</span>
+                  <span>Подытог</span>
                   <span>{formatCurrency(subtotal)}</span>
                 </div>
                 {itemDiscounts > 0 && (
@@ -486,45 +588,31 @@ const discountAmount = item.discount || 0;
               </div>
 
               <div className="mb-4 grid grid-cols-3 gap-2 sm:mb-6 sm:gap-4">
-                <button
-                  onClick={() => {
-                    setPaymentMethod('cash');
-                    setCardType(null);
-                  }}
-                  className={`flex flex-col items-center justify-center rounded-xl border-2 p-2 transition-all sm:p-4 ${
-                    paymentMethod === 'cash'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <BanknotesIcon className="mb-1 h-6 w-6 sm:mb-2 sm:h-8 sm:w-8" />
-                  <span className="text-[10px] font-semibold sm:text-sm">Наличные</span>
-                </button>
-                <button
-                  onClick={() => setPaymentMethod('card')}
-                  className={`flex flex-col items-center justify-center rounded-xl border-2 p-2 transition-all sm:p-4 ${
-                    paymentMethod === 'card'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <CreditCardIcon className="mb-1 h-6 w-6 sm:mb-2 sm:h-8 sm:w-8" />
-                  <span className="text-[10px] font-semibold sm:text-sm">Карта</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setPaymentMethod('mobile');
-                    setCardType(null);
-                  }}
-                  className={`flex flex-col items-center justify-center rounded-xl border-2 p-2 transition-all sm:p-4 ${
-                    paymentMethod === 'mobile'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <DevicePhoneMobileIcon className="mb-1 h-6 w-6 sm:mb-2 sm:h-8 sm:w-8" />
-                  <span className="text-[10px] font-semibold sm:text-sm">Мобильный</span>
-                </button>
+                {PAYMENT_METHODS.map(({ id, label, Icon }) => {
+                  const selected = paymentMethod === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => {
+                        setPaymentMethod(id);
+                        if (id !== 'card') setCardType(null);
+                      }}
+                      className={`relative flex min-h-[44px] flex-col items-center justify-center rounded-xl border-2 p-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-4 ${
+                        selected
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-200'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-600 dark:text-gray-300'
+                      }`}
+                    >
+                      {selected && (
+                        <CheckCircleIcon className="absolute right-1 top-1 h-4 w-4 text-blue-600 dark:text-blue-300" />
+                      )}
+                      <Icon className="mb-1 h-6 w-6 sm:mb-2 sm:h-8 sm:w-8" />
+                      <span className="text-[10px] font-semibold sm:text-sm">{label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               {paymentMethod === 'card' && (
@@ -533,42 +621,33 @@ const discountAmount = item.discount || 0;
                     Тип карты
                   </div>
                   <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                    <button
-                      onClick={() => setCardType('alif')}
-                      className={`rounded-xl border-2 p-2 transition-all sm:p-4 ${
-                        cardType === 'alif'
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-green-300'
-                      }`}
-                    >
-                      <div className={`text-lg font-bold sm:text-2xl ${cardType === 'alif' ? 'text-green-600' : 'text-green-500'}`}>
-                        Alif
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setCardType('eskhata')}
-                      className={`rounded-xl border-2 p-2 transition-all sm:p-4 ${
-                        cardType === 'eskhata'
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-blue-300'
-                      }`}
-                    >
-                      <div className={`text-lg font-bold sm:text-2xl ${cardType === 'eskhata' ? 'text-blue-600' : 'text-blue-500'}`}>
-                        Eskhata
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setCardType('dc')}
-                      className={`rounded-xl border-2 p-2 transition-all sm:p-4 ${
-                        cardType === 'dc'
-                          ? 'border-purple-500 bg-purple-50'
-                          : 'border-gray-200 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className={`text-lg font-bold sm:text-2xl ${cardType === 'dc' ? 'text-purple-600' : 'text-purple-500'}`}>
-                        DC
-                      </div>
-                    </button>
+                    {CARD_TYPES.map(({ id, label }) => {
+                      const selected = cardType === id;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => setCardType(id)}
+                          className={`relative min-h-[44px] rounded-xl border-2 p-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-4 ${
+                            selected
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                              : 'border-gray-200 hover:border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {selected && (
+                            <CheckCircleIcon className="absolute right-1 top-1 h-4 w-4 text-blue-600 dark:text-blue-300" />
+                          )}
+                          <div
+                            className={`text-lg font-bold sm:text-2xl ${
+                              selected ? 'text-blue-700 dark:text-blue-200' : 'text-gray-600 dark:text-gray-300'
+                            }`}
+                          >
+                            {label}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -576,9 +655,16 @@ const discountAmount = item.discount || 0;
               <button
                 onClick={completeSale}
                 disabled={loading}
-                className="w-full rounded-xl bg-green-600 py-3 text-base font-bold text-white transition-all hover:bg-green-700 sm:py-4 sm:text-xl"
+                className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3 text-base font-bold text-white transition-all hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-400 sm:py-4 sm:text-xl"
               >
-                {loading ? 'Обработка...' : 'Завершить продажу'}
+                {loading ? (
+                  'Обработка...'
+                ) : (
+                  <>
+                    Завершить продажу
+                    <kbd className="hidden rounded bg-white/20 px-1.5 py-0.5 text-xs font-semibold sm:inline">Enter</kbd>
+                  </>
+                )}
               </button>
             </div>
           </div>

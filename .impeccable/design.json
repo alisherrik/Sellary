@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-09T00:00:00Z",
+  "title": "Design System: Sellary",
+  "extensions": {
+    "colorMeta": {
+      "register-blue": {
+        "role": "primary",
+        "displayName": "Register Blue",
+        "canonical": "#2563eb",
+        "tonalRamp": ["#1e3a8a", "#1e40af", "#1d4ed8", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"]
+      },
+      "confirm-green": {
+        "role": "secondary",
+        "displayName": "Confirm Green",
+        "canonical": "#16a34a",
+        "tonalRamp": ["#166534", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#86efac", "#bbf7d0", "#dcfce7"]
+      },
+      "danger-red": {
+        "role": "tertiary",
+        "displayName": "Danger Red",
+        "canonical": "#dc2626",
+        "tonalRamp": ["#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fecaca", "#fef2f2"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink (neutral ramp)",
+        "canonical": "#111827",
+        "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#e5e7eb", "#f9fafb"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Money totals only. Inter Black, the loudest thing on a register screen." },
+      "headline": { "displayName": "Headline", "purpose": "Page and modal titles." },
+      "title": { "displayName": "Title", "purpose": "Section and card headers, sub-totals." },
+      "body": { "displayName": "Body", "purpose": "Default reading and dense UI. Prose caps at 65-75ch." },
+      "label": { "displayName": "Label", "purpose": "Uppercase table headers and status chips only." }
+    },
+    "shadows": [
+      { "name": "resting-hint", "value": "0 1px 2px 0 rgba(0,0,0,0.05)", "purpose": "Buttons and chips at rest." },
+      { "name": "card", "value": "0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1)", "purpose": "Standard back-office cards." },
+      { "name": "action-zone", "value": "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)", "purpose": "Register cart panel and primary register buttons; lifts live work above the catalog." },
+      { "name": "overlay", "value": "0 25px 50px -12px rgba(0,0,0,0.25)", "purpose": "Modals and payment sheets, paired with a backdrop-blur scrim." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for state transitions (color, transform)." },
+      { "name": "duration-fast", "value": "150ms", "purpose": "Button and control state changes." },
+      { "name": "duration-base", "value": "200ms", "purpose": "Scale-in for modals and chips." },
+      { "name": "duration-sheet", "value": "300ms", "purpose": "Bottom-sheet slide-up on mobile." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main action across the app. Register Blue fill; the only blue button on a screen.",
+      "html": "<button class=\"ds-btn-primary\">Сохранить</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 8px; background: #2563eb; color: #fff; font-family: Inter, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; padding: 8px 16px; border: none; border-radius: 6px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); transition: background 150ms cubic-bezier(0.4,0,0.2,1); cursor: pointer; } .ds-btn-primary:hover { background: #1d4ed8; } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #3b82f6; }"
+    },
+    {
+      "name": "Complete Sale Button",
+      "kind": "button",
+      "refersTo": "button-success",
+      "description": "Confirm Green, register only. Completion and payment. Disabled collapses to gray.",
+      "html": "<button class=\"ds-btn-success\">Оплатить</button>",
+      "css": ".ds-btn-success { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #16a34a; color: #fff; font-family: Inter, system-ui, sans-serif; font-size: 1.125rem; font-weight: 700; padding: 12px 32px; min-height: 44px; border: none; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1); transition: background 150ms cubic-bezier(0.4,0,0.2,1); cursor: pointer; } .ds-btn-success:hover { background: #15803d; } .ds-btn-success:disabled { background: #d1d5db; cursor: not-allowed; box-shadow: none; } .ds-btn-success:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #16a34a; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action. White fill, hairline border, Ink-Soft text.",
+      "html": "<button class=\"ds-btn-outline\">Отмена</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; gap: 8px; background: #fff; color: #374151; font-family: Inter, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 6px; transition: background 150ms cubic-bezier(0.4,0,0.2,1); cursor: pointer; } .ds-btn-outline:hover { background: #f9fafb; } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #3b82f6; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Standard text field. White fill, hairline border, blue ring on focus.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Поиск товара\" />",
+      "css": ".ds-input { display: block; width: 100%; background: #fff; color: #111827; font-family: Inter, system-ui, sans-serif; font-size: 0.875rem; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); transition: border-color 150ms, box-shadow 150ms; } .ds-input::placeholder { color: #4b5563; } .ds-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.4); }"
+    },
+    {
+      "name": "Category Chip",
+      "kind": "chip",
+      "refersTo": "product-tile",
+      "description": "Filter/category pill. Tinted blue when selected; quiet gray when not.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip ds-chip--on\">Напитки <span class=\"ds-chip-count\">12</span></button><button class=\"ds-chip\">Снеки <span class=\"ds-chip-count\">8</span></button></div>",
+      "css": ".ds-chips { display: flex; gap: 8px; } .ds-chip { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px; font-family: Inter, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; color: #4b5563; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; cursor: pointer; transition: border-color 150ms, background 150ms; } .ds-chip:hover { border-color: #d1d5db; } .ds-chip--on { color: #1d4ed8; background: #eff6ff; border-color: #93c5fd; } .ds-chip-count { font-size: 10px; padding: 1px 6px; border-radius: 9999px; background: #fff; color: #6b7280; } .ds-chip--on .ds-chip-count { background: #dbeafe; color: #1d4ed8; }"
+    },
+    {
+      "name": "Back-office Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Flat white card with hairline border and header/body rhythm. Full borders only.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\">Сводка</div><div class=\"ds-card-body\">Содержимое карточки.</div></div>",
+      "css": ".ds-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1); font-family: Inter, system-ui, sans-serif; } .ds-card-header { padding: 16px 24px; border-bottom: 1px solid #e5e7eb; font-size: 1.125rem; font-weight: 600; color: #111827; } .ds-card-body { padding: 16px 24px; font-size: 0.875rem; color: #374151; }"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "button-outline",
+      "description": "Left-sidebar item: icon + Russian label. Active item carries Register Blue.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-item--active\" href=\"#\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M2.25 12l8.954-8.955a1.5 1.5 0 012.122 0L21.75 12M4.5 9.75v9.75a.75.75 0 00.75.75H9.75V15a.75.75 0 01.75-.75h3a.75.75 0 01.75.75v5.25h4.5a.75.75 0 00.75-.75V9.75\"/></svg>Дашборд</a><a class=\"ds-nav-item\" href=\"#\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12A1.125 1.125 0 0119.748 21H4.252a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z\"/></svg>Товары</a></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 4px; width: 240px; padding: 8px; background: #fff; font-family: Inter, system-ui, sans-serif; } .ds-nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; font-size: 0.875rem; font-weight: 500; color: #4b5563; border-radius: 8px; text-decoration: none; transition: background 150ms, color 150ms; } .ds-nav-item:hover { background: #f3f4f6; color: #111827; } .ds-nav-item--active { background: #eff6ff; color: #1d4ed8; } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 2px #3b82f6; }"
+    },
+    {
+      "name": "Register Total",
+      "kind": "custom",
+      "refersTo": "button-primary",
+      "description": "Signature element. The running/payment-due amount: Register Blue, Inter Black, large, right-aligned tabular figures. Deliberately the loudest thing on screen.",
+      "html": "<div class=\"ds-total\"><span class=\"ds-total-label\">К оплате</span><span class=\"ds-total-amount\">245 000 сум</span></div>",
+      "css": ".ds-total { display: flex; flex-direction: column; align-items: flex-end; font-family: Inter, system-ui, sans-serif; } .ds-total-label { font-size: 0.875rem; font-weight: 500; color: #4b5563; } .ds-total-amount { font-size: 3rem; line-height: 1.05; font-weight: 900; letter-spacing: -0.02em; color: #2563eb; font-variant-numeric: tabular-nums; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Counter",
+    "overview": "Sellary is a working surface, not a showpiece. The system answers to the cashier who stands at it for eight hours: the screen recedes, the body stays calm and neutral, and the only things that ever raise their voice are the running total and the next action. Two tiers live under one roof: a flat, dense, businesslike back office (products, suppliers, purchase orders, reports, settings) and a more tactile, tap-ready register (POS). The palette, type family, and accent logic are identical across both; only density and depth change. It explicitly rejects the generic default-Tailwind starter it shipped from and the dated enterprise-POS register.",
+    "keyCharacteristics": [
+      "One neutral field, one action color (Register Blue), one confirmation color (Confirm Green). Nothing else competes.",
+      "Money is the loudest thing on screen, always: heavy weight, Register Blue, large.",
+      "Flat by default; depth appears only at the register's action zone and in modals.",
+      "One type family (Inter) doing everything through weight, not extra faces.",
+      "Touch-first targets at the register; denser, keyboard-friendly tables in the back office.",
+      "Light and dark themes are first-class; both meet the same contrast bar."
+    ],
+    "rules": [
+      { "name": "The Two-Accent Rule", "body": "Only two accent colors exist: Register Blue for action, Confirm Green for completion. Red is a warning, not an accent. Any screen that introduces a third decorative hue is off-system.", "section": "colors" },
+      { "name": "The Muted Floor Rule", "body": "Muted text never goes lighter than Muted (#4b5563) on white. gray-400 and lighter are forbidden for any text a user must read; they fail AA contrast under store lighting.", "section": "colors" },
+      { "name": "The Money-Is-Blue Rule", "body": "Currency totals are always Register Blue and always the heaviest weight in their context. The total is the one thing the cashier must find without looking.", "section": "colors" },
+      { "name": "The One-Family Rule", "body": "Inter does everything. No display face, no second sans, no serif. If a screen seems to need another typeface, it needs better weight contrast instead.", "section": "typography" },
+      { "name": "The Caps-Are-Labels Rule", "body": "All-caps is reserved for text-xs table headers and status chips. All-caps body copy is forbidden; it is unreadable at size.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. Reach for a heavier shadow only at the register action zone or for a true overlay. A shadow on a back-office card heavier than 'shadow' is wrong.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep Register Blue (#2563eb) for action, current selection, focus, and money; keep Confirm Green (#16a34a) for completion and payment only.",
+      "Do set every currency total in Register Blue at the heaviest weight in its context.",
+      "Do keep muted text at or above Muted (#4b5563) on white; bump toward Ink when contrast is close.",
+      "Do keep surfaces flat at rest; reserve shadow-lg+ for the register action zone and modals.",
+      "Do use one type family (Inter) and build hierarchy from weight and size.",
+      "Do give register controls >=44px touch targets and an always-visible 2px focus ring.",
+      "Do honor prefers-reduced-motion: motion conveys state (150-250ms) and degrades to a crossfade or instant change.",
+      "Do use full borders, background tints, or leading icons for emphasis."
+    ],
+    "donts": [
+      "Don't ship the generic default-Tailwind look this app started from: stock blue-600 on gray-50 with drop-shadow cards and gray-on-gray tables.",
+      "Don't look like a dated enterprise POS: tiny dense buttons, cluttered toolbars, text unreadable across a counter.",
+      "Don't introduce a third decorative accent hue. Red is a warning, not an accent.",
+      "Don't use gray-400 or lighter for any text a user must read; it fails AA under store glare.",
+      "Don't set all-caps body copy. All-caps is only for text-xs table headers and status chips.",
+      "Don't add a second display typeface; weight contrast in Inter does the job.",
+      "Don't put a heavy shadow on a back-office card; flat-by-default holds outside the register zone.",
+      "Don't use a border-left/border-right colored stripe as an accent on cards, list items, or alerts.",
+      "Don't remove focus outlines; the POS is operated by keyboard and barcode scanner."
+    ]
+  }
+}

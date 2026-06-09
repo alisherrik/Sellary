@@ -47,7 +47,7 @@ export default function CompanyAdminSection() {
       setUsers(response.data);
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.detail || error?.message || 'Could not load company users.',
+        error?.response?.data?.detail || error?.message || 'Не удалось загрузить пользователей компании.',
       );
     } finally {
       setLoading(false);
@@ -67,10 +67,10 @@ export default function CompanyAdminSection() {
     try {
       await adminApi.createUser(userForm);
       setUserForm(emptyUserForm);
-      toast.success('User created for this company.');
+      toast.success('Пользователь создан для этой компании.');
       await loadUsers();
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || error?.message || 'Could not create user.');
+      toast.error(error?.response?.data?.detail || error?.message || 'Не удалось создать пользователя.');
     }
   };
 
@@ -79,10 +79,10 @@ export default function CompanyAdminSection() {
     try {
       await adminApi.createMembership(membershipForm);
       setMembershipForm(emptyMembershipForm);
-      toast.success('Existing user attached to this company.');
+      toast.success('Существующий пользователь привязан к этой компании.');
       await loadUsers();
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || error?.message || 'Could not attach user.');
+      toast.error(error?.response?.data?.detail || error?.message || 'Не удалось привязать пользователя.');
     }
   };
 
@@ -99,11 +99,11 @@ export default function CompanyAdminSection() {
         is_active: editingMembership.is_active,
       });
       setEditingMembership(null);
-      toast.success('Membership updated.');
+      toast.success('Участие обновлено.');
       await loadUsers();
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.detail || error?.message || 'Could not update membership.',
+        error?.response?.data?.detail || error?.message || 'Не удалось обновить участие.',
       );
     }
   };
@@ -112,21 +112,21 @@ export default function CompanyAdminSection() {
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-600">
-          Company Admin
+          Администратор компании
         </p>
-        <h2 className="mt-2 text-xl font-semibold text-slate-900">Manage team access</h2>
+        <h2 className="mt-2 text-xl font-semibold text-slate-900">Управление доступом команды</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Create users for this company or attach an existing user by username or email.
+          Создавайте пользователей для этой компании или привязывайте существующего пользователя по имени пользователя или email.
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <form onSubmit={handleCreateUser} className="space-y-3 rounded-2xl border border-slate-200 p-4">
-          <h3 className="text-sm font-semibold text-slate-900">Create user</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Создать пользователя</h3>
           <input
             value={userForm.username}
             onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))}
-            placeholder="Username"
+            placeholder="Имя пользователя"
             required
             className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
           />
@@ -141,14 +141,14 @@ export default function CompanyAdminSection() {
           <input
             value={userForm.full_name}
             onChange={(event) => setUserForm((current) => ({ ...current, full_name: event.target.value }))}
-            placeholder="Full name"
+            placeholder="Полное имя"
             className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
           />
           <input
             type="password"
             value={userForm.password}
             onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))}
-            placeholder="Password"
+            placeholder="Пароль"
             required
             className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
           />
@@ -174,7 +174,7 @@ export default function CompanyAdminSection() {
                   setUserForm((current) => ({ ...current, is_active: event.target.checked }))
                 }
               />
-              Active
+              Активен
             </label>
             <label className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm text-slate-700">
               <input
@@ -184,25 +184,25 @@ export default function CompanyAdminSection() {
                   setUserForm((current) => ({ ...current, is_default: event.target.checked }))
                 }
               />
-              Default
+              По умолчанию
             </label>
           </div>
           <button
             type="submit"
             className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
-            Create company user
+            Создать пользователя компании
           </button>
         </form>
 
         <form onSubmit={handleAttachUser} className="space-y-3 rounded-2xl border border-slate-200 p-4">
-          <h3 className="text-sm font-semibold text-slate-900">Attach existing user</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Привязать существующего пользователя</h3>
           <input
             value={membershipForm.identifier}
             onChange={(event) =>
               setMembershipForm((current) => ({ ...current, identifier: event.target.value }))
             }
-            placeholder="Username or email"
+            placeholder="Имя пользователя или email"
             required
             className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
           />
@@ -231,7 +231,7 @@ export default function CompanyAdminSection() {
                   setMembershipForm((current) => ({ ...current, is_active: event.target.checked }))
                 }
               />
-              Active
+              Активен
             </label>
             <label className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm text-slate-700">
               <input
@@ -241,14 +241,14 @@ export default function CompanyAdminSection() {
                   setMembershipForm((current) => ({ ...current, is_default: event.target.checked }))
                 }
               />
-              Default
+              По умолчанию
             </label>
           </div>
           <button
             type="submit"
             className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Attach existing user
+            Привязать существующего пользователя
           </button>
         </form>
       </div>
@@ -257,25 +257,25 @@ export default function CompanyAdminSection() {
         <table className="min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-slate-500">
             <tr>
-              <th className="px-3 py-2 font-medium">User</th>
+              <th className="px-3 py-2 font-medium">Пользователь</th>
               <th className="px-3 py-2 font-medium">Email</th>
-              <th className="px-3 py-2 font-medium">Role</th>
-              <th className="px-3 py-2 font-medium">Default</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Actions</th>
+              <th className="px-3 py-2 font-medium">Роль</th>
+              <th className="px-3 py-2 font-medium">По умолчанию</th>
+              <th className="px-3 py-2 font-medium">Статус</th>
+              <th className="px-3 py-2 font-medium">Действия</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
                 <td colSpan={6} className="px-3 py-4 text-slate-500">
-                  Loading company users...
+                  Загрузка пользователей компании...
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-3 py-4 text-slate-500">
-                  No users are attached to this company yet.
+                  К этой компании пока не привязан ни один пользователь.
                 </td>
               </tr>
             ) : (
@@ -325,9 +325,9 @@ export default function CompanyAdminSection() {
                             }
                           />
                         ) : membership.is_default ? (
-                          'Yes'
+                          'Да'
                         ) : (
-                          'No'
+                          'Нет'
                         )
                       ) : (
                         '—'
@@ -346,9 +346,9 @@ export default function CompanyAdminSection() {
                             }
                           />
                         ) : membership.is_active ? (
-                          'Active'
+                          'Активен'
                         ) : (
-                          'Disabled'
+                          'Неактивен'
                         )
                       ) : (
                         '—'
@@ -362,14 +362,14 @@ export default function CompanyAdminSection() {
                               type="submit"
                               className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
                             >
-                              Save
+                              Сохранить
                             </button>
                             <button
                               type="button"
                               onClick={() => setEditingMembership(null)}
                               className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
                             >
-                              Cancel
+                              Отмена
                             </button>
                           </form>
                         ) : (
@@ -378,7 +378,7 @@ export default function CompanyAdminSection() {
                             onClick={() => setEditingMembership(membership)}
                             className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
                           >
-                            Edit membership
+                            Изменить участие
                           </button>
                         )
                       ) : (

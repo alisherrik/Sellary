@@ -65,8 +65,8 @@ export default function NetworkStatus() {
     };
 
     const getStatusText = () => {
-        if (!isOnline) return 'Offline';
-        if (latency === null) return 'Online';
+        if (!isOnline) return 'Не в сети';
+        if (latency === null) return 'В сети';
         return `${latency}ms`;
     };
 
@@ -75,7 +75,7 @@ export default function NetworkStatus() {
     return (
         <div
             className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold transition-all duration-300 ${getStatusColor()}`}
-            title={isOnline ? `Online (Latency: ${latency}ms)` : 'Offline mode active'}
+            title={isOnline ? `В сети (задержка: ${latency} мс)` : 'Режим офлайн активен'}
         >
             <Icon className="w-3.5 h-3.5" />
             <span>{getStatusText()}</span>

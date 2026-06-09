@@ -35,7 +35,20 @@
       "Bash(timeout 60 npx vitest run:*)",
       "Bash(npx vitest run:*)",
       "Bash(npm test:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(git pull *)",
+      "Bash(ls *.py)",
+      "Bash(ls *.md)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(grep -rnoE \"toast\\\\.\\(success|error|loading\\)\\\\\\([\\\\\"'\\\\`][A-Za-z][^\\\\\"'\\\\`]*[\\\\\"'\\\\`]\" src --include=\"*.tsx\" --include=\"*.ts\")",
+      "Bash(grep -rnoE \">[A-Z][a-z]+[A-Za-z ]{2,}<\" src --include=\"*.tsx\")",
+      "Bash(grep -rnoE \">[A-Z][a-z]+\\( [A-Za-z]+\\){0,5}<\" src --include=\"*.tsx\")",
+      "Bash(grep -rnoE \">[A-Za-z]{3,}\\( [A-Za-z]{2,}\\){1,6}<\" src --include=\"*.tsx\")",
+      "Bash(grep -viE \"className|test|use[A-Z]|import|^\\\\\"[a-z-]+\\\\\"$\")",
+      "Bash(npx tsc *)",
+      "Bash(node *)",
+      "Bash(IMPECCABLE_CRITIQUE_META='{\"target\":\"pos\",\"total_score\":27,\"p0_count\":0,\"p1_count\":3}' node \"C:\\\\Users\\\\Alisher\\\\.claude\\\\skills\\\\impeccable\\\\scripts\\\\critique-storage.mjs\" write \"sellary-frontend-src-app-protected-pos-page-tsx\" \".impeccable/critique/_tmp_pos_body.md\")",
+      "Bash(rm -f \".impeccable/critique/_tmp_pos_body.md\")"
     ]
   }
 }

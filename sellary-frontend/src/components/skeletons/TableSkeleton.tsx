@@ -8,7 +8,7 @@ export default function TableSkeleton({
   columns = 6,
 }: TableSkeletonProps) {
   return (
-    <div className="space-y-3" role="status" aria-label="Loading table">
+    <div className="space-y-3" role="status" aria-label="Загрузка таблицы">
       {Array.from({ length: rows }).map((_, rowIndex) => (
         <div
           key={rowIndex}
