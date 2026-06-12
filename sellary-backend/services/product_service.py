@@ -47,17 +47,27 @@ class ProductService:
         return [self._to_response(product) for product in products], total
 
     def create(self, product_create: ProductCreate) -> ProductResponse:
-        if product_create.barcode and self.product_repo.get_by_barcode(
-            self.company_id,
-            product_create.barcode,
-        ):
-            raise ValueError(f"Product with barcode '{product_create.barcode}' already exists")
+        existing = None
+        if product_create.barcode:
+            existing = self.product_repo.get_by_barcode(
+                self.company_id,
+                product_create.barcode,
+            )
+            if existing and existing.is_active:
+                raise ValueError(f"Product with barcode '{product_create.barcode}' already exists")
 
         if product_create.category_id and not self.category_repo.get_by_id(
             self.company_id,
             product_create.category_id,
         ):
             raise ValueError(f"Category with id {product_create.category_id} not found")
+
+        if existing:
+            for field, value in product_create.model_dump().items():
+                setattr(existing, field, value)
+            existing.is_active = True
+            existing = self.product_repo.update(existing)
+            return self._to_response(existing)
 
         product = Product(company_id=self.company_id, **product_create.model_dump())
         product = self.product_repo.create(product)

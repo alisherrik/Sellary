@@ -433,6 +433,56 @@ class TestCreateProduct:
 
         assert response.status_code == 400
 
+    def test_create_product_reactivates_deleted_product_with_same_barcode(
+        self,
+        client: TestClient,
+        db_session,
+        admin_headers,
+    ):
+        category = Category(name="Reactivation Category")
+        db_session.add(category)
+        db_session.flush()
+
+        deleted_product = Product(
+            name="Old Product",
+            barcode="REUSE123",
+            category_id=category.id,
+            cost_price=Decimal("4.00"),
+            sell_price=Decimal("6.00"),
+            stock_quantity=2,
+        )
+        db_session.add(deleted_product)
+        db_session.commit()
+        deleted_product_id = deleted_product.id
+
+        delete_response = client.delete(
+            f"/api/products/{deleted_product_id}",
+            headers=admin_headers,
+        )
+        assert delete_response.status_code == 204
+
+        create_response = client.post(
+            "/api/products",
+            headers=admin_headers,
+            json={
+                "name": "Restored Product",
+                "barcode": "REUSE123",
+                "category_id": category.id,
+                "cost_price": "10.00",
+                "sell_price": "15.00",
+                "stock_quantity": 25,
+            },
+        )
+
+        assert create_response.status_code == 201
+        data = create_response.json()
+        assert data["id"] == deleted_product_id
+        assert data["name"] == "Restored Product"
+        assert data["barcode"] == "REUSE123"
+        assert data["stock_quantity"] == "25.000"
+        assert data["is_active"] is True
+        assert db_session.query(Product).filter(Product.barcode == "REUSE123").count() == 1
+
     def test_create_product_without_auth(self, client: TestClient):
         """Test creating a product without authentication."""
         response = client.post(
