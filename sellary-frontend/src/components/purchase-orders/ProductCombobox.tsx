@@ -11,6 +11,7 @@ interface ProductComboboxProps {
   value: Product | null;
   excludedProductIds: Set<number>;
   error?: string;
+  errorId?: string;
   onSelect: (product: Product) => void;
   label?: string;
 }
@@ -19,6 +20,7 @@ export default function ProductCombobox({
   value,
   excludedProductIds,
   error,
+  errorId,
   onSelect,
   label = 'Товар',
 }: ProductComboboxProps) {
@@ -100,6 +102,7 @@ export default function ProductCombobox({
         aria-controls={`${id}-listbox`}
         aria-activedescendant={activeOptionId}
         aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
         value={query}
         onFocus={() => query.trim().length >= 2 && setIsOpen(true)}
         onChange={(event) => {

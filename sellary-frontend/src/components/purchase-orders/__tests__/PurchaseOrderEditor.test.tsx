@@ -96,6 +96,7 @@ describe('PurchaseOrderEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Отправить поставщику' }));
 
     expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith(expect.any(Object), purchaseOrder.id);
     expect(onSend).toHaveBeenCalledWith(purchaseOrder.id);
     expect(onSave.mock.invocationCallOrder[0]).toBeLessThan(
       onSend.mock.invocationCallOrder[0],

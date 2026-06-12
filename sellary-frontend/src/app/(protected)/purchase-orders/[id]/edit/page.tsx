@@ -55,7 +55,14 @@ export default function EditPurchaseOrderPage() {
         ]);
         return response.data;
       }}
-      onSend={async (orderId) => (await purchaseOrdersApi.send(orderId)).data}
+      onSend={async (orderId) => {
+        const response = await purchaseOrdersApi.send(orderId);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] }),
+          queryClient.invalidateQueries({ queryKey: ['purchaseOrder'] }),
+        ]);
+        return response.data;
+      }}
       onComplete={(order) => router.push(`/purchase-orders/${order.id}`)}
       onCancel={() => router.push(`/purchase-orders/${id}`)}
     />

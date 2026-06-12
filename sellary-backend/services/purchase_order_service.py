@@ -335,6 +335,7 @@ class PurchaseOrderService:
                             "id": item.product.id,
                             "name": item.product.name,
                             "barcode": item.product.barcode,
+                            "uom": item.product.uom,
                         }
                         if item.product
                         else None

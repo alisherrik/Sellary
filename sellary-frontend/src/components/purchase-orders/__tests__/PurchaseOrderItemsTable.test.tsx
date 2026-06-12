@@ -96,4 +96,28 @@ describe('PurchaseOrderItemsTable', () => {
 
     await waitFor(() => expect(screen.getByText(/37[,.]5/)).toBeInTheDocument());
   });
+
+  it('restores selected product labels from the form state', () => {
+    render(
+      <PurchaseOrderItemsTable
+        items={[
+          {
+            key: 'a',
+            product_id: '7',
+            product_name: 'Молоко 3,2%',
+            product_uom: 'шт',
+            quantity_ordered: '2',
+            unit_cost: '12.50',
+          },
+        ]}
+        errors={{}}
+        productsById={new Map()}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('combobox', { name: /товар/i })).toHaveValue('Молоко 3,2%');
+    expect(screen.getByText('шт')).toBeInTheDocument();
+    expect(screen.queryByText('Уже добавлен')).not.toBeInTheDocument();
+  });
 });

@@ -20,7 +20,9 @@ describe('MobileShell', () => {
 
   it('renders children', () => {
     render(<MobileShell><div>Test Content</div></MobileShell>);
-    expect(screen.getByText('Test Content')).toBeInTheDocument();
+    const content = screen.getByText('Test Content');
+    expect(content).toBeInTheDocument();
+    expect(content.parentElement).toHaveClass('overflow-y-auto');
   });
 
   it('renders bottom tab bar', () => {

@@ -27,8 +27,6 @@ export default function PurchaseOrderItemsTable({
 }: PurchaseOrderItemsTableProps) {
   const [resolvedProducts, setResolvedProducts] = useState(productsById);
   const [duplicateRow, setDuplicateRow] = useState<string | null>(null);
-  const selectedIds = new Set(items.map((item) => Number(item.product_id)).filter(Boolean));
-
   const updateRow = (key: string, changes: Partial<PurchaseOrderItemInput>) => {
     onChange(items.map((item) => (item.key === key ? { ...item, ...changes } : item)));
   };
@@ -54,7 +52,31 @@ export default function PurchaseOrderItemsTable({
 
       <div className="divide-y divide-gray-200">
         {items.map((item, index) => {
-          const product = resolvedProducts.get(Number(item.product_id)) ?? null;
+          const productId = Number(item.product_id);
+          const excludedProductIds = new Set(
+            items
+              .filter((candidate) => candidate.key !== item.key)
+              .map((candidate) => Number(candidate.product_id))
+              .filter(Boolean),
+          );
+          const product =
+            resolvedProducts.get(productId) ??
+            (productId && item.product_name
+              ? {
+                  id: productId,
+                  barcode: null,
+                  name: item.product_name,
+                  product_type: 'item' as const,
+                  uom: item.product_uom ?? 'шт',
+                  cost_price: item.unit_cost,
+                  sell_price: '0',
+                  tax_percent: '0',
+                  stock_quantity: 0,
+                  min_stock_level: 0,
+                  is_active: true,
+                  created_at: '',
+                }
+              : null);
           const rowErrors = errors[item.key] ?? {};
           const productError =
             duplicateRow === item.key ? 'Товар уже добавлен' : rowErrors.product_id;
@@ -64,6 +86,7 @@ export default function PurchaseOrderItemsTable({
           return (
             <div
               key={item.key}
+              data-product-id={item.product_id || undefined}
               className="grid gap-3 py-4 sm:grid-cols-[minmax(220px,1fr)_64px_110px_130px_130px_44px] sm:items-start sm:px-3"
             >
               <div>
@@ -72,8 +95,9 @@ export default function PurchaseOrderItemsTable({
                 </span>
                 <ProductCombobox
                   value={product}
-                  excludedProductIds={selectedIds}
+                  excludedProductIds={excludedProductIds}
                   error={productError}
+                  errorId={`${item.key}-product-error`}
                   label={`Товар ${index + 1}`}
                   onSelect={(selected) => {
                     const duplicate = items.some(
@@ -83,6 +107,9 @@ export default function PurchaseOrderItemsTable({
                     );
                     if (duplicate) {
                       setDuplicateRow(item.key);
+                      document
+                        .querySelector<HTMLElement>(`[data-product-id="${selected.id}"] input`)
+                        ?.focus();
                       return;
                     }
                     setDuplicateRow(null);
@@ -93,12 +120,16 @@ export default function PurchaseOrderItemsTable({
                     });
                     updateRow(item.key, {
                       product_id: String(selected.id),
+                      product_name: selected.name,
+                      product_uom: selected.uom,
                       unit_cost: selected.cost_price,
                     });
                   }}
                 />
                 {productError && (
-                  <p className="mt-1 text-xs text-red-600">{productError}</p>
+                  <p id={`${item.key}-product-error`} className="mt-1 text-xs text-red-600">
+                    {productError}
+                  </p>
                 )}
               </div>
 
@@ -120,6 +151,9 @@ export default function PurchaseOrderItemsTable({
                   step="0.001"
                   aria-label={`Количество, ${product?.name ?? `товар ${index + 1}`}`}
                   aria-invalid={Boolean(rowErrors.quantity_ordered)}
+                  aria-describedby={
+                    rowErrors.quantity_ordered ? `${item.key}-quantity-error` : undefined
+                  }
                   value={item.quantity_ordered}
                   onChange={(event) =>
                     updateRow(item.key, { quantity_ordered: event.target.value })
@@ -129,7 +163,9 @@ export default function PurchaseOrderItemsTable({
                   }`}
                 />
                 {rowErrors.quantity_ordered && (
-                  <p className="mt-1 text-xs text-red-600">{rowErrors.quantity_ordered}</p>
+                  <p id={`${item.key}-quantity-error`} className="mt-1 text-xs text-red-600">
+                    {rowErrors.quantity_ordered}
+                  </p>
                 )}
               </label>
 
@@ -143,6 +179,7 @@ export default function PurchaseOrderItemsTable({
                   step="0.01"
                   aria-label={`Цена, ${product?.name ?? `товар ${index + 1}`}`}
                   aria-invalid={Boolean(rowErrors.unit_cost)}
+                  aria-describedby={rowErrors.unit_cost ? `${item.key}-cost-error` : undefined}
                   value={item.unit_cost}
                   onChange={(event) => updateRow(item.key, { unit_cost: event.target.value })}
                   className={`min-h-11 w-full rounded-md border bg-white px-3 text-right text-sm tabular-nums focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 ${
@@ -150,7 +187,9 @@ export default function PurchaseOrderItemsTable({
                   }`}
                 />
                 {rowErrors.unit_cost && (
-                  <p className="mt-1 text-xs text-red-600">{rowErrors.unit_cost}</p>
+                  <p id={`${item.key}-cost-error`} className="mt-1 text-xs text-red-600">
+                    {rowErrors.unit_cost}
+                  </p>
                 )}
               </label>
 

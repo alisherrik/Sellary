@@ -36,7 +36,7 @@ export default function PurchaseOrdersPage() {
 
   const ordersQuery = usePurchaseOrders(params);
   const suppliersQuery = useSuppliers({ limit: 200 });
-  const purchaseOrders = ordersQuery.data ?? [];
+  const purchaseOrders = useMemo(() => ordersQuery.data ?? [], [ordersQuery.data]);
   const suppliers = suppliersQuery.data ?? [];
 
   const visibleOrders = useMemo(() => {
@@ -267,4 +267,3 @@ export default function PurchaseOrdersPage() {
     </div>
   );
 }
-

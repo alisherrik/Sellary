@@ -45,7 +45,9 @@ export default function MobileShell({ children }: MobileShellProps) {
         showBack={showBack}
         onBack={() => router.back()}
       />
-      <div className="flex-1 overflow-hidden">{children}</div>
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+        {children}
+      </div>
       <BottomTabBar onMoreClick={() => setMoreOpen(true)} />
       <MoreSheet isOpen={moreOpen} onClose={() => setMoreOpen(false)} />
     </div>

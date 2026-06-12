@@ -149,6 +149,7 @@ export default function PurchaseOrderReceiveStage({
                       disabled={remaining === 0}
                       aria-label={`Принять сейчас, ${name}`}
                       aria-invalid={Boolean(error)}
+                      aria-describedby={error ? `receive-${item.id}-error` : undefined}
                       value={receiving[item.id] ?? '0'}
                       onChange={(event) => {
                         setReceiving((current) => ({
@@ -162,7 +163,11 @@ export default function PurchaseOrderReceiveStage({
                       }`}
                     />
                   </label>
-                  {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+                  {error && (
+                    <p id={`receive-${item.id}-error`} className="mt-1 text-xs text-red-600">
+                      {error}
+                    </p>
+                  )}
                   {remaining === 0 && (
                     <p className="mt-1 flex items-center justify-end gap-1 text-xs text-green-700">
                       <CheckCircleIcon className="h-4 w-4" /> Получено

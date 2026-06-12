@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildPurchaseOrderPayload,
+  calculateOrderedQuantity,
   calculateOrderTotal,
   createEmptyPurchaseOrderForm,
   getDuplicateProductIds,
   getRemainingQuantity,
   hasPurchaseOrderErrors,
+  mapPurchaseOrderToForm,
   validatePurchaseOrderForm,
   validateReceiveQuantity,
 } from '../purchaseOrderForm';
@@ -21,6 +23,7 @@ describe('purchaseOrderForm', () => {
       quantity_ordered: '1',
       unit_cost: '',
     });
+    expect(calculateOrderedQuantity(form.items)).toBe(0);
   });
 
   it('calculates a decimal order total from valid rows', () => {
@@ -71,6 +74,34 @@ describe('purchaseOrderForm', () => {
       expected_delivery_date: '2026-06-20T00:00:00.000Z',
       notes: 'До 12:00',
       items: [{ product_id: 9, quantity_ordered: 4.5, unit_cost: 18.25 }],
+    });
+  });
+
+  it('keeps product display data when mapping a saved order', () => {
+    const form = mapPurchaseOrderToForm({
+      id: 12,
+      supplier_id: 3,
+      order_date: '2026-06-12T00:00:00Z',
+      status: 'draft',
+      total_amount: '35.00',
+      is_active: true,
+      created_at: '2026-06-12T00:00:00Z',
+      items: [
+        {
+          id: 7,
+          product_id: 9,
+          quantity_ordered: 7,
+          quantity_received: 0,
+          unit_cost: '5.00',
+          subtotal: '35.00',
+          product: { id: 9, name: 'Salafan', uom: 'metr' },
+        },
+      ],
+    });
+
+    expect(form.items[0]).toMatchObject({
+      product_name: 'Salafan',
+      product_uom: 'metr',
     });
   });
 

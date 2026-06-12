@@ -46,6 +46,7 @@ export default function PurchaseOrderEditor({
   const [requestError, setRequestError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [savedOrderId, setSavedOrderId] = useState<number | undefined>(initialOrder?.id);
 
   const selectedSupplier = suppliers.find(
     (supplier) => supplier.id === Number(form.supplier_id),
@@ -122,7 +123,8 @@ export default function PurchaseOrderEditor({
       setIsSubmitting(true);
       setRequestError('');
       try {
-        const saved = await onSave(buildPurchaseOrderPayload(form), initialOrder?.id);
+        const saved = await onSave(buildPurchaseOrderPayload(form), savedOrderId);
+        setSavedOrderId(saved.id);
         setIsDirty(false);
         if (finish) onComplete(saved);
         return saved;
@@ -132,7 +134,7 @@ export default function PurchaseOrderEditor({
       } finally {
         setIsSubmitting(false);
       }
-    }, [form, initialOrder?.id, onComplete, onSave],
+    }, [form, onComplete, onSave, savedOrderId],
   );
 
   const saveAndSend = async () => {
@@ -221,6 +223,7 @@ export default function PurchaseOrderEditor({
                   value={form.supplier_id}
                   data-error={Boolean(errors.supplier_id)}
                   aria-invalid={Boolean(errors.supplier_id)}
+                  aria-describedby={errors.supplier_id ? 'purchase-order-supplier-error' : undefined}
                   onChange={(event) => {
                     updateForm({ supplier_id: event.target.value });
                     setErrors((current) => ({ ...current, supplier_id: undefined }));
@@ -237,7 +240,9 @@ export default function PurchaseOrderEditor({
                   ))}
                 </select>
                 {errors.supplier_id && (
-                  <p className="mt-1 text-xs text-red-600">{errors.supplier_id}</p>
+                  <p id="purchase-order-supplier-error" className="mt-1 text-xs text-red-600">
+                    {errors.supplier_id}
+                  </p>
                 )}
               </label>
               <label className="block max-w-sm">
@@ -312,14 +317,16 @@ export default function PurchaseOrderEditor({
               <div className="mt-5 divide-y divide-gray-200">
                 {form.items.map((item) => {
                   const product = productsById.get(Number(item.product_id));
+                  const productName = item.product_name ?? product?.name;
+                  const productUom = item.product_uom ?? product?.uom;
                   return (
                     <div key={item.key} className="flex items-center justify-between gap-4 py-3 text-sm">
                       <div>
                         <p className="font-semibold text-gray-900">
-                          {product?.name ?? `Товар #${item.product_id}`}
+                          {productName ?? `Товар #${item.product_id}`}
                         </p>
                         <p className="text-gray-500">
-                          {item.quantity_ordered} {product?.uom ?? 'ед.'} × {formatCurrency(item.unit_cost)}
+                          {item.quantity_ordered} {productUom ?? 'ед.'} × {formatCurrency(item.unit_cost)}
                         </p>
                       </div>
                       <p className="font-semibold tabular-nums text-gray-900">
@@ -338,7 +345,7 @@ export default function PurchaseOrderEditor({
             </div>
           )}
 
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 py-4">
+          <div className="sticky bottom-0 z-20 mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 bg-white py-4 lg:static">
             <div className="flex gap-2">
               <button
                 type="button"

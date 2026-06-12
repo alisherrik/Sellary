@@ -28,12 +28,18 @@ export default function NewPurchaseOrderPage() {
   return (
     <PurchaseOrderEditor
       suppliers={suppliers}
-      onSave={async (payload: PurchaseOrderPayload) => {
-        const response = await purchaseOrdersApi.create(payload);
+      onSave={async (payload: PurchaseOrderPayload, id) => {
+        const response = id
+          ? await purchaseOrdersApi.update(id, payload)
+          : await purchaseOrdersApi.create(payload);
         await queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
         return response.data;
       }}
-      onSend={async (id) => (await purchaseOrdersApi.send(id)).data}
+      onSend={async (id) => {
+        const response = await purchaseOrdersApi.send(id);
+        await queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+        return response.data;
+      }}
       onComplete={(order) => router.push(`/purchase-orders/${order.id}`)}
       onCancel={() => router.push('/purchase-orders')}
     />

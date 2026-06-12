@@ -76,6 +76,7 @@ class TestPurchaseOrderWorkflow:
         assert len(data["items"]) == 1
         assert data["items"][0]["product_id"] == product.id
         assert data["items"][0]["quantity_ordered"] == "10.000"
+        assert data["items"][0]["product"]["uom"] == product.uom
         assert data["supplier"]["id"] == supplier.id
 
     def test_create_po_missing_supplier(self, client: TestClient, db_session, admin_headers):

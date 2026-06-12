@@ -3,6 +3,8 @@ import type { PurchaseOrder, PurchaseOrderPayload } from '@/lib/types';
 export interface PurchaseOrderItemInput {
   key: string;
   product_id: string;
+  product_name?: string;
+  product_uom?: string;
   quantity_ordered: string;
   unit_cost: string;
 }
@@ -45,6 +47,8 @@ export const mapPurchaseOrderToForm = (order: PurchaseOrder): PurchaseOrderFormD
   items: order.items.map((item) => ({
     key: `item-${item.id}`,
     product_id: String(item.product_id),
+    product_name: item.product?.name,
+    product_uom: item.product?.uom,
     quantity_ordered: String(item.quantity_ordered),
     unit_cost: String(item.unit_cost),
   })),
@@ -58,7 +62,11 @@ export const calculateOrderTotal = (items: PurchaseOrderItemInput[]) =>
   );
 
 export const calculateOrderedQuantity = (items: PurchaseOrderItemInput[]) =>
-  items.reduce((sum, item) => sum + (Number(item.quantity_ordered) || 0), 0);
+  items.reduce(
+    (sum, item) =>
+      sum + (Number(item.product_id) ? Number(item.quantity_ordered) || 0 : 0),
+    0,
+  );
 
 export const getDuplicateProductIds = (items: PurchaseOrderItemInput[]) => {
   const seen = new Set<number>();
