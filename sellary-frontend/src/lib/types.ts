@@ -297,6 +297,23 @@ export interface PurchaseOrder {
   items: PurchaseOrderItem[];
 }
 
+export interface PurchaseOrderItemPayload {
+  product_id: number;
+  quantity_ordered: number;
+  unit_cost: number;
+}
+
+export interface PurchaseOrderPayload {
+  supplier_id: number;
+  expected_delivery_date: string | null;
+  notes: string | null;
+  items: PurchaseOrderItemPayload[];
+}
+
+export interface ReceivePurchaseOrderPayload {
+  items: Array<{ item_id: number; quantity_to_receive: number }>;
+}
+
 export interface DailySalesData {
   date: string;
   total_sales: number;

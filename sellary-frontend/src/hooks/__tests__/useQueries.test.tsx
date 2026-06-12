@@ -8,6 +8,7 @@ import {
     useSales,
     useSuppliers,
     usePurchaseOrders,
+    usePurchaseOrder,
     useDailySales,
     useProfit,
     useTopProducts
@@ -41,6 +42,7 @@ vi.mock('@/lib/api', () => ({
     },
     purchaseOrdersApi: {
         getAll: vi.fn(),
+        getById: vi.fn(),
     },
 }));
 
@@ -321,6 +323,29 @@ describe('usePurchaseOrders', () => {
         });
 
         expect(api.purchaseOrdersApi.getAll).not.toHaveBeenCalled();
+    });
+});
+
+describe('usePurchaseOrder', () => {
+    it('loads a company-scoped purchase order detail', async () => {
+        const purchaseOrder = { id: 42, supplier_id: 7, items: [] };
+        vi.mocked(api.purchaseOrdersApi.getById).mockResolvedValue(
+            createMockAxiosResponse(purchaseOrder),
+        );
+
+        const { result } = renderHook(() => usePurchaseOrder(42), {
+            wrapper: createWrapper(true),
+        });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(queryKeys.purchaseOrder(TEST_COMPANY_ID, 42)).toEqual([
+            'purchaseOrder',
+            TEST_COMPANY_ID,
+            42,
+        ]);
+        expect(api.purchaseOrdersApi.getById).toHaveBeenCalledWith(42);
+        expect(result.current.data).toEqual(purchaseOrder);
     });
 });
 

@@ -16,6 +16,7 @@ export const queryKeys = {
     sales: (companyId: number | null, params?: any) => ['sales', tenantKey(companyId), params] as const,
     suppliers: (companyId: number | null, params?: any) => ['suppliers', tenantKey(companyId), params] as const,
     purchaseOrders: (companyId: number | null, params?: any) => ['purchaseOrders', tenantKey(companyId), params] as const,
+    purchaseOrder: (companyId: number | null, id: number) => ['purchaseOrder', tenantKey(companyId), id] as const,
     dailySales: (companyId: number | null, days: number) => ['dailySales', tenantKey(companyId), days] as const,
     profit: (companyId: number | null, days: number) => ['profit', tenantKey(companyId), days] as const,
     topProducts: (companyId: number | null, days: number, limit: number) => ['topProducts', tenantKey(companyId), days, limit] as const,
@@ -92,6 +93,27 @@ export function usePurchaseOrders(params?: any, options?: Partial<UseQueryOption
         },
         ...options,
         enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
+    });
+}
+
+export function usePurchaseOrder(
+    id: number,
+    options?: Partial<UseQueryOptions<PurchaseOrder>>,
+) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    return useQuery<PurchaseOrder>({
+        queryKey: queryKeys.purchaseOrder(companyId, id),
+        queryFn: async () => {
+            const response = await purchaseOrdersApi.getById(id);
+            return response.data;
+        },
+        ...options,
+        enabled:
+            isServerReachable &&
+            companyId !== null &&
+            Number.isFinite(id) &&
+            (options?.enabled !== false),
     });
 }
 
