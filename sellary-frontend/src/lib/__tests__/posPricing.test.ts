@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  calculateCashPayment,
   calculateDiscountFromEditedPrice,
   calculatePosPricing,
   formatEditableAmount,
@@ -43,5 +44,23 @@ describe('posPricing', () => {
 
     expect(pricing.totalDiscount).toBe(-2.5);
     expect(pricing.finalTotal).toBe(25);
+  });
+
+  it('calculates cash change using money-safe rounding', () => {
+    expect(calculateCashPayment('150.50', 100)).toEqual({
+      received: 150.5,
+      change: 50.5,
+      shortfall: 0,
+      isSufficient: true,
+    });
+  });
+
+  it('reports a shortfall when received cash is below the total', () => {
+    expect(calculateCashPayment('99.99', 100)).toEqual({
+      received: 99.99,
+      change: 0,
+      shortfall: 0.01,
+      isSufficient: false,
+    });
   });
 });

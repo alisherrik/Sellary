@@ -25,6 +25,7 @@ import {
 import toast from 'react-hot-toast';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import {
+  calculateCashPayment,
   calculateDiscountFromEditedPrice,
   calculatePosPricing,
   formatEditableAmount,
@@ -61,6 +62,7 @@ export default function POS() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
   const [cardType, setCardType] = useState<'alif' | 'eskhata' | 'dc' | null>(null);
+  const [cashReceived, setCashReceived] = useState('');
   const [loading, setLoading] = useState(false);
   const [totalEdit, setTotalEdit] = useState<string | null>(null);
   const [priceEdits, setPriceEdits] = useState<Record<number, string>>({});
@@ -147,6 +149,20 @@ export default function POS() {
     [activeSessionId],
   );
 
+  const subtotal = getSubtotal();
+  const tax = getTax();
+  const itemDiscounts = items.reduce((sum, item) => sum + (item.discount || 0), 0);
+  const pricing = calculatePosPricing({ subtotal, tax, itemDiscounts, overallDiscount });
+  const finalTotal = pricing.finalTotal;
+  const cashPayment = useMemo(
+    () => calculateCashPayment(cashReceived, finalTotal),
+    [cashReceived, finalTotal],
+  );
+  const openPaymentModal = useCallback(() => {
+    setCashReceived(formatEditableAmount(finalTotal));
+    setShowPaymentModal(true);
+  }, [finalTotal]);
+
   useEffect(() => {
     registerHotkeys();
     return () => {
@@ -159,6 +175,7 @@ export default function POS() {
     setShowPaymentModal(false);
     setCardType(null);
     setPaymentMethod('cash');
+    setCashReceived('');
     setTotalEdit(null);
     setPriceEdits({});
     setQtyEdits({});
@@ -192,6 +209,7 @@ export default function POS() {
     setShowCartSheet(false);
     setCardType(null);
     setPaymentMethod('cash');
+    setCashReceived('');
     setActiveOverallDiscount(0);
     setTotalEdit(null);
     setPriceEdits({});
@@ -206,6 +224,11 @@ export default function POS() {
 
     if (paymentMethod === 'card' && !cardType) {
       toast.error('Выберите тип карты');
+      return;
+    }
+
+    if (paymentMethod === 'cash' && !cashPayment.isSufficient) {
+      toast.error('Недостаточно наличных');
       return;
     }
 
@@ -252,7 +275,7 @@ export default function POS() {
     } finally {
       setLoading(false);
     }
-  }, [items, paymentMethod, cardType, isServerReachable, overallDiscount, resetCheckout]);
+  }, [items, paymentMethod, cardType, cashPayment.isSufficient, isServerReachable, overallDiscount, resetCheckout]);
 
   useEffect(() => {
     hotkeyManager.register({
@@ -261,7 +284,7 @@ export default function POS() {
         if (showPaymentModal) {
           completeSale();
         } else if (items.length > 0) {
-          setShowPaymentModal(true);
+          openPaymentModal();
         }
       },
       description: 'Завершить продажу',
@@ -272,7 +295,7 @@ export default function POS() {
       handler: () => barcodeInputRef.current?.focus(),
       description: 'Фокус на штрихкод',
     });
-  }, [showPaymentModal, items.length, completeSale]);
+  }, [showPaymentModal, items.length, completeSale, openPaymentModal]);
 
   // Esc closes the payment modal.
   useEffect(() => {
@@ -284,11 +307,6 @@ export default function POS() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [showPaymentModal]);
 
-  const subtotal = getSubtotal();
-  const tax = getTax();
-  const itemDiscounts = items.reduce((sum, item) => sum + (item.discount || 0), 0);
-  const pricing = calculatePosPricing({ subtotal, tax, itemDiscounts, overallDiscount });
-  const finalTotal = pricing.finalTotal;
   const getSessionItemCount = (sessionItems: typeof items) =>
     sessionItems.reduce((sum, item) => sum + item.quantity, 0);
   const cartCount = getSessionItemCount(items);
@@ -518,7 +536,7 @@ export default function POS() {
           )}
           <button
             type="button"
-            onClick={() => items.length > 0 && setShowPaymentModal(true)}
+            onClick={() => items.length > 0 && openPaymentModal()}
             disabled={items.length === 0}
             className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl text-[17px] font-extrabold text-white shadow-lg transition-all hover:brightness-105 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}
@@ -722,6 +740,7 @@ export default function POS() {
                     onClick={() => {
                       setPaymentMethod(id);
                       if (id !== 'card') setCardType(null);
+                      if (id === 'cash') setCashReceived(formatEditableAmount(finalTotal));
                     }}
                     className={`relative flex min-h-[44px] flex-col items-center justify-center rounded-xl border-2 p-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-4 ${
                       selected
@@ -736,6 +755,37 @@ export default function POS() {
                 );
               })}
             </div>
+
+            {paymentMethod === 'cash' && (
+              <div className="mb-4 rounded-2xl border border-gray-200 p-4 dark:border-gray-700 sm:mb-6">
+                <label
+                  htmlFor="cash-received"
+                  className="mb-2 block text-xs font-medium text-gray-600 dark:text-gray-300 sm:text-sm"
+                >
+                  Получено наличными
+                </label>
+                <input
+                  id="cash-received"
+                  type="text"
+                  inputMode="decimal"
+                  value={cashReceived}
+                  onChange={(event) => setCashReceived(event.target.value)}
+                  className="h-12 w-full rounded-xl border border-gray-300 bg-white px-4 text-right text-xl font-extrabold tabular-nums text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:ring-blue-900/40"
+                />
+                <div
+                  className={`mt-3 flex items-center justify-between rounded-xl px-3 py-2 text-sm font-bold ${
+                    cashPayment.isSufficient
+                      ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'
+                      : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+                  }`}
+                >
+                  <span>{cashPayment.isSufficient ? 'Сдача' : 'Не хватает'}</span>
+                  <span className="text-lg tabular-nums">
+                    {formatCurrency(cashPayment.isSufficient ? cashPayment.change : cashPayment.shortfall)}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {paymentMethod === 'card' && (
               <div className="mb-4 sm:mb-8">
@@ -764,7 +814,7 @@ export default function POS() {
 
             <button
               onClick={completeSale}
-              disabled={loading}
+              disabled={loading || (paymentMethod === 'cash' && !cashPayment.isSufficient)}
               className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3 text-base font-bold text-white transition-all hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-400 sm:py-4 sm:text-xl"
             >
               {loading ? (

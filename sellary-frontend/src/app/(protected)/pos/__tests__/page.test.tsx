@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import POS from '../page';
 import { useCartStore } from '@/lib/store';
+import type { Product } from '@/lib/types';
 
 vi.mock('@/providers/ServerHealthProvider', () => ({
   useServerHealth: () => ({ isServerReachable: true }),
@@ -34,6 +35,21 @@ const renderPOS = () => {
   );
 };
 
+const cashProduct: Product = {
+  id: 1,
+  barcode: '100000000001',
+  name: 'Тестовый товар',
+  product_type: 'item',
+  uom: 'шт',
+  cost_price: '80',
+  sell_price: '100',
+  tax_percent: '0',
+  stock_quantity: 10,
+  min_stock_level: 1,
+  is_active: true,
+  created_at: '2026-06-13T00:00:00Z',
+};
+
 describe('POS multi-sale sessions', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -54,5 +70,29 @@ describe('POS multi-sale sessions', () => {
       'page',
     );
     expect(screen.getByText('Корзина пуста')).toBeInTheDocument();
+  });
+
+  it('shows cash change and blocks checkout when received cash is insufficient', async () => {
+    const user = userEvent.setup();
+    useCartStore.getState().addItem(cashProduct);
+
+    renderPOS();
+
+    await user.click(screen.getByRole('button', { name: /оплатить/i }));
+
+    const receivedInput = screen.getByRole('textbox', { name: /получено наличными/i });
+    expect(receivedInput).toHaveValue('100');
+
+    await user.clear(receivedInput);
+    await user.type(receivedInput, '150,5');
+
+    const changeRow = screen.getByText('Сдача').parentElement;
+    expect(changeRow).toHaveTextContent('50,5');
+
+    await user.clear(receivedInput);
+    await user.type(receivedInput, '80');
+
+    expect(screen.getByText('Не хватает').parentElement).toHaveTextContent('20');
+    expect(screen.getByRole('button', { name: /завершить продажу/i })).toBeDisabled();
   });
 });

@@ -18,6 +18,30 @@ export function parseEditableAmount(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export function calculateCashPayment(value: string, total: number) {
+  const parsedReceived = parseEditableAmount(value);
+  const roundedTotal = roundMoney(Math.max(0, total));
+
+  if (parsedReceived === null || parsedReceived < 0) {
+    return {
+      received: null,
+      change: 0,
+      shortfall: roundedTotal,
+      isSufficient: false,
+    };
+  }
+
+  const received = roundMoney(parsedReceived);
+  const difference = roundMoney(received - roundedTotal);
+
+  return {
+    received,
+    change: difference > 0 ? difference : 0,
+    shortfall: difference < 0 ? Math.abs(difference) : 0,
+    isSufficient: difference >= 0,
+  };
+}
+
 export function calculateDiscountFromEditedPrice(value: string, originalPrice: number): number {
   const editedPrice = parseEditableAmount(value);
   if (editedPrice === null || editedPrice < 0) {
