@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sellary — Товары</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#fafafa;--card:#fff;--line:#ececec;--ink:#18181b;--dim:#71717a;--faint:#a1a1aa;--accent:#4f46e5;--up:#16a34a;--down:#dc2626}
+  body{font-family:'Spline Sans',sans-serif;margin:0;background:var(--bg);color:var(--ink)}
+  .mono{font-family:'Spline Sans Mono',monospace;font-variant-numeric:tabular-nums}
+  .rowl:hover{background:#f5f5f7}
+  .seg{background:#f1f1f3;border-radius:9px;padding:3px}
+  .seg button{border-radius:7px;font-size:13px;padding:5px 12px;color:var(--dim)}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600}
+  .cat{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;font-size:13.5px;color:var(--dim);cursor:pointer;width:100%;text-align:left;border:none;background:none}
+  .cat:hover{background:#f4f4f6}
+  .cat.on{background:#eef0ff;color:var(--accent);font-weight:600}
+  .cat .ct{margin-left:auto;font-size:12px;color:var(--faint)}
+  .cat.on .ct{color:var(--accent)}
+  .dot{width:9px;height:9px;border-radius:99px;flex-shrink:0}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .fade{animation:fade .4s ease both}
+  ::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:#e4e4e7;border-radius:8px}
+</style>
+</head>
+<body>
+<div class="flex min-h-screen">
+  <!-- sidebar -->
+  <aside class="w-60 shrink-0 border-r px-3 py-5 flex flex-col" style="border-color:var(--line);background:#fff">
+    <div class="flex items-center gap-2 px-2 mb-6">
+      <div class="w-7 h-7 rounded-lg grid place-items-center text-white font-bold text-sm" style="background:var(--accent)">S</div>
+      <span class="font-bold">Sellary</span>
+    </div>
+    <nav class="space-y-0.5 text-[14px]">
+      <a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[var(--dim)] hover:bg-zinc-50">▦ Сводка</a>
+      <a class="flex items-center gap-2.5 px-3 py-2 rounded-lg font-semibold" style="background:#eef0ff;color:var(--accent)">▤ Товары</a>
+      <a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[var(--dim)] hover:bg-zinc-50">⇄ Продажи</a>
+      <a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[var(--dim)] hover:bg-zinc-50">⊞ Закупки</a>
+      <a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[var(--dim)] hover:bg-zinc-50">◷ Отчёты</a>
+    </nav>
+
+    <!-- CATEGORIES — улучшенный блок -->
+    <div class="mt-7 mb-2 px-3 flex items-center">
+      <span class="text-[11px] uppercase tracking-wider text-[var(--faint)]">Категории</span>
+      <button class="ml-auto text-[var(--faint)] hover:text-[var(--accent)] text-[15px] leading-none" title="Управление категориями">⚙</button>
+    </div>
+    <div class="space-y-0.5">
+      <button class="cat on"><span class="dot" style="background:var(--accent)"></span>Все товары <span class="ct">274</span></button>
+      <button class="cat"><span class="dot" style="background:#0ea5e9"></span>Напитки <span class="ct">48</span></button>
+      <button class="cat"><span class="dot" style="background:#f59e0b"></span>Снеки <span class="ct">36</span></button>
+      <button class="cat"><span class="dot" style="background:#10b981"></span>Молочка <span class="ct">29</span></button>
+      <button class="cat"><span class="dot" style="background:#f97316"></span>Выпечка <span class="ct">22</span></button>
+      <button class="cat"><span class="dot" style="background:#8b5cf6"></span>Бакалея <span class="ct">71</span></button>
+      <button class="cat"><span class="dot" style="background:#f43f5e"></span>Хозтовары <span class="ct">68</span></button>
+    </div>
+    <button class="mt-2 cat text-[var(--accent)] font-medium"><span class="w-[9px] text-center leading-none">＋</span>Добавить категорию</button>
+
+    <div class="mt-auto px-3 pt-4 text-[12px] text-[var(--faint)]">
+      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Алишер · admin</div>
+    </div>
+  </aside>
+
+  <!-- main -->
+  <main class="flex-1 min-w-0 flex flex-col">
+    <header class="px-7 py-5 border-b" style="border-color:var(--line)">
+      <div class="flex items-center gap-3 mb-4">
+        <h1 class="text-[20px] font-bold tracking-tight">Товары</h1>
+        <span class="mono text-[12px] text-[var(--faint)]">274 позиции</span>
+        <div class="ml-auto flex items-center gap-2">
+          <div class="relative">
+            <input class="h-9 w-64 rounded-lg border pl-9 pr-3 text-[14px] outline-none focus:ring-2 focus:ring-indigo-100" style="border-color:var(--line)" placeholder="Поиск по названию или штрихкоду…" />
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--faint)] text-sm">⌕</span>
+          </div>
+          <button class="h-9 px-4 rounded-lg text-white text-[14px] font-semibold" style="background:var(--accent)">＋ Товар</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="seg flex"><button class="on">Все</button><button>Мало · 2</button><button>Топ</button><button>Нет в наличии · 1</button></div>
+        <span class="mono text-[12px] text-[var(--faint)] ml-auto">обновлено только что</span>
+      </div>
+    </header>
+
+    <!-- table -->
+    <div class="px-3 py-2 flex-1 overflow-auto">
+      <table class="w-full text-[14px]">
+        <thead>
+          <tr class="text-[11px] uppercase tracking-wider text-[var(--faint)] border-b" style="border-color:var(--line)">
+            <th class="text-left font-medium py-2.5 pl-4">Товар</th>
+            <th class="text-left font-medium py-2.5">Категория</th>
+            <th class="text-right font-medium py-2.5">Цена</th>
+            <th class="text-right font-medium py-2.5">Остаток</th>
+            <th class="text-left font-medium py-2.5 pl-6">Динамика 30д</th>
+            <th class="text-right font-medium py-2.5 pr-4">Тренд</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="rowl fade border-b cursor-pointer" style="border-color:var(--line)">
+            <td class="py-3 pl-4 font-semibold">Кока-Кола 0.5л<div class="mono text-[11px] text-[var(--faint)] font-normal">4870001234567</div></td>
+            <td class="py-3"><span class="inline-flex items-center gap-1.5 text-[12px] px-2 py-0.5 rounded-md bg-sky-50 text-sky-600"><span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>Напитки</span></td>
+            <td class="py-3 mono text-right">12 000</td><td class="py-3 mono text-right">142</td>
+            <td class="py-3 pl-6"><svg width="120" height="28" viewBox="0 0 120 28"><polyline points="0,22 20,18 40,20 60,12 80,14 100,6 120,8" fill="none" stroke="#16a34a" stroke-width="2"/></svg></td>
+            <td class="py-3 pr-4 text-right mono text-[13px] text-[var(--up)]">▲ 12%</td>
+          </tr>
+          <tr class="rowl fade border-b cursor-pointer" style="border-color:var(--line);animation-delay:.04s">
+            <td class="py-3 pl-4 font-semibold">Чипсы Lay's 80г<div class="mono text-[11px] text-[var(--faint)] font-normal">4870002345678</div></td>
+            <td class="py-3"><span class="inline-flex items-center gap-1.5 text-[12px] px-2 py-0.5 rounded-md bg-amber-50 text-amber-600"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Снеки</span></td>
+            <td class="py-3 mono text-right">9 500</td><td class="py-3 mono text-right">38</td>
+            <td class="py-3 pl-6"><svg width="120" height="28" viewBox="0 0 120 28"><polyline points="0,8 20,10 40,14 60,16 80,20 100,18 120,22" fill="none" stroke="#dc2626" stroke-width="2"/></svg></td>
+            <td class="py-3 pr-4 text-right mono text-[13px] text-[var(--down)]">▼ 8%</td>
+          </tr>
+          <tr class="rowl fade border-b cursor-pointer bg-red-50/40" style="border-color:var(--line);animation-delay:.08s">
+            <td class="py-3 pl-4 font-semibold">Вода Чашма 1.5л<div class="mono text-[11px] text-[var(--faint)] font-normal">4870003456789</div></td>
+            <td class="py-3"><span class="inline-flex items-center gap-1.5 text-[12px] px-2 py-0.5 rounded-md bg-sky-50 text-sky-600"><span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>Напитки</span></td>
+            <td class="py-3 mono text-right">6 000</td><td class="py-3 mono text-right font-semibold text-red-600">4 ⚠</td>
+            <td class="py-3 pl-6"><svg width="120" height="28" viewBox="0 0 120 28"><polyline points="0,18 20,16 40,12 60,10 80,8 100,6 120,4" fill="none" stroke="#16a34a" stroke-width="2"/></svg></td>
+            <td class="py-3 pr-4 text-right mono text-[13px] text-[var(--up)]">▲ 34%</td>
+          </tr>
+          <tr class="rowl fade border-b cursor-pointer" style="border-color:var(--line);animation-delay:.12s">
+            <td class="py-3 pl-4 font-semibold">Молоко Nestlé 1л<div class="mono text-[11px] text-[var(--faint)] font-normal">4870004567890</div></td>
+            <td class="py-3"><span class="inline-flex items-center gap-1.5 text-[12px] px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Молочка</span></td>
+            <td class="py-3 mono text-right">14 000</td><td class="py-3 mono text-right">67</td>
+            <td class="py-3 pl-6"><svg width="120" height="28" viewBox="0 0 120 28"><polyline points="0,14 20,12 40,15 60,13 80,11 100,12 120,10" fill="none" stroke="#71717a" stroke-width="2"/></svg></td>
+            <td class="py-3 pr-4 text-right mono text-[13px] text-[var(--dim)]">▲ 2%</td>
+          </tr>
+          <tr class="rowl fade border-b cursor-pointer opacity-55" style="border-color:var(--line);animation-delay:.16s">
+            <td class="py-3 pl-4 font-semibold">Шоколад Snickers<div class="mono text-[11px] text-[var(--faint)] font-normal">4870005678901</div></td>
+            <td class="py-3"><span class="inline-flex items-center gap-1.5 text-[12px] px-2 py-0.5 rounded-md bg-amber-50 text-amber-600"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Снеки</span></td>
+            <td class="py-3 mono text-right">8 000</td><td class="py-3 mono text-right text-red-600">0</td>
+            <td class="py-3 pl-6"><svg width="120" height="28" viewBox="0 0 120 28"><polyline points="0,10 20,12 40,16 60,20 80,24 100,26 120,26" fill="none" stroke="#dc2626" stroke-width="2"/></svg></td>
+            <td class="py-3 pr-4 text-right mono text-[13px] text-[var(--down)]">▼ 51%</td>
+          </tr>
+          <tr class="rowl fade cursor-pointer" style="animation-delay:.2s">
+            <td class="py-3 pl-4 font-semibold">Хлеб Бородинский<div class="mono text-[11px] text-[var(--faint)] font-normal">4870006789012</div></td>
+            <td class="py-3"><span class="inline-flex items-center gap-1.5 text-[12px] px-2 py-0.5 rounded-md bg-orange-50 text-orange-600"><span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>Выпечка</span></td>
+            <td class="py-3 mono text-right">5 500</td><td class="py-3 mono text-right">23</td>
+            <td class="py-3 pl-6"><svg width="120" height="28" viewBox="0 0 120 28"><polyline points="0,16 20,14 40,12 60,14 80,10 100,8 120,9" fill="none" stroke="#16a34a" stroke-width="2"/></svg></td>
+            <td class="py-3 pr-4 text-right mono text-[13px] text-[var(--up)]">▲ 6%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</body>
+</html>

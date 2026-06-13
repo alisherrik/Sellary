@@ -178,7 +178,23 @@ export const printReceipt = (sale: any): void => {
 
   printWindow.document.write(document);
   printWindow.document.close();
-  printWindow.print();
+  // window.print() blocks the thread until the print dialog is dismissed. Run it
+  // after the receipt content has rendered and on the next tick so the caller
+  // (checkout) can finish clearing the cart and closing its modal first — the
+  // register feels instant instead of frozen behind the print dialog.
+  printWindow.focus();
+  const triggerPrint = () => {
+    try {
+      printWindow.print();
+    } catch {
+      /* user closed the window before printing */
+    }
+  };
+  if (printWindow.document.readyState === 'complete') {
+    setTimeout(triggerPrint, 0);
+  } else {
+    printWindow.onload = triggerPrint;
+  }
 };
 
 type KeyHandler = (e: KeyboardEvent) => void;
@@ -196,11 +212,15 @@ class HotkeyManager {
   private hotkeys: HotkeyConfig[] = [];
 
   register(config: HotkeyConfig) {
+    // Replace any existing handler for the same key so repeated registration
+    // (e.g. an effect re-running on every dependency change) cannot accumulate
+    // duplicate handlers that all fire on a single keypress.
+    this.hotkeys = this.hotkeys.filter((h) => h.key !== config.key);
     this.hotkeys.push(config);
   }
 
   unregister(key: string) {
-    this.hotkeys = this.hotkeys.filter((h) => h.key === key);
+    this.hotkeys = this.hotkeys.filter((h) => h.key !== key);
   }
 
   handleKeyDown(e: KeyboardEvent) {
@@ -237,9 +257,16 @@ class HotkeyManager {
 
 export const hotkeyManager = new HotkeyManager();
 
+let keydownListenerAttached = false;
+
 export const registerHotkeys = () => {
-  if (typeof document !== 'undefined') {
+  // Attach exactly one global keydown listener for the lifetime of the page.
+  // Previously this created a new anonymous listener on every call (and on every
+  // navigation to a page that registers hotkeys), so listeners piled up and could
+  // never be removed — degrading keyboard responsiveness across the whole app.
+  if (typeof document !== 'undefined' && !keydownListenerAttached) {
     document.addEventListener('keydown', (e) => hotkeyManager.handleKeyDown(e));
+    keydownListenerAttached = true;
   }
 };
 

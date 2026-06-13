@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sellary — Продажи</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#fafafa;--card:#fff;--line:#ececec;--ink:#18181b;--dim:#71717a;--faint:#a1a1aa;--accent:#4f46e5;--up:#16a34a;--down:#dc2626}
+  body{font-family:'Spline Sans',sans-serif;margin:0;background:var(--bg);color:var(--ink)}
+  .mono{font-family:'Spline Sans Mono',monospace;font-variant-numeric:tabular-nums}
+  .rowl:hover{background:#f5f5f7}
+  .rowl.sel{background:#eef0ff;box-shadow:inset 2px 0 0 var(--accent)}
+  .seg{background:#f1f1f3;border-radius:9px;padding:3px}
+  .seg button{border-radius:7px;font-size:13px;padding:5px 12px;color:var(--dim)}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600}
+  .chip{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:500}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .fade{animation:fade .4s ease both}
+  @keyframes slide{from{transform:translateX(100%)}to{transform:none}}
+  .slide{animation:slide .3s cubic-bezier(.2,.8,.2,1) both}
+  ::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:#e4e4e7;border-radius:8px}
+</style>
+</head>
+<body>
+<div class="flex min-h-screen">
+  <!-- sidebar -->
+  <aside class="w-60 shrink-0 border-r px-3 py-5 flex flex-col" style="border-color:var(--line);background:#fff">
+    <div class="flex items-center gap-2 px-2 mb-6">
+      <div class="w-7 h-7 rounded-lg grid place-items-center text-white font-bold text-sm" style="background:var(--accent)">S</div>
+      <span class="font-bold">Sellary</span>
+    </div>
+    <nav class="space-y-0.5 text-[14px]">
+      <a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[var(--dim)] hover:bg-zinc-50">▦ Сводка</a>
+      <a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[var(--dim)] hover:bg-zinc-50">▤ Товары</a>
+      <a class="flex items-center gap-2.5 px-3 py-2 rounded-lg font-semibold" style="background:#eef0ff;color:var(--accent)">⇄ Продажи</a>
+      <a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[var(--dim)] hover:bg-zinc-50">⊞ Закупки</a>
+      <a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[var(--dim)] hover:bg-zinc-50">◷ Отчёты</a>
+    </nav>
+    <div class="mt-7 mb-2 px-3"><span class="text-[11px] uppercase tracking-wider text-[var(--faint)]">Период</span></div>
+    <nav class="space-y-0.5 text-[13.5px]">
+      <a class="flex items-center px-3 py-1.5 rounded-lg font-semibold" style="background:#eef0ff;color:var(--accent)">Сегодня</a>
+      <a class="flex items-center px-3 py-1.5 rounded-lg text-[var(--dim)] hover:bg-zinc-50">Вчера</a>
+      <a class="flex items-center px-3 py-1.5 rounded-lg text-[var(--dim)] hover:bg-zinc-50">7 дней</a>
+      <a class="flex items-center px-3 py-1.5 rounded-lg text-[var(--dim)] hover:bg-zinc-50">Этот месяц</a>
+      <a class="flex items-center px-3 py-1.5 rounded-lg text-[var(--dim)] hover:bg-zinc-50">Произвольно…</a>
+    </nav>
+    <div class="mt-auto px-3 pt-4 text-[12px] text-[var(--faint)]">
+      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Алишер · admin</div>
+    </div>
+  </aside>
+
+  <!-- main -->
+  <main class="flex-1 min-w-0 flex flex-col">
+    <header class="px-7 py-5 border-b" style="border-color:var(--line)">
+      <div class="flex items-center gap-3 mb-4">
+        <h1 class="text-[20px] font-bold tracking-tight">Продажи</h1>
+        <span class="mono text-[12px] text-[var(--faint)]">сегодня · 47 чеков</span>
+        <div class="ml-auto flex items-center gap-2">
+          <div class="relative">
+            <input class="h-9 w-56 rounded-lg border pl-9 pr-3 text-[14px] outline-none focus:ring-2 focus:ring-indigo-100" style="border-color:var(--line)" placeholder="Чек #, кассир…" />
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--faint)] text-sm">⌕</span>
+          </div>
+          <button class="h-9 px-4 rounded-lg border text-[14px] font-semibold text-[var(--dim)]" style="border-color:var(--line)">↧ Экспорт</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="seg flex"><button class="on">Все</button><button>Завершён</button><button>Возвраты</button><button>Отменён</button></div>
+        <span class="mono text-[12px] text-[var(--faint)] ml-auto">обновлено только что</span>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-auto">
+      <!-- KPI -->
+      <div class="grid grid-cols-4 gap-4 px-7 pt-5">
+        <div class="fade rounded-xl border p-4" style="border-color:var(--line);background:#fff"><p class="text-[12px] text-[var(--dim)]">Выручка</p><p class="mono text-[24px] font-semibold">4.21<span class="text-[14px] text-[var(--faint)]"> млн</span></p><p class="mono text-[12px] text-[var(--up)]">▲ 18% к вчера</p></div>
+        <div class="fade rounded-xl border p-4" style="border-color:var(--line);background:#fff;animation-delay:.05s"><p class="text-[12px] text-[var(--dim)]">Чеков</p><p class="mono text-[24px] font-semibold">47</p><p class="mono text-[12px] text-[var(--up)]">▲ 9</p></div>
+        <div class="fade rounded-xl border p-4" style="border-color:var(--line);background:#fff;animation-delay:.1s"><p class="text-[12px] text-[var(--dim)]">Средний чек</p><p class="mono text-[24px] font-semibold">89 500</p><p class="mono text-[12px] text-[var(--dim)]">≈ 4.6 поз.</p></div>
+        <div class="fade rounded-xl p-4" style="background:#fef2f2;animation-delay:.15s"><p class="text-[12px] text-red-500">Возвраты</p><p class="mono text-[24px] font-semibold text-red-600">112 000</p><p class="mono text-[12px] text-red-400">3 операции</p></div>
+      </div>
+
+      <!-- chart -->
+      <div class="px-7 pt-4">
+        <div class="rounded-xl border p-4" style="border-color:var(--line);background:#fff">
+          <div class="flex items-center justify-between mb-2"><p class="text-[13px] font-semibold">Выручка по часам</p><span class="mono text-[12px] text-[var(--faint)]">09:00 – 21:00</span></div>
+          <svg width="100%" height="90" viewBox="0 0 700 90" preserveAspectRatio="none">
+            <polyline points="0,78 58,70 116,72 175,55 233,60 291,40 350,44 408,30 466,36 525,20 583,26 641,14 700,18" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+            <polyline points="0,78 58,70 116,72 175,55 233,60 291,40 350,44 408,30 466,36 525,20 583,26 641,14 700,18 700,90 0,90" fill="rgba(79,70,229,.07)" stroke="none"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- table -->
+      <div class="px-4 pt-4 pb-6">
+        <table class="w-full text-[14px]">
+          <thead>
+            <tr class="text-[11px] uppercase tracking-wider text-[var(--faint)] border-b" style="border-color:var(--line)">
+              <th class="text-left font-medium py-2.5 pl-4">Чек</th>
+              <th class="text-left font-medium py-2.5">Время</th>
+              <th class="text-left font-medium py-2.5">Кассир</th>
+              <th class="text-right font-medium py-2.5">Позиций</th>
+              <th class="text-left font-medium py-2.5 pl-4">Оплата</th>
+              <th class="text-right font-medium py-2.5">Сумма</th>
+              <th class="text-right font-medium py-2.5">Возврат</th>
+              <th class="text-left font-medium py-2.5 pl-4 pr-4">Статус</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="rowl sel fade border-b cursor-pointer" style="border-color:var(--line)">
+              <td class="py-3 pl-4 mono font-semibold">#1042</td><td class="py-3 mono text-[var(--dim)]">13:24</td><td class="py-3">Алишер</td><td class="py-3 mono text-right">5</td>
+              <td class="py-3 pl-4"><span class="chip bg-zinc-100 text-zinc-600">💵 Наличные</span></td>
+              <td class="py-3 mono text-right font-semibold">156 000</td><td class="py-3 mono text-right text-[var(--faint)]">—</td>
+              <td class="py-3 pl-4 pr-4"><span class="chip bg-emerald-50 text-emerald-600">Завершён</span></td>
+            </tr>
+            <tr class="rowl fade border-b cursor-pointer" style="border-color:var(--line);animation-delay:.04s">
+              <td class="py-3 pl-4 mono font-semibold">#1041</td><td class="py-3 mono text-[var(--dim)]">12:58</td><td class="py-3">Дилноза</td><td class="py-3 mono text-right">2</td>
+              <td class="py-3 pl-4"><span class="chip bg-sky-50 text-sky-600">💳 Alif</span></td>
+              <td class="py-3 mono text-right font-semibold">47 500</td><td class="py-3 mono text-right text-[var(--faint)]">—</td>
+              <td class="py-3 pl-4 pr-4"><span class="chip bg-emerald-50 text-emerald-600">Завершён</span></td>
+            </tr>
+            <tr class="rowl fade border-b cursor-pointer" style="border-color:var(--line);animation-delay:.08s">
+              <td class="py-3 pl-4 mono font-semibold">#1040</td><td class="py-3 mono text-[var(--dim)]">12:30</td><td class="py-3">Алишер</td><td class="py-3 mono text-right">3</td>
+              <td class="py-3 pl-4"><span class="chip bg-zinc-100 text-zinc-600">💵 Наличные</span></td>
+              <td class="py-3 mono text-right font-semibold">89 000</td><td class="py-3 mono text-right text-orange-600">−24 000</td>
+              <td class="py-3 pl-4 pr-4"><span class="chip bg-orange-50 text-orange-600">Част. возврат</span></td>
+            </tr>
+            <tr class="rowl fade border-b cursor-pointer" style="border-color:var(--line);animation-delay:.12s">
+              <td class="py-3 pl-4 mono font-semibold">#1039</td><td class="py-3 mono text-[var(--dim)]">11:15</td><td class="py-3">Дилноза</td><td class="py-3 mono text-right">1</td>
+              <td class="py-3 pl-4"><span class="chip bg-violet-50 text-violet-600">📱 Мобильный</span></td>
+              <td class="py-3 mono text-right font-semibold">23 000</td><td class="py-3 mono text-right text-red-600">−23 000</td>
+              <td class="py-3 pl-4 pr-4"><span class="chip bg-red-50 text-red-500">Возврат</span></td>
+            </tr>
+            <tr class="rowl fade border-b cursor-pointer" style="border-color:var(--line);animation-delay:.16s">
+              <td class="py-3 pl-4 mono font-semibold">#1038</td><td class="py-3 mono text-[var(--dim)]">10:42</td><td class="py-3">Алишер</td><td class="py-3 mono text-right">8</td>
+              <td class="py-3 pl-4"><span class="chip bg-sky-50 text-sky-600">💳 Eskhata</span></td>
+              <td class="py-3 mono text-right font-semibold">214 500</td><td class="py-3 mono text-right text-[var(--faint)]">—</td>
+              <td class="py-3 pl-4 pr-4"><span class="chip bg-emerald-50 text-emerald-600">Завершён</span></td>
+            </tr>
+            <tr class="rowl fade cursor-pointer" style="animation-delay:.2s">
+              <td class="py-3 pl-4 mono font-semibold">#1037</td><td class="py-3 mono text-[var(--dim)]">10:05</td><td class="py-3">Дилноза</td><td class="py-3 mono text-right">4</td>
+              <td class="py-3 pl-4"><span class="chip bg-zinc-100 text-zinc-600">💵 Наличные</span></td>
+              <td class="py-3 mono text-right font-semibold">61 000</td><td class="py-3 mono text-right text-[var(--faint)]">—</td>
+              <td class="py-3 pl-4 pr-4"><span class="chip bg-emerald-50 text-emerald-600">Завершён</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- slide-over: чек -->
+  <aside class="slide w-[380px] shrink-0 border-l flex flex-col" style="border-color:var(--line);background:#fff">
+    <div class="px-5 py-4 border-b flex items-start gap-3" style="border-color:var(--line)">
+      <div>
+        <h2 class="text-[17px] font-bold">Чек #1042</h2>
+        <p class="mono text-[12px] text-[var(--faint)]">13:24 · Алишер</p>
+      </div>
+      <span class="ml-auto chip bg-emerald-50 text-emerald-600 mt-1">Завершён</span>
+    </div>
+    <div class="p-5 space-y-5 overflow-y-auto">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="rounded-xl border p-3" style="border-color:var(--line)"><p class="text-[12px] text-[var(--dim)]">Итого</p><p class="mono text-[18px] font-semibold">156 000</p></div>
+        <div class="rounded-xl p-3" style="background:#f0fdf4"><p class="text-[12px] text-emerald-600">К возврату</p><p class="mono text-[18px] font-semibold text-emerald-700">156 000</p></div>
+      </div>
+      <div>
+        <p class="text-[13px] font-semibold mb-2">Товары · 5</p>
+        <div class="space-y-2 text-[13.5px]">
+          <div class="flex items-center gap-2"><span class="flex-1">Кока-Кола 0.5л <span class="text-[var(--faint)]">× 2</span></span><span class="mono">24 000</span></div>
+          <div class="flex items-center gap-2"><span class="flex-1">Чипсы Lay's 80г <span class="text-[var(--faint)]">× 3</span></span><span class="mono">28 500</span></div>
+          <div class="flex items-center gap-2"><span class="flex-1">Молоко Nestlé 1л <span class="text-[var(--faint)]">× 4</span></span><span class="mono">56 000</span></div>
+          <div class="flex items-center gap-2"><span class="flex-1">Хлеб Бородинский <span class="text-[var(--faint)]">× 2</span></span><span class="mono">11 000</span></div>
+          <div class="flex items-center gap-2"><span class="flex-1">Вода Чашма 1.5л <span class="text-[var(--faint)]">× 6</span></span><span class="mono">36 500</span></div>
+        </div>
+      </div>
+      <div class="rounded-xl border p-3 space-y-1.5 text-[13px]" style="border-color:var(--line)">
+        <div class="flex justify-between text-[var(--dim)]"><span>Подытог</span><span class="mono">152 400</span></div>
+        <div class="flex justify-between text-[var(--dim)]"><span>Налог</span><span class="mono">3 600</span></div>
+        <div class="flex justify-between font-semibold pt-1.5 border-t" style="border-color:var(--line)"><span>Итого</span><span class="mono">156 000</span></div>
+        <div class="flex justify-between text-[var(--dim)]"><span>Оплата</span><span>Наличные</span></div>
+      </div>
+      <p class="text-[13px] text-[var(--faint)] text-center">Возвратов по этому чеку нет</p>
+    </div>
+    <div class="mt-auto p-4 border-t flex gap-2" style="border-color:var(--line)">
+      <button class="flex-1 h-10 rounded-lg border font-semibold text-[14px]" style="border-color:var(--line)">🖨 Чек</button>
+      <button class="flex-1 h-10 rounded-lg font-semibold text-[14px] text-white" style="background:#f97316">↩ Оформить возврат</button>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

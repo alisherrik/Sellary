@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import POS from '../page';
 import { useCartStore } from '@/lib/store';
@@ -9,14 +10,10 @@ vi.mock('@/providers/ServerHealthProvider', () => ({
   useServerHealth: () => ({ isServerReachable: true }),
 }));
 
-vi.mock('@/components/pos/ProductDrawer', () => ({
-  default: () => null,
-}));
-
 vi.mock('@/lib/api', () => ({
-  salesApi: {
-    create: vi.fn(),
-  },
+  salesApi: { create: vi.fn() },
+  productsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }), getByBarcode: vi.fn() },
+  categoriesApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
 }));
 
 vi.mock('react-hot-toast', () => ({
@@ -25,6 +22,17 @@ vi.mock('react-hot-toast', () => ({
     success: vi.fn(),
   },
 }));
+
+const renderPOS = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <POS />
+    </QueryClientProvider>,
+  );
+};
 
 describe('POS multi-sale sessions', () => {
   beforeEach(() => {
@@ -35,7 +43,7 @@ describe('POS multi-sale sessions', () => {
   it('opens a new empty sale when the cashier clicks the new sale button', async () => {
     const user = userEvent.setup();
 
-    render(<POS />);
+    renderPOS();
 
     expect(screen.getByRole('tab', { name: /продажа 1/i })).toBeInTheDocument();
 

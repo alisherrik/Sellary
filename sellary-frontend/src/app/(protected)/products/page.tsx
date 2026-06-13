@@ -1,8 +1,9 @@
-﻿'use client';
+'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Cog6ToothIcon,
   MagnifyingGlassIcon,
   PencilIcon,
   PlusIcon,
@@ -11,6 +12,7 @@ import {
 import toast from 'react-hot-toast';
 
 import { TableSkeleton } from '@/components/skeletons';
+import { useDebounce } from '@/hooks/useDebounce';
 import { useProducts } from '@/hooks/useQueries';
 import { categoriesApi, productsApi } from '@/lib/api';
 import { Category, Product } from '@/lib/types';
@@ -18,6 +20,7 @@ import { formatCurrency } from '@/lib/utils';
 
 type CategoryModalMode = 'create' | 'edit';
 type CategoryModalSource = 'manager' | 'product';
+type StatusFilter = 'all' | 'low' | 'out';
 
 const emptyProductForm = {
   barcode: '',
@@ -37,10 +40,39 @@ const emptyCategoryForm = {
   description: '',
 };
 
+// Deterministic colour per category so the same category always reads the same
+// across the sidebar dots and the in-table badges. Classes are spelled out in
+// full so Tailwind keeps them in the build.
+const categoryPalette = [
+  { dot: 'bg-sky-500', badge: 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300' },
+  { dot: 'bg-amber-500', badge: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
+  { dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' },
+  { dot: 'bg-orange-500', badge: 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' },
+  { dot: 'bg-violet-500', badge: 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' },
+  { dot: 'bg-rose-500', badge: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' },
+  { dot: 'bg-cyan-500', badge: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300' },
+  { dot: 'bg-teal-500', badge: 'bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300' },
+] as const;
+
+const catColor = (id?: number | null) =>
+  id == null
+    ? { dot: 'bg-gray-300', badge: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }
+    : categoryPalette[id % categoryPalette.length];
+
+const stockBar = (product: Product) => {
+  const ref = Math.max(product.min_stock_level * 5, 1);
+  const pct = Math.min(100, Math.max(product.stock_quantity > 0 ? 6 : 0, (product.stock_quantity / ref) * 100));
+  if (product.stock_quantity === 0) return { pct: 0, color: 'bg-red-500' };
+  if (product.stock_quantity <= product.min_stock_level) return { pct, color: 'bg-red-500' };
+  if (product.stock_quantity <= product.min_stock_level * 2) return { pct, color: 'bg-amber-500' };
+  return { pct, color: 'bg-emerald-500' };
+};
+
 export default function Products() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [showProductModal, setShowProductModal] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -51,8 +83,10 @@ export default function Products() {
   const [formData, setFormData] = useState(emptyProductForm);
   const [categoryFormData, setCategoryFormData] = useState(emptyCategoryForm);
 
+  // Debounce so typing in search doesn't fire a network request per keystroke.
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const params: Record<string, string | number> = { limit: 100 };
-  if (searchQuery) params.search = searchQuery;
+  if (debouncedSearch) params.search = debouncedSearch;
   if (selectedCategory) params.category_id = selectedCategory;
 
   const { data: products = [], isLoading: loading } = useProducts(params);
@@ -66,6 +100,20 @@ export default function Products() {
   });
 
   const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name));
+
+  const lowCount = useMemo(
+    () => products.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= p.min_stock_level).length,
+    [products],
+  );
+  const outCount = useMemo(() => products.filter((p) => p.stock_quantity === 0).length, [products]);
+
+  const visibleProducts = useMemo(() => {
+    if (statusFilter === 'low') {
+      return products.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= p.min_stock_level);
+    }
+    if (statusFilter === 'out') return products.filter((p) => p.stock_quantity === 0);
+    return products;
+  }, [products, statusFilter]);
 
   const refreshCategoryData = async () => {
     await Promise.all([
@@ -257,172 +305,321 @@ export default function Products() {
     createCategoryMutation.mutate(payload);
   };
 
-  const getStockStatusColor = (product: Product) => {
-    if (product.stock_quantity === 0) return 'bg-red-100 text-red-800';
-    if (product.stock_quantity <= product.min_stock_level) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-green-100 text-green-800';
-  };
-
   const isSavingCategory = createCategoryMutation.isPending || updateCategoryMutation.isPending;
+
+  const statusTabs: { key: StatusFilter; label: string; count?: number }[] = [
+    { key: 'all', label: 'Все' },
+    { key: 'low', label: 'Мало', count: lowCount },
+    { key: 'out', label: 'Нет в наличии', count: outCount },
+  ];
 
   return (
     <>
-      <div className="h-full overflow-y-auto mobile-no-overscroll p-4">
-        <div className="flex flex-col sm:flex-row gap-2 mb-4">
+      <div className="flex h-full min-h-0 gap-4">
+        {/* Category rail — desktop */}
+        <aside className="hidden w-56 shrink-0 flex-col overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:flex">
+          <div className="mb-2 flex items-center px-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Категории</span>
             <button
               type="button"
               onClick={() => setShowCategoryManager(true)}
-              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-sm sm:text-base shadow-sm"
+              title="Управление категориями"
+              className="ml-auto rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-700"
             >
-              <PlusIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>Категории</span>
+              <Cog6ToothIcon className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              onClick={handleCreateProduct}
-              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm sm:text-base shadow-sm"
-            >
-              <PlusIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">Добавить товар</span>
-              <span className="sm:hidden">Добавить</span>
-            </button>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-            <div className="flex-1 relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Поиск..."
-                className="h-9 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-sm dark:border-gray-600 dark:bg-gray-700 sm:h-10 sm:pl-10 sm:text-base"
-              />
-            </div>
-            <select
-              value={selectedCategory || ''}
-              onChange={(e) => setSelectedCategory(e.target.value ? parseInt(e.target.value, 10) : null)}
-              className="h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm sm:text-base"
-            >
-              <option value="">Все категории</option>
-              {sortedCategories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
           </div>
-        </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-          {loading ? (
-            <div className="p-4">
-              <TableSkeleton rows={5} columns={6} />
+          <button
+            type="button"
+            onClick={() => setSelectedCategory(null)}
+            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors ${
+              selectedCategory === null
+                ? 'bg-blue-50 font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
+                : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+            }`}
+          >
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500" />
+            Все товары
+          </button>
+
+          <div className="mt-0.5 space-y-0.5">
+            {sortedCategories.map((category) => {
+              const active = selectedCategory === category.id;
+              const color = catColor(category.id);
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(active ? null : category.id)}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors ${
+                    active
+                      ? 'bg-blue-50 font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
+                      : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${color.dot}`} />
+                  <span className="truncate">{category.name}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => openCategoryCreateModal('manager')}
+            className="mt-2 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Добавить категорию
+          </button>
+        </aside>
+
+        {/* Main panel */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Toolbar */}
+          <div className="mb-3 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 sm:h-5 sm:w-5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Поиск по названию или штрихкоду…"
+                  className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-800 sm:pl-10"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCategoryManager(true)}
+                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 lg:hidden"
+              >
+                <Cog6ToothIcon className="h-5 w-5" />
+                <span className="hidden sm:inline">Категории</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateProduct}
+                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 sm:px-4"
+              >
+                <PlusIcon className="h-5 w-5" />
+                <span className="hidden sm:inline">Товар</span>
+              </button>
             </div>
-          ) : products.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">Товары не найдены</div>
-          ) : (
-            <>
-              {/* Mobile product cards */}
-              <div className="space-y-2 sm:hidden">
-                {loading ? (
-                  <TableSkeleton />
-                ) : products.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-gray-500">Нет товаров</p>
-                ) : (
-                  products.map((product) => (
-                    <div
-                      key={product.id}
-                      className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
-                          {product.barcode && (
-                            <p className="text-xs text-gray-400">{product.barcode}</p>
+
+            <div className="flex items-center gap-3">
+              <div className="flex gap-0.5 rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+                {statusTabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setStatusFilter(tab.key)}
+                    className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                      statusFilter === tab.key
+                        ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                    }`}
+                  >
+                    {tab.label}
+                    {tab.count != null && tab.count > 0 && (
+                      <span className="ml-1.5 text-gray-400">· {tab.count}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <span className="ml-auto hidden text-xs tabular-nums text-gray-400 sm:block">
+                {visibleProducts.length} позиций
+              </span>
+            </div>
+
+            {/* Category chips — mobile */}
+            <div className="-mx-1 flex gap-2 overflow-x-auto whitespace-nowrap px-1 lg:hidden">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory(null)}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
+                  selectedCategory === null
+                    ? 'bg-blue-600 text-white'
+                    : 'border border-gray-200 bg-white text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                }`}
+              >
+                Все
+              </button>
+              {sortedCategories.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() =>
+                    setSelectedCategory(selectedCategory === category.id ? null : category.id)
+                  }
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
+                    selectedCategory === category.id
+                      ? 'bg-blue-600 text-white'
+                      : 'border border-gray-200 bg-white text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                  }`}
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            {loading ? (
+              <div className="p-4">
+                <TableSkeleton rows={6} columns={5} />
+              </div>
+            ) : visibleProducts.length === 0 ? (
+              <div className="p-12 text-center text-gray-500">Товары не найдены</div>
+            ) : (
+              <div className="h-full overflow-y-auto">
+                {/* Mobile cards */}
+                <div className="space-y-2 p-2 sm:hidden">
+                  {visibleProducts.map((product) => {
+                    const color = catColor(product.category_id);
+                    const bar = stockBar(product);
+                    return (
+                      <div
+                        key={product.id}
+                        className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{product.name}</p>
+                            {product.barcode && (
+                              <p className="font-mono text-[11px] text-gray-400">{product.barcode}</p>
+                            )}
+                          </div>
+                          {product.category?.name && (
+                            <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-medium ${color.badge}`}>
+                              {product.category.name}
+                            </span>
                           )}
                         </div>
-                        <span className="ml-2 shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-                          {product.category?.name || '—'}
-                        </span>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between">
-                        <div className="flex gap-3 text-xs">
-                          <span className="text-gray-500">
-                            <span className="font-medium text-gray-900">{formatCurrency(product.sell_price)}</span> / {product.uom}
-                          </span>
-                          <span className="text-gray-500">
-                            Ост: <span className={`font-medium ${product.stock_quantity <= product.min_stock_level ? 'text-red-600' : 'text-gray-900'}`}>
-                              {product.stock_quantity}
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                          <div className="flex items-baseline gap-3 text-xs">
+                            <span className="font-semibold tabular-nums text-gray-900 dark:text-white">
+                              {formatCurrency(product.sell_price)}
                             </span>
-                          </span>
-                        </div>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => handleEditProduct(product)}
-                            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
-                            aria-label="Редактировать"
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteProduct(product.id)}
-                            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600"
-                            aria-label="Удалить"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Штрихкод</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Наименование</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Категория</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Ед.</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Цена</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Остаток</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {products.map((product) => (
-                      <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{product.barcode || '-'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{product.name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{product.category?.name || '-'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{product.uom}</td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(product.sell_price)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded-full px-2 py-1 text-xs font-medium ${getStockStatusColor(product)}`}>
-                            {product.stock_quantity}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-2">
-                            <button type="button" onClick={() => handleEditProduct(product)} className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900 rounded-lg">
-                              <PencilIcon className="w-5 h-5" />
+                            <span className={`tabular-nums ${product.stock_quantity <= product.min_stock_level ? 'font-semibold text-red-600' : 'text-gray-500'}`}>
+                              ост: {product.stock_quantity}
+                            </span>
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleEditProduct(product)}
+                              className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-700"
+                              aria-label="Редактировать"
+                            >
+                              <PencilIcon className="h-4 w-4" />
                             </button>
-                            <button type="button" onClick={() => handleDeleteProduct(product.id)} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded-lg">
-                              <TrashIcon className="w-5 h-5" />
+                            <button
+                              onClick={() => handleDeleteProduct(product.id)}
+                              className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700"
+                              aria-label="Удалить"
+                            >
+                              <TrashIcon className="h-4 w-4" />
                             </button>
                           </div>
-                        </td>
-                      </tr>
-                    ))}
+                        </div>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                          <div className={`h-full rounded-full ${bar.color}`} style={{ width: `${bar.pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop table */}
+                <table className="hidden w-full text-sm sm:table">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-[11px] uppercase tracking-wider text-gray-400 dark:border-gray-700">
+                      <th className="px-4 py-3 text-left font-medium">Товар</th>
+                      <th className="px-4 py-3 text-left font-medium">Категория</th>
+                      <th className="px-4 py-3 text-right font-medium">Цена</th>
+                      <th className="px-4 py-3 text-right font-medium">Остаток</th>
+                      <th className="px-4 py-3 text-left font-medium">Уровень запаса</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleProducts.map((product) => {
+                      const color = catColor(product.category_id);
+                      const bar = stockBar(product);
+                      return (
+                        <tr
+                          key={product.id}
+                          className={`group border-b border-gray-50 transition-colors hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/40 ${
+                            product.stock_quantity === 0 ? 'opacity-60' : ''
+                          }`}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-gray-900 dark:text-white">{product.name}</div>
+                            {product.barcode && (
+                              <div className="font-mono text-[11px] text-gray-400">{product.barcode}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {product.category?.name ? (
+                              <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] font-medium ${color.badge}`}>
+                                <span className={`h-1.5 w-1.5 rounded-full ${color.dot}`} />
+                                {product.category.name}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium tabular-nums text-gray-900 dark:text-white">
+                            {formatCurrency(product.sell_price)}
+                          </td>
+                          <td className={`px-4 py-3 text-right tabular-nums ${
+                            product.stock_quantity === 0
+                              ? 'font-semibold text-red-600'
+                              : product.stock_quantity <= product.min_stock_level
+                                ? 'font-semibold text-red-600'
+                                : 'text-gray-700 dark:text-gray-200'
+                          }`}>
+                            {product.stock_quantity}
+                            {product.stock_quantity > 0 && product.stock_quantity <= product.min_stock_level && ' ⚠'}
+                            <span className="ml-1 text-[11px] text-gray-400">{product.uom}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="h-1.5 w-28 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                                <div className={`h-full rounded-full ${bar.color}`} style={{ width: `${bar.pct}%` }} />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                              <button
+                                type="button"
+                                onClick={() => handleEditProduct(product)}
+                                className="rounded-lg p-2 text-gray-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30"
+                                aria-label="Редактировать"
+                              >
+                                <PencilIcon className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteProduct(product.id)}
+                                className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+                                aria-label="Удалить"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -618,44 +815,48 @@ export default function Products() {
                   Категорий пока нет
                 </div>
               ) : (
-                sortedCategories.map((category) => (
-                  <div
-                    key={category.id}
-                    className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-gray-900 dark:text-white">{category.name}</p>
-                        {!category.is_active && (
-                          <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                            Неактивна
-                          </span>
-                        )}
+                sortedCategories.map((category) => {
+                  const color = catColor(category.id);
+                  return (
+                    <div
+                      key={category.id}
+                      className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`h-2.5 w-2.5 rounded-full ${color.dot}`} />
+                          <p className="font-semibold text-gray-900 dark:text-white">{category.name}</p>
+                          {!category.is_active && (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                              Неактивна
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 break-words">
+                          {category.description || 'Без описания'}
+                        </p>
                       </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 break-words">
-                        {category.description || 'Без описания'}
-                      </p>
-                    </div>
 
-                    <div className="flex gap-2 sm:flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => openCategoryEditModal(category)}
-                        className="px-3 py-2 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg"
-                      >
-                        Редактировать
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCategory(category)}
-                        disabled={deleteCategoryMutation.isPending}
-                        className="px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg disabled:opacity-50"
-                      >
-                        Удалить
-                      </button>
+                      <div className="flex gap-2 sm:flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => openCategoryEditModal(category)}
+                          className="px-3 py-2 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg"
+                        >
+                          Редактировать
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategory(category)}
+                          disabled={deleteCategoryMutation.isPending}
+                          className="px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg disabled:opacity-50"
+                        >
+                          Удалить
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
