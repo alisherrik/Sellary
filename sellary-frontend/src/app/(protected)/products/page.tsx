@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 import { TableSkeleton } from '@/components/skeletons';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useProducts } from '@/hooks/useQueries';
-import { categoriesApi, productsApi } from '@/lib/api';
+import { categoriesApi, inventoryApi, productsApi } from '@/lib/api';
 import { Category, Product } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -213,9 +213,28 @@ export default function Products() {
   });
 
   const updateProductMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => productsApi.update(id, data),
+    mutationFn: async ({
+      id,
+      data,
+      quantityChange,
+    }: {
+      id: number;
+      data: any;
+      quantityChange: number;
+    }) => {
+      await productsApi.update(id, data);
+
+      if (quantityChange !== 0) {
+        await inventoryApi.adjust({
+          product_id: id,
+          quantity_change: quantityChange,
+          reason: 'Корректировка остатка при редактировании товара',
+        });
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
       toast.success('Товар обновлен');
       setShowProductModal(false);
     },
@@ -282,7 +301,16 @@ export default function Products() {
     };
 
     if (editingProduct) {
-      updateProductMutation.mutate({ id: editingProduct.id, data });
+      const { stock_quantity: desiredStockQuantity, ...productData } = data;
+      const quantityChange = Number(
+        (desiredStockQuantity - editingProduct.stock_quantity).toFixed(3),
+      );
+
+      updateProductMutation.mutate({
+        id: editingProduct.id,
+        data: productData,
+        quantityChange,
+      });
       return;
     }
 
