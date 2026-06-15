@@ -79,9 +79,17 @@ def create_product(
 ):
     service = ProductService(db, auth.company_id)
     try:
-        return service.create(product_create)
+        response = service.create(product_create, user_id=auth.user.id)
+        # Commit only once the product row, its initial ledger layer, the
+        # product value and the inventory log are all staged.
+        db.commit()
+        return response
     except ValueError as exc:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.put("/{product_id}", response_model=ProductResponse)
@@ -93,11 +101,17 @@ def update_product(
 ):
     service = ProductService(db, auth.company_id)
     try:
-        return service.update(product_id, product_update)
+        response = service.update(product_id, product_update)
+        db.commit()
+        return response
     except ValueError as exc:
+        db.rollback()
         detail = str(exc)
         status_code = 404 if "not found" in detail.lower() else 400
         raise HTTPException(status_code=status_code, detail=detail)
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.delete("/{product_id}", status_code=204)

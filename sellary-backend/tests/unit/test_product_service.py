@@ -236,7 +236,7 @@ class TestGetAll:
 class TestCreate:
     """Tests for creating products."""
 
-    def test_create_product(self, db_session):
+    def test_create_product(self, db_session, admin_user):
         """Test creating a product successfully."""
         category = Category(name="Test Category")
         db_session.add(category)
@@ -256,7 +256,7 @@ class TestCreate:
         )
 
         service = ProductService(db_session)
-        result = service.create(product_create)
+        result = service.create(product_create, user_id=admin_user.id)
 
         assert result.id is not None
         assert result.barcode == "NEW123"
@@ -307,7 +307,7 @@ class TestCreate:
         with pytest.raises(ValueError, match="Category.*not found"):
             service.create(product_create)
 
-    def test_create_product_without_category(self, db_session):
+    def test_create_product_without_category(self, db_session, admin_user):
         """Test creating a product without category."""
         product_create = ProductCreate(
             barcode="NEW123",
@@ -319,7 +319,7 @@ class TestCreate:
         )
 
         service = ProductService(db_session)
-        result = service.create(product_create)
+        result = service.create(product_create, user_id=admin_user.id)
 
         assert result.id is not None
         assert result.category_id is None
@@ -590,6 +590,71 @@ class TestSearch:
         results = service.search("Product", limit=5)
 
         assert len(results) == 5
+
+
+class TestLedgerBackedCreate:
+    """Tests for ledger-backed product creation and cost-price guards."""
+
+    def test_product_initial_stock_creates_opening_layer(
+        self, db_session, default_company, test_category, admin_user
+    ):
+        product = ProductService(db_session, default_company.id).create(
+            ProductCreate(
+                name="Новый товар",
+                category_id=test_category.id,
+                cost_price=Decimal("12.50"),
+                sell_price=Decimal("20.00"),
+                stock_quantity=Decimal("8"),
+            ),
+            user_id=admin_user.id,
+        )
+        stored = db_session.get(Product, product.id)
+        assert stored.inventory_value == Decimal("100.0000")
+        assert stored.stock_quantity == Decimal("8")
+        assert stored.inventory_layers[0].source_type == "product_initial"
+        assert stored.inventory_layers[0].remaining_quantity == Decimal("8")
+
+    def test_product_zero_stock_creates_no_layer(
+        self, db_session, default_company, test_category, admin_user
+    ):
+        product = ProductService(db_session, default_company.id).create(
+            ProductCreate(
+                name="Без остатка",
+                category_id=test_category.id,
+                cost_price=Decimal("5.00"),
+                sell_price=Decimal("9.00"),
+                stock_quantity=Decimal("0"),
+            ),
+            user_id=admin_user.id,
+        )
+        stored = db_session.get(Product, product.id)
+        assert stored.stock_quantity == Decimal("0")
+        assert stored.inventory_value == Decimal("0.0000")
+        assert stored.inventory_layers == []
+
+    def test_cost_price_change_requires_zero_stock(self, db_session, test_product):
+        with pytest.raises(ValueError, match="stock is zero"):
+            ProductService(db_session, test_product.company_id).update(
+                test_product.id, ProductUpdate(cost_price=Decimal("11.00"))
+            )
+
+    def test_cost_price_change_allowed_when_stock_zero(
+        self, db_session, default_company, test_category, admin_user
+    ):
+        product = ProductService(db_session, default_company.id).create(
+            ProductCreate(
+                name="Нулевой остаток",
+                category_id=test_category.id,
+                cost_price=Decimal("5.00"),
+                sell_price=Decimal("9.00"),
+                stock_quantity=Decimal("0"),
+            ),
+            user_id=admin_user.id,
+        )
+        result = ProductService(db_session, default_company.id).update(
+            product.id, ProductUpdate(cost_price=Decimal("7.00"))
+        )
+        assert result.cost_price == Decimal("7.00")
 
 
 class TestToResponse:

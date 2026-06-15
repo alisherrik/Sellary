@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import List, Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -7,6 +8,7 @@ from repositories.category_repository import CategoryRepository
 from repositories.product_repository import ProductRepository
 from schemas.product import ProductCreate, ProductResponse, ProductUpdate
 from services.calculation_service import CalculationService
+from services.inventory_ledger_service import InventoryLedgerService
 from services.tenant import resolve_company_id
 
 
@@ -16,6 +18,7 @@ class ProductService:
         self.company_id = resolve_company_id(db, company_id)
         self.product_repo = ProductRepository(db)
         self.category_repo = CategoryRepository(db)
+        self.ledger = InventoryLedgerService(db, self.company_id)
         self.calc = CalculationService
 
     def get_by_id(self, product_id: int) -> Optional[ProductResponse]:
@@ -46,7 +49,7 @@ class ProductService:
         )
         return [self._to_response(product) for product in products], total
 
-    def create(self, product_create: ProductCreate) -> ProductResponse:
+    def create(self, product_create: ProductCreate, user_id: int | None = None) -> ProductResponse:
         existing = None
         if product_create.barcode:
             existing = self.product_repo.get_by_barcode(
@@ -62,15 +65,52 @@ class ProductService:
         ):
             raise ValueError(f"Category with id {product_create.category_id} not found")
 
+        # Stock is owned by the ledger, never assigned to the product row directly.
+        values = product_create.model_dump()
+        initial_quantity = Decimal(values.pop("stock_quantity", 0) or 0)
+        unit_cost = Decimal(values.get("cost_price") or 0)
+
         if existing:
-            for field, value in product_create.model_dump().items():
+            # Reactivating a soft-deleted product: refresh catalog fields but never
+            # touch stock_quantity / inventory_value directly. Apply only the
+            # requested initial quantity as a delta through the ledger.
+            for field, value in values.items():
                 setattr(existing, field, value)
             existing.is_active = True
             existing = self.product_repo.update(existing)
+            if initial_quantity > 0:
+                self.ledger.add_layer(
+                    product=existing,
+                    quantity=initial_quantity,
+                    unit_cost=unit_cost,
+                    source_type="product_initial",
+                    source_id=existing.id,
+                    user_id=user_id,
+                    reason="Product reactivated",
+                )
+                # Reload so stock_quantity reflects the Numeric(10,3) column format.
+                self.db.refresh(existing)
             return self._to_response(existing)
 
-        product = Product(company_id=self.company_id, **product_create.model_dump())
+        # Create the row with zero quantity/value; the ledger sets stock/value/cost.
+        product = Product(company_id=self.company_id, **values)
+        product.stock_quantity = Decimal("0")
+        product.inventory_value = Decimal("0.0000")
         product = self.product_repo.create(product)
+
+        if initial_quantity > 0:
+            self.ledger.add_layer(
+                product=product,
+                quantity=initial_quantity,
+                unit_cost=unit_cost,
+                source_type="product_initial",
+                source_id=product.id,
+                user_id=user_id,
+                reason="Initial stock",
+            )
+            # Reload so stock_quantity reflects the Numeric(10,3) column format.
+            self.db.refresh(product)
+
         return self._to_response(product)
 
     def update(self, product_id: int, product_update: ProductUpdate) -> ProductResponse:
@@ -89,6 +129,19 @@ class ProductService:
         category_id = update_data.get("category_id")
         if category_id is not None and not self.category_repo.get_by_id(self.company_id, category_id):
             raise ValueError(f"Category with id {category_id} not found")
+
+        # cost_price is the average cost backing historical inventory value and
+        # purchase-layer costs. Changing it while stock exists would silently
+        # rewrite that value, so require zero stock first. Supported workflow:
+        # adjust stock to zero, edit cost, then receive a new purchase.
+        if "cost_price" in update_data:
+            new_cost = update_data["cost_price"]
+            if new_cost is not None and Decimal(new_cost) != Decimal(product.cost_price):
+                if Decimal(product.stock_quantity or 0) > 0:
+                    raise ValueError(
+                        "Cannot change cost_price unless stock is zero: "
+                        "adjust stock to zero, then edit cost, then receive a new purchase"
+                    )
 
         for field, value in update_data.items():
             setattr(product, field, value)

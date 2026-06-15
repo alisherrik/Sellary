@@ -24,6 +24,7 @@ from models.category import Category
 from models.company import Company
 from models.company_membership import CompanyMembership
 from models.customer import Customer
+from models.inventory_layer import InventoryLayer
 from models.inventory_log import InventoryLog
 from models.product import Product
 from models.purchase_order import PurchaseOrder
@@ -32,6 +33,7 @@ from models.sale_item import SaleItem
 from models.sale_return import SaleReturn
 from models.supplier import Supplier
 from models.user import User
+from services.inventory_ledger_service import InventoryLedgerService
 
 
 TEST_DATABASE_URL = "sqlite:///:memory:"
@@ -307,6 +309,33 @@ def test_category(db_session: Session, default_company: Company) -> Category:
     return category
 
 
+def _back_product_with_opening_layer(db_session: Session, product: Product) -> Product:
+    """Make a directly-created fixture product ledger-consistent.
+
+    Inserts a single ``opening_balance`` FIFO layer covering the product's
+    requested ``stock_quantity`` and sets ``inventory_value = stock * cost`` so
+    the product satisfies the ledger invariant (stock is backed by layers and
+    inventory_value matches). Used by fixtures that build products by hand
+    instead of going through ``ProductService.create``.
+    """
+    quantity = Decimal(product.stock_quantity or 0)
+    unit_cost = Decimal(product.cost_price or 0)
+    product.inventory_value = (quantity * unit_cost).quantize(Decimal("0.0001"))
+    if quantity > 0:
+        layer = InventoryLayer(
+            company_id=product.company_id,
+            product_id=product.id,
+            source_type="opening_balance",
+            source_id=None,
+            original_quantity=quantity,
+            remaining_quantity=quantity,
+            unit_cost=unit_cost,
+        )
+        db_session.add(layer)
+        db_session.flush()
+    return product
+
+
 @pytest.fixture
 def test_product(db_session: Session, default_company: Company, test_category: Category) -> Product:
     import uuid
@@ -326,6 +355,7 @@ def test_product(db_session: Session, default_company: Company, test_category: C
     )
     db_session.add(product)
     db_session.flush()
+    _back_product_with_opening_layer(db_session, product)
     db_session.refresh(product)
     return product
 
@@ -352,8 +382,48 @@ def test_products_bulk(db_session: Session, default_company: Company, test_categ
 
     db_session.flush()
     for product in products:
+        _back_product_with_opening_layer(db_session, product)
         db_session.refresh(product)
     return products
+
+
+@pytest.fixture
+def layered_product(
+    db_session: Session,
+    default_company: Company,
+    test_category: Category,
+    admin_user: User,
+) -> Product:
+    """A product whose 5 units span two FIFO layers (2 @ 10, then 3 @ 20).
+
+    Built through the ledger so layers, allocations, balance and logs stay
+    consistent for FIFO consumption tests.
+    """
+    import uuid
+
+    product = Product(
+        company_id=default_company.id,
+        name="Layered Product",
+        barcode=f"LAYER{uuid.uuid4().hex[:8]}",
+        description="A layered test product",
+        category_id=test_category.id,
+        cost_price=Decimal("0.00"),
+        sell_price=Decimal("30.00"),
+        tax_percent=Decimal("0.00"),
+        stock_quantity=Decimal("0"),
+        inventory_value=Decimal("0.0000"),
+        min_stock_level=5,
+        is_active=True,
+    )
+    db_session.add(product)
+    db_session.flush()
+
+    ledger = InventoryLedgerService(db_session, product.company_id)
+    ledger.add_layer(product, Decimal("2"), Decimal("10"), "opening_balance", None, admin_user.id)
+    ledger.add_layer(product, Decimal("3"), Decimal("20"), "purchase_receipt", None, admin_user.id)
+    db_session.flush()
+    db_session.refresh(product)
+    return product
 
 
 @pytest.fixture
@@ -407,11 +477,27 @@ def test_sale(
         discount_amount=Decimal("0.00"),
         subtotal=Decimal("30.00"),
         total=Decimal("33.00"),
+        unit_cost_at_sale=test_product.cost_price,
+        cost_total_at_sale=(Decimal("2") * test_product.cost_price).quantize(Decimal("0.01")),
         created_at=datetime.now(),
     )
     db_session.add(sale_item)
+    db_session.flush()
 
-    test_product.stock_quantity -= 2
+    # Consume the sold units through the FIFO ledger so layers/allocations and
+    # the product balance stay consistent with the new invariants.
+    ledger = InventoryLedgerService(db_session, test_product.company_id)
+    ledger.consume_fifo(
+        product=test_product,
+        quantity=Decimal("2"),
+        consumer_type="sale_item",
+        consumer_id=sale_item.id,
+        sale_item_id=sale_item.id,
+        user_id=cashier_user.id,
+        reason=f"Sale #{sale.id}",
+        reference_type="sale",
+        reference_id=sale.id,
+    )
 
     db_session.flush()
     db_session.refresh(sale)

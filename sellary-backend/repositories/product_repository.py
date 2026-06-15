@@ -75,13 +75,16 @@ class ProductRepository:
         return products, total
 
     def create(self, product: Product) -> Product:
+        # Flush only — the service layer assembles the product row, its initial
+        # ledger layer/value and inventory log, and the API layer commits once
+        # the whole unit of work is ready (and rolls back on failure).
         self.db.add(product)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(product)
         return product
 
     def update(self, product: Product) -> Product:
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(product)
         return product
 

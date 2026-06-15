@@ -11,6 +11,7 @@ class InventoryLog(BaseModel):
     user_id: int
     user_name: str
     quantity_change: Decimal
+    value_change: Decimal
     previous_quantity: Decimal
     new_quantity: Decimal
     reason: Optional[str]

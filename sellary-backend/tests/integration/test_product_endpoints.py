@@ -443,13 +443,17 @@ class TestCreateProduct:
         db_session.add(category)
         db_session.flush()
 
+        # Soft-deleted products are expected to be sold down to zero before
+        # deletion; reactivation then applies the requested stock as a fresh
+        # ledger delta.
         deleted_product = Product(
             name="Old Product",
             barcode="REUSE123",
             category_id=category.id,
             cost_price=Decimal("4.00"),
             sell_price=Decimal("6.00"),
-            stock_quantity=2,
+            stock_quantity=0,
+            inventory_value=Decimal("0.0000"),
         )
         db_session.add(deleted_product)
         db_session.commit()

@@ -97,3 +97,4 @@ class InventoryAllocation(Base):
 
     layer = relationship("InventoryLayer", back_populates="allocations")
     sale_item = relationship("SaleItem", back_populates="allocations")
+    product = relationship("Product", back_populates="inventory_allocations")

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from repositories.inventory_repository import InventoryRepository
 from repositories.product_repository import ProductRepository
 from schemas.inventory_log import InventoryAdjustment, InventoryLog
+from services.inventory_ledger_service import InventoryLedgerService
 from services.tenant import resolve_company_id
 
 
@@ -14,15 +15,43 @@ class InventoryService:
         self.company_id = resolve_company_id(db, company_id)
         self.inventory_repo = InventoryRepository(db)
         self.product_repo = ProductRepository(db)
+        self.ledger = InventoryLedgerService(db, self.company_id)
 
     def adjust_stock(self, adjustment: InventoryAdjustment, user_id: int) -> dict:
-        product = self.inventory_repo.adjust_stock(
-            company_id=self.company_id,
-            product_id=adjustment.product_id,
-            user_id=user_id,
-            quantity_change=adjustment.quantity_change,
-            reason=adjustment.reason,
+        product = self.product_repo.get_by_id_for_update(
+            self.company_id, adjustment.product_id
         )
+        if not product:
+            raise ValueError(f"Product with id {adjustment.product_id} not found")
+
+        if adjustment.quantity_change > 0:
+            # A positive adjustment adds a new FIFO layer at the current average
+            # cost so the average cost (and historical layer costs) are preserved.
+            product = self.ledger.add_layer(
+                product=product,
+                quantity=adjustment.quantity_change,
+                unit_cost=product.cost_price,
+                source_type="manual_adjustment",
+                source_id=None,
+                user_id=user_id,
+                reason=adjustment.reason,
+                reference_type="manual_adjust",
+            )
+        else:
+            # A negative adjustment consumes FIFO layers. consume_fifo writes the
+            # negative inventory log itself, so we do not pre-create a log here.
+            self.ledger.consume_fifo(
+                product=product,
+                quantity=-adjustment.quantity_change,
+                consumer_type="manual_adjustment",
+                consumer_id=product.id,
+                sale_item_id=None,
+                user_id=user_id,
+                reason=adjustment.reason,
+                reference_type="manual_adjust",
+                reference_id=None,
+            )
+
         return {
             "product_id": product.id,
             "product_name": product.name,
@@ -62,6 +91,7 @@ class InventoryService:
             user_id=log.user_id,
             user_name=log.user.full_name or log.user.username,
             quantity_change=log.quantity_change,
+            value_change=log.value_change,
             previous_quantity=log.previous_quantity,
             new_quantity=log.new_quantity,
             reason=log.reason,

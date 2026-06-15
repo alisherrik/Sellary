@@ -61,52 +61,6 @@ class InventoryRepository:
         # No commit here - let caller manage the transaction
         return log
 
-    def adjust_stock(
-        self,
-        company_id: int,
-        product_id: int,
-        user_id: int,
-        quantity_change: int,
-        reason: str,
-    ) -> Product:
-        """
-        Adjust product stock with row-level locking.
-        Uses SELECT ... FOR UPDATE to prevent race conditions.
-        """
-        product = self.db.query(Product).filter(
-            Product.company_id == company_id,
-            Product.id == product_id
-        ).with_for_update().first()
-
-        if not product:
-            raise ValueError(f"Product with id {product_id} not found")
-
-        previous_quantity = product.stock_quantity
-        new_quantity = previous_quantity + quantity_change
-
-        if new_quantity < 0:
-            raise ValueError(
-                f"Insufficient stock for product '{product.name}'. "
-                f"Current: {previous_quantity}, Change: {quantity_change}"
-            )
-
-        product.stock_quantity = new_quantity
-
-        # Create log within the active transaction; caller commits after idempotency is stored.
-        self.create_log(
-            company_id=company_id,
-            product_id=product_id,
-            user_id=user_id,
-            quantity_change=quantity_change,
-            previous_quantity=previous_quantity,
-            new_quantity=new_quantity,
-            reason=reason,
-            reference_type="manual_adjust",
-        )
-
-        self.db.flush()
-        return product
-
     def get_inventory_value(self, company_id: int) -> Decimal:
         from sqlalchemy import func
 

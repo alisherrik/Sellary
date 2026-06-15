@@ -52,3 +52,4 @@ class Product(Base):
     inventory_logs = relationship("InventoryLog", back_populates="product")
     purchase_order_items = relationship("PurchaseOrderItem", back_populates="product")
     inventory_layers = relationship("InventoryLayer", back_populates="product")
+    inventory_allocations = relationship("InventoryAllocation", back_populates="product")

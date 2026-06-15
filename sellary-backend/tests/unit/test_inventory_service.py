@@ -8,6 +8,7 @@ from services.inventory_service import InventoryService
 from models.product import Product
 from models.category import Category
 from models.inventory_log import InventoryLog
+from schemas.inventory_log import InventoryAdjustment
 
 
 class TestGetLogs:
@@ -175,99 +176,51 @@ class TestGetLogs:
 
 
 class TestAdjustStock:
-    """Tests for adjusting stock."""
+    """Tests for adjusting stock (ledger-backed)."""
 
-    def test_adjust_stock_decrease(self, db_session):
-        """Test decreasing stock quantity."""
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Test Product",
-            barcode="TEST123",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            stock_quantity=100,
-        )
-        db_session.add(product)
-        db_session.flush()
-
-        from schemas.inventory_log import InventoryAdjustment
+    def test_adjust_stock_decrease(self, db_session, test_product, admin_user):
+        """Test decreasing stock quantity consumes FIFO layers."""
         adjustment = InventoryAdjustment(
-            product_id=product.id,
+            product_id=test_product.id,
             quantity_change=-10,
             reason="Damaged goods",
         )
 
-        service = InventoryService(db_session)
-        result = service.adjust_stock(adjustment, user_id=1)
+        service = InventoryService(db_session, test_product.company_id)
+        service.adjust_stock(adjustment, user_id=admin_user.id)
 
-        # Result is the product object
-        db_session.refresh(product)
-        assert product.stock_quantity == 90
+        db_session.refresh(test_product)
+        assert test_product.stock_quantity == 90
 
-    def test_adjust_stock_increase(self, db_session):
-        """Test increasing stock quantity."""
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Test Product",
-            barcode="TEST123",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            stock_quantity=50,
-        )
-        db_session.add(product)
-        db_session.flush()
-
-        from schemas.inventory_log import InventoryAdjustment
+    def test_adjust_stock_increase(self, db_session, test_product, admin_user):
+        """Test increasing stock quantity adds a FIFO layer."""
         adjustment = InventoryAdjustment(
-            product_id=product.id,
+            product_id=test_product.id,
             quantity_change=20,
             reason="Stock received",
         )
 
-        service = InventoryService(db_session)
-        result = service.adjust_stock(adjustment, user_id=1)
+        service = InventoryService(db_session, test_product.company_id)
+        service.adjust_stock(adjustment, user_id=admin_user.id)
 
-        db_session.refresh(product)
-        assert product.stock_quantity == 70
+        db_session.refresh(test_product)
+        assert test_product.stock_quantity == 120
 
-    def test_adjust_stock_creates_log(self, db_session):
+    def test_adjust_stock_creates_log(self, db_session, test_product, admin_user):
         """Test that adjusting stock creates an inventory log."""
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Test Product",
-            barcode="TEST123",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            stock_quantity=100,
-        )
-        db_session.add(product)
-        db_session.flush()
-
-        from schemas.inventory_log import InventoryAdjustment
         adjustment = InventoryAdjustment(
-            product_id=product.id,
+            product_id=test_product.id,
             quantity_change=-5,
             reason="Test adjustment",
         )
 
-        service = InventoryService(db_session)
-        service.adjust_stock(adjustment, user_id=1)
+        service = InventoryService(db_session, test_product.company_id)
+        service.adjust_stock(adjustment, user_id=admin_user.id)
 
-        # Check that a log was created
+        # Check that an adjustment log was created (the opening layer is created
+        # directly in the fixture without a log, so this is the only log).
         logs = db_session.query(InventoryLog).filter(
-            InventoryLog.product_id == product.id
+            InventoryLog.product_id == test_product.id
         ).all()
 
         assert len(logs) == 1
@@ -276,37 +229,20 @@ class TestAdjustStock:
         assert logs[0].new_quantity == 95
         assert logs[0].reason == "Test adjustment"
 
-    def test_adjust_stock_insufficient_stock(self, db_session):
+    def test_adjust_stock_insufficient_stock(self, db_session, admin_user, layered_product):
         """Test that adjusting below zero fails."""
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
-
-        product = Product(
-            name="Test Product",
-            barcode="TEST123",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            stock_quantity=10,
-        )
-        db_session.add(product)
-        db_session.flush()
-
-        from schemas.inventory_log import InventoryAdjustment
         adjustment = InventoryAdjustment(
-            product_id=product.id,
-            quantity_change=-20,  # More than available
+            product_id=layered_product.id,
+            quantity_change=-20,  # More than the 5 available
             reason="Test",
         )
 
-        service = InventoryService(db_session)
+        service = InventoryService(db_session, layered_product.company_id)
         with pytest.raises(ValueError, match="Insufficient stock"):
-            service.adjust_stock(adjustment, user_id=1)
+            service.adjust_stock(adjustment, user_id=admin_user.id)
 
-    def test_adjust_stock_nonexistent_product(self, db_session):
+    def test_adjust_stock_nonexistent_product(self, db_session, admin_user):
         """Test adjusting stock for nonexistent product."""
-        from schemas.inventory_log import InventoryAdjustment
         adjustment = InventoryAdjustment(
             product_id=99999,
             quantity_change=5,
@@ -315,7 +251,62 @@ class TestAdjustStock:
 
         service = InventoryService(db_session)
         with pytest.raises(ValueError, match="not found"):
-            service.adjust_stock(adjustment, user_id=1)
+            service.adjust_stock(adjustment, user_id=admin_user.id)
+
+
+class TestLedgerBackedAdjustStock:
+    """Tests that manual adjustments flow through the FIFO ledger."""
+
+    def test_positive_adjustment_creates_layer_and_preserves_average_cost(
+        self, db_session, test_product, admin_user
+    ):
+        before_cost = test_product.cost_price
+        result = InventoryService(db_session, test_product.company_id).adjust_stock(
+            InventoryAdjustment(
+                product_id=test_product.id,
+                quantity_change=Decimal("4"),
+                reason="Инвентаризация",
+            ),
+            admin_user.id,
+        )
+        db_session.refresh(test_product)
+        assert result["new_quantity"] == test_product.stock_quantity
+        assert test_product.cost_price == before_cost
+        assert test_product.inventory_layers[-1].source_type == "manual_adjustment"
+
+    def test_negative_adjustment_consumes_fifo_layers(
+        self, db_session, layered_product, admin_user
+    ):
+        InventoryService(db_session, layered_product.company_id).adjust_stock(
+            InventoryAdjustment(
+                product_id=layered_product.id,
+                quantity_change=Decimal("-3"),
+                reason="Списание",
+            ),
+            admin_user.id,
+        )
+        db_session.refresh(layered_product)
+        assert (
+            sum(a.quantity for a in layered_product.inventory_allocations) == Decimal("3")
+        )
+
+    def test_negative_adjustment_records_value_change_in_log(
+        self, db_session, layered_product, admin_user
+    ):
+        InventoryService(db_session, layered_product.company_id).adjust_stock(
+            InventoryAdjustment(
+                product_id=layered_product.id,
+                quantity_change=Decimal("-3"),
+                reason="Списание",
+            ),
+            admin_user.id,
+        )
+        logs, _ = InventoryService(db_session, layered_product.company_id).get_logs(
+            product_id=layered_product.id
+        )
+        adjust_log = next(log for log in logs if log.quantity_change == Decimal("-3"))
+        # First two layers are 2 @ 10 and the third unit @ 20 => 20 + 20 = 40.
+        assert adjust_log.value_change == Decimal("-40.0000")
 
 
 class TestGetInventoryValue:
