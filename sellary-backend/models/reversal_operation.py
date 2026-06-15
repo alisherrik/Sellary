@@ -27,7 +27,7 @@ class ReversalOperation(Base):
         JSON,
         nullable=False,
         default=dict,
-        server_default=text("'{}'::json"),
+        server_default=text("'{}'"),
     )
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
