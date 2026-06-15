@@ -122,7 +122,7 @@ New sales consume available receipt layers in FIFO order. Each sale item records
 
 This linkage answers the question: "Was stock from purchase X sold, and by which sales?"
 
-The product's displayed `cost_price` may continue to use weighted average cost. FIFO allocations are introduced for lineage and exact reversal safety; they do not silently change the current pricing UI or historical sale pricing contract.
+FIFO layers are also the valuation source: a new sale's cost is the sum of the consumed layer costs. The product's displayed `cost_price` remains an average for the UI, calculated as remaining inventory value divided by remaining quantity. Historical sale rows are not rewritten.
 
 ### Returns and Sale Annulments
 
@@ -313,7 +313,7 @@ Backend tests must cover:
 - purchase preview listing blocking sales;
 - purchase annulment rejected while blockers exist;
 - success after blockers are annulled;
-- weighted cost recalculation;
+- FIFO inventory-value reversal and displayed average-cost recalculation;
 - legacy safety rules;
 - tenant isolation;
 - concurrent attempts and rollback on failure;
