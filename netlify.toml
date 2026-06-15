@@ -1,7 +1,7 @@
 [build]
 base = "sellary-frontend"
 command = "npm run build"
-publish = ".next"
+publish = "sellary-frontend/.next"
 
 [build.environment]
 NODE_VERSION = "20"
