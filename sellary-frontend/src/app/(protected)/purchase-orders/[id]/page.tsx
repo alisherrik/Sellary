@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
 import PurchaseOrderReceiveStage from '@/components/purchase-orders/PurchaseOrderReceiveStage';
+import AnnulmentDialog from '@/components/transactions/AnnulmentDialog';
 import PurchaseOrderStatusBadge from '@/components/purchase-orders/PurchaseOrderStatusBadge';
 import PurchaseOrderStepper, {
   type PurchaseOrderStep,
@@ -14,7 +15,8 @@ import PurchaseOrderStepper, {
 import { getRemainingQuantity } from '@/features/purchase-orders/purchaseOrderForm';
 import { usePurchaseOrder } from '@/hooks/useQueries';
 import { purchaseOrdersApi } from '@/lib/api';
-import type { ReceivePurchaseOrderPayload } from '@/lib/types';
+import { useAuthStore } from '@/lib/store';
+import type { ReceivePurchaseOrderPayload, VoidPreview } from '@/lib/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 export default function PurchaseOrderDetailPage() {
@@ -26,6 +28,10 @@ export default function PurchaseOrderDetailPage() {
   const orderQuery = usePurchaseOrder(id, { enabled: validId });
   const [actionError, setActionError] = useState('');
   const [isActing, setIsActing] = useState(false);
+  const [voidPreview, setVoidPreview] = useState<VoidPreview | null>(null);
+  const [showVoidDialog, setShowVoidDialog] = useState(false);
+  const [voidLoading, setVoidLoading] = useState(false);
+  const isAdmin = useAuthStore((state) => state.currentCompany?.role === 'admin');
 
   if (!validId) return <DetailError message="Некорректный номер закупки." />;
   if (orderQuery.isLoading) return <div className="h-72 animate-pulse rounded-lg bg-white" />;
@@ -78,6 +84,29 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
+  const openVoidDialog = async () => {
+    setVoidPreview(null);
+    setShowVoidDialog(true);
+    setVoidLoading(true);
+    try {
+      const response = await purchaseOrdersApi.previewVoid(order.id);
+      setVoidPreview(response.data);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Не удалось проверить аннулирование');
+      setShowVoidDialog(false);
+    } finally {
+      setVoidLoading(false);
+    }
+  };
+
+  const confirmVoid = async (reason: string) => {
+    await runAction(async () => {
+      await purchaseOrdersApi.void(order.id, reason);
+      setShowVoidDialog(false);
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+    }, 'Закупка аннулирована, склад пересчитан');
+  };
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -89,7 +118,7 @@ export default function PurchaseOrderDetailPage() {
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
               Закупка #{order.id}
             </h1>
-            <PurchaseOrderStatusBadge status={order.status} />
+            <PurchaseOrderStatusBadge status={order.status} voided={Boolean(order.voided_at)} />
           </div>
           <p className="mt-1 text-sm text-gray-500">{order.supplier?.name ?? 'Поставщик не указан'}</p>
         </div>
@@ -117,7 +146,7 @@ export default function PurchaseOrderDetailPage() {
               </button>
             </>
           )}
-          {['draft', 'sent', 'partially_received'].includes(order.status) && (
+          {['draft', 'sent'].includes(order.status) && (
             <button
               type="button"
               disabled={isActing}
@@ -130,6 +159,16 @@ export default function PurchaseOrderDetailPage() {
               className="min-h-11 rounded-md px-4 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
             >
               Отменить
+            </button>
+          )}
+          {isAdmin && ['partially_received', 'received'].includes(order.status) && (
+            <button
+              type="button"
+              disabled={isActing || voidLoading}
+              onClick={() => void openVoidDialog()}
+              className="min-h-11 rounded-md border border-red-200 px-4 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            >
+              Аннулировать закупку
             </button>
           )}
           {order.status === 'draft' && (
@@ -279,6 +318,16 @@ export default function PurchaseOrderDetailPage() {
           </div>
         </aside>
       </div>
+
+      <AnnulmentDialog
+        open={showVoidDialog}
+        title={`Аннулировать закупку #${order.id}`}
+        preview={voidPreview}
+        loading={voidLoading}
+        submitting={isActing}
+        onClose={() => setShowVoidDialog(false)}
+        onConfirm={(reason) => void confirmVoid(reason)}
+      />
     </div>
   );
 }

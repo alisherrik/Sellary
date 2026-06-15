@@ -180,6 +180,9 @@ export interface Sale {
   status: SaleStatus;
   can_return?: boolean;
   notes?: string;
+  voided_at?: string;
+  voided_by_user_id?: number;
+  void_reason?: string;
   created_at: string;
   items: SaleItem[];
 }
@@ -294,7 +297,43 @@ export interface PurchaseOrder {
   is_active: boolean;
   created_at: string;
   updated_at?: string;
+  voided_at?: string;
+  voided_by_user_id?: number;
+  void_reason?: string;
   items: PurchaseOrderItem[];
+}
+
+export interface InventoryImpact {
+  product_id: number;
+  product_name: string;
+  quantity_change: number;
+  value_change: number;
+  resulting_stock: number;
+}
+
+export interface ReversalBlocker {
+  blocker_type: 'sale' | 'inventory_adjustment' | 'legacy_history';
+  reference_id?: number | null;
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  created_at?: string | null;
+  message: string;
+}
+
+export interface VoidPreview {
+  can_void: boolean;
+  is_legacy: boolean;
+  impacts: InventoryImpact[];
+  blockers: ReversalBlocker[];
+}
+
+export interface VoidResult {
+  operation_id: number;
+  entity_type: 'sale' | 'purchase_order';
+  entity_id: number;
+  status: string;
+  voided_at: string;
 }
 
 export interface PurchaseOrderItemPayload {

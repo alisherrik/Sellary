@@ -40,6 +40,7 @@ class TestGetLogs:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
+            inventory_value=Decimal("1000.0000"),
         )
         db_session.add(product)
         db_session.flush()
@@ -145,6 +146,7 @@ class TestGetLogs:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=50,
+            inventory_value=Decimal("1000.0000"),
         )
         db_session.add_all([product1, product2])
         db_session.flush()
@@ -325,6 +327,7 @@ class TestGetInventoryValue:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
+            inventory_value=Decimal("1000.0000"),
             is_active=True,
         )
         product2 = Product(
@@ -334,6 +337,7 @@ class TestGetInventoryValue:
             cost_price=Decimal("20.00"),
             sell_price=Decimal("30.00"),
             stock_quantity=50,
+            inventory_value=Decimal("1000.0000"),
             is_active=True,
         )
         db_session.add_all([product1, product2])
@@ -360,6 +364,7 @@ class TestGetInventoryValue:
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
             stock_quantity=100,
+            inventory_value=Decimal("1000.0000"),
             is_active=True,
         )
         inactive_product = Product(
@@ -369,6 +374,7 @@ class TestGetInventoryValue:
             cost_price=Decimal("50.00"),
             sell_price=Decimal("75.00"),
             stock_quantity=200,
+            inventory_value=Decimal("10000.0000"),
             is_active=False,
         )
         db_session.add_all([active_product, inactive_product])

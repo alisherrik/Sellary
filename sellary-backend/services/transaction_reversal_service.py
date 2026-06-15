@@ -24,9 +24,13 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from core.state_machine import StateTransitionError, validate_sale_transition
+from models.inventory_layer import InventoryAllocation
+from models.purchase_order import PurchaseOrderStatus
+from models.purchase_receipt import PurchaseReceipt
 from models.reversal_operation import ReversalOperation
 from models.sale import Sale, SaleStatus
 from repositories.product_repository import ProductRepository
+from repositories.purchase_order_repository import PurchaseOrderRepository
 from repositories.sale_repository import SaleRepository
 from schemas.reversal import InventoryImpact, ReversalBlocker, VoidPreview, VoidResult
 from services.inventory_ledger_service import InventoryLedgerService
@@ -75,6 +79,7 @@ class TransactionReversalService:
         self.company_id = resolve_company_id(db, company_id)
         self.sale_repo = SaleRepository(db)
         self.product_repo = ProductRepository(db)
+        self.po_repo = PurchaseOrderRepository(db)
         self.ledger = InventoryLedgerService(db, self.company_id)
 
     # ------------------------------------------------------------------
@@ -251,6 +256,167 @@ class TransactionReversalService:
             entity_id=sale.id,
             status=sale.status.value,
             voided_at=sale.voided_at or voided_at,
+        )
+
+    # ------------------------------------------------------------------
+    # Purchase annulment
+    # ------------------------------------------------------------------
+    def preview_purchase(self, po_id: int, for_update: bool = False) -> VoidPreview:
+        po = (
+            self.po_repo.get_by_id_for_update(self.company_id, po_id)
+            if for_update
+            else self.po_repo.get_by_id(self.company_id, po_id)
+        )
+        if not po:
+            raise ValueError(f"Purchase order with id {po_id} not found")
+        if po.voided_at is not None:
+            return VoidPreview(can_void=False, is_legacy=False, impacts=[], blockers=[])
+
+        receipts = (
+            self.db.query(PurchaseReceipt)
+            .filter(
+                PurchaseReceipt.company_id == self.company_id,
+                PurchaseReceipt.purchase_order_id == po_id,
+                PurchaseReceipt.reversed_at.is_(None),
+            )
+            .all()
+        )
+        received_quantity = sum(
+            (Decimal(item.quantity_received or 0) for item in po.items), Decimal("0")
+        )
+        if received_quantity > 0 and not receipts:
+            first_item = po.items[0]
+            blocker = ReversalBlocker(
+                blocker_type="legacy_history",
+                reference_id=po.id,
+                product_id=first_item.product_id,
+                product_name=first_item.product.name,
+                quantity=received_quantity,
+                created_at=po.created_at,
+                message="История этой закупки создана до включения точного учёта партий.",
+            )
+            return VoidPreview(can_void=False, is_legacy=True, impacts=[], blockers=[blocker])
+
+        receipt_items = [item for receipt in receipts for item in receipt.items]
+        impacts: List[InventoryImpact] = []
+        blockers: List[ReversalBlocker] = []
+        for item in receipt_items:
+            layer = item.inventory_layer
+            if not layer or layer.reversed_at is not None:
+                continue
+            product = item.product
+            impacts.append(
+                InventoryImpact(
+                    product_id=product.id,
+                    product_name=product.name,
+                    quantity_change=-Decimal(item.quantity),
+                    value_change=-(Decimal(item.quantity) * Decimal(item.unit_cost)).quantize(MONEY_QUANT),
+                    resulting_stock=Decimal(product.stock_quantity) - Decimal(item.quantity),
+                )
+            )
+            active_allocations = (
+                self.db.query(InventoryAllocation)
+                .filter(
+                    InventoryAllocation.layer_id == layer.id,
+                    InventoryAllocation.quantity > InventoryAllocation.released_quantity,
+                )
+                .all()
+            )
+            for allocation in active_allocations:
+                remaining = Decimal(allocation.quantity) - Decimal(allocation.released_quantity)
+                sale_item = allocation.sale_item
+                if sale_item is not None:
+                    blockers.append(
+                        ReversalBlocker(
+                            blocker_type="sale",
+                            reference_id=sale_item.sale_id,
+                            product_id=product.id,
+                            product_name=product.name,
+                            quantity=remaining,
+                            created_at=sale_item.sale.created_at,
+                            message=f"Сначала аннулируйте продажу #{sale_item.sale_id}.",
+                        )
+                    )
+                else:
+                    blockers.append(
+                        ReversalBlocker(
+                            blocker_type="inventory_adjustment",
+                            reference_id=allocation.consumer_id,
+                            product_id=product.id,
+                            product_name=product.name,
+                            quantity=remaining,
+                            created_at=allocation.created_at,
+                            message="Остаток использован последующей корректировкой.",
+                        )
+                    )
+
+        allowed_status = po.status in (
+            PurchaseOrderStatus.PARTIALLY_RECEIVED,
+            PurchaseOrderStatus.RECEIVED,
+        )
+        return VoidPreview(
+            can_void=allowed_status and not blockers and bool(receipt_items),
+            is_legacy=False,
+            impacts=impacts,
+            blockers=blockers,
+        )
+
+    def void_purchase(self, po_id: int, reason: str, user_id: int) -> VoidResult:
+        preview = self.preview_purchase(po_id, for_update=True)
+        if preview.blockers:
+            raise ReversalBlocked(preview.blockers)
+        if not preview.can_void:
+            raise ReversalConflict("Закупку нельзя аннулировать в текущем состоянии.")
+
+        po = self.po_repo.get_by_id_for_update(self.company_id, po_id)
+        receipts = (
+            self.db.query(PurchaseReceipt)
+            .filter(
+                PurchaseReceipt.company_id == self.company_id,
+                PurchaseReceipt.purchase_order_id == po_id,
+                PurchaseReceipt.reversed_at.is_(None),
+            )
+            .with_for_update()
+            .all()
+        )
+        operation = self._create_operation(
+            entity_type="purchase_order",
+            entity_id=po.id,
+            operation_type="purchase_void",
+            reason=reason,
+            user_id=user_id,
+            impacts=preview.impacts,
+        )
+        now = datetime.now(timezone.utc)
+        for receipt in receipts:
+            for item in receipt.items:
+                layer = item.inventory_layer
+                if not layer or layer.reversed_at is not None:
+                    continue
+                self.ledger.reverse_unconsumed_layer(
+                    layer=layer,
+                    product=item.product,
+                    user_id=user_id,
+                    reason=f"Аннулирование закупки #{po.id}: {reason}",
+                    reference_type="po_void",
+                    reference_id=po.id,
+                    reversal_operation_id=operation.id,
+                )
+            receipt.reversed_at = now
+            receipt.reversal_operation_id = operation.id
+
+        po.status = PurchaseOrderStatus.CANCELLED
+        po.voided_at = now
+        po.voided_by_user_id = user_id
+        po.void_reason = reason
+        po.reversal_operation_id = operation.id
+        self.db.flush()
+        return VoidResult(
+            operation_id=operation.id,
+            entity_type="purchase_order",
+            entity_id=po.id,
+            status=po.status.value,
+            voided_at=now,
         )
 
     # ------------------------------------------------------------------

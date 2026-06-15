@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import List, Tuple
 
 from sqlalchemy.orm import Session
@@ -78,7 +79,7 @@ class InventoryService:
         total_items = sum(product.stock_quantity for product in products)
 
         return {
-            "total_value": str(value),
+            "total_value": str(value.quantize(Decimal("0.01"))),
             "total_products": len(products),
             "total_items": total_items,
         }

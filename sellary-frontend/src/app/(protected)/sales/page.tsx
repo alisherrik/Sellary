@@ -11,7 +11,9 @@ import {
 import { salesApi, metaApi, generateIdempotencyKey } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { TableSkeleton } from '@/components/skeletons';
-import { Sale, SaleItem } from '@/lib/types';
+import AnnulmentDialog from '@/components/transactions/AnnulmentDialog';
+import { Sale, SaleItem, VoidPreview } from '@/lib/types';
+import { useAuthStore } from '@/lib/store';
 import { useSales } from '@/hooks/useQueries';
 
 interface SaleReturnItem {
@@ -68,6 +70,11 @@ export default function SalesHistory() {
   const [returnQuantities, setReturnQuantities] = useState<ReturnQuantity[]>([]);
   const [refundMethod, setRefundMethod] = useState('');
   const [returnNotes, setReturnNotes] = useState('');
+  const [voidPreview, setVoidPreview] = useState<VoidPreview | null>(null);
+  const [showVoidDialog, setShowVoidDialog] = useState(false);
+  const [voidLoading, setVoidLoading] = useState(false);
+  const [voidSubmitting, setVoidSubmitting] = useState(false);
+  const isAdmin = useAuthStore((state) => state.currentCompany?.role === 'admin');
 
   const { data: sales = [], isLoading: loading, refetch } = useSales({ limit: 100 });
 
@@ -80,17 +87,54 @@ export default function SalesHistory() {
   }, [sales, statusFilter]);
 
   const totals = useMemo(() => {
-    const turnover = visibleSales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
-    const refunds = visibleSales.reduce((sum, s) => sum + Number(s.refunded_amount || 0), 0);
-    const count = visibleSales.length;
-    const refundOps = visibleSales.filter((s) => Number(s.refunded_amount || 0) > 0).length;
+    const financialSales = visibleSales.filter((s) => s.status !== 'cancelled');
+    const turnover = financialSales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
+    const refunds = financialSales.reduce((sum, s) => sum + Number(s.refunded_amount || 0), 0);
+    const count = financialSales.length;
+    const refundOps = financialSales.filter((s) => Number(s.refunded_amount || 0) > 0).length;
     return { turnover, refunds, count, avg: count ? turnover / count : 0, refundOps };
   }, [visibleSales]);
+
+  const openVoidDialog = async (sale: Sale) => {
+    setSelectedSale(sale);
+    setVoidPreview(null);
+    setShowVoidDialog(true);
+    setVoidLoading(true);
+    try {
+      const response = await salesApi.previewVoid(sale.id);
+      setVoidPreview(response.data);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Не удалось проверить аннулирование');
+      setShowVoidDialog(false);
+    } finally {
+      setVoidLoading(false);
+    }
+  };
+
+  const confirmVoid = async (reason: string) => {
+    if (!selectedSale) return;
+    setVoidSubmitting(true);
+    try {
+      await salesApi.void(selectedSale.id, reason);
+      toast.success('Продажа аннулирована, остатки восстановлены');
+      setShowVoidDialog(false);
+      setShowDetail(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['sales'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      ]);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail?.message || error.response?.data?.detail || 'Аннулирование не выполнено');
+    } finally {
+      setVoidSubmitting(false);
+    }
+  };
 
   // Hourly turnover, computed from the loaded sales — real data, no placeholders.
   const hourly = useMemo(() => {
     const buckets = Array.from({ length: 24 }, () => 0);
-    visibleSales.forEach((s) => {
+    visibleSales.filter((s) => s.status !== 'cancelled').forEach((s) => {
       const h = new Date(s.created_at).getHours();
       buckets[h] += Number(s.total_amount || 0);
     });
@@ -212,7 +256,7 @@ export default function SalesHistory() {
       completed: 'Завершён',
       partially_returned: 'Част. возврат',
       returned: 'Возврат',
-      cancelled: 'Отменён',
+      cancelled: 'Аннулирован',
     };
     return texts[status] || status;
   };
@@ -224,7 +268,7 @@ export default function SalesHistory() {
     { key: 'all', label: 'Все' },
     { key: 'completed', label: 'Завершён' },
     { key: 'returns', label: 'Возвраты' },
-    { key: 'cancelled', label: 'Отменён' },
+    { key: 'cancelled', label: 'Аннулирован' },
   ];
 
   return (
@@ -504,6 +548,14 @@ export default function SalesHistory() {
                   Оформить возврат
                 </button>
               )}
+              {isAdmin && ['completed', 'partially_returned'].includes(selectedSale.status) && (
+                <button
+                  onClick={() => void openVoidDialog(selectedSale)}
+                  className="flex flex-1 items-center justify-center rounded-lg border border-red-200 px-3 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50"
+                >
+                  Аннулировать
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -546,6 +598,11 @@ export default function SalesHistory() {
                   className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
                 >
                   <ArrowUturnLeftIcon className="h-4 w-4" /> Возврат
+                </button>
+              )}
+              {isAdmin && ['completed', 'partially_returned'].includes(selectedSale.status) && (
+                <button onClick={() => void openVoidDialog(selectedSale)} className="rounded-lg border border-red-200 px-3 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">
+                  Аннулировать
                 </button>
               )}
               <button onClick={() => setShowDetail(false)} className="rounded-lg px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">Закрыть</button>
@@ -671,6 +728,16 @@ export default function SalesHistory() {
           </div>
         </div>
       )}
+
+      <AnnulmentDialog
+        open={showVoidDialog}
+        title={`Аннулировать продажу #${selectedSale?.id ?? ''}`}
+        preview={voidPreview}
+        loading={voidLoading}
+        submitting={voidSubmitting}
+        onClose={() => setShowVoidDialog(false)}
+        onConfirm={(reason) => void confirmVoid(reason)}
+      />
     </>
   );
 }

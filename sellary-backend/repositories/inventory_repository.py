@@ -65,7 +65,7 @@ class InventoryRepository:
         from sqlalchemy import func
 
         result = (
-            self.db.query(func.sum(Product.stock_quantity * Product.cost_price))
+            self.db.query(func.sum(Product.inventory_value))
             .filter(
                 Product.company_id == company_id,
                 Product.is_active == True,

@@ -19,10 +19,14 @@ export const getPurchaseOrderStatusLabel = (status: PurchaseOrderStatus) =>
 
 export default function PurchaseOrderStatusBadge({
   status,
+  voided = false,
 }: {
   status: PurchaseOrderStatus;
+  voided?: boolean;
 }) {
-  const config = statusConfig[status];
+  const config = voided
+    ? { label: 'Аннулирована', className: 'bg-red-50 text-red-700' }
+    : statusConfig[status];
 
   return (
     <span

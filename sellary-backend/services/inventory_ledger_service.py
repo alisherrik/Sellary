@@ -14,7 +14,7 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from models.inventory_layer import InventoryAllocation
+from models.inventory_layer import InventoryAllocation, InventoryLayer
 from models.product import Product
 from models.sale_item import SaleItem
 from repositories.inventory_ledger_repository import InventoryLedgerRepository
@@ -251,3 +251,42 @@ class InventoryLedgerService:
         )
         self.db.flush()
         return restored_qty
+
+    def reverse_unconsumed_layer(
+        self,
+        layer: InventoryLayer,
+        product: Product,
+        user_id: int,
+        reason: str,
+        reference_type: str,
+        reference_id: int,
+        reversal_operation_id: int,
+    ) -> None:
+        """Remove a fully available source layer and reverse its balance effect."""
+        if layer.reversed_at is not None:
+            raise ValueError("Inventory layer is already reversed")
+        if Decimal(layer.remaining_quantity) != Decimal(layer.original_quantity):
+            raise ValueError("Inventory layer has downstream consumption")
+
+        quantity = Decimal(layer.original_quantity)
+        value = (quantity * Decimal(layer.unit_cost)).quantize(MONEY_QUANT)
+        previous_quantity, new_quantity = self._apply_balance(product, -quantity, -value)
+        from datetime import datetime, timezone
+
+        layer.remaining_quantity = Decimal("0")
+        layer.reversed_at = datetime.now(timezone.utc)
+        layer.reversal_operation_id = reversal_operation_id
+        self.repo.create_log(
+            company_id=self.company_id,
+            product_id=product.id,
+            user_id=user_id,
+            quantity_change=-quantity,
+            value_change=-value,
+            previous_quantity=previous_quantity,
+            new_quantity=new_quantity,
+            reason=reason,
+            reference_type=reference_type,
+            reference_id=reference_id,
+            reversal_operation_id=reversal_operation_id,
+        )
+        self.db.flush()

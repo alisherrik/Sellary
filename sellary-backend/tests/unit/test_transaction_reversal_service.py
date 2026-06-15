@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 
 from models.inventory_layer import InventoryLayer
+from models.inventory_layer import InventoryAllocation
 from models.inventory_log import InventoryLog
 from models.reversal_operation import ReversalOperation
 from models.sale import SaleStatus
@@ -192,6 +193,53 @@ class TestPreviewSale:
             db_session, voided_sale.company_id
         ).preview_sale(voided_sale.id)
         assert preview.can_void is False
+
+
+class TestPurchaseVoid:
+    def test_unconsumed_received_purchase_can_be_voided(
+        self, db_session, partially_received_po, admin_user
+    ):
+        product = partially_received_po.items[0].product
+        stock_before = product.stock_quantity
+        service = TransactionReversalService(db_session, partially_received_po.company_id)
+
+        preview = service.preview_purchase(partially_received_po.id)
+        assert preview.can_void is True
+        assert preview.blockers == []
+
+        result = service.void_purchase(
+            partially_received_po.id, "Тестовая закупка", admin_user.id
+        )
+        assert result.entity_type == "purchase_order"
+        assert product.stock_quantity == stock_before - Decimal("4")
+        assert partially_received_po.status.value == "cancelled"
+        assert partially_received_po.void_reason == "Тестовая закупка"
+
+    def test_purchase_preview_lists_consuming_sale(
+        self, db_session, partially_received_po, test_sale
+    ):
+        receipt_item = partially_received_po.receipts[0].items[0]
+        layer = receipt_item.inventory_layer
+        layer.remaining_quantity -= Decimal("1")
+        allocation = InventoryAllocation(
+            company_id=partially_received_po.company_id,
+            product_id=receipt_item.product_id,
+            layer_id=layer.id,
+            consumer_type="sale_item",
+            consumer_id=test_sale.items[0].id,
+            sale_item_id=test_sale.items[0].id,
+            quantity=Decimal("1"),
+            released_quantity=Decimal("0"),
+        )
+        db_session.add(allocation)
+        db_session.flush()
+
+        preview = TransactionReversalService(
+            db_session, partially_received_po.company_id
+        ).preview_purchase(partially_received_po.id)
+        assert preview.can_void is False
+        assert preview.blockers[0].blocker_type == "sale"
+        assert preview.blockers[0].reference_id == test_sale.id
 
     def test_preview_returned_sale_cannot_void(self, db_session, test_sale):
         test_sale.status = SaleStatus.RETURNED

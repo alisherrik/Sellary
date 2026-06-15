@@ -349,6 +349,10 @@ class PurchaseOrderService:
             is_active=purchase_order.is_active,
             created_at=purchase_order.created_at,
             updated_at=purchase_order.updated_at,
+            voided_at=purchase_order.voided_at,
+            voided_by_user_id=purchase_order.voided_by_user_id,
+            void_reason=purchase_order.void_reason,
+            reversal_operation_id=purchase_order.reversal_operation_id,
             items=[
                 PurchaseOrderItemResponse(
                     id=item.id,

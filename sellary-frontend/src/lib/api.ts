@@ -16,6 +16,8 @@ import type {
   PurchaseOrder,
   PurchaseOrderPayload,
   ReceivePurchaseOrderPayload,
+  VoidPreview,
+  VoidResult,
 } from './types';
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
@@ -216,6 +218,13 @@ export const salesApi = {
     return api.post(`/sales/${id}/return`, data, { headers: { 'Idempotency-Key': key } });
   },
   getReturns: (id: number) => api.get(`/sales/${id}/returns`),
+  previewVoid: (id: number) => api.get<VoidPreview>(`/sales/${id}/void-preview`),
+  void: (id: number, reason: string, idempotencyKey?: string) => {
+    const key = idempotencyKey || generateIdempotencyKey();
+    return api.post<VoidResult>(`/sales/${id}/void`, { reason }, {
+      headers: { 'Idempotency-Key': key },
+    });
+  },
 };
 
 export const inventoryApi = {
@@ -284,6 +293,13 @@ export const purchaseOrdersApi = {
     });
   },
   delete: (id: number) => api.delete(`/purchase-orders/${id}`),
+  previewVoid: (id: number) => api.get<VoidPreview>(`/purchase-orders/${id}/void-preview`),
+  void: (id: number, reason: string, idempotencyKey?: string) => {
+    const key = idempotencyKey || generateIdempotencyKey();
+    return api.post<VoidResult>(`/purchase-orders/${id}/void`, { reason }, {
+      headers: { 'Idempotency-Key': key },
+    });
+  },
 };
 
 export const metaApi = {

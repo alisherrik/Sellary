@@ -43,7 +43,11 @@ class ReportService:
                 SaleReturn.sale_id,
                 func.coalesce(func.sum(SaleReturn.total_refund_amount), Decimal("0.00")).label("refund_total"),
             )
-            .filter(SaleReturn.company_id == self.company_id)
+            .join(Sale, Sale.id == SaleReturn.sale_id)
+            .filter(
+                SaleReturn.company_id == self.company_id,
+                Sale.status.in_(NON_CANCELLED_STATUSES),
+            )
             .group_by(SaleReturn.sale_id)
             .subquery()
         )

@@ -64,6 +64,10 @@ class PurchaseOrder(PurchaseOrderBase):
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
+    voided_at: Optional[datetime] = None
+    voided_by_user_id: Optional[int] = None
+    void_reason: Optional[str] = None
+    reversal_operation_id: Optional[int] = None
 
     class Config:
         from_attributes = True

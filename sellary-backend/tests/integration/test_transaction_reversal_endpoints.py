@@ -88,3 +88,34 @@ class TestVoidPreviewEndpoint:
         assert len(data["impacts"]) == 1
         assert data["impacts"][0]["product_id"] == test_sale.items[0].product_id
         assert Decimal(data["impacts"][0]["quantity_change"]) == Decimal("2")
+
+
+class TestPurchaseVoidEndpoints:
+    def test_purchase_void_requires_admin(self, client, partially_received_po, manager_headers):
+        response = client.post(
+            f"/api/purchase-orders/{partially_received_po.id}/void",
+            json={"reason": "Тестовая закупка"},
+            headers={**manager_headers, "Idempotency-Key": "purchase-void-forbid-01"},
+        )
+        assert response.status_code == 403
+
+    def test_purchase_void_preview_and_execute(
+        self, client, db_session, partially_received_po, admin_headers
+    ):
+        preview = client.get(
+            f"/api/purchase-orders/{partially_received_po.id}/void-preview",
+            headers=admin_headers,
+        )
+        assert preview.status_code == 200
+        assert preview.json()["can_void"] is True
+
+        response = client.post(
+            f"/api/purchase-orders/{partially_received_po.id}/void",
+            json={"reason": "Тестовая закупка"},
+            headers={**admin_headers, "Idempotency-Key": "purchase-void-success-01"},
+        )
+        assert response.status_code == 200
+        assert response.json()["entity_type"] == "purchase_order"
+        db_session.refresh(partially_received_po)
+        assert partially_received_po.status.value == "cancelled"
+        assert partially_received_po.void_reason == "Тестовая закупка"

@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, get_auth_context, require_manager_or_admin
+from api.dependencies import AuthContext, get_auth_context, require_admin, require_manager_or_admin
 from core.database import get_db
 from core.idempotency import (
     IdempotencyConflictError,
@@ -18,7 +18,13 @@ from schemas.purchase_order import (
     PurchaseOrderUpdate,
     ReceiveItemsRequest,
 )
+from schemas.reversal import VoidPreview, VoidRequest, VoidResult
 from services.purchase_order_service import PurchaseOrderService
+from services.transaction_reversal_service import (
+    ReversalBlocked,
+    ReversalConflict,
+    TransactionReversalService,
+)
 
 router = APIRouter(prefix="/purchase-orders", tags=["purchase-orders"])
 
@@ -57,6 +63,70 @@ def get_purchase_order(
     if not purchase_order:
         raise HTTPException(status_code=404, detail="Purchase order not found")
     return purchase_order
+
+
+@router.get("/{po_id}/void-preview", response_model=VoidPreview)
+def preview_purchase_void(
+    po_id: int,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_admin),
+):
+    try:
+        return TransactionReversalService(db, auth.company_id).preview_purchase(po_id)
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+
+
+@router.post("/{po_id}/void", response_model=VoidResult)
+def void_purchase_order(
+    po_id: int,
+    payload: VoidRequest,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_admin),
+    idempotency_key: str = Depends(require_idempotency_key),
+):
+    endpoint = f"/api/purchase-orders/{po_id}/void"
+    request_body = payload.model_dump()
+    idempotency = IdempotencyService(db)
+    try:
+        cached = idempotency.get_cached_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+        )
+        if cached:
+            return VoidResult(**cached[0])
+    except IdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+
+    try:
+        result = TransactionReversalService(db, auth.company_id).void_purchase(
+            po_id, payload.reason, auth.user.id
+        )
+        idempotency.store_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+            response_body=result,
+            status_code=200,
+        )
+        db.commit()
+        return result
+    except ReversalBlocked as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.to_response())
+    except (ReversalConflict, IdempotencyConflictError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.message)
+    except ValueError as exc:
+        db.rollback()
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.post("", response_model=PurchaseOrderResponse, status_code=201)
