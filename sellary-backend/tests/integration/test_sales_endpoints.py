@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from models.sale import Sale, SaleStatus, PaymentMethod
 from models.sale_item import SaleItem
+from models.inventory_layer import InventoryLayer
 from models.product import Product
 from models.category import Category
 from models.customer import Customer
@@ -19,6 +20,32 @@ from core.security import get_password_hash
 def with_idempotency(headers: dict, key: str) -> dict:
     normalized_key = key if len(key) >= 16 else f"{key}-tenant-safe"
     return {**headers, "Idempotency-Key": normalized_key}
+
+
+def back_with_layer(db_session, product):
+    """Give a hand-built product an opening FIFO layer so it can be sold.
+
+    Under the FIFO ledger a sale consumes from inventory layers; products built
+    inline in a test carry stock_quantity but no layers, so they must be backed
+    before the create-sale endpoint can allocate them.
+    """
+    quantity = Decimal(product.stock_quantity or 0)
+    unit_cost = Decimal(product.cost_price or 0)
+    product.inventory_value = (quantity * unit_cost).quantize(Decimal("0.0001"))
+    if quantity > 0:
+        db_session.add(
+            InventoryLayer(
+                company_id=product.company_id,
+                product_id=product.id,
+                source_type="opening_balance",
+                source_id=None,
+                original_quantity=quantity,
+                remaining_quantity=quantity,
+                unit_cost=unit_cost,
+            )
+        )
+        db_session.flush()
+    return product
 
 
 class TestListSales:
@@ -203,6 +230,8 @@ class TestCreateSale:
             is_active=True,
         )
         db_session.add(product)
+        db_session.flush()
+        back_with_layer(db_session, product)
         db_session.commit()
 
         response = client.post(
@@ -260,6 +289,9 @@ class TestCreateSale:
             is_active=True,
         )
         db_session.add_all([product1, product2])
+        db_session.flush()
+        back_with_layer(db_session, product1)
+        back_with_layer(db_session, product2)
         db_session.commit()
 
         response = client.post(
@@ -312,6 +344,8 @@ class TestCreateSale:
 
         customer = Customer(name="Test Customer")
         db_session.add(customer)
+        db_session.flush()
+        back_with_layer(db_session, product)
         db_session.commit()
 
         response = client.post(
@@ -416,6 +450,8 @@ class TestCreateSale:
             is_active=True,
         )
         db_session.add(product)
+        db_session.flush()
+        back_with_layer(db_session, product)
         db_session.commit()
 
         response = client.post(
@@ -594,6 +630,8 @@ class TestSaleResponse:
             is_active=True,
         )
         db_session.add(product)
+        db_session.flush()
+        back_with_layer(db_session, product)
         db_session.commit()
 
         response = client.post(
@@ -642,6 +680,8 @@ class TestSaleResponse:
 
         customer = Customer(name="John Doe")
         db_session.add(customer)
+        db_session.flush()
+        back_with_layer(db_session, product)
         db_session.commit()
 
         response = client.post(

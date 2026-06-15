@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     MAX_PAGE_SIZE: int = 200
 
     # Sync
+    # DEPRECATED: no longer overrides ledger safety. Exact FIFO inventory
+    # accounting cannot back negative stock, so a synced sale that exceeds
+    # available layer stock is always rejected (recorded as a failed per-sale
+    # result), regardless of this flag. Kept only for backwards compatibility;
+    # a warning is emitted at startup when it is left enabled.
     SYNC_ALLOW_OVERSELL: bool = True
 
     def model_post_init(self, __context) -> None:
@@ -85,6 +90,15 @@ class Settings(BaseSettings):
             warnings.warn(
                 "Using default/weak SECRET_KEY. This is unsafe for production. "
                 "Set SECRET_KEY in .env before deploying.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+        if self.SYNC_ALLOW_OVERSELL:
+            warnings.warn(
+                "SYNC_ALLOW_OVERSELL is enabled but no longer overrides ledger "
+                "safety: synced sales that exceed available FIFO layer stock are "
+                "always rejected. The flag is deprecated and can be removed.",
                 RuntimeWarning,
                 stacklevel=2,
             )

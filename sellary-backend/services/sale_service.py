@@ -13,6 +13,7 @@ from repositories.product_repository import ProductRepository
 from repositories.sale_repository import SaleRepository
 from schemas.sale import SaleCreate, SaleResponse
 from services.calculation_service import CalculationService
+from services.inventory_ledger_service import InventoryLedgerService
 from services.tenant import resolve_company_id
 
 
@@ -25,6 +26,7 @@ class SaleService:
         self.inventory_repo = InventoryRepository(db)
         self.customer_repo = CustomerRepository(db)
         self.calc = CalculationService
+        self.ledger = InventoryLedgerService(db, self.company_id)
 
     def get_by_id(self, sale_id: int) -> Optional[SaleResponse]:
         sale = self.sale_repo.get_by_id(self.company_id, sale_id)
@@ -74,16 +76,16 @@ class SaleService:
             product = product_map[product_id]
             if not product.is_active:
                 raise ValueError(f"Product '{product.name}' is not active")
-            if product.stock_quantity < requested_quantity:
-                raise ValueError(
-                    f"Insufficient stock for '{product.name}'. "
-                    f"Available: {product.stock_quantity}, Required: {requested_quantity}"
-                )
+
+        # Stock availability is no longer checked here: the FIFO ledger
+        # (consume_fifo) is the single source of truth and raises a ValueError
+        # ("Insufficient stock for product '<name>'") when a line cannot be
+        # fully allocated from non-reversed layers. Overselling is therefore no
+        # longer possible — exact FIFO accounting cannot back negative stock.
 
         subtotal = Decimal("0.00")
         tax_amount = Decimal("0.00")
         items: List[SaleItem] = []
-        stock_changes = []
 
         for item_create in sale_create.items:
             product = product_map[item_create.product_id]
@@ -111,6 +113,8 @@ class SaleService:
                 discount_amount=item_create.discount_amount,
                 subtotal=item_subtotal,
                 total=item_total,
+                # unit_cost_at_sale / cost_total_at_sale are set from the actual
+                # FIFO layers consumed once the item has been flushed below.
                 unit_cost_at_sale=product.cost_price,
                 cost_total_at_sale=(item_create.quantity * product.cost_price).quantize(Decimal("0.01")),
                 created_at=datetime.now(),
@@ -119,20 +123,6 @@ class SaleService:
 
             subtotal += item_subtotal
             tax_amount += item_tax
-
-            previous_quantity = product.stock_quantity
-            new_quantity = previous_quantity - item_create.quantity
-            product.stock_quantity = new_quantity
-
-            stock_changes.append(
-                {
-                    "product_id": product.id,
-                    "quantity_change": -item_create.quantity,
-                    "previous_quantity": previous_quantity,
-                    "new_quantity": new_quantity,
-                }
-            )
-
 
         total_amount = subtotal + tax_amount - sale_create.discount_amount
 
@@ -175,18 +165,28 @@ class SaleService:
 
         sale = self.sale_repo.create(sale, items)
 
-        for change in stock_changes:
-            self.inventory_repo.create_log(
-                company_id=self.company_id,
-                product_id=change["product_id"],
+        # Consume each line's stock through the FIFO ledger. The ledger proves
+        # availability (raising ValueError on oversell), decrements layers,
+        # records InventoryAllocation rows linked to the sale item, and writes
+        # the single negative inventory log per line. Cost is derived from the
+        # actual layers consumed, not the product's running average.
+        for item in items:
+            product = product_map[item.product_id]
+            consumption = self.ledger.consume_fifo(
+                product=product,
+                quantity=item.quantity,
+                consumer_type="sale_item",
+                consumer_id=item.id,
+                sale_item_id=item.id,
                 user_id=cashier_id,
-                quantity_change=change["quantity_change"],
-                previous_quantity=change["previous_quantity"],
-                new_quantity=change["new_quantity"],
                 reason=f"Sale #{sale.id}",
                 reference_type="sale",
                 reference_id=sale.id,
             )
+            item.cost_total_at_sale = consumption.value.quantize(Decimal("0.01"))
+            item.unit_cost_at_sale = (
+                consumption.value / item.quantity
+            ).quantize(Decimal("0.01"))
 
         self.db.flush()
         return self._to_response(sale)

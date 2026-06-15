@@ -67,6 +67,13 @@ class SaleRepository:
         return sales, total
 
     def create(self, sale: Sale, items: List[SaleItem]) -> Sale:
+        """Persist a sale and its items, flushing so both get primary keys.
+
+        The trailing flush is load-bearing: callers (SaleService, SyncService)
+        consume each item's stock through the FIFO ledger immediately after,
+        and ``InventoryAllocation.sale_item_id`` requires the item ``id`` to be
+        assigned. Do not drop this flush.
+        """
         self.db.add(sale)
         self.db.flush()
 

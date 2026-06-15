@@ -8,12 +8,58 @@ from datetime import datetime
 from services.sale_service import SaleService
 from models.sale import Sale, SaleStatus, PaymentMethod
 from models.sale_item import SaleItem
+from models.inventory_layer import InventoryAllocation, InventoryLayer
 from models.product import Product
 from models.category import Category
 from models.customer import Customer
 from models.user import User
 from schemas.sale import SaleCreate, SaleItemCreate
 from core.security import get_password_hash
+
+
+def back_with_layer(db_session, product):
+    """Give a hand-built fixture product an opening FIFO layer.
+
+    Products created directly via ``Product(...)`` carry a ``stock_quantity``
+    but no inventory layers. Under the FIFO ledger a sale consumes from layers,
+    so such a product cannot be sold until it is backed. This mirrors
+    conftest's ``_back_product_with_opening_layer`` for inline test products.
+    """
+    quantity = Decimal(product.stock_quantity or 0)
+    unit_cost = Decimal(product.cost_price or 0)
+    product.inventory_value = (quantity * unit_cost).quantize(Decimal("0.0001"))
+    if quantity > 0:
+        db_session.add(
+            InventoryLayer(
+                company_id=product.company_id,
+                product_id=product.id,
+                source_type="opening_balance",
+                source_id=None,
+                original_quantity=quantity,
+                remaining_quantity=quantity,
+                unit_cost=unit_cost,
+            )
+        )
+        db_session.flush()
+    return product
+
+
+def make_sale(product_id, quantity, unit_price=Decimal("30.00"), tax_percent=Decimal("0.00")):
+    """Build a single-line SaleCreate for FIFO allocation tests."""
+    return SaleCreate(
+        customer_id=None,
+        items=[
+            SaleItemCreate(
+                product_id=product_id,
+                quantity=Decimal(quantity),
+                unit_price=unit_price,
+                tax_percent=tax_percent,
+                discount_amount=Decimal("0.00"),
+            )
+        ],
+        payment_method=PaymentMethod.CASH,
+        discount_amount=Decimal("0.00"),
+    )
 
 
 class TestGetById:
@@ -283,6 +329,8 @@ class TestCreateSale:
         db_session.add(cashier)
         db_session.flush()
 
+        back_with_layer(db_session, product)
+
         sale_create = SaleCreate(
             customer_id=None,
             items=[
@@ -335,6 +383,8 @@ class TestCreateSale:
         )
         db_session.add(cashier)
         db_session.flush()
+
+        back_with_layer(db_session, product)
 
         sale_create = SaleCreate(
             customer_id=None,
@@ -504,6 +554,8 @@ class TestCreateSale:
         db_session.add(cashier)
         db_session.flush()
 
+        back_with_layer(db_session, product)
+
         # 2 items at $20 each = $40 subtotal
         # 10% tax = $4
         # Total = $44
@@ -556,6 +608,8 @@ class TestCreateSale:
         db_session.add(cashier)
         db_session.flush()
 
+        back_with_layer(db_session, product)
+
         sale_create = SaleCreate(
             customer_id=None,
             items=[
@@ -605,6 +659,8 @@ class TestCreateSale:
         )
         db_session.add(cashier)
         db_session.flush()
+
+        back_with_layer(db_session, product)
 
         sale_create = SaleCreate(
             customer_id=None,
@@ -704,6 +760,61 @@ class TestCreateSale:
                 ],
                 payment_method=PaymentMethod.CASH,
             )
+
+
+class TestCreateSaleFifoAllocation:
+    """Tests that online sales consume stock through the FIFO ledger."""
+
+    def test_sale_creates_fifo_allocations_and_reduces_inventory_value(
+        self, db_session, layered_product, cashier_user
+    ):
+        result = SaleService(db_session, layered_product.company_id).create(
+            make_sale(product_id=layered_product.id, quantity="3"),
+            cashier_user.id,
+        )
+
+        sale_item = db_session.query(SaleItem).filter_by(sale_id=result.id).one()
+        assert sum(a.quantity for a in sale_item.allocations) == Decimal("3")
+        assert [a.layer.unit_cost for a in sale_item.allocations] == [
+            Decimal("10.00"),
+            Decimal("20.00"),
+        ]
+        assert sale_item.cost_total_at_sale == Decimal("40.00")
+
+        db_session.refresh(layered_product)
+        assert layered_product.inventory_value == Decimal("40.0000")
+        assert layered_product.stock_quantity == Decimal("2")
+
+    def test_sale_rejects_oversell_through_ledger(
+        self, db_session, layered_product, cashier_user
+    ):
+        with pytest.raises(ValueError, match="Insufficient stock"):
+            SaleService(db_session, layered_product.company_id).create(
+                make_sale(product_id=layered_product.id, quantity="999"),
+                cashier_user.id,
+            )
+
+    def test_sale_writes_single_negative_inventory_log(
+        self, db_session, layered_product, cashier_user
+    ):
+        from models.inventory_log import InventoryLog
+
+        result = SaleService(db_session, layered_product.company_id).create(
+            make_sale(product_id=layered_product.id, quantity="3"),
+            cashier_user.id,
+        )
+
+        logs = (
+            db_session.query(InventoryLog)
+            .filter(
+                InventoryLog.product_id == layered_product.id,
+                InventoryLog.reference_type == "sale",
+                InventoryLog.reference_id == result.id,
+            )
+            .all()
+        )
+        assert len(logs) == 1
+        assert logs[0].quantity_change == Decimal("-3")
 
 
 class TestCancelSale:

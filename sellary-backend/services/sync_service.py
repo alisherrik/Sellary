@@ -4,14 +4,17 @@ from typing import List
 
 from sqlalchemy.orm import Session
 
-from core.config import settings
+# NOTE: ``settings`` is imported but intentionally NOT consulted for oversell
+# decisions. SYNC_ALLOW_OVERSELL is deprecated and no longer overrides ledger
+# safety (see core/config.py). The import is retained so tests can assert the
+# flag has no effect by patching ``services.sync_service.settings``.
+from core.config import settings  # noqa: F401
 from core.idempotency import IdempotencyConflictError, IdempotencyService
 from models.company import Company
 from models.product import Product
 from models.sale import CardType, PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
 from models.user import User
-from repositories.inventory_repository import InventoryRepository
 from repositories.product_repository import ProductRepository
 from repositories.sale_repository import SaleRepository
 from schemas.category import Category as CategorySchema
@@ -22,8 +25,8 @@ from schemas.sync import (
     SyncSaleResult,
     SyncSalesRequest,
     SyncSalesResponse,
-    SyncWarning,
 )
+from services.inventory_ledger_service import InventoryLedgerService
 
 
 SYNC_ENDPOINT = "/api/sync/sales"
@@ -34,7 +37,6 @@ class SyncService:
         self.db = db
         self.product_repo = ProductRepository(db)
         self.sale_repo = SaleRepository(db)
-        self.inventory_repo = InventoryRepository(db)
 
     def bootstrap(self, company: Company, user: User) -> SyncBootstrapResponse:
         products = (
@@ -194,14 +196,8 @@ class SyncService:
                 error=f"Products not found: {missing_ids}",
             )
 
-        warnings: list[SyncWarning] = []
         subtotal = Decimal("0.00")
         items: list[SaleItem] = []
-        stock_changes: list[dict] = []
-        original_stock = {
-            pid: product_map[pid].stock_quantity
-            for pid in set(product_ids)
-        }
 
         for item_create in sale_create.items:
             product = product_map[item_create.product_id]
@@ -222,6 +218,7 @@ class SyncService:
                 discount_amount=Decimal("0.00"),
                 subtotal=item_subtotal,
                 total=(item_subtotal + item_tax).quantize(Decimal("0.01")),
+                # Cost is finalised from the FIFO layers consumed below.
                 unit_cost_at_sale=product.cost_price,
                 cost_total_at_sale=(
                     item_create.quantity * product.cost_price
@@ -232,51 +229,12 @@ class SyncService:
 
             subtotal += item_subtotal
 
-            previous_quantity = product.stock_quantity
-            new_quantity = previous_quantity - item_create.quantity
-            product.stock_quantity = new_quantity
-
-            stock_changes.append(
-                {
-                    "product_id": product.id,
-                    "product_name": product.name,
-                    "quantity_change": -item_create.quantity,
-                    "previous_quantity": previous_quantity,
-                    "new_quantity": new_quantity,
-                }
-            )
-
-            if new_quantity < 0:
-                if not settings.SYNC_ALLOW_OVERSELL:
-                    for pid, original_qty in original_stock.items():
-                        product_map[pid].stock_quantity = original_qty
-                    return SyncSaleResult(
-                        client_sale_id=sale_create.client_sale_id,
-                        status="failed",
-                        error=(
-                            f"Insufficient stock for '{product.name}'. "
-                            f"Available: {previous_quantity}, Required: {item_create.quantity}"
-                        ),
-                    )
-                warnings.append(
-                    SyncWarning(
-                        type="oversold",
-                        product_id=product.id,
-                        product_name=product.name,
-                        requested=item_create.quantity,
-                        available=previous_quantity,
-                        new_balance=new_quantity,
-                    )
-                )
-
         tax_amount = sum(item.tax_amount for item in items)
         total_amount = (
             subtotal + tax_amount - sale_create.discount_amount
         ).quantize(Decimal("0.01"))
 
         if total_amount < 0:
-            for pid, original_qty in original_stock.items():
-                product_map[pid].stock_quantity = original_qty
             return SyncSaleResult(
                 client_sale_id=sale_create.client_sale_id,
                 status="failed",
@@ -314,19 +272,41 @@ class SyncService:
             created_at=sale_create.created_at_client,
         )
 
-        sale = self.sale_repo.create(sale, items)
-
-        for change in stock_changes:
-            self.inventory_repo.create_log(
-                company_id=company.id,
-                product_id=change["product_id"],
-                user_id=user.id,
-                quantity_change=change["quantity_change"],
-                previous_quantity=change["previous_quantity"],
-                new_quantity=change["new_quantity"],
-                reason=f"Sale #{sale.id}",
-                reference_type="sale",
-                reference_id=sale.id,
+        # Persist the sale and consume each line through the FIFO ledger inside
+        # a savepoint so a partially-allocated, unallocatable sale rolls back
+        # cleanly without aborting the rest of the batch. The ledger raises
+        # ValueError ("Insufficient stock for product '<name>'") on oversell and
+        # writes the single negative inventory log per line. Note: overselling
+        # is rejected regardless of SYNC_ALLOW_OVERSELL — exact FIFO accounting
+        # cannot back negative stock, so the flag no longer overrides this.
+        ledger = InventoryLedgerService(self.db, company.id)
+        try:
+            with self.db.begin_nested():
+                created_sale = self.sale_repo.create(sale, items)
+                for item in items:
+                    product = product_map[item.product_id]
+                    consumption = ledger.consume_fifo(
+                        product=product,
+                        quantity=item.quantity,
+                        consumer_type="sale_item",
+                        consumer_id=item.id,
+                        sale_item_id=item.id,
+                        user_id=user.id,
+                        reason=f"Sale #{created_sale.id}",
+                        reference_type="sale",
+                        reference_id=created_sale.id,
+                    )
+                    item.cost_total_at_sale = consumption.value.quantize(
+                        Decimal("0.01")
+                    )
+                    item.unit_cost_at_sale = (
+                        consumption.value / item.quantity
+                    ).quantize(Decimal("0.01"))
+        except ValueError as exc:
+            return SyncSaleResult(
+                client_sale_id=sale_create.client_sale_id,
+                status="failed",
+                error=str(exc),
             )
 
         self.db.flush()
@@ -334,6 +314,5 @@ class SyncService:
         return SyncSaleResult(
             client_sale_id=sale_create.client_sale_id,
             status="synced",
-            sale_id=sale.id,
-            warnings=warnings if warnings else None,
+            sale_id=created_sale.id,
         )
