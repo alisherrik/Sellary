@@ -72,7 +72,7 @@ class Sale(Base):
     )
     notes = Column(String(500))
     voided_at = Column(DateTime(timezone=True))
-    voided_by_user_id = Column(Integer)
+    voided_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     void_reason = Column(Text)
     reversal_operation_id = Column(Integer, ForeignKey("reversal_operations.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
@@ -84,6 +84,6 @@ class Sale(Base):
     returns = relationship("SaleReturn", back_populates="sale", cascade="all, delete-orphan")
     voided_by_user = relationship(
         "User",
-        primaryjoin="foreign(Sale.voided_by_user_id) == User.id",
+        foreign_keys=[voided_by_user_id],
     )
     reversal_operation = relationship("ReversalOperation")

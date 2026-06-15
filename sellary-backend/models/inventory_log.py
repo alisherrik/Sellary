@@ -1,5 +1,5 @@
 from decimal import Decimal
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Index, func
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Index, func, text
 from sqlalchemy.orm import relationship
 from core.database import Base
 
@@ -13,7 +13,10 @@ class InventoryLog(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     quantity_change = Column(Numeric(10, 3), nullable=False)
     value_change = Column(
-        Numeric(16, 4), nullable=False, default=Decimal("0.0000")
+        Numeric(16, 4),
+        nullable=False,
+        default=Decimal("0.0000"),
+        server_default=text("0.0000"),
     )
     previous_quantity = Column(Numeric(10, 3), nullable=False)
     new_quantity = Column(Numeric(10, 3), nullable=False)

@@ -23,6 +23,8 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
-    sales = relationship("Sale", back_populates="cashier")
+    sales = relationship(
+        "Sale", back_populates="cashier", foreign_keys="Sale.cashier_id"
+    )
     inventory_logs = relationship("InventoryLog", back_populates="user")
     sale_returns = relationship("SaleReturn", back_populates="user")

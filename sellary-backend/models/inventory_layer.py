@@ -27,19 +27,25 @@ class InventoryLayer(Base):
             "ix_inventory_layers_fifo",
             "company_id",
             "product_id",
-            "reversed_at",
             "created_at",
             "id",
         ),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
-    source_type = Column(String(50), nullable=False)
-    source_id = Column(Integer, nullable=False)
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer, ForeignKey("companies.id"), nullable=False, index=True
+    )
+    product_id = Column(
+        Integer, ForeignKey("products.id"), nullable=False, index=True
+    )
+    source_type = Column(String(40), nullable=False)
+    source_id = Column(Integer, nullable=True)
     purchase_receipt_item_id = Column(
-        Integer, ForeignKey("purchase_receipt_items.id"), unique=True
+        Integer,
+        ForeignKey("purchase_receipt_items.id"),
+        unique=True,
+        index=True,
     )
     original_quantity = Column(Numeric(10, 3), nullable=False)
     remaining_quantity = Column(Numeric(10, 3), nullable=False)
@@ -68,18 +74,25 @@ class InventoryAllocation(Base):
             "released_quantity <= quantity",
             name="ck_inventory_allocations_released_lte_quantity",
         ),
-        Index("ix_inventory_allocations_consumer", "company_id", "consumer_type", "consumer_id"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
-    layer_id = Column(Integer, ForeignKey("inventory_layers.id"), nullable=False)
-    consumer_type = Column(String(50), nullable=False)
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer, ForeignKey("companies.id"), nullable=False, index=True
+    )
+    product_id = Column(
+        Integer, ForeignKey("products.id"), nullable=False, index=True
+    )
+    layer_id = Column(
+        Integer, ForeignKey("inventory_layers.id"), nullable=False, index=True
+    )
+    consumer_type = Column(String(40), nullable=False)
     consumer_id = Column(Integer, nullable=False)
-    sale_item_id = Column(Integer, ForeignKey("sale_items.id"))
+    sale_item_id = Column(Integer, ForeignKey("sale_items.id"), index=True)
     quantity = Column(Numeric(10, 3), nullable=False)
-    released_quantity = Column(Numeric(10, 3), nullable=False, default=0)
+    released_quantity = Column(
+        Numeric(10, 3), nullable=False, default=0, server_default="0"
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     layer = relationship("InventoryLayer", back_populates="allocations")

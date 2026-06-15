@@ -10,6 +10,7 @@ from sqlalchemy import (
     Index,
     Enum as SQLEnum,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -35,7 +36,10 @@ class Product(Base):
     tax_percent = Column(Numeric(5, 2), default=Decimal("0.00"))
     stock_quantity = Column(Numeric(10, 3), default=0)
     inventory_value = Column(
-        Numeric(16, 4), nullable=False, default=Decimal("0.0000")
+        Numeric(16, 4),
+        nullable=False,
+        default=Decimal("0.0000"),
+        server_default=text("0.0000"),
     )
     min_stock_level = Column(Numeric(10, 3), default=5)
     is_active = Column(Boolean, default=True)

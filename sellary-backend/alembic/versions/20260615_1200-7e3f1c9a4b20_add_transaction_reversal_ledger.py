@@ -46,12 +46,17 @@ def upgrade() -> None:
         "reversal_operations",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("company_id", sa.Integer(), nullable=False),
-        sa.Column("entity_type", sa.String(50), nullable=False),
+        sa.Column("entity_type", sa.String(40), nullable=False),
         sa.Column("entity_id", sa.Integer(), nullable=False),
-        sa.Column("operation_type", sa.String(50), nullable=False),
-        sa.Column("reason", sa.Text()),
+        sa.Column("operation_type", sa.String(40), nullable=False),
+        sa.Column("reason", sa.Text(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("impact", sa.JSON(), nullable=False),
+        sa.Column(
+            "impact",
+            sa.JSON(),
+            nullable=False,
+            server_default=sa.text("'{}'::json"),
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["company_id"], ["companies.id"]),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
@@ -109,6 +114,11 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["reversal_operation_id"], ["reversal_operations.id"]),
     )
     op.create_index("ix_purchase_receipts_company_id", "purchase_receipts", ["company_id"])
+    op.create_index(
+        "ix_purchase_receipts_purchase_order_id",
+        "purchase_receipts",
+        ["purchase_order_id"],
+    )
 
     op.create_table(
         "purchase_receipt_items",
@@ -127,14 +137,19 @@ def upgrade() -> None:
         "purchase_receipt_items",
         ["purchase_receipt_id"],
     )
+    op.create_index(
+        "ix_purchase_receipt_items_product_id",
+        "purchase_receipt_items",
+        ["product_id"],
+    )
 
     op.create_table(
         "inventory_layers",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("company_id", sa.Integer(), nullable=False),
         sa.Column("product_id", sa.Integer(), nullable=False),
-        sa.Column("source_type", sa.String(50), nullable=False),
-        sa.Column("source_id", sa.Integer(), nullable=False),
+        sa.Column("source_type", sa.String(40), nullable=False),
+        sa.Column("source_id", sa.Integer()),
         sa.Column("purchase_receipt_item_id", sa.Integer()),
         sa.Column("original_quantity", sa.Numeric(10, 3), nullable=False),
         sa.Column("remaining_quantity", sa.Numeric(10, 3), nullable=False),
@@ -152,12 +167,23 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["product_id"], ["products.id"]),
         sa.ForeignKeyConstraint(["purchase_receipt_item_id"], ["purchase_receipt_items.id"]),
         sa.ForeignKeyConstraint(["reversal_operation_id"], ["reversal_operations.id"]),
-        sa.UniqueConstraint("purchase_receipt_item_id", name="uq_inventory_layers_purchase_receipt_item_id"),
+    )
+    op.create_index(
+        "ix_inventory_layers_company_id", "inventory_layers", ["company_id"]
+    )
+    op.create_index(
+        "ix_inventory_layers_product_id", "inventory_layers", ["product_id"]
+    )
+    op.create_index(
+        "ix_inventory_layers_purchase_receipt_item_id",
+        "inventory_layers",
+        ["purchase_receipt_item_id"],
+        unique=True,
     )
     op.create_index(
         "ix_inventory_layers_fifo",
         "inventory_layers",
-        ["company_id", "product_id", "reversed_at", "created_at", "id"],
+        ["company_id", "product_id", "created_at", "id"],
     )
 
     op.create_table(
@@ -166,7 +192,7 @@ def upgrade() -> None:
         sa.Column("company_id", sa.Integer(), nullable=False),
         sa.Column("product_id", sa.Integer(), nullable=False),
         sa.Column("layer_id", sa.Integer(), nullable=False),
-        sa.Column("consumer_type", sa.String(50), nullable=False),
+        sa.Column("consumer_type", sa.String(40), nullable=False),
         sa.Column("consumer_id", sa.Integer(), nullable=False),
         sa.Column("sale_item_id", sa.Integer()),
         sa.Column("quantity", sa.Numeric(10, 3), nullable=False),
@@ -184,9 +210,24 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["sale_item_id"], ["sale_items.id"]),
     )
     op.create_index(
-        "ix_inventory_allocations_consumer",
+        "ix_inventory_allocations_company_id",
         "inventory_allocations",
-        ["company_id", "consumer_type", "consumer_id"],
+        ["company_id"],
+    )
+    op.create_index(
+        "ix_inventory_allocations_product_id",
+        "inventory_allocations",
+        ["product_id"],
+    )
+    op.create_index(
+        "ix_inventory_allocations_layer_id",
+        "inventory_allocations",
+        ["layer_id"],
+    )
+    op.create_index(
+        "ix_inventory_allocations_sale_item_id",
+        "inventory_allocations",
+        ["sale_item_id"],
     )
 
     op.execute("UPDATE products SET inventory_value = stock_quantity * cost_price")
@@ -222,15 +263,31 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_inventory_allocations_consumer", table_name="inventory_allocations")
+    op.drop_index("ix_inventory_allocations_sale_item_id", table_name="inventory_allocations")
+    op.drop_index("ix_inventory_allocations_layer_id", table_name="inventory_allocations")
+    op.drop_index("ix_inventory_allocations_product_id", table_name="inventory_allocations")
+    op.drop_index("ix_inventory_allocations_company_id", table_name="inventory_allocations")
     op.drop_table("inventory_allocations")
     op.drop_index("ix_inventory_layers_fifo", table_name="inventory_layers")
+    op.drop_index(
+        "ix_inventory_layers_purchase_receipt_item_id",
+        table_name="inventory_layers",
+    )
+    op.drop_index("ix_inventory_layers_product_id", table_name="inventory_layers")
+    op.drop_index("ix_inventory_layers_company_id", table_name="inventory_layers")
     op.drop_table("inventory_layers")
+    op.drop_index(
+        "ix_purchase_receipt_items_product_id",
+        table_name="purchase_receipt_items",
+    )
     op.drop_index(
         "ix_purchase_receipt_items_purchase_receipt_id",
         table_name="purchase_receipt_items",
     )
     op.drop_table("purchase_receipt_items")
+    op.drop_index(
+        "ix_purchase_receipts_purchase_order_id", table_name="purchase_receipts"
+    )
     op.drop_index("ix_purchase_receipts_company_id", table_name="purchase_receipts")
     op.drop_table("purchase_receipts")
 
