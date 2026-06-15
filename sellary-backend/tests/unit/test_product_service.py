@@ -656,6 +656,80 @@ class TestLedgerBackedCreate:
         )
         assert result.cost_price == Decimal("7.00")
 
+    def test_reactivation_cost_price_change_requires_zero_stock(
+        self, db_session, default_company, test_category, admin_user
+    ):
+        # A soft-deleted product whose stock was never zeroed still has residual
+        # stock backed by ledger layers. Reactivating it with stock_quantity=0
+        # (no ledger delta) must NOT silently rewrite cost_price, mirroring the
+        # update() guard.
+        created = ProductService(db_session, default_company.id).create(
+            ProductCreate(
+                name="Снятый с продажи",
+                barcode="REACT-COST-1",
+                category_id=test_category.id,
+                cost_price=Decimal("5.00"),
+                sell_price=Decimal("9.00"),
+                stock_quantity=Decimal("4"),
+            ),
+            user_id=admin_user.id,
+        )
+        stored = db_session.get(Product, created.id)
+        # Soft-delete (flip is_active without zeroing stock), matching what
+        # ProductRepository.delete does, minus its commit (which would break the
+        # test's transaction-rollback isolation).
+        stored.is_active = False
+        db_session.flush()
+
+        with pytest.raises(ValueError, match="stock is zero"):
+            ProductService(db_session, default_company.id).create(
+                ProductCreate(
+                    name="Снятый с продажи",
+                    barcode="REACT-COST-1",
+                    category_id=test_category.id,
+                    cost_price=Decimal("7.00"),  # changed cost while stock > 0
+                    sell_price=Decimal("9.00"),
+                    stock_quantity=Decimal("0"),
+                ),
+                user_id=admin_user.id,
+            )
+
+    def test_reactivation_with_added_stock_still_works(
+        self, db_session, default_company, test_category, admin_user
+    ):
+        # Reactivation that legitimately adds stock through the ledger (at the
+        # same cost) must continue to work and route stock through add_layer.
+        created = ProductService(db_session, default_company.id).create(
+            ProductCreate(
+                name="Возврат в продажу",
+                barcode="REACT-OK-1",
+                category_id=test_category.id,
+                cost_price=Decimal("5.00"),
+                sell_price=Decimal("9.00"),
+                stock_quantity=Decimal("0"),
+            ),
+            user_id=admin_user.id,
+        )
+        stored = db_session.get(Product, created.id)
+        stored.is_active = False
+        db_session.flush()
+
+        result = ProductService(db_session, default_company.id).create(
+            ProductCreate(
+                name="Возврат в продажу",
+                barcode="REACT-OK-1",
+                category_id=test_category.id,
+                cost_price=Decimal("5.00"),
+                sell_price=Decimal("9.00"),
+                stock_quantity=Decimal("6"),
+            ),
+            user_id=admin_user.id,
+        )
+        assert result.is_active is True
+        assert result.stock_quantity == Decimal("6")
+        reloaded = db_session.get(Product, result.id)
+        assert reloaded.inventory_value == Decimal("30.0000")
+
 
 class TestToResponse:
     """Tests for converting product to response schema."""

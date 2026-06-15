@@ -74,6 +74,23 @@ class ProductService:
             # Reactivating a soft-deleted product: refresh catalog fields but never
             # touch stock_quantity / inventory_value directly. Apply only the
             # requested initial quantity as a delta through the ledger.
+            #
+            # cost_price backs historical inventory value and FIFO layer costs.
+            # If the soft-deleted row still carries residual stock (delete() only
+            # flips is_active, it never zeros stock or consumes layers), changing
+            # cost_price here would silently rewrite inventory_value without
+            # touching the ledger. Enforce the same guard as update(): require
+            # zero stock before a cost change.
+            new_cost = values.get("cost_price")
+            if (
+                new_cost is not None
+                and Decimal(new_cost) != Decimal(existing.cost_price)
+                and Decimal(existing.stock_quantity or 0) > 0
+            ):
+                raise ValueError(
+                    "Cannot change cost_price unless stock is zero: "
+                    "adjust stock to zero, then edit cost, then receive a new purchase"
+                )
             for field, value in values.items():
                 setattr(existing, field, value)
             existing.is_active = True
