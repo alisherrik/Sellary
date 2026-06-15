@@ -6,16 +6,183 @@ from decimal import Decimal
 from datetime import datetime
 
 from services.sale_return_service import SaleReturnService
+from services.inventory_ledger_service import InventoryLedgerService
 from models.sale import Sale, SaleStatus, PaymentMethod
 from models.sale_item import SaleItem
 from models.sale_return import SaleReturn, SaleReturnItem
 from models.product import Product
+from models.inventory_layer import InventoryLayer, InventoryAllocation
 from models.category import Category
 from models.customer import Customer
 from models.user import User
 from core.security import get_password_hash
 from schemas.sale_return import SaleReturnCreate, SaleReturnItemCreate
 from core.state_machine import StateTransitionError
+
+
+def make_return(sale_item_id, quantity="1", refund_method=PaymentMethod.CASH, notes=None):
+    """Build a SaleReturnCreate for a single sale item."""
+    return SaleReturnCreate(
+        items=[SaleReturnItemCreate(sale_item_id=sale_item_id, quantity=Decimal(quantity))],
+        refund_method=refund_method,
+        notes=notes,
+    )
+
+
+@pytest.fixture
+def allocated_sale(db_session, admin_user, default_company):
+    """A COMPLETED sale whose item was consumed through the FIFO ledger.
+
+    The sale item therefore carries InventoryAllocation rows pointing back at
+    the layer the units came from, so a return must RELEASE those allocations
+    rather than create a fresh layer.
+    """
+    category = Category(name="Alloc Category")
+    db_session.add(category)
+    db_session.flush()
+
+    product = Product(
+        name="Allocated Product",
+        barcode="ALLOC123",
+        category_id=category.id,
+        cost_price=Decimal("10.00"),
+        sell_price=Decimal("15.00"),
+        stock_quantity=Decimal("0"),
+        inventory_value=Decimal("0.0000"),
+    )
+    db_session.add(product)
+    db_session.flush()
+
+    ledger = InventoryLedgerService(db_session, default_company.id)
+    ledger.add_layer(product, Decimal("10"), Decimal("10.00"), "opening_balance", None, admin_user.id)
+
+    customer = Customer(name="Alloc Customer")
+    db_session.add(customer)
+    db_session.flush()
+
+    sale = Sale(
+        customer_id=customer.id,
+        cashier_id=admin_user.id,
+        subtotal=Decimal("30.00"),
+        tax_amount=Decimal("3.00"),
+        total_amount=Decimal("33.00"),
+        payment_method=PaymentMethod.CASH,
+        status=SaleStatus.COMPLETED,
+        created_at=datetime.now(),
+    )
+    db_session.add(sale)
+    db_session.flush()
+
+    sale_item = SaleItem(
+        sale_id=sale.id,
+        product_id=product.id,
+        quantity=Decimal("2"),
+        unit_price=Decimal("15.00"),
+        tax_percent=Decimal("10.00"),
+        tax_amount=Decimal("3.00"),
+        subtotal=Decimal("30.00"),
+        total=Decimal("33.00"),
+        unit_cost_at_sale=Decimal("10.00"),
+        cost_total_at_sale=Decimal("20.00"),
+        created_at=datetime.now(),
+    )
+    db_session.add(sale_item)
+    db_session.flush()
+
+    ledger.consume_fifo(
+        product=product,
+        quantity=Decimal("2"),
+        consumer_type="sale_item",
+        consumer_id=sale_item.id,
+        sale_item_id=sale_item.id,
+        user_id=admin_user.id,
+        reason=f"Sale #{sale.id}",
+        reference_type="sale",
+        reference_id=sale.id,
+    )
+    db_session.flush()
+    db_session.refresh(sale)
+    return sale
+
+
+@pytest.fixture
+def legacy_sale(db_session, admin_user, default_company):
+    """A pre-ledger sale: its item has NO allocations and no backing layer.
+
+    Simulates data created before the FIFO ledger existed (stock was bumped
+    directly). A return of such an item must create a NEW sale_return layer.
+    """
+    category = Category(name="Legacy Category")
+    db_session.add(category)
+    db_session.flush()
+
+    product = Product(
+        name="Legacy Product",
+        barcode="LEGACY123",
+        category_id=category.id,
+        cost_price=Decimal("10.00"),
+        sell_price=Decimal("15.00"),
+        stock_quantity=Decimal("8"),  # already net of a 2-unit sale, no layers
+        inventory_value=Decimal("0.0000"),
+    )
+    db_session.add(product)
+    db_session.flush()
+
+    customer = Customer(name="Legacy Customer")
+    db_session.add(customer)
+    db_session.flush()
+
+    sale = Sale(
+        customer_id=customer.id,
+        cashier_id=admin_user.id,
+        subtotal=Decimal("30.00"),
+        tax_amount=Decimal("3.00"),
+        total_amount=Decimal("33.00"),
+        payment_method=PaymentMethod.CASH,
+        status=SaleStatus.COMPLETED,
+        created_at=datetime.now(),
+    )
+    db_session.add(sale)
+    db_session.flush()
+
+    sale_item = SaleItem(
+        sale_id=sale.id,
+        product_id=product.id,
+        quantity=Decimal("2"),
+        unit_price=Decimal("15.00"),
+        tax_percent=Decimal("10.00"),
+        tax_amount=Decimal("3.00"),
+        subtotal=Decimal("30.00"),
+        total=Decimal("33.00"),
+        unit_cost_at_sale=Decimal("10.00"),
+        cost_total_at_sale=Decimal("20.00"),
+        created_at=datetime.now(),
+    )
+    db_session.add(sale_item)
+    db_session.flush()
+    db_session.refresh(sale)
+    return sale
+
+
+class TestReturnLedgerIntegration:
+    """Returns must flow through the FIFO ledger (release / legacy layer add)."""
+
+    def test_return_releases_original_sale_allocation(self, db_session, allocated_sale, admin_user):
+        item = allocated_sale.items[0]
+        SaleReturnService(db_session, allocated_sale.company_id).process_return(
+            allocated_sale.id, make_return(item.id, quantity="1"), admin_user.id
+        )
+        db_session.refresh(item)
+        assert sum(a.released_quantity for a in item.allocations) == Decimal("1")
+
+    def test_legacy_return_creates_return_layer(self, db_session, legacy_sale, admin_user):
+        item = legacy_sale.items[0]
+        SaleReturnService(db_session, legacy_sale.company_id).process_return(
+            legacy_sale.id, make_return(item.id, quantity="1"), admin_user.id
+        )
+        layer = db_session.query(InventoryLayer).filter_by(source_type="sale_return").one()
+        assert layer.original_quantity == Decimal("1")
+        assert layer.unit_cost == Decimal("10.00")
 
 
 class TestProcessReturn:

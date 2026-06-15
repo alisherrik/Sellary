@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from core.state_machine import StateTransitionError, can_return_sale
 from models.sale import SaleStatus
 from models.sale_return import SaleReturn, SaleReturnItem
-from repositories.inventory_repository import InventoryRepository
+from repositories.inventory_ledger_repository import InventoryLedgerRepository
 from repositories.product_repository import ProductRepository
 from repositories.sale_repository import SaleRepository
 from schemas.sale_return import (
@@ -16,6 +16,7 @@ from schemas.sale_return import (
     SaleReturnItemResponse,
     SaleReturnResponse,
 )
+from services.inventory_ledger_service import InventoryLedgerService
 from services.tenant import resolve_company_id
 
 
@@ -25,7 +26,8 @@ class SaleReturnService:
         self.company_id = resolve_company_id(db, company_id)
         self.sale_repo = SaleRepository(db)
         self.product_repo = ProductRepository(db)
-        self.inventory_repo = InventoryRepository(db)
+        self.ledger = InventoryLedgerService(db, self.company_id)
+        self.ledger_repo = InventoryLedgerRepository(db)
 
     def process_return(
         self,
@@ -100,21 +102,36 @@ class SaleReturnService:
             return_items.append(return_item_record)
             sale_item.quantity_returned += return_item.quantity
 
-            previous_quantity = product.stock_quantity
-            new_quantity = previous_quantity + return_item.quantity
-            product.stock_quantity = new_quantity
-
-            self.inventory_repo.create_log(
-                company_id=self.company_id,
-                product_id=product.id,
-                user_id=user_id,
-                quantity_change=return_item.quantity,
-                previous_quantity=previous_quantity,
-                new_quantity=new_quantity,
-                reason=f"Return from Sale #{sale_id}",
-                reference_type="sale_return",
-                reference_id=None,
-            )
+            # Restore stock + value through the FIFO ledger so quantity,
+            # inventory_value, layers/allocations and the inventory log stay
+            # consistent. Two cases:
+            #   * Items consumed through the ledger carry allocations — release
+            #     them back into their exact source layers (precise FIFO value).
+            #   * Legacy (pre-ledger) items have no allocations — add a fresh
+            #     sale_return layer valued at the recorded cost-at-sale.
+            allocations = self.ledger_repo.allocations_for_sale_item(sale_item.id)
+            reason = f"Return from Sale #{sale_id}"
+            if allocations:
+                self.ledger.release_sale_item(
+                    sale_item,
+                    return_item.quantity,
+                    user_id,
+                    reason=reason,
+                    reference_type="sale_return",
+                    reference_id=sale_id,
+                )
+            else:
+                self.ledger.add_layer(
+                    product=product,
+                    quantity=return_item.quantity,
+                    unit_cost=sale_item.unit_cost_at_sale,
+                    source_type="sale_return",
+                    source_id=sale_item.id,
+                    user_id=user_id,
+                    reason=reason,
+                    reference_type="sale_return",
+                    reference_id=sale_id,
+                )
 
         sale_return = SaleReturn(
             company_id=self.company_id,
