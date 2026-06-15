@@ -39,3 +39,6 @@ debug_log.txt
 
 supabase/.temp/
 sellary-backend/supabase/.temp/
+
+# Local Codex worktrees
+.worktrees/
