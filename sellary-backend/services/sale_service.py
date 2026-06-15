@@ -264,6 +264,10 @@ class SaleService:
             can_return=can_return,
             notes=sale.notes,
             created_at=sale.created_at,
+            voided_at=sale.voided_at,
+            voided_by_user_id=sale.voided_by_user_id,
+            void_reason=sale.void_reason,
+            reversal_operation_id=sale.reversal_operation_id,
             items=[
                 {
                     "id": item.id,

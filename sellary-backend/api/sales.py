@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, get_auth_context
+from api.dependencies import AuthContext, get_auth_context, require_admin
 from core.database import get_db
 from core.idempotency import (
     IdempotencyConflictError,
@@ -12,10 +12,16 @@ from core.idempotency import (
     require_idempotency_key,
 )
 from core.state_machine import StateTransitionError
+from schemas.reversal import VoidPreview, VoidRequest, VoidResult
 from schemas.sale import SaleCreate, SaleResponse, SaleStatus
 from schemas.sale_return import SaleReturnCreate, SaleReturnResponse
 from services.sale_return_service import SaleReturnService
 from services.sale_service import SaleService
+from services.transaction_reversal_service import (
+    ReversalBlocked,
+    ReversalConflict,
+    TransactionReversalService,
+)
 
 router = APIRouter(prefix="/sales", tags=["sales"])
 
@@ -109,22 +115,48 @@ def get_sale(
     return sale
 
 
-@router.post("/{sale_id}/cancel", response_model=SaleResponse)
-def cancel_sale(
+@router.get("/{sale_id}/void-preview", response_model=VoidPreview)
+def preview_sale_void(
     sale_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_admin),
+):
+    """Preview the inventory impact of annulling a sale (admin only).
+
+    Pure dry-run: computes the outstanding quantity/value that would be
+    restored without mutating anything. Returns HTTP 404 if the sale does not
+    exist.
+    """
+    service = TransactionReversalService(db, auth.company_id)
+    try:
+        return service.preview_sale(sale_id)
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+
+
+@router.post("/{sale_id}/void", response_model=VoidResult)
+def void_sale(
+    sale_id: int,
+    payload: VoidRequest,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_admin),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
-    """
-    Cancel a completed sale (idempotent).
+    """Annul (void) a completed sale (admin only, idempotent).
 
-    Requires Idempotency-Key header. Returns HTTP 409 Conflict if:
-    - The sale cannot be cancelled (already cancelled/returned)
-    - The idempotency key was used with a different request
+    Reverses the sale's effect on the FIFO inventory ledger — restoring only
+    the outstanding quantity (sold minus already-returned) — records an
+    immutable ReversalOperation, and flips the sale into the terminal
+    CANCELLED state with void audit metadata.
+
+    Requires an Idempotency-Key header; repeated requests with the same key
+    replay the original response. Returns HTTP 409 if the sale is already
+    annulled / in a conflicting lifecycle state, or the key was reused with a
+    different body; HTTP 400 for invalid input.
     """
-    endpoint = f"/api/sales/{sale_id}/cancel"
-    request_body = {"sale_id": sale_id}
+    endpoint = f"/api/sales/{sale_id}/void"
+    request_body = payload.model_dump()
 
     idempotency_service = IdempotencyService(db)
     try:
@@ -137,13 +169,13 @@ def cancel_sale(
         )
         if cached:
             response_body, _ = cached
-            return SaleResponse(**response_body)
+            return VoidResult(**response_body)
     except IdempotencyConflictError as exc:
         raise HTTPException(status_code=409, detail=exc.message)
 
-    service = SaleService(db, auth.company_id)
+    service = TransactionReversalService(db, auth.company_id)
     try:
-        result = service.cancel(sale_id, auth.user.id)
+        result = service.void_sale(sale_id, payload.reason, auth.user.id)
         idempotency_service.store_response(
             key=idempotency_key,
             company_id=auth.company_id,
@@ -155,10 +187,69 @@ def cancel_sale(
         )
         db.commit()
         return result
-    except IdempotencyConflictError as exc:
+    except ReversalBlocked as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.to_response())
+    except (IdempotencyConflictError, ReversalConflict, StateTransitionError) as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail=exc.message)
-    except StateTransitionError as exc:
+    except ValueError as exc:
+        db.rollback()
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+
+
+@router.post("/{sale_id}/cancel", response_model=VoidResult, deprecated=True)
+def cancel_sale(
+    sale_id: int,
+    payload: VoidRequest,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_admin),
+    idempotency_key: str = Depends(require_idempotency_key),
+):
+    """DEPRECATED — use ``POST /sales/{id}/void`` instead.
+
+    Kept for one compatibility release. Now admin-only and requires a
+    ``{"reason": ...}`` body; routes through the same annulment service as
+    ``/void`` so the FIFO ledger allocations are released (no direct stock
+    bump). Cashiers and managers can no longer cancel sales.
+    """
+    endpoint = f"/api/sales/{sale_id}/cancel"
+    request_body = payload.model_dump()
+
+    idempotency_service = IdempotencyService(db)
+    try:
+        cached = idempotency_service.get_cached_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+        )
+        if cached:
+            response_body, _ = cached
+            return VoidResult(**response_body)
+    except IdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+
+    service = TransactionReversalService(db, auth.company_id)
+    try:
+        result = service.void_sale(sale_id, payload.reason, auth.user.id)
+        idempotency_service.store_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+            response_body=result,
+            status_code=200,
+        )
+        db.commit()
+        return result
+    except ReversalBlocked as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.to_response())
+    except (IdempotencyConflictError, ReversalConflict, StateTransitionError) as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail=exc.message)
     except ValueError as exc:

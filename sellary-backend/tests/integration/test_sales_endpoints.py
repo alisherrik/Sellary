@@ -482,17 +482,22 @@ class TestCreateSale:
 
 
 class TestCancelSale:
-    """Tests for POST /api/sales/{id}/cancel endpoint."""
+    """Tests for the DEPRECATED POST /api/sales/{id}/cancel endpoint.
 
-    def test_cancel_sale(self, client: TestClient, db_session, cashier_headers):
-        """Test canceling a sale."""
+    The endpoint is now admin-only, requires a ``{"reason": ...}`` body and
+    routes through the annulment (void) service, returning a VoidResult.
+    Cashiers and managers can no longer cancel sales.
+    """
+
+    def _build_legacy_sale(self, db_session, qty=5):
+        """A legacy (pre-ledger) sale: stock bumped directly, no allocations."""
         category = Category(name="Test Category")
         db_session.add(category)
         db_session.flush()
 
         product = Product(
             name="Test Product",
-            barcode="TEST123",
+            barcode=f"TEST{uuid.uuid4().hex[:8]}",
             category_id=category.id,
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
@@ -528,86 +533,93 @@ class TestCancelSale:
         sale_item = SaleItem(
             sale_id=sale.id,
             product_id=product.id,
-            quantity=5,
+            quantity=qty,
             unit_price=Decimal("15.00"),
             tax_amount=Decimal("3.00"),
             subtotal=Decimal("30.00"),
             total=Decimal("33.00"),
+            unit_cost_at_sale=Decimal("10.00"),
+            cost_total_at_sale=Decimal("50.00"),
         )
         db_session.add(sale_item)
-
-        product.stock_quantity -= 5
+        product.stock_quantity -= qty
         db_session.commit()
+        return sale, product
 
-        # Verify stock was deducted
+    def test_cancel_sale_as_admin_with_reason(self, client: TestClient, db_session, admin_headers):
+        """Admin can cancel a sale via the deprecated endpoint with a reason,
+        and the FIFO-backed restock restores stock (legacy: via void layer)."""
+        sale, product = self._build_legacy_sale(db_session, qty=5)
         assert product.stock_quantity == 95
 
         response = client.post(
             f"/api/sales/{sale.id}/cancel",
-            headers=with_idempotency(cashier_headers, "sale-cancel-success"),
+            json={"reason": "Отмена администратором"},
+            headers=with_idempotency(admin_headers, "sale-cancel-success"),
         )
 
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "cancelled"
+        assert data["entity_type"] == "sale"
+        assert data["entity_id"] == sale.id
 
-        # Verify stock was restored
+        # Verify stock was restored through the ledger
         db_session.refresh(product)
         assert product.stock_quantity == 100
 
-    def test_cancel_nonexistent_sale(self, client: TestClient, cashier_headers):
+    @pytest.mark.parametrize("headers_fixture", ["manager_headers", "cashier_headers"])
+    def test_cancel_sale_forbidden_for_non_admin(
+        self, client: TestClient, db_session, request, headers_fixture
+    ):
+        """Managers and cashiers may no longer cancel sales."""
+        sale, _ = self._build_legacy_sale(db_session)
+        headers = with_idempotency(
+            request.getfixturevalue(headers_fixture), "sale-cancel-forbidden"
+        )
+        response = client.post(
+            f"/api/sales/{sale.id}/cancel",
+            json={"reason": "Попытка отмены"},
+            headers=headers,
+        )
+        assert response.status_code == 403
+
+    def test_cancel_sale_requires_reason(self, client: TestClient, db_session, admin_headers):
+        """A reason of fewer than 3 characters is rejected with 422."""
+        sale, _ = self._build_legacy_sale(db_session)
+        response = client.post(
+            f"/api/sales/{sale.id}/cancel",
+            json={"reason": "x"},
+            headers=with_idempotency(admin_headers, "sale-cancel-no-reason"),
+        )
+        assert response.status_code == 422
+
+    def test_cancel_nonexistent_sale(self, client: TestClient, admin_headers):
         """Test canceling a sale that doesn't exist."""
         response = client.post(
             "/api/sales/99999/cancel",
-            headers=with_idempotency(cashier_headers, "sale-cancel-missing"),
+            json={"reason": "Несуществующая продажа"},
+            headers=with_idempotency(admin_headers, "sale-cancel-missing"),
         )
         assert response.status_code == 404
 
-    def test_cancel_already_cancelled_sale(self, client: TestClient, db_session, cashier_headers):
-        """Test that canceling an already cancelled sale fails."""
-        category = Category(name="Test Category")
-        db_session.add(category)
-        db_session.flush()
+    def test_cancel_already_cancelled_sale(self, client: TestClient, db_session, admin_headers):
+        """Test that canceling an already annulled sale fails with 409."""
+        sale, _ = self._build_legacy_sale(db_session)
 
-        product = Product(
-            name="Test Product",
-            barcode="TEST123",
-            category_id=category.id,
-            cost_price=Decimal("10.00"),
-            sell_price=Decimal("15.00"),
-            stock_quantity=100,
-        )
-        db_session.add(product)
-
-        customer = Customer(name="Test Customer")
-        db_session.add(customer)
-
-        cashier = User(
-            username=f"cashier_{uuid.uuid4().hex[:8]}",
-            email=f"cashier_{uuid.uuid4().hex[:8]}@test.com",
-            hashed_password=get_password_hash("password"),
-            role="cashier",
-        )
-        db_session.add(cashier)
-        db_session.flush()
-
-        sale = Sale(
-            customer_id=customer.id,
-            cashier_id=cashier.id,
-            subtotal=Decimal("30.00"),
-            tax_amount=Decimal("3.00"),
-            total_amount=Decimal("33.00"),
-            payment_method=PaymentMethod.CASH,
-            status=SaleStatus.CANCELLED,  # Already cancelled
-        )
-        db_session.add(sale)
-        db_session.commit()
-
-        response = client.post(
+        first = client.post(
             f"/api/sales/{sale.id}/cancel",
-            headers=with_idempotency(cashier_headers, "sale-cancel-conflict"),
+            json={"reason": "Первая отмена"},
+            headers=with_idempotency(admin_headers, "sale-cancel-conflict-1"),
         )
-        assert response.status_code == 409
+        assert first.status_code == 200
+
+        second = client.post(
+            f"/api/sales/{sale.id}/cancel",
+            json={"reason": "Вторая отмена"},
+            headers=with_idempotency(admin_headers, "sale-cancel-conflict-2"),
+        )
+        assert second.status_code == 409
 
 
 class TestSaleResponse:

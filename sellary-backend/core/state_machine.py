@@ -36,6 +36,11 @@ SALE_TRANSITIONS: Dict[SaleStatus, Set[SaleStatus]] = {
     },
     SaleStatus.PARTIALLY_RETURNED: {
         SaleStatus.RETURNED,  # When all items fully returned
+        # Admin annulment (void) supersedes a partial return: the remaining
+        # outstanding stock is restored and the document is voided. Plain
+        # cashier cancel no longer exists, so this transition is admin-gated at
+        # the service/API layer (TransactionReversalService.void_sale).
+        SaleStatus.CANCELLED,
     },
     SaleStatus.RETURNED: set(),    # Terminal state - no transitions allowed
     SaleStatus.CANCELLED: set(),   # Terminal state - no transitions allowed

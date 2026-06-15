@@ -112,7 +112,7 @@ class SaleReturnService:
             allocations = self.ledger_repo.allocations_for_sale_item(sale_item.id)
             reason = f"Return from Sale #{sale_id}"
             if allocations:
-                self.ledger.release_sale_item(
+                restored = self.ledger.release_sale_item(
                     sale_item,
                     return_item.quantity,
                     user_id,
@@ -120,6 +120,18 @@ class SaleReturnService:
                     reference_type="sale_return",
                     reference_id=sale_id,
                 )
+                # Guard against silent desync: quantity_returned was just bumped
+                # by return_item.quantity, so the ledger MUST have restored the
+                # same amount. Now that an independent release path (sale void)
+                # exists, a shortfall means the allocations were already partly
+                # released elsewhere — fail loudly rather than over-credit the
+                # refund against stock that was never returned.
+                if restored < return_item.quantity:
+                    raise ValueError(
+                        f"Sale item {sale_item.id}: released {restored} of "
+                        f"{return_item.quantity} returned units; ledger "
+                        f"allocations are inconsistent."
+                    )
             else:
                 self.ledger.add_layer(
                     product=product,

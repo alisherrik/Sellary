@@ -576,6 +576,156 @@ def test_sale(
     return sale
 
 
+@pytest.fixture
+def partially_returned_sale(
+    db_session: Session,
+    default_company: Company,
+    test_customer: Customer,
+    cashier_user: User,
+    admin_user: User,
+    test_category: Category,
+) -> Sale:
+    """A sale of 10 units with 3 already returned (outstanding 7).
+
+    Built through the real sale + return services so FIFO layers, allocations,
+    released_quantity and the product balance stay consistent: an annulment of
+    this sale must therefore restore ONLY the outstanding 7 units, not all 10.
+    """
+    import uuid
+
+    from schemas.sale import PaymentMethod as SchemaPaymentMethod, SaleCreate, SaleItemCreate
+    from schemas.sale_return import SaleReturnCreate, SaleReturnItemCreate
+    from services.sale_return_service import SaleReturnService
+    from services.sale_service import SaleService
+
+    product = Product(
+        company_id=default_company.id,
+        name="Partial Return Product",
+        barcode=f"PARTRET{uuid.uuid4().hex[:8]}",
+        description="Product for partial-return void fixture",
+        category_id=test_category.id,
+        cost_price=Decimal("0.00"),
+        sell_price=Decimal("15.00"),
+        tax_percent=Decimal("0.00"),
+        stock_quantity=Decimal("0"),
+        inventory_value=Decimal("0.0000"),
+        min_stock_level=5,
+        is_active=True,
+    )
+    db_session.add(product)
+    db_session.flush()
+
+    ledger = InventoryLedgerService(db_session, default_company.id)
+    ledger.add_layer(product, Decimal("20"), Decimal("10.00"), "opening_balance", None, admin_user.id)
+    db_session.flush()
+
+    sale_service = SaleService(db_session, default_company.id)
+    sale_response = sale_service.create(
+        SaleCreate(
+            customer_id=test_customer.id,
+            items=[
+                SaleItemCreate(
+                    product_id=product.id,
+                    quantity=Decimal("10"),
+                    unit_price=Decimal("15.00"),
+                    tax_percent=Decimal("0.00"),
+                    discount_amount=Decimal("0.00"),
+                )
+            ],
+            payment_method=SchemaPaymentMethod.CASH,
+            discount_amount=Decimal("0.00"),
+        ),
+        cashier_user.id,
+    )
+    db_session.flush()
+
+    sale_item_id = sale_response.items[0].id
+    SaleReturnService(db_session, default_company.id).process_return(
+        sale_response.id,
+        SaleReturnCreate(
+            items=[SaleReturnItemCreate(sale_item_id=sale_item_id, quantity=Decimal("3"))],
+            refund_method=PaymentMethod.CASH,
+        ),
+        admin_user.id,
+    )
+    db_session.flush()
+
+    sale = db_session.get(Sale, sale_response.id)
+    db_session.refresh(sale)
+    return sale
+
+
+@pytest.fixture
+def voided_sale(
+    db_session: Session,
+    default_company: Company,
+    test_customer: Customer,
+    cashier_user: User,
+    admin_user: User,
+    test_category: Category,
+) -> Sale:
+    """A sale that has already been annulled (status CANCELLED, voided_at set).
+
+    Built by creating a ledger-consistent sale and then voiding it through the
+    TransactionReversalService, so a second void attempt must be rejected.
+    """
+    import uuid
+
+    from schemas.sale import PaymentMethod as SchemaPaymentMethod, SaleCreate, SaleItemCreate
+    from services.sale_service import SaleService
+    from services.transaction_reversal_service import TransactionReversalService
+
+    product = Product(
+        company_id=default_company.id,
+        name="Voided Sale Product",
+        barcode=f"VOIDED{uuid.uuid4().hex[:8]}",
+        description="Product for voided-sale fixture",
+        category_id=test_category.id,
+        cost_price=Decimal("0.00"),
+        sell_price=Decimal("15.00"),
+        tax_percent=Decimal("0.00"),
+        stock_quantity=Decimal("0"),
+        inventory_value=Decimal("0.0000"),
+        min_stock_level=5,
+        is_active=True,
+    )
+    db_session.add(product)
+    db_session.flush()
+
+    ledger = InventoryLedgerService(db_session, default_company.id)
+    ledger.add_layer(product, Decimal("10"), Decimal("10.00"), "opening_balance", None, admin_user.id)
+    db_session.flush()
+
+    sale_service = SaleService(db_session, default_company.id)
+    sale_response = sale_service.create(
+        SaleCreate(
+            customer_id=test_customer.id,
+            items=[
+                SaleItemCreate(
+                    product_id=product.id,
+                    quantity=Decimal("4"),
+                    unit_price=Decimal("15.00"),
+                    tax_percent=Decimal("0.00"),
+                    discount_amount=Decimal("0.00"),
+                )
+            ],
+            payment_method=SchemaPaymentMethod.CASH,
+            discount_amount=Decimal("0.00"),
+        ),
+        cashier_user.id,
+    )
+    db_session.flush()
+
+    TransactionReversalService(db_session, default_company.id).void_sale(
+        sale_response.id, "Первичное аннулирование", admin_user.id
+    )
+    db_session.flush()
+
+    sale = db_session.get(Sale, sale_response.id)
+    db_session.refresh(sale)
+    return sale
+
+
 def create_auth_headers(username: str, user_id: int, company_id: int, role: str) -> dict:
     token = create_access_token(
         data={

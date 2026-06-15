@@ -87,6 +87,11 @@ class Sale(BaseModel):
     can_return: bool  # True if sale can be returned
     notes: Optional[str]
     created_at: datetime
+    # Annulment (void) audit metadata — populated only once a sale is annulled.
+    voided_at: Optional[datetime] = None
+    voided_by_user_id: Optional[int] = None
+    void_reason: Optional[str] = None
+    reversal_operation_id: Optional[int] = None
 
     class Config:
         from_attributes = True
