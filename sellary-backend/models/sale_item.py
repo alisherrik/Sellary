@@ -27,6 +27,7 @@ class SaleItem(Base):
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product", back_populates="sale_items")
     return_items = relationship("SaleReturnItem", back_populates="sale_item")
+    allocations = relationship("InventoryAllocation", back_populates="sale_item")
 
     __table_args__ = (
         Index("ix_sale_items_sale_id", "sale_id"),

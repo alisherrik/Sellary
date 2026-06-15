@@ -18,4 +18,7 @@ class PurchaseOrderItem(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     purchase_order = relationship("PurchaseOrder", back_populates="items")
-    product = relationship("Product")
+    product = relationship("Product", back_populates="purchase_order_items")
+    receipt_items = relationship(
+        "PurchaseReceiptItem", back_populates="purchase_order_item"
+    )

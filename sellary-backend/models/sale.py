@@ -1,5 +1,5 @@
 from decimal import Decimal
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Enum as SQLEnum, Index
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Enum as SQLEnum, Index, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.database import Base
@@ -71,10 +71,19 @@ class Sale(Base):
         default=SaleStatus.COMPLETED,
     )
     notes = Column(String(500))
+    voided_at = Column(DateTime(timezone=True))
+    voided_by_user_id = Column(Integer)
+    void_reason = Column(Text)
+    reversal_operation_id = Column(Integer, ForeignKey("reversal_operations.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     company = relationship("Company", back_populates="sales")
     customer = relationship("Customer", back_populates="sales")
-    cashier = relationship("User", back_populates="sales")
+    cashier = relationship("User", back_populates="sales", foreign_keys=[cashier_id])
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
     returns = relationship("SaleReturn", back_populates="sale", cascade="all, delete-orphan")
+    voided_by_user = relationship(
+        "User",
+        primaryjoin="foreign(Sale.voided_by_user_id) == User.id",
+    )
+    reversal_operation = relationship("ReversalOperation")

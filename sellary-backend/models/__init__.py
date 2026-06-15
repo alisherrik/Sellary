@@ -12,6 +12,9 @@ from .supplier import Supplier
 from .purchase_order import PurchaseOrder, PurchaseOrderStatus
 from .purchase_order_item import PurchaseOrderItem
 from .idempotency_key import IdempotencyKey
+from .reversal_operation import ReversalOperation
+from .purchase_receipt import PurchaseReceipt, PurchaseReceiptItem
+from .inventory_layer import InventoryLayer, InventoryAllocation
 
 __all__ = [
     "Company",
@@ -31,4 +34,9 @@ __all__ = [
     "PurchaseOrderStatus",
     "PurchaseOrderItem",
     "IdempotencyKey",
+    "ReversalOperation",
+    "PurchaseReceipt",
+    "PurchaseReceiptItem",
+    "InventoryLayer",
+    "InventoryAllocation",
 ]

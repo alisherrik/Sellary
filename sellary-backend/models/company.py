@@ -14,6 +14,7 @@ class Company(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    inventory_ledger_started_at = Column(DateTime(timezone=True))
 
     memberships = relationship(
         "CompanyMembership",
@@ -29,3 +30,4 @@ class Company(Base):
     sale_returns = relationship("SaleReturn", back_populates="company")
     inventory_logs = relationship("InventoryLog", back_populates="company")
     idempotency_keys = relationship("IdempotencyKey", back_populates="company")
+    reversal_operations = relationship("ReversalOperation", back_populates="company")

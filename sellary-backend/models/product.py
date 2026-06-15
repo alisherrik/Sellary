@@ -34,6 +34,9 @@ class Product(Base):
     sell_price = Column(Numeric(10, 2), nullable=False)
     tax_percent = Column(Numeric(5, 2), default=Decimal("0.00"))
     stock_quantity = Column(Numeric(10, 3), default=0)
+    inventory_value = Column(
+        Numeric(16, 4), nullable=False, default=Decimal("0.0000")
+    )
     min_stock_level = Column(Numeric(10, 3), default=5)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -44,3 +47,4 @@ class Product(Base):
     sale_items = relationship("SaleItem", back_populates="product")
     inventory_logs = relationship("InventoryLog", back_populates="product")
     purchase_order_items = relationship("PurchaseOrderItem", back_populates="product")
+    inventory_layers = relationship("InventoryLayer", back_populates="product")
