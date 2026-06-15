@@ -1,10 +1,13 @@
 from decimal import Decimal
 
+import pytest
 from sqlalchemy.orm import Session
 
+from core.state_machine import StateTransitionError
 from models.product import Product
 from models.purchase_order import PurchaseOrder, PurchaseOrderStatus
 from models.purchase_order_item import PurchaseOrderItem
+from models.purchase_receipt import PurchaseReceipt
 from models.supplier import Supplier
 from schemas.purchase_order import ReceiveItemsRequest
 from services.purchase_order_service import PurchaseOrderService
@@ -93,3 +96,47 @@ class TestPurchaseOrderReceiveItems:
         assert product.stock_quantity == Decimal("10")
         # Moving average: (5*10 + 5*20) / 10 = 15
         assert product.cost_price == Decimal("15.00")
+
+
+class TestPurchaseOrderReceiptLayers:
+    def test_receive_creates_receipt_items_layers_and_value(
+        self, db_session, sent_purchase_order, admin_user
+    ):
+        service = PurchaseOrderService(db_session, sent_purchase_order.company_id)
+        item = sent_purchase_order.items[0]
+        before_value = item.product.inventory_value
+
+        service.receive_items(
+            sent_purchase_order.id,
+            ReceiveItemsRequest(items=[{"item_id": item.id, "quantity_to_receive": "4"}]),
+            admin_user.id,
+        )
+
+        receipt = (
+            db_session.query(PurchaseReceipt)
+            .filter_by(purchase_order_id=sent_purchase_order.id)
+            .one()
+        )
+        assert receipt.user_id == admin_user.id
+        assert receipt.company_id == sent_purchase_order.company_id
+        assert len(receipt.items) == 1
+        receipt_item = receipt.items[0]
+        assert receipt_item.purchase_order_item_id == item.id
+        assert receipt_item.product_id == item.product_id
+        assert receipt_item.quantity == Decimal("4")
+        assert receipt_item.unit_cost == item.unit_cost
+        assert receipt_item.inventory_layer is not None
+        assert receipt_item.inventory_layer.remaining_quantity == Decimal("4")
+        assert receipt_item.inventory_layer.original_quantity == Decimal("4")
+        assert receipt_item.inventory_layer.unit_cost == item.unit_cost
+
+        db_session.refresh(item.product)
+        assert item.product.inventory_value == before_value + Decimal("4") * item.unit_cost
+        assert item.quantity_received == Decimal("4")
+
+    def test_cancel_partially_received_raises_state_error(
+        self, db_session, partially_received_po
+    ):
+        service = PurchaseOrderService(db_session, partially_received_po.company_id)
+        with pytest.raises(StateTransitionError):
+            service.cancel(partially_received_po.id)

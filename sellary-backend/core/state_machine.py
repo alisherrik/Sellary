@@ -94,11 +94,16 @@ PO_TRANSITIONS: Dict[PurchaseOrderStatus, Set[PurchaseOrderStatus]] = {
     PurchaseOrderStatus.SENT: {
         PurchaseOrderStatus.PARTIALLY_RECEIVED,
         PurchaseOrderStatus.RECEIVED,  # If all items received at once
+        # Only unreceived SENT orders may be cancelled. Once any stock has been
+        # received the order must be voided (reversal) instead of cancelled;
+        # the service layer additionally rejects cancel when any item has a
+        # non-zero quantity_received.
         PurchaseOrderStatus.CANCELLED,
     },
     PurchaseOrderStatus.PARTIALLY_RECEIVED: {
+        # No CANCELLED: a partially received order has stock on hand and must be
+        # voided via the reversal workflow, not plain-cancelled.
         PurchaseOrderStatus.RECEIVED,
-        PurchaseOrderStatus.CANCELLED,
     },
     PurchaseOrderStatus.RECEIVED: set(),   # Terminal state
     PurchaseOrderStatus.CANCELLED: set(),  # Terminal state

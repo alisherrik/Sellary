@@ -439,6 +439,16 @@ class TestPurchaseOrderWorkflow:
 
         assert response.status_code == 409
 
+    def test_partially_received_purchase_cannot_use_plain_cancel(
+        self, client: TestClient, partially_received_po, admin_headers
+    ):
+        response = client.post(
+            f"/api/purchase-orders/{partially_received_po.id}/cancel",
+            json={},
+            headers={**admin_headers, "Idempotency-Key": "cancel-received-0001"},
+        )
+        assert response.status_code == 409
+
     def test_send_replay_idempotency(self, client: TestClient, db_session, admin_headers):
         category = _create_category(db_session)
         supplier = _create_supplier(db_session)

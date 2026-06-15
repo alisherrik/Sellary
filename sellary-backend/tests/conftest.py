@@ -27,7 +27,8 @@ from models.customer import Customer
 from models.inventory_layer import InventoryLayer
 from models.inventory_log import InventoryLog
 from models.product import Product
-from models.purchase_order import PurchaseOrder
+from models.purchase_order import PurchaseOrder, PurchaseOrderStatus
+from models.purchase_order_item import PurchaseOrderItem
 from models.sale import PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
 from models.sale_return import SaleReturn
@@ -424,6 +425,77 @@ def layered_product(
     db_session.flush()
     db_session.refresh(product)
     return product
+
+
+@pytest.fixture
+def test_supplier(db_session: Session, default_company: Company) -> Supplier:
+    import uuid
+
+    supplier = Supplier(
+        company_id=default_company.id,
+        name=f"Test Supplier {uuid.uuid4().hex[:8]}",
+        phone=f"+99290{uuid.uuid4().hex[:6]}",
+    )
+    db_session.add(supplier)
+    db_session.flush()
+    return supplier
+
+
+@pytest.fixture
+def sent_purchase_order(
+    db_session: Session,
+    default_company: Company,
+    test_supplier: Supplier,
+    test_product: Product,
+) -> PurchaseOrder:
+    """A SENT purchase order with one line (10 ordered @ 5.00), nothing received."""
+    purchase_order = PurchaseOrder(
+        company_id=default_company.id,
+        supplier_id=test_supplier.id,
+        status=PurchaseOrderStatus.SENT,
+        total_amount=Decimal("50.00"),
+    )
+    db_session.add(purchase_order)
+    db_session.flush()
+
+    po_item = PurchaseOrderItem(
+        purchase_order_id=purchase_order.id,
+        product_id=test_product.id,
+        quantity_ordered=Decimal("10"),
+        quantity_received=Decimal("0"),
+        unit_cost=Decimal("5.00"),
+        subtotal=Decimal("50.00"),
+    )
+    db_session.add(po_item)
+    db_session.flush()
+    db_session.refresh(purchase_order)
+    return purchase_order
+
+
+@pytest.fixture
+def partially_received_po(
+    db_session: Session,
+    sent_purchase_order: PurchaseOrder,
+    admin_user: User,
+) -> PurchaseOrder:
+    """A purchase order in PARTIALLY_RECEIVED with one line partly received.
+
+    Built through the real receive flow so receipts, receipt items, FIFO
+    layers, the product balance and inventory logs stay consistent.
+    """
+    from schemas.purchase_order import ReceiveItemsRequest
+    from services.purchase_order_service import PurchaseOrderService
+
+    service = PurchaseOrderService(db_session, sent_purchase_order.company_id)
+    item = sent_purchase_order.items[0]
+    service.receive_items(
+        sent_purchase_order.id,
+        ReceiveItemsRequest(items=[{"item_id": item.id, "quantity_to_receive": "4"}]),
+        admin_user.id,
+    )
+    db_session.flush()
+    db_session.refresh(sent_purchase_order)
+    return sent_purchase_order
 
 
 @pytest.fixture

@@ -12,7 +12,7 @@ from core.state_machine import (
 )
 from models.purchase_order import PurchaseOrder, PurchaseOrderStatus
 from models.purchase_order_item import PurchaseOrderItem
-from repositories.inventory_repository import InventoryRepository
+from models.purchase_receipt import PurchaseReceipt, PurchaseReceiptItem
 from repositories.product_repository import ProductRepository
 from repositories.purchase_order_repository import PurchaseOrderRepository
 from repositories.supplier_repository import SupplierRepository
@@ -23,6 +23,7 @@ from schemas.purchase_order import (
     PurchaseOrderUpdate,
     ReceiveItemsRequest,
 )
+from services.inventory_ledger_service import InventoryLedgerService
 from services.tenant import resolve_company_id
 
 
@@ -33,7 +34,7 @@ class PurchaseOrderService:
         self.po_repo = PurchaseOrderRepository(db)
         self.supplier_repo = SupplierRepository(db)
         self.product_repo = ProductRepository(db)
-        self.inventory_repo = InventoryRepository(db)
+        self.ledger = InventoryLedgerService(db, self.company_id)
 
     def get_by_id(self, po_id: int) -> Optional[PurchaseOrderResponse]:
         purchase_order = self.po_repo.get_by_id(self.company_id, po_id)
@@ -219,6 +220,16 @@ class PurchaseOrderService:
         )
         product_map = {product.id: product for product in locked_products}
 
+        # One receipt event captures this physical receive operation; each
+        # accepted line becomes a PurchaseReceiptItem backed by a FIFO layer.
+        receipt = PurchaseReceipt(
+            company_id=self.company_id,
+            purchase_order_id=po_id,
+            user_id=user_id,
+        )
+        self.db.add(receipt)
+        self.db.flush()
+
         all_fully_received = True
         for item_id, quantity_to_receive in items_to_receive.items():
             po_item = po_item_map.get(item_id)
@@ -237,21 +248,26 @@ class PurchaseOrderService:
             if not product:
                 raise ValueError(f"Product with id {po_item.product_id} not found")
 
-            previous_quantity = product.stock_quantity
-            new_quantity = previous_quantity + quantity_to_receive
-            product.stock_quantity = new_quantity
-
-            total_cost_before = previous_quantity * product.cost_price
-            cost_added = quantity_to_receive * po_item.unit_cost
-            product.cost_price = ((total_cost_before + cost_added) / new_quantity).quantize(Decimal("0.01"))
-
-            self.inventory_repo.create_log(
-                company_id=self.company_id,
+            receipt_item = PurchaseReceiptItem(
+                purchase_receipt_id=receipt.id,
+                purchase_order_item_id=po_item.id,
                 product_id=product.id,
+                quantity=quantity_to_receive,
+                unit_cost=po_item.unit_cost,
+            )
+            self.db.add(receipt_item)
+            self.db.flush()
+
+            # The ledger is the single source of truth for stock/value/cost and
+            # writes its own positive inventory log for the restock.
+            self.ledger.add_layer(
+                product=product,
+                quantity=quantity_to_receive,
+                unit_cost=po_item.unit_cost,
+                source_type="purchase_receipt_item",
+                source_id=receipt_item.id,
+                purchase_receipt_item_id=receipt_item.id,
                 user_id=user_id,
-                quantity_change=quantity_to_receive,
-                previous_quantity=previous_quantity,
-                new_quantity=new_quantity,
                 reason=f"Restock via PO #{po_id}",
                 reference_type="po_receive",
                 reference_id=po_id,
@@ -282,6 +298,17 @@ class PurchaseOrderService:
             target_status=PurchaseOrderStatus.CANCELLED,
             po_id=po_id,
         )
+
+        # Any received stock makes a plain cancel unsafe — those layers must be
+        # reversed via the void workflow, not silently abandoned by a cancel.
+        po_items = self.po_repo.get_po_items_for_update(po_id)
+        if any((item.quantity_received or Decimal("0")) > 0 for item in po_items):
+            raise StateTransitionError(
+                entity_type="Purchase Order",
+                entity_id=po_id,
+                current_status=purchase_order.status.value,
+                target_status="void_required",
+            )
 
         purchase_order.status = PurchaseOrderStatus.CANCELLED
         self.db.flush()
