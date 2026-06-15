@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from schemas.category import Category
 
@@ -33,7 +33,7 @@ class SyncBootstrapResponse(BaseModel):
 
 class SyncSaleItemCreate(BaseModel):
     product_id: int
-    quantity: Decimal
+    quantity: Decimal = Field(..., gt=0, decimal_places=3)
     sell_price: Decimal
 
 

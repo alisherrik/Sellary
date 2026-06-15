@@ -203,3 +203,19 @@ class TestSyncSalesEndpoint:
         data = response.json()
         assert data["results"][0]["status"] == "failed"
         assert "not found" in data["results"][0]["error"].lower()
+
+    @pytest.mark.parametrize("bad_quantity", ["0.000", "0", "-1.000"])
+    def test_sync_sales_rejects_non_positive_quantity(
+        self, client, db_session, default_company, cashier_user, test_product, bad_quantity
+    ):
+        headers = create_auth_headers(
+            cashier_user.username, cashier_user.id,
+            default_company.id, cashier_user.role,
+        )
+        payload = self._sale_payload(product_id=test_product.id)
+        payload["items"][0]["quantity"] = bad_quantity
+        body = {"sales": [payload]}
+
+        response = client.post("/api/sync/sales", json=body, headers=headers)
+
+        assert response.status_code == 422
