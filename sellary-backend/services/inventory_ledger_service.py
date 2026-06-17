@@ -20,7 +20,9 @@ from models.sale_item import SaleItem
 from repositories.inventory_ledger_repository import InventoryLedgerRepository
 
 MONEY_QUANT = Decimal("0.0001")
-PRICE_QUANT = Decimal("0.01")
+# Weighted-average cost_price keeps 4 decimals so wholesale receipts don't lose
+# precision (e.g. 45 / 24 = 1.8750) when rolled into the product balance.
+PRICE_QUANT = Decimal("0.0001")
 
 
 @dataclass

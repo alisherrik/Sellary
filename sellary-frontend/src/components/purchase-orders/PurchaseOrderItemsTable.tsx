@@ -5,11 +5,12 @@ import { PlusIcon, TrashIcon } from '@heroicons/react/20/solid';
 
 import {
   createPurchaseOrderItemInput,
+  deriveLineTotal,
+  deriveUnitCostFromTotal,
   type PurchaseOrderItemErrors,
   type PurchaseOrderItemInput,
 } from '@/features/purchase-orders/purchaseOrderForm';
 import type { Product } from '@/lib/types';
-import { formatCurrency } from '@/lib/utils';
 import ProductCombobox from './ProductCombobox';
 
 interface PurchaseOrderItemsTableProps {
@@ -17,6 +18,50 @@ interface PurchaseOrderItemsTableProps {
   productsById: Map<number, Product>;
   errors: Record<string, PurchaseOrderItemErrors>;
   onChange: (items: PurchaseOrderItemInput[]) => void;
+}
+
+/**
+ * Editable line-total cell. Закупка часто оптовая, поэтому пользователь вводит
+ * общую сумму, а цена за штуку вычисляется обратно. Источник правды —
+ * unit_cost у строки; этот инпут показывает производное qty × unit_cost, но
+ * во время ввода держит локальный черновик, чтобы сумма не «прыгала».
+ */
+function LineTotalInput({
+  quantity,
+  unitCost,
+  ariaLabel,
+  hasError,
+  onTotalChange,
+}: {
+  quantity: string;
+  unitCost: string;
+  ariaLabel: string;
+  hasError: boolean;
+  onTotalChange: (total: string) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const derived = deriveLineTotal(quantity, unitCost);
+  const displayValue =
+    draft !== null ? draft : derived ? String(Math.round(derived * 100) / 100) : '';
+
+  return (
+    <input
+      type="number"
+      min="0"
+      step="0.01"
+      inputMode="decimal"
+      aria-label={ariaLabel}
+      value={displayValue}
+      onChange={(event) => {
+        setDraft(event.target.value);
+        onTotalChange(event.target.value);
+      }}
+      onBlur={() => setDraft(null)}
+      className={`min-h-11 w-full rounded-md border bg-white px-3 text-right text-sm font-semibold tabular-nums text-gray-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 ${
+        hasError ? 'border-red-500' : 'border-gray-300'
+      }`}
+    />
+  );
 }
 
 export default function PurchaseOrderItemsTable({
@@ -80,8 +125,6 @@ export default function PurchaseOrderItemsTable({
           const rowErrors = errors[item.key] ?? {};
           const productError =
             duplicateRow === item.key ? 'Товар уже добавлен' : rowErrors.product_id;
-          const subtotal =
-            (Number(item.quantity_ordered) || 0) * (Number(item.unit_cost) || 0);
 
           return (
             <div
@@ -176,7 +219,7 @@ export default function PurchaseOrderItemsTable({
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="0.0001"
                   aria-label={`Цена, ${product?.name ?? `товар ${index + 1}`}`}
                   aria-invalid={Boolean(rowErrors.unit_cost)}
                   aria-describedby={rowErrors.unit_cost ? `${item.key}-cost-error` : undefined}
@@ -193,10 +236,22 @@ export default function PurchaseOrderItemsTable({
                 )}
               </label>
 
-              <div className="flex min-h-11 items-center justify-between text-sm font-semibold tabular-nums text-gray-900 sm:justify-end">
-                <span className="text-xs font-medium text-gray-500 sm:hidden">Сумма</span>
-                {formatCurrency(subtotal)}
-              </div>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600 sm:hidden">
+                  Сумма
+                </span>
+                <LineTotalInput
+                  quantity={item.quantity_ordered}
+                  unitCost={item.unit_cost}
+                  hasError={Boolean(rowErrors.unit_cost)}
+                  ariaLabel={`Сумма, ${product?.name ?? `товар ${index + 1}`}`}
+                  onTotalChange={(total) =>
+                    updateRow(item.key, {
+                      unit_cost: deriveUnitCostFromTotal(total, item.quantity_ordered),
+                    })
+                  }
+                />
+              </label>
 
               <button
                 type="button"

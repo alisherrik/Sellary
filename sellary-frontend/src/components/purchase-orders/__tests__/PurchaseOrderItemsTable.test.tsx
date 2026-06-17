@@ -80,7 +80,7 @@ describe('PurchaseOrderItemsTable', () => {
     expect(screen.getByText('Товар уже добавлен')).toBeInTheDocument();
   });
 
-  it('updates the visible row subtotal when quantity changes', async () => {
+  it('updates the visible row total when quantity changes', async () => {
     const user = userEvent.setup();
     render(
       <Harness
@@ -94,7 +94,29 @@ describe('PurchaseOrderItemsTable', () => {
     await user.clear(quantity);
     await user.type(quantity, '3');
 
-    await waitFor(() => expect(screen.getByText(/37[,.]5/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByLabelText('Сумма, Молоко 3,2%')).toHaveValue(37.5),
+    );
+  });
+
+  it('back-calculates the unit cost when the line total is entered', async () => {
+    const user = userEvent.setup();
+    render(
+      <Harness
+        initialItems={[
+          { key: 'a', product_id: '7', quantity_ordered: '24', unit_cost: '' },
+        ]}
+      />,
+    );
+
+    const total = screen.getByLabelText('Сумма, Молоко 3,2%');
+    await user.clear(total);
+    await user.type(total, '45');
+
+    // 45 / 24 = 1.875 за штуку — без остатка.
+    await waitFor(() =>
+      expect(screen.getByLabelText('Цена, Молоко 3,2%')).toHaveValue(1.875),
+    );
   });
 
   it('restores selected product labels from the form state', () => {

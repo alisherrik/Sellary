@@ -16,7 +16,8 @@ class PurchaseOrderStatus(str, Enum):
 class PurchaseOrderItemBase(BaseModel):
     product_id: int = Field(..., gt=0)
     quantity_ordered: Decimal = Field(..., gt=0, decimal_places=3)
-    unit_cost: Decimal = Field(..., ge=0, decimal_places=2)
+    # 4 decimals so wholesale totals divide cleanly (45 / 24 = 1.8750, no remainder).
+    unit_cost: Decimal = Field(..., ge=0, decimal_places=4)
 
 
 class PurchaseOrderItemCreate(PurchaseOrderItemBase):

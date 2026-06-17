@@ -5,6 +5,8 @@ import {
   calculateOrderedQuantity,
   calculateOrderTotal,
   createEmptyPurchaseOrderForm,
+  deriveLineTotal,
+  deriveUnitCostFromTotal,
   getDuplicateProductIds,
   getRemainingQuantity,
   hasPurchaseOrderErrors,
@@ -103,6 +105,26 @@ describe('purchaseOrderForm', () => {
       product_name: 'Salafan',
       product_uom: 'metr',
     });
+  });
+
+  it('derives a 4-decimal unit cost from a wholesale total', () => {
+    // Одна упаковка колы за 45 при 24 штуках => 1.875 за штуку, без остатка.
+    expect(deriveUnitCostFromTotal('45', '24')).toBe('1.875');
+  });
+
+  it('rounds a non-terminating unit cost to 4 decimals', () => {
+    expect(deriveUnitCostFromTotal('50', '7')).toBe('7.1429');
+  });
+
+  it('returns an empty unit cost when quantity cannot divide', () => {
+    expect(deriveUnitCostFromTotal('45', '0')).toBe('');
+    expect(deriveUnitCostFromTotal('45', '')).toBe('');
+    expect(deriveUnitCostFromTotal('', '24')).toBe('');
+  });
+
+  it('computes an exact line total from quantity and a 4-decimal unit cost', () => {
+    expect(deriveLineTotal('24', '1.875')).toBe(45);
+    expect(deriveLineTotal('', '1.875')).toBe(0);
   });
 
   it('validates receiving against the remaining amount', () => {

@@ -54,10 +54,40 @@ export const mapPurchaseOrderToForm = (order: PurchaseOrder): PurchaseOrderFormD
   })),
 });
 
+const UNIT_COST_DECIMALS = 4;
+
+/**
+ * Back-calculate the per-unit cost from a wholesale line total.
+ *
+ * Закупка часто идёт оптом (одна упаковка за фиксированную цену), поэтому
+ * пользователю удобнее ввести общую сумму, а цену за штуку вычислить.
+ * Округляем до 4 знаков, чтобы 45 / 24 = 1.875 не давало остатка.
+ * Returns '' when the quantity cannot divide the total (zero/blank/invalid).
+ */
+export const deriveUnitCostFromTotal = (
+  total: string | number,
+  quantity: string | number,
+): string => {
+  const totalValue = Number(total);
+  const quantityValue = Number(quantity);
+  if (!(quantityValue > 0) || total === '' || !Number.isFinite(totalValue)) {
+    return '';
+  }
+  const unitCost =
+    Math.round((totalValue / quantityValue) * 10 ** UNIT_COST_DECIMALS) /
+    10 ** UNIT_COST_DECIMALS;
+  return String(unitCost);
+};
+
+/** Line total for a single row: quantity × unit cost (0 when either is blank/invalid). */
+export const deriveLineTotal = (
+  quantity: string | number,
+  unitCost: string | number,
+) => (Number(quantity) || 0) * (Number(unitCost) || 0);
+
 export const calculateOrderTotal = (items: PurchaseOrderItemInput[]) =>
   items.reduce(
-    (sum, item) =>
-      sum + (Number(item.quantity_ordered) || 0) * (Number(item.unit_cost) || 0),
+    (sum, item) => sum + deriveLineTotal(item.quantity_ordered, item.unit_cost),
     0,
   );
 

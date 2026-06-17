@@ -49,7 +49,7 @@ class InventoryLayer(Base):
     )
     original_quantity = Column(Numeric(10, 3), nullable=False)
     remaining_quantity = Column(Numeric(10, 3), nullable=False)
-    unit_cost = Column(Numeric(10, 2), nullable=False)
+    unit_cost = Column(Numeric(10, 4), nullable=False)
     reversal_operation_id = Column(Integer, ForeignKey("reversal_operations.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     reversed_at = Column(DateTime(timezone=True))

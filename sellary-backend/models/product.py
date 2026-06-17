@@ -31,7 +31,7 @@ class Product(Base):
     description = Column(String(500))
     uom = Column(String(20), nullable=False, default="dona")
     category_id = Column(Integer, ForeignKey("categories.id"))
-    cost_price = Column(Numeric(10, 2), nullable=False)
+    cost_price = Column(Numeric(10, 4), nullable=False)
     sell_price = Column(Numeric(10, 2), nullable=False)
     tax_percent = Column(Numeric(5, 2), default=Decimal("0.00"))
     stock_quantity = Column(Numeric(10, 3), default=0)

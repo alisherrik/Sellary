@@ -13,7 +13,7 @@ class PurchaseOrderItem(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     quantity_ordered = Column(Numeric(10, 3), nullable=False)
     quantity_received = Column(Numeric(10, 3), default=0)
-    unit_cost = Column(Numeric(10, 2), nullable=False)
+    unit_cost = Column(Numeric(10, 4), nullable=False)
     subtotal = Column(Numeric(12, 2), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

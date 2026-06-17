@@ -42,7 +42,7 @@ class PurchaseReceiptItem(Base):
         Integer, ForeignKey("products.id"), nullable=False, index=True
     )
     quantity = Column(Numeric(10, 3), nullable=False)
-    unit_cost = Column(Numeric(10, 2), nullable=False)
+    unit_cost = Column(Numeric(10, 4), nullable=False)
 
     receipt = relationship("PurchaseReceipt", back_populates="items")
     purchase_order_item = relationship(

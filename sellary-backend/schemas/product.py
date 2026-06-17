@@ -11,7 +11,8 @@ class ProductBase(BaseModel):
     description: Optional[str] = None
     uom: str = Field(default="dona", min_length=1, max_length=20)
     category_id: Optional[int] = None
-    cost_price: Decimal = Field(..., ge=0, decimal_places=2)
+    # 4 decimals to carry precise weighted-average cost from wholesale receipts.
+    cost_price: Decimal = Field(..., ge=0, decimal_places=4)
     sell_price: Decimal = Field(..., ge=0, decimal_places=2)
     tax_percent: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
     stock_quantity: Decimal = Field(default=Decimal("0.000"), ge=0, decimal_places=3)
@@ -28,7 +29,7 @@ class ProductUpdate(BaseModel):
     description: Optional[str] = None
     uom: Optional[str] = Field(None, min_length=1, max_length=20)
     category_id: Optional[int] = None
-    cost_price: Optional[Decimal] = Field(None, ge=0, decimal_places=2)
+    cost_price: Optional[Decimal] = Field(None, ge=0, decimal_places=4)
     sell_price: Optional[Decimal] = Field(None, ge=0, decimal_places=2)
     tax_percent: Optional[Decimal] = Field(None, ge=0, decimal_places=2)
     stock_quantity: Optional[Decimal] = Field(None, ge=0, decimal_places=3)

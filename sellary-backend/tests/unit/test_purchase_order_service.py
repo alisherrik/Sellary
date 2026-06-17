@@ -9,7 +9,11 @@ from models.purchase_order import PurchaseOrder, PurchaseOrderStatus
 from models.purchase_order_item import PurchaseOrderItem
 from models.purchase_receipt import PurchaseReceipt
 from models.supplier import Supplier
-from schemas.purchase_order import ReceiveItemsRequest
+from schemas.purchase_order import (
+    PurchaseOrderCreate,
+    PurchaseOrderItemCreate,
+    ReceiveItemsRequest,
+)
 from services.purchase_order_service import PurchaseOrderService
 
 
@@ -96,6 +100,49 @@ class TestPurchaseOrderReceiveItems:
         assert product.stock_quantity == Decimal("10")
         # Moving average: (5*10 + 5*20) / 10 = 15
         assert product.cost_price == Decimal("15.00")
+
+
+class TestPurchaseOrderWholesalePricing:
+    def test_create_accepts_four_decimal_unit_cost_with_exact_subtotal(
+        self, db_session: Session
+    ):
+        # Оптовая закупка: упаковка за 45 при 24 штуках => 1.8750 за штуку,
+        # 4 знака убирают остаток (24 * 1.8750 = 45.0000 ровно).
+        product = Product(
+            name="Cola wholesale",
+            barcode="TEST_PO_WS",
+            cost_price=Decimal("1.00"),
+            sell_price=Decimal("2.00"),
+            stock_quantity=Decimal("0"),
+            min_stock_level=0,
+            is_active=True,
+        )
+        db_session.add(product)
+        supplier = Supplier(
+            name="WS Supplier",
+            email="ws@test.com",
+            phone="000",
+        )
+        db_session.add(supplier)
+        db_session.flush()
+
+        service = PurchaseOrderService(db_session)
+        result = service.create(
+            PurchaseOrderCreate(
+                supplier_id=supplier.id,
+                items=[
+                    PurchaseOrderItemCreate(
+                        product_id=product.id,
+                        quantity_ordered=Decimal("24"),
+                        unit_cost=Decimal("1.8750"),
+                    )
+                ],
+            )
+        )
+
+        assert result.items[0].unit_cost == Decimal("1.8750")
+        assert result.items[0].subtotal == Decimal("45.0000")
+        assert result.total_amount == Decimal("45.0000")
 
 
 class TestPurchaseOrderReceiptLayers:
