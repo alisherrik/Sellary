@@ -1,0 +1,19 @@
+# Keep the Railway build context small and backend-only.
+.git
+**/.venv
+**/venv
+**/env
+**/node_modules
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/htmlcov
+**/coverage.xml
+**/.coverage
+**/.next
+**/.env
+**/.env.*
+sellary-frontend
+sellary-cashier
+design-mockups
+docs
