@@ -1,0 +1,55 @@
+name: Deploy Frontend (Netlify)
+
+# Netlify is not wired to auto-deploy on push, so deploy the Next.js frontend
+# here on every push to main. Mirrors the manual `npx netlify deploy --prod
+# --build`. Requires two repo secrets (Settings -> Secrets and variables ->
+# Actions): NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID. Until they are set the job
+# succeeds with a notice (no deploy), so it never blocks with a red X.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sellary-frontend/**'
+      - 'netlify.toml'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Netlify secrets
+        id: check
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
+            echo "::notice::NETLIFY_AUTH_TOKEN / NETLIFY_SITE_ID not set — skipping deploy. Add them in Settings → Secrets and variables → Actions."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node
+        if: steps.check.outputs.ok == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Deploy to Netlify (build + publish, prod)
+        if: steps.check.outputs.ok == 'true'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        # `--build` runs the Netlify build pipeline (netlify.toml: base
+        # sellary-frontend, @netlify/plugin-nextjs), so this matches a normal
+        # Netlify production deploy.
+        run: npx --yes netlify-cli@17 deploy --prod --build --message "CI deploy ${{ github.sha }}"
