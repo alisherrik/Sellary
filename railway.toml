@@ -7,7 +7,9 @@ watch = ["sellary-backend/**", "Dockerfile", "railway.toml"]
 
 [deploy]
 preDeployCommand = "alembic upgrade b2c3d4e5f6a7"
-startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+# No startCommand here: with the Dockerfile builder Railway execs startCommand
+# without a shell, so "$PORT" wouldn't expand. The Dockerfile CMD runs through
+# `sh -c` and expands $PORT correctly.
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
