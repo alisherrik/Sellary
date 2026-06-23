@@ -70,6 +70,9 @@ export default function POS() {
   const [totalEdit, setTotalEdit] = useState<string | null>(null);
   const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
   const [qtyEdits, setQtyEdits] = useState<Record<string, string>>({});
+  // Editable line total → back-computes quantity (qty = total / unit price). Lets
+  // the cashier weigh goods and just enter the money amount.
+  const [lineTotalEdits, setLineTotalEdits] = useState<Record<string, string>>({});
   const [showCartSheet, setShowCartSheet] = useState(false);
   const { isServerReachable } = useServerHealth();
   const queryClient = useQueryClient();
@@ -257,6 +260,7 @@ export default function POS() {
     setTotalEdit(null);
     setPriceEdits({});
     setQtyEdits({});
+    setLineTotalEdits({});
     setLoading(false);
   }, [activeSessionId]);
 
@@ -304,6 +308,7 @@ export default function POS() {
     setTotalEdit(null);
     setPriceEdits({});
     setQtyEdits({});
+    setLineTotalEdits({});
   }, [clearCart, setActiveOverallDiscount]);
 
   const completeSale = useCallback(async () => {
@@ -648,9 +653,40 @@ export default function POS() {
                       {isMarkup ? '+' : '−'}{formatCurrency(absDiscountAmount)}
                     </span>
                   )}
-                  <span className="ml-auto text-[14px] font-extrabold tabular-nums text-gray-900 dark:text-white">
-                    {formatCurrency(finalPrice * item.quantity)}
-                  </span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    aria-label={`Сумма: ${item.product.name}`}
+                    title="Введите сумму — количество посчитается автоматически"
+                    value={lineTotalEdits[key] ?? formatEditableAmount(finalPrice * item.quantity)}
+                    onChange={(e) => setLineTotalEdits((prev) => ({ ...prev, [key]: e.target.value }))}
+                    onBlur={() => {
+                      const raw = lineTotalEdits[key];
+                      setLineTotalEdits((prev) => {
+                        const next = { ...prev };
+                        delete next[key];
+                        return next;
+                      });
+                      if (raw === undefined) return;
+                      const total = parseFloat(raw.replace(',', '.'));
+                      // Back-compute quantity from the entered amount (qty = total / unit price).
+                      if (isNaN(total) || total < 0 || finalPrice <= 0) return;
+                      let qty = total / finalPrice;
+                      if (qty > maxSold + 1e-9) {
+                        qty = maxSold;
+                        toast.error(`Доступно только ${Number(maxSold.toFixed(3))} ${unitLabel}`);
+                      }
+                      if (qty <= 0) {
+                        removeItem(key);
+                        return;
+                      }
+                      updateQuantity(key, Number(qty.toFixed(3)));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    }}
+                    className="ml-auto w-24 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-right text-[14px] font-extrabold tabular-nums text-gray-900 focus:border-gray-200 focus:bg-white focus:outline-none dark:text-white dark:focus:bg-gray-800"
+                  />
                   <button
                     type="button"
                     aria-label={`Удалить ${item.product.name}`}

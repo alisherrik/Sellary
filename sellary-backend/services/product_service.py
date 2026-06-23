@@ -248,7 +248,8 @@ class ProductService:
                     "id": product.category.id,
                     "name": product.category.name,
                 }
-                if product.category
+                # Treat products under an inactive category as uncategorized.
+                if product.category and product.category.is_active
                 else None
             ),
             uom=product.uom,

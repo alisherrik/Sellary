@@ -97,9 +97,11 @@ export default function Products() {
   const { data: products = [], isLoading: loading } = useProducts(params);
 
   const { data: categories = [] } = useQuery<Category[]>({
-    queryKey: ['categories'],
+    queryKey: ['categories', 'active'],
     queryFn: async () => {
-      const response = await categoriesApi.getAll({ limit: 200 });
+      // Only active categories — inactive ones are hidden everywhere; their
+      // products were detached to "uncategorized" on deactivation.
+      const response = await categoriesApi.getAll({ limit: 200, active_only: true });
       return response.data;
     },
   });
