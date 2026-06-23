@@ -43,6 +43,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
+          cache-dependency-path: sellary-frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        if: steps.check.outputs.ok == 'true'
+        working-directory: sellary-frontend
+        run: npm ci
 
       - name: Deploy to Netlify (build + publish, prod)
         if: steps.check.outputs.ok == 'true'
