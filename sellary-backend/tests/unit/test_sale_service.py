@@ -817,6 +817,143 @@ class TestCreateSaleFifoAllocation:
         assert logs[0].quantity_change == Decimal("-3")
 
 
+class TestCreateSaleWithUnits:
+    """Multi-UOM sales: selling a product in an alternative unit converts to base."""
+
+    def _make_unit_product(self, db_session):
+        from models.product_unit import ProductUnit
+
+        category = Category(name="Grains")
+        db_session.add(category)
+        db_session.flush()
+
+        product = Product(
+            name="Rice",
+            barcode="RICE-UOM",
+            category_id=category.id,
+            uom="kg",
+            cost_price=Decimal("10.00"),
+            sell_price=Decimal("12.00"),
+            tax_percent=Decimal("0.00"),
+            stock_quantity=100,
+            is_active=True,
+        )
+        db_session.add(product)
+
+        cashier = User(
+            username="cashier_uom",
+            email="cashier_uom@test.com",
+            hashed_password=get_password_hash("password"),
+            role="cashier",
+        )
+        db_session.add(cashier)
+        db_session.flush()
+
+        # A sack = 5 kg, sold for 50.
+        sack = ProductUnit(
+            product_id=product.id,
+            name="qop",
+            factor=Decimal("5"),
+            sell_price=Decimal("50.00"),
+            is_active=True,
+            sort_order=0,
+        )
+        db_session.add(sack)
+        db_session.flush()
+
+        back_with_layer(db_session, product)
+        return product, sack, cashier
+
+    def test_sale_in_alternative_unit_converts_to_base(self, db_session):
+        product, sack, cashier = self._make_unit_product(db_session)
+
+        sale_create = SaleCreate(
+            customer_id=None,
+            items=[
+                SaleItemCreate(
+                    product_id=product.id,
+                    product_unit_id=sack.id,
+                    quantity=Decimal("2"),  # 2 sacks
+                    unit_price=Decimal("50.00"),
+                    tax_percent=Decimal("0.00"),
+                    discount_amount=Decimal("0.00"),
+                )
+            ],
+            payment_method=PaymentMethod.CASH,
+            discount_amount=Decimal("0.00"),
+        )
+
+        result = SaleService(db_session, product.company_id).create(
+            sale_create, cashier_id=cashier.id
+        )
+
+        # Money is from the chosen unit: 2 sacks * 50.
+        assert result.subtotal == Decimal("100.00")
+        assert result.total_amount == Decimal("100.00")
+
+        item = result.items[0]
+        assert item.sold_quantity == Decimal("2.000")
+        assert item.sold_unit_label == "qop"
+        assert item.sold_unit_factor == Decimal("5.0000")
+        # Inventory is driven by base units: 2 * 5 = 10 kg.
+        assert item.quantity == Decimal("10.000")
+
+        db_session.refresh(product)
+        assert product.stock_quantity == Decimal("90.000")
+
+    def test_sale_with_unknown_unit_is_rejected(self, db_session):
+        product, _sack, cashier = self._make_unit_product(db_session)
+
+        sale_create = SaleCreate(
+            customer_id=None,
+            items=[
+                SaleItemCreate(
+                    product_id=product.id,
+                    product_unit_id=999999,  # not a unit of this product
+                    quantity=Decimal("1"),
+                    unit_price=Decimal("50.00"),
+                )
+            ],
+            payment_method=PaymentMethod.CASH,
+            discount_amount=Decimal("0.00"),
+        )
+
+        with pytest.raises(ValueError, match="Sale unit"):
+            SaleService(db_session, product.company_id).create(
+                sale_create, cashier_id=cashier.id
+            )
+
+    def test_sale_in_base_unit_still_works(self, db_session):
+        product, _sack, cashier = self._make_unit_product(db_session)
+
+        sale_create = SaleCreate(
+            customer_id=None,
+            items=[
+                SaleItemCreate(
+                    product_id=product.id,
+                    quantity=Decimal("3"),  # 3 kg, base unit
+                    unit_price=Decimal("12.00"),
+                    tax_percent=Decimal("0.00"),
+                    discount_amount=Decimal("0.00"),
+                )
+            ],
+            payment_method=PaymentMethod.CASH,
+            discount_amount=Decimal("0.00"),
+        )
+
+        result = SaleService(db_session, product.company_id).create(
+            sale_create, cashier_id=cashier.id
+        )
+
+        item = result.items[0]
+        assert item.sold_quantity == Decimal("3.000")
+        assert item.sold_unit_label == "kg"
+        assert item.quantity == Decimal("3.000")
+
+        db_session.refresh(product)
+        assert product.stock_quantity == Decimal("97.000")
+
+
 class TestCancelSale:
     """Tests for canceling sales."""
 

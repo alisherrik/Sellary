@@ -26,6 +26,10 @@ class SaleStatus(str, Enum):
 
 class SaleItemCreate(BaseModel):
     product_id: int
+    # When `product_unit_id` is set, `quantity` and `unit_price` are expressed in
+    # that chosen unit; the server converts to base units for inventory. When it
+    # is None the sale is in the product's base unit (backward compatible).
+    product_unit_id: Optional[int] = None
     quantity: Decimal = Field(..., gt=0, decimal_places=3)
     unit_price: Decimal = Field(..., ge=0, decimal_places=2)
     tax_percent: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
@@ -54,10 +58,16 @@ class SaleItemResponse(BaseModel):
     product_id: int
     product_name: str
     uom: str
+    # quantity / quantity_* are in the product's base unit (inventory truth).
     quantity: Decimal
     quantity_returned: Decimal
     quantity_returnable: Decimal
     can_return: bool
+    # What the cashier actually sold (chosen unit) — for receipts / history.
+    product_unit_id: Optional[int] = None
+    sold_quantity: Decimal
+    sold_unit_label: Optional[str] = None
+    sold_unit_factor: Decimal = Decimal("1")
     unit_price: Decimal
     tax_percent: Decimal
     tax_amount: Decimal

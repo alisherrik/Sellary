@@ -11,8 +11,15 @@ class SaleItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    # `quantity` is always in the product's BASE unit — the FIFO ledger, returns
+    # and reports all read it. The `sold_*` columns record what the cashier
+    # actually picked (e.g. "2 qop") for the receipt and history display.
     quantity = Column(Numeric(10, 3), nullable=False)
-    quantity_returned = Column(Numeric(10, 3), nullable=False, default=0)  # Track returned quantity
+    quantity_returned = Column(Numeric(10, 3), nullable=False, default=0)  # Track returned quantity (base unit)
+    product_unit_id = Column(Integer, ForeignKey("product_units.id"), nullable=True)
+    sold_quantity = Column(Numeric(10, 3), nullable=False, default=0)
+    sold_unit_label = Column(String(20), nullable=True)
+    sold_unit_factor = Column(Numeric(12, 4), nullable=False, default=Decimal("1"))
     unit_price = Column(Numeric(10, 2), nullable=False)
     tax_percent = Column(Numeric(5, 2), nullable=False, default=Decimal("0.00"))
     tax_amount = Column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))

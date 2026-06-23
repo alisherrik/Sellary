@@ -115,6 +115,18 @@ export interface Category {
   created_at: string;
 }
 
+// An additional sale unit on top of the product's base unit (uom + sell_price).
+// `factor` = base units per 1 of this unit; `sell_price` = price per this unit.
+export interface ProductUnit {
+  id: number;
+  name: string;
+  factor: string;
+  sell_price: string;
+  barcode?: string | null;
+  is_active: boolean;
+  sort_order: number;
+}
+
 export interface Product {
   id: number;
   barcode?: string | null;
@@ -131,6 +143,7 @@ export interface Product {
   min_stock_level: number;
   is_active: boolean;
   profit_percent?: string;
+  units?: ProductUnit[];
   created_at: string;
   updated_at?: string;
 }
@@ -151,6 +164,10 @@ export interface SaleItem {
   product_name: string;
   uom: string;
   quantity: number;
+  product_unit_id?: number | null;
+  sold_quantity?: number;
+  sold_unit_label?: string | null;
+  sold_unit_factor?: number;
   unit_price: string;
   tax_percent: string;
   tax_amount: string;
@@ -212,8 +229,18 @@ export interface SaleReturnOptions {
   returnable_statuses: string[];
 }
 
+// The chosen sale unit for a cart line. `id: null` means the product's base unit.
+// `factor` = base units per 1 of this unit; `price` = price per this unit.
+export interface CartUnit {
+  id: number | null;
+  label: string;
+  factor: number;
+  price: number;
+}
+
 export interface CartItem {
   product: Product;
+  unit: CartUnit;
   quantity: number;
   discount: number;
 }

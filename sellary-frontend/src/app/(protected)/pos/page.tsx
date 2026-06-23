@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useCartStore } from '@/lib/store';
+import Link from 'next/link';
+import { useCartStore, useUIStore } from '@/lib/store';
 import { salesApi, productsApi, categoriesApi } from '@/lib/api';
 import { formatCurrency, hotkeyManager, printReceipt, registerHotkeys } from '@/lib/utils';
 import { useProducts } from '@/hooks/useQueries';
 import { useDebounce } from '@/hooks/useDebounce';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Category, Product } from '@/lib/types';
+import { canAdd, isOverStock, remainingStock } from '@/lib/posStock';
+import { cartLineKey, hasMultipleUnits, saleUnits } from '@/lib/posUnits';
 import {
   PlusIcon,
   TrashIcon,
@@ -65,10 +68,40 @@ export default function POS() {
   const [cashReceived, setCashReceived] = useState('');
   const [loading, setLoading] = useState(false);
   const [totalEdit, setTotalEdit] = useState<string | null>(null);
-  const [priceEdits, setPriceEdits] = useState<Record<number, string>>({});
-  const [qtyEdits, setQtyEdits] = useState<Record<number, string>>({});
+  const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
+  const [qtyEdits, setQtyEdits] = useState<Record<string, string>>({});
   const [showCartSheet, setShowCartSheet] = useState(false);
   const { isServerReachable } = useServerHealth();
+  const queryClient = useQueryClient();
+  const { cartPanelWidth, setCartPanelWidth } = useUIStore();
+  const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  // Drag the handle between the catalog and the cart to resize the cart panel.
+  // The cart sits on the right, so dragging left widens it. Width is clamped and
+  // persisted inside the store's setter.
+  const handleResizeStart = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      resizeStateRef.current = { startX: e.clientX, startWidth: cartPanelWidth };
+      const onMove = (ev: PointerEvent) => {
+        const state = resizeStateRef.current;
+        if (!state) return;
+        setCartPanelWidth(state.startWidth - (ev.clientX - state.startX));
+      };
+      const onUp = () => {
+        resizeStateRef.current = null;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        document.body.style.removeProperty('user-select');
+        document.body.style.removeProperty('cursor');
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'col-resize';
+    },
+    [cartPanelWidth, setCartPanelWidth],
+  );
 
   // Catalog state (inline register catalog).
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,6 +166,7 @@ export default function POS() {
     addItem,
     removeItem,
     updateQuantity,
+    changeUnit,
     setDiscount,
     clearCart,
     getSubtotal,
@@ -140,6 +174,50 @@ export default function POS() {
   } = useCartStore();
   const activeSession = sessions.find((session) => session.id === activeSessionId);
   const items = useMemo(() => activeSession?.items ?? [], [activeSession]);
+
+  // Stock guardrails. The catalog query (`products`) holds the freshest stock;
+  // fall back to the cart item's snapshot for products outside the current
+  // search/category filter. All stock math is in the product's BASE unit — a
+  // cart line in an alternative unit consumes `quantity * unit.factor` base units.
+  const productStock = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const product of products) map.set(product.id, Number(product.stock_quantity));
+    return map;
+  }, [products]);
+  const stockForItem = useCallback(
+    (item: { product: Product }) =>
+      productStock.get(item.product.id) ?? Number(item.product.stock_quantity),
+    [productStock],
+  );
+  // Total base-unit demand per product across all cart lines (units share stock).
+  const cartBaseByProduct = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const item of items) {
+      const base = item.quantity * (item.unit?.factor ?? 1);
+      map.set(item.product.id, (map.get(item.product.id) ?? 0) + base);
+    }
+    return map;
+  }, [items]);
+  // Max sellable quantity for a line in its own unit, given other lines of the
+  // same product already claim some of the shared stock.
+  const maxSoldForItem = useCallback(
+    (item: { product: Product; unit?: { factor: number }; quantity: number }) => {
+      const factor = item.unit?.factor ?? 1;
+      const stock = stockForItem(item);
+      const otherBase = (cartBaseByProduct.get(item.product.id) ?? 0) - item.quantity * factor;
+      return Math.max(0, (stock - otherBase) / factor);
+    },
+    [stockForItem, cartBaseByProduct],
+  );
+  const overStockItems = useMemo(
+    () =>
+      items.filter((item) =>
+        isOverStock(stockForItem(item), cartBaseByProduct.get(item.product.id) ?? 0),
+      ),
+    [items, stockForItem, cartBaseByProduct],
+  );
+  const hasOverStock = overStockItems.length > 0;
+
   const [overallDiscounts, setOverallDiscounts] = useState<Record<string, number>>({});
   const overallDiscount = overallDiscounts[activeSessionId] ?? 0;
   const setActiveOverallDiscount = useCallback(
@@ -184,10 +262,22 @@ export default function POS() {
 
   const handleAddToCart = useCallback(
     (product: Product) => {
+      // Tiles add one unit of the base unit (factor 1 -> +1 base unit).
+      const inCartBase = cartBaseByProduct.get(product.id) ?? 0;
+      const stock = Number(product.stock_quantity);
+      if (!canAdd(stock, inCartBase, 1)) {
+        const left = remainingStock(stock, inCartBase);
+        toast.error(
+          left > 0
+            ? `«${product.name}»: доступно ещё ${left} ${product.uom}`
+            : `«${product.name}» — нет в наличии. Пополните через «Закупки».`,
+        );
+        return;
+      }
       addItem(product);
       toast.success(`${product.name} добавлен`);
     },
-    [addItem],
+    [addItem, cartBaseByProduct],
   );
 
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
@@ -222,6 +312,11 @@ export default function POS() {
       return;
     }
 
+    if (hasOverStock) {
+      toast.error('Недостаточно товара на складе. Проверьте корзину.');
+      return;
+    }
+
     if (paymentMethod === 'card' && !cardType) {
       toast.error('Выберите тип карты');
       return;
@@ -235,14 +330,15 @@ export default function POS() {
     setLoading(true);
 
     const saleItems = items.map((item) => {
+      const unitPrice = Number(item.unit?.price ?? item.product.sell_price);
       const hasMarkup = item.discount < 0;
       return {
         product_id: item.product.id,
+        // null = base unit; quantity & unit_price are in the chosen unit.
+        product_unit_id: item.unit?.id ?? null,
         quantity: item.quantity,
-        unit_price: hasMarkup
-          ? item.product.sell_price + Math.abs(item.discount)
-          : item.product.sell_price,
-        tax_percent: item.product.tax_percent,
+        unit_price: hasMarkup ? unitPrice + Math.abs(item.discount) : unitPrice,
+        tax_percent: Number(item.product.tax_percent),
         discount_amount: Math.max(0, item.discount || 0),
       };
     });
@@ -265,17 +361,31 @@ export default function POS() {
     try {
       const { data: sale } = await salesApi.create(saleData);
       toast.success('Продажа завершена');
+      // Refresh stock counts so the catalog reflects what was just sold.
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       // Clear the register first so the next sale can start immediately, then
       // print on the next tick — window.print() is blocking and must not sit on
       // the checkout's critical path.
       resetCheckout();
       setTimeout(() => printReceipt(sale), 0);
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Не удалось завершить продажу');
+      const detail = error.response?.data?.detail;
+      // The backend FIFO ledger is the final guard against overselling. If a
+      // race (stale stock, a parallel sale) slips a line through the UI checks,
+      // turn the raw "Insufficient stock…" string into an actionable message
+      // and refresh the catalog so the cashier sees the corrected counts.
+      if (typeof detail === 'string' && detail.toLowerCase().includes('insufficient stock')) {
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+        toast.error(
+          'Недостаточно товара на складе. Количества обновлены — уменьшите количество в корзине или пополните запас через «Закупки».',
+        );
+      } else {
+        toast.error(detail || 'Не удалось завершить продажу');
+      }
     } finally {
       setLoading(false);
     }
-  }, [items, paymentMethod, cardType, cashPayment.isSufficient, isServerReachable, overallDiscount, resetCheckout]);
+  }, [items, hasOverStock, paymentMethod, cardType, cashPayment.isSufficient, isServerReachable, overallDiscount, resetCheckout, queryClient]);
 
   useEffect(() => {
     hotkeyManager.register({
@@ -382,16 +492,25 @@ export default function POS() {
           </div>
         ) : (
           items.map((item) => {
-            const sellPrice = Number(item.product.sell_price);
+            const key = cartLineKey(item.product.id, item.unit?.id ?? null);
+            const unitPrice = Number(item.unit?.price ?? item.product.sell_price);
+            const unitLabel = item.unit?.label ?? item.product.uom;
             const discountAmount = item.discount || 0;
-            const finalPrice = sellPrice - discountAmount;
+            const finalPrice = unitPrice - discountAmount;
             const hasPriceAdjustment = discountAmount !== 0;
             const isMarkup = discountAmount < 0;
             const absDiscountAmount = Math.abs(discountAmount);
+            const units = saleUnits(item.product);
+            const showUnitPicker = hasMultipleUnits(item.product);
+            const maxSold = maxSoldForItem(item);
+            const lineOverStock = isOverStock(
+              stockForItem(item),
+              cartBaseByProduct.get(item.product.id) ?? 0,
+            );
 
             return (
               <div
-                key={item.product.id}
+                key={key}
                 className={`rounded-2xl p-3 transition-colors ${
                   hasPriceAdjustment
                     ? isMarkup
@@ -406,15 +525,15 @@ export default function POS() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14px] font-bold text-gray-900 dark:text-white">{item.product.name}</p>
-                    <p className="text-[12px] text-gray-400">{formatCurrency(sellPrice)} / {item.product.uom}</p>
+                    <p className="text-[12px] text-gray-400">{formatCurrency(unitPrice)} / {unitLabel}</p>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => {
                         const next = item.quantity - 1;
-                        if (next <= 0) removeItem(item.product.id);
-                        else updateQuantity(item.product.id, next);
+                        if (next <= 0) removeItem(key);
+                        else updateQuantity(key, next);
                       }}
                       className="grid h-8 w-8 place-items-center rounded-xl bg-white text-lg font-bold text-gray-600 shadow-sm dark:bg-gray-800 dark:text-gray-200"
                     >
@@ -424,23 +543,32 @@ export default function POS() {
                       type="text"
                       inputMode="decimal"
                       aria-label={`Количество: ${item.product.name}`}
-                      value={qtyEdits[item.product.id] ?? item.quantity.toString()}
-                      onChange={(e) => setQtyEdits((prev) => ({ ...prev, [item.product.id]: e.target.value }))}
+                      value={qtyEdits[key] ?? item.quantity.toString()}
+                      onChange={(e) => setQtyEdits((prev) => ({ ...prev, [key]: e.target.value }))}
                       onBlur={() => {
-                        const raw = qtyEdits[item.product.id];
+                        const raw = qtyEdits[key];
                         setQtyEdits((prev) => {
                           const next = { ...prev };
-                          delete next[item.product.id];
+                          delete next[key];
                           return next;
                         });
                         if (raw === undefined) return;
                         const parsed = parseFloat(raw.replace(',', '.'));
                         if (isNaN(parsed) || parsed <= 0) return;
-                        if (parsed > item.product.stock_quantity) {
-                          toast.error(`Доступно: ${item.product.stock_quantity} ${item.product.uom}`);
+                        if (parsed > maxSold + 1e-9) {
+                          // Clamp to what the shared stock can cover rather than
+                          // leaving an invalid quantity that would fail at checkout.
+                          if (maxSold <= 0) {
+                            removeItem(key);
+                            toast.error(`«${item.product.name}» — нет в наличии`);
+                          } else {
+                            const clamped = Number(maxSold.toFixed(3));
+                            updateQuantity(key, clamped);
+                            toast.error(`Доступно только ${clamped} ${unitLabel}`);
+                          }
                           return;
                         }
-                        updateQuantity(item.product.id, parsed);
+                        updateQuantity(key, parsed);
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
@@ -449,35 +577,58 @@ export default function POS() {
                     />
                     <button
                       type="button"
-                      onClick={() => {
-                        if (item.quantity + 1 > item.product.stock_quantity) {
-                          toast.error(`Доступно: ${item.product.stock_quantity} ${item.product.uom}`);
-                          return;
-                        }
-                        updateQuantity(item.product.id, item.quantity + 1);
-                      }}
-                      className="grid h-8 w-8 place-items-center rounded-xl bg-blue-600 text-lg font-bold text-white"
+                      disabled={item.quantity + 1 > maxSold + 1e-9}
+                      title={
+                        item.quantity + 1 > maxSold + 1e-9
+                          ? `Доступно: ${Number(maxSold.toFixed(3))} ${unitLabel}`
+                          : undefined
+                      }
+                      onClick={() => updateQuantity(key, item.quantity + 1)}
+                      className="grid h-8 w-8 place-items-center rounded-xl bg-blue-600 text-lg font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-600"
                     >
                       +
                     </button>
                   </div>
                 </div>
 
+                {showUnitPicker && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[11px] text-gray-400">Ед.</span>
+                    <select
+                      aria-label={`Единица измерения: ${item.product.name}`}
+                      value={String(item.unit?.id ?? 'base')}
+                      onChange={(e) => {
+                        const next = units.find(
+                          (u) => String(u.id ?? 'base') === e.target.value,
+                        );
+                        if (next) changeUnit(key, next);
+                      }}
+                      className="h-8 flex-1 rounded-lg border border-gray-200 bg-white px-2 text-[12px] font-semibold text-gray-700 focus:border-blue-400 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                    >
+                      {units.map((u) => (
+                        <option key={String(u.id ?? 'base')} value={String(u.id ?? 'base')}>
+                          {u.label} · {formatCurrency(u.price)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="mt-2 flex items-center gap-2">
                   <span className="text-[11px] text-gray-400">Цена</span>
                   <input
                     type="text"
                     inputMode="decimal"
-                    value={priceEdits[item.product.id] ?? formatEditableAmount(hasPriceAdjustment ? finalPrice : sellPrice)}
-                    onChange={(e) => setPriceEdits((prev) => ({ ...prev, [item.product.id]: e.target.value }))}
+                    value={priceEdits[key] ?? formatEditableAmount(hasPriceAdjustment ? finalPrice : unitPrice)}
+                    onChange={(e) => setPriceEdits((prev) => ({ ...prev, [key]: e.target.value }))}
                     onBlur={() => {
-                      const raw = priceEdits[item.product.id];
+                      const raw = priceEdits[key];
                       if (raw !== undefined) {
-                        setDiscount(item.product.id, calculateDiscountFromEditedPrice(raw, sellPrice));
+                        setDiscount(key, calculateDiscountFromEditedPrice(raw, unitPrice));
                       }
                       setPriceEdits((prev) => {
                         const next = { ...prev };
-                        delete next[item.product.id];
+                        delete next[key];
                         return next;
                       });
                     }}
@@ -503,12 +654,24 @@ export default function POS() {
                   <button
                     type="button"
                     aria-label={`Удалить ${item.product.name}`}
-                    onClick={() => removeItem(item.product.id)}
+                    onClick={() => removeItem(key)}
                     className="rounded-lg p-1.5 text-gray-400 hover:bg-white hover:text-red-600 dark:hover:bg-gray-800"
                   >
                     <TrashIcon className="h-4 w-4" />
                   </button>
                 </div>
+
+                {lineOverStock && (
+                  <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                    <span>На складе только {stockForItem(item)} {item.product.uom}.</span>
+                    <Link
+                      href="/purchase-orders"
+                      className="font-semibold underline underline-offset-2 hover:text-red-800 dark:hover:text-red-200"
+                    >
+                      Пополнить запас
+                    </Link>
+                  </div>
+                )}
               </div>
             );
           })
@@ -523,6 +686,19 @@ export default function POS() {
           <span className="font-bold text-gray-900 dark:text-white">Итого</span>
           <span className="text-[28px] font-extrabold leading-none tabular-nums text-gray-900 dark:text-white">{formatCurrency(finalTotal)}</span>
         </div>
+        {hasOverStock && (
+          <div className="mb-3 rounded-xl bg-red-50 p-2.5 text-[12px] leading-snug text-red-700 dark:bg-red-900/20 dark:text-red-300">
+            <p className="font-semibold">Недостаточно товара на складе:</p>
+            <p className="mt-0.5">{overStockItems.map((item) => item.product.name).join(', ')}.</p>
+            <p className="mt-1">
+              Уменьшите количество или{' '}
+              <Link href="/purchase-orders" className="font-semibold underline underline-offset-2">
+                пополните запас
+              </Link>
+              .
+            </p>
+          </div>
+        )}
         <div className="flex gap-2">
           {items.length > 0 && (
             <button
@@ -536,8 +712,9 @@ export default function POS() {
           )}
           <button
             type="button"
-            onClick={() => items.length > 0 && openPaymentModal()}
-            disabled={items.length === 0}
+            onClick={() => items.length > 0 && !hasOverStock && openPaymentModal()}
+            disabled={items.length === 0 || hasOverStock}
+            title={hasOverStock ? 'Недостаточно товара на складе' : undefined}
             className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl text-[17px] font-extrabold text-white shadow-lg transition-all hover:brightness-105 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}
           >
@@ -620,27 +797,39 @@ export default function POS() {
                     </div>
                   ))
                 : products.map((product) => {
-                    const out = product.stock_quantity <= 0;
+                    const stock = Number(product.stock_quantity);
+                    const inCartBase = cartBaseByProduct.get(product.id) ?? 0;
+                    const left = remainingStock(stock, inCartBase);
+                    const out = stock <= 0;
+                    // Tiles add one base unit; disable when a full unit no longer fits.
+                    const cannotAdd = out || !canAdd(stock, inCartBase, 1);
                     return (
                       <button
                         key={product.id}
                         type="button"
                         onClick={() => handleAddToCart(product)}
-                        disabled={out}
+                        disabled={cannotAdd}
+                        title={
+                          out
+                            ? 'Нет в наличии — пополните через «Закупки»'
+                            : cannotAdd
+                              ? 'Весь доступный остаток уже в корзине'
+                              : undefined
+                        }
                         className={`group relative flex h-36 flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg active:scale-95 dark:border-gray-700 dark:bg-gray-800 ${
-                          out ? 'cursor-not-allowed opacity-50 grayscale' : ''
+                          cannotAdd ? 'cursor-not-allowed opacity-50 grayscale' : ''
                         }`}
                       >
                         <span
                           className={`absolute right-3 top-3 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                            out
-                              ? 'bg-gray-200 text-gray-500'
-                              : product.stock_quantity <= product.min_stock_level
+                            out || left <= 0
+                              ? 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                              : left <= Number(product.min_stock_level)
                                 ? 'bg-red-100 text-red-700'
                                 : 'bg-emerald-100 text-emerald-700'
                           }`}
                         >
-                          {out ? 'нет' : `${product.stock_quantity} ${product.uom}`}
+                          {out ? 'нет' : left <= 0 ? 'в корзине' : `${left} ${product.uom}`}
                         </span>
                         <div className={`mb-auto grid h-10 w-10 place-items-center rounded-2xl text-base font-bold ${tileColor(product.category_id)}`}>
                           {product.name.charAt(0).toUpperCase()}
@@ -662,8 +851,22 @@ export default function POS() {
           </div>
         </main>
 
+        {/* Resize handle (desktop only) */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Изменить ширину корзины"
+          onPointerDown={handleResizeStart}
+          className="group hidden w-2 shrink-0 cursor-col-resize items-center justify-center lg:flex"
+        >
+          <div className="h-12 w-1 rounded-full bg-gray-300 transition-colors group-hover:bg-blue-400 dark:bg-gray-600 dark:group-hover:bg-blue-500" />
+        </div>
+
         {/* Cart — desktop aside */}
-        <aside className="hidden w-[380px] shrink-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 lg:block">
+        <aside
+          style={{ width: cartPanelWidth }}
+          className="hidden shrink-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 lg:block"
+        >
           {cartPanel}
         </aside>
       </div>
@@ -814,7 +1017,7 @@ export default function POS() {
 
             <button
               onClick={completeSale}
-              disabled={loading || (paymentMethod === 'cash' && !cashPayment.isSufficient)}
+              disabled={loading || hasOverStock || (paymentMethod === 'cash' && !cashPayment.isSufficient)}
               className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3 text-base font-bold text-white transition-all hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-400 sm:py-4 sm:text-xl"
             >
               {loading ? (

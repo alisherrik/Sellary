@@ -5,7 +5,7 @@
     "watch": ["*.py", "api/**", "core/**", "models/**", "repositories/**", "schemas/**", "services/**", "alembic/**", "requirements.txt"]
   },
   "deploy": {
-    "preDeployCommand": "alembic upgrade a1b2c3d4e5f6",
+    "preDeployCommand": "alembic upgrade b2c3d4e5f6a7",
     "startCommand": "uvicorn main:app --host 0.0.0.0 --port $PORT",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,

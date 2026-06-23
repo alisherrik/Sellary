@@ -54,6 +54,35 @@ class SaleService:
         )
         return [self._to_response(sale) for sale in sales], total
 
+    def _resolve_sale_unit(self, product, item_create):
+        """Resolve the chosen sale unit into base-unit terms.
+
+        Returns ``(factor, label, sold_quantity, base_quantity)`` where
+        ``sold_quantity`` is what the cashier entered in the chosen unit and
+        ``base_quantity = sold_quantity * factor`` is what the inventory ledger
+        consumes. A null ``product_unit_id`` means the product's base unit.
+        """
+        factor = Decimal("1")
+        label = product.uom
+        if item_create.product_unit_id is not None:
+            unit = next(
+                (
+                    u
+                    for u in (product.units or [])
+                    if u.id == item_create.product_unit_id and u.is_active
+                ),
+                None,
+            )
+            if unit is None:
+                raise ValueError(
+                    f"Sale unit {item_create.product_unit_id} not found for product '{product.name}'"
+                )
+            factor = Decimal(unit.factor)
+            label = unit.name
+        sold_quantity = Decimal(item_create.quantity)
+        base_quantity = (sold_quantity * factor).quantize(Decimal("0.001"))
+        return factor, label, sold_quantity, base_quantity
+
     def create(self, sale_create: SaleCreate, cashier_id: int) -> SaleResponse:
         product_ids = [item.product_id for item in sale_create.items]
         locked_products = self.product_repo.get_multiple_for_update(
@@ -89,9 +118,14 @@ class SaleService:
 
         for item_create in sale_create.items:
             product = product_map[item_create.product_id]
+            factor, unit_label, sold_quantity, base_quantity = self._resolve_sale_unit(
+                product, item_create
+            )
 
+            # Money is computed from the chosen unit (sold_quantity * unit_price);
+            # inventory is driven by base_quantity below.
             item_subtotal = self.calc.calculate_item_subtotal(
-                item_create.quantity,
+                sold_quantity,
                 item_create.unit_price,
             )
             item_tax = self.calc.calculate_item_tax(
@@ -106,7 +140,11 @@ class SaleService:
 
             item = SaleItem(
                 product_id=item_create.product_id,
-                quantity=item_create.quantity,
+                quantity=base_quantity,
+                product_unit_id=item_create.product_unit_id,
+                sold_quantity=sold_quantity,
+                sold_unit_label=unit_label,
+                sold_unit_factor=factor,
                 unit_price=item_create.unit_price,
                 tax_percent=item_create.tax_percent,
                 tax_amount=item_tax,
@@ -116,7 +154,7 @@ class SaleService:
                 # unit_cost_at_sale / cost_total_at_sale are set from the actual
                 # FIFO layers consumed once the item has been flushed below.
                 unit_cost_at_sale=product.cost_price,
-                cost_total_at_sale=(item_create.quantity * product.cost_price).quantize(Decimal("0.01")),
+                cost_total_at_sale=(base_quantity * product.cost_price).quantize(Decimal("0.01")),
                 created_at=datetime.now(),
             )
             items.append(item)
@@ -280,6 +318,10 @@ class SaleService:
                     "can_return": (
                         item.quantity - (getattr(item, "quantity_returned", 0) or 0)
                     ) > 0 and can_return,
+                    "product_unit_id": getattr(item, "product_unit_id", None),
+                    "sold_quantity": getattr(item, "sold_quantity", None) or item.quantity,
+                    "sold_unit_label": getattr(item, "sold_unit_label", None) or item.product.uom,
+                    "sold_unit_factor": getattr(item, "sold_unit_factor", None) or Decimal("1"),
                     "unit_price": item.unit_price,
                     "tax_percent": item.tax_percent,
                     "tax_amount": item.tax_amount,

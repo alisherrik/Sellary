@@ -4,9 +4,16 @@ from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from models.product import Product
+from models.product_unit import ProductUnit
 from repositories.category_repository import CategoryRepository
 from repositories.product_repository import ProductRepository
-from schemas.product import ProductCreate, ProductResponse, ProductUpdate
+from schemas.product import (
+    ProductCreate,
+    ProductResponse,
+    ProductUnitCreate,
+    ProductUnitResponse,
+    ProductUpdate,
+)
 from services.calculation_service import CalculationService
 from services.inventory_ledger_service import InventoryLedgerService
 from services.tenant import resolve_company_id
@@ -67,6 +74,7 @@ class ProductService:
 
         # Stock is owned by the ledger, never assigned to the product row directly.
         values = product_create.model_dump()
+        values.pop("units", None)  # additional sale units are synced separately
         initial_quantity = Decimal(values.pop("stock_quantity", 0) or 0)
         unit_cost = Decimal(values.get("cost_price") or 0)
 
@@ -95,6 +103,7 @@ class ProductService:
                 setattr(existing, field, value)
             existing.is_active = True
             existing = self.product_repo.update(existing)
+            self._sync_units(existing, product_create.units)
             if initial_quantity > 0:
                 self.ledger.add_layer(
                     product=existing,
@@ -114,6 +123,7 @@ class ProductService:
         product.stock_quantity = Decimal("0")
         product.inventory_value = Decimal("0.0000")
         product = self.product_repo.create(product)
+        self._sync_units(product, product_create.units)
 
         if initial_quantity > 0:
             self.ledger.add_layer(
@@ -137,6 +147,7 @@ class ProductService:
 
         update_data = product_update.model_dump(exclude_unset=True)
         update_data.pop("stock_quantity", None)
+        update_data.pop("units", None)  # additional sale units are synced separately
         barcode = update_data.get("barcode")
         if barcode:
             existing = self.product_repo.get_by_barcode(self.company_id, barcode)
@@ -164,6 +175,7 @@ class ProductService:
             setattr(product, field, value)
 
         product = self.product_repo.update(product)
+        self._sync_units(product, product_update.units)
         return self._to_response(product)
 
     def delete(self, product_id: int) -> bool:
@@ -176,6 +188,49 @@ class ProductService:
     def search(self, query: str, limit: int = 10) -> List[ProductResponse]:
         products, _ = self.product_repo.get_all(self.company_id, search=query, limit=limit)
         return [self._to_response(product) for product in products]
+
+    def _sync_units(
+        self, product: Product, units: Optional[List[ProductUnitCreate]]
+    ) -> None:
+        """Reconcile a product's additional sale units with the desired list.
+
+        Units are matched by case-insensitive name. Units missing from the
+        incoming list are deactivated rather than deleted, so historical sale
+        rows referencing them via product_unit_id stay valid.
+        """
+        if units is None:
+            return
+
+        existing = {(u.name or "").strip().lower(): u for u in (product.units or [])}
+        seen: set[str] = set()
+        for unit in units:
+            key = (unit.name or "").strip().lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            row = existing.get(key)
+            if row is not None:
+                row.name = unit.name
+                row.factor = unit.factor
+                row.sell_price = unit.sell_price
+                row.barcode = unit.barcode
+                row.is_active = unit.is_active
+                row.sort_order = unit.sort_order
+            else:
+                product.units.append(
+                    ProductUnit(
+                        name=unit.name,
+                        factor=unit.factor,
+                        sell_price=unit.sell_price,
+                        barcode=unit.barcode,
+                        is_active=unit.is_active,
+                        sort_order=unit.sort_order,
+                    )
+                )
+        for key, row in existing.items():
+            if key not in seen:
+                row.is_active = False
+        self.db.flush()
 
     def _to_response(self, product: Product) -> ProductResponse:
         profit_percent = self.calc.calculate_profit_margin_percent(
@@ -206,4 +261,11 @@ class ProductService:
             created_at=product.created_at,
             updated_at=product.updated_at,
             profit_percent=profit_percent,
+            units=[
+                ProductUnitResponse.model_validate(unit)
+                for unit in sorted(
+                    product.units or [], key=lambda u: (u.sort_order, u.id)
+                )
+                if unit.is_active
+            ],
         )

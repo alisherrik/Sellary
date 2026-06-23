@@ -40,6 +40,10 @@ const emptyCategoryForm = {
   description: '',
 };
 
+// A row in the additional-units editor. Strings while editing; parsed on submit.
+type UnitRow = { name: string; factor: string; sell_price: string; barcode: string };
+const emptyUnitRow: UnitRow = { name: '', factor: '', sell_price: '', barcode: '' };
+
 // Deterministic colour per category so the same category always reads the same
 // across the sidebar dots and the in-table badges. Classes are spelled out in
 // full so Tailwind keeps them in the build.
@@ -81,6 +85,7 @@ export default function Products() {
   const [categoryModalMode, setCategoryModalMode] = useState<CategoryModalMode>('create');
   const [categoryModalSource, setCategoryModalSource] = useState<CategoryModalSource>('manager');
   const [formData, setFormData] = useState(emptyProductForm);
+  const [formUnits, setFormUnits] = useState<UnitRow[]>([]);
   const [categoryFormData, setCategoryFormData] = useState(emptyCategoryForm);
 
   // Debounce so typing in search doesn't fire a network request per keystroke.
@@ -257,6 +262,7 @@ export default function Products() {
   const handleCreateProduct = () => {
     setEditingProduct(null);
     setFormData(emptyProductForm);
+    setFormUnits([]);
     setShowProductModal(true);
   };
 
@@ -274,6 +280,14 @@ export default function Products() {
       stock_quantity: product.stock_quantity.toString(),
       min_stock_level: product.min_stock_level.toString(),
     });
+    setFormUnits(
+      (product.units ?? []).map((unit) => ({
+        name: unit.name,
+        factor: String(unit.factor),
+        sell_price: String(unit.sell_price),
+        barcode: unit.barcode ?? '',
+      })),
+    );
     setShowProductModal(true);
   };
 
@@ -287,8 +301,23 @@ export default function Products() {
     deleteCategoryMutation.mutate(category.id);
   };
 
+  const updateUnitRow = (index: number, field: keyof UnitRow, value: string) =>
+    setFormUnits((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+
   const handleProductSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Keep only complete unit rows; sort_order follows the editor order.
+    const units = formUnits
+      .map((row, index) => ({
+        name: row.name.trim(),
+        factor: parseFloat(row.factor),
+        sell_price: parseFloat(row.sell_price),
+        barcode: row.barcode.trim() || null,
+        is_active: true,
+        sort_order: index,
+      }))
+      .filter((row) => row.name && row.factor > 0 && row.sell_price >= 0);
 
     const data = {
       ...formData,
@@ -298,6 +327,7 @@ export default function Products() {
       stock_quantity: parseFloat(formData.stock_quantity),
       min_stock_level: parseFloat(formData.min_stock_level),
       category_id: formData.category_id ? parseInt(formData.category_id, 10) : null,
+      units,
     };
 
     if (editingProduct) {
@@ -794,6 +824,70 @@ export default function Products() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full h-16 sm:h-20 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm resize-none"
                 />
+              </div>
+
+              {/* Additional sale units (multi-UOM). Base unit = uom + цена продажи. */}
+              <div className="mt-3 sm:mt-4 rounded-xl border border-gray-200 dark:border-gray-600 p-3">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Дополнительные единицы продажи
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setFormUnits((rows) => [...rows, { ...emptyUnitRow }])}
+                    className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    Добавить
+                  </button>
+                </div>
+                <p className="mb-2 text-[11px] leading-snug text-gray-400">
+                  Тот же остаток продаётся в разных единицах. Коэффициент — сколько «{formData.uom || 'ед.'}» в одной такой единице (напр.: «qop», коэффициент&nbsp;5 = 5&nbsp;{formData.uom || 'ед.'}).
+                </p>
+                {formUnits.length === 0 ? (
+                  <p className="text-[11px] text-gray-400">Нет доп. единиц — товар продаётся только в «{formData.uom || 'ед.'}».</p>
+                ) : (
+                  <div className="space-y-2">
+                    {formUnits.map((row, index) => (
+                      <div key={index} className="grid grid-cols-12 items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Название (qop)"
+                          value={row.name}
+                          onChange={(e) => updateUnitRow(index, 'name', e.target.value)}
+                          className="col-span-4 h-9 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-sm"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.0001"
+                          placeholder={`× ${formData.uom || 'ед.'}`}
+                          title={`Сколько «${formData.uom || 'ед.'}» в одной единице`}
+                          value={row.factor}
+                          onChange={(e) => updateUnitRow(index, 'factor', e.target.value)}
+                          className="col-span-3 h-9 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-sm"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Цена"
+                          value={row.sell_price}
+                          onChange={(e) => updateUnitRow(index, 'sell_price', e.target.value)}
+                          className="col-span-3 h-9 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFormUnits((rows) => rows.filter((_, i) => i !== index))}
+                          aria-label="Удалить единицу"
+                          className="col-span-2 flex h-9 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">

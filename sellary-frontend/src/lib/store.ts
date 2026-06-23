@@ -14,7 +14,7 @@ import {
   setCurrentCompanyId,
   setLoginToken,
 } from './session';
-import type { CartItem, CompanySession, CompanySummary, Product, User } from './types';
+import type { CartItem, CartUnit, CompanySession, CompanySummary, Product, User } from './types';
 
 interface LoginResult {
   requiresCompanySelection: boolean;
@@ -193,10 +193,14 @@ interface CartState {
   switchSession: (sessionId: string) => void;
   deleteSession: (sessionId: string) => void;
   renameSession: (sessionId: string, name: string) => void;
-  addItem: (product: Product, quantity?: number) => void;
-  removeItem: (productId: number) => void;
-  updateQuantity: (productId: number, quantity: number) => void;
-  setDiscount: (productId: number, discount: number) => void;
+  // unit defaults to the product's base unit when omitted.
+  addItem: (product: Product, unit?: CartUnit, quantity?: number) => void;
+  // Lines are addressed by their composite key (see lineKey), so the same
+  // product in different units are separate, independently-editable lines.
+  removeItem: (key: string) => void;
+  updateQuantity: (key: string, quantity: number) => void;
+  changeUnit: (key: string, unit: CartUnit) => void;
+  setDiscount: (key: string, discount: number) => void;
   clearCart: () => void;
   getSubtotal: () => number;
   getTax: () => number;
@@ -206,6 +210,15 @@ interface CartState {
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
+
+// Composite identity for a cart line: product + chosen unit (null = base unit).
+const lineKey = (productId: number, unitId: number | null) =>
+  `${productId}:${unitId ?? 'base'}`;
+const itemKey = (item: CartItem) => lineKey(item.product.id, item.unit?.id ?? null);
+const resolveUnit = (product: Product, unit?: CartUnit): CartUnit =>
+  unit ?? { id: null, label: product.uom, factor: 1, price: Number(product.sell_price) };
+const lineSubtotal = (item: CartItem) =>
+  Number(item.unit?.price ?? item.product.sell_price) * item.quantity;
 
 const createDefaultCartState = () => ({
   sessions: [{ id: 'default', name: 'Продажа 1', items: [], createdAt: Date.now() }],
@@ -259,7 +272,7 @@ export const useCartStore = create<CartState>()(
           ),
         })),
 
-      addItem: (product, quantity = 1) =>
+      addItem: (product, unit, quantity = 1) =>
         set((state) => {
           const sessionIndex = state.sessions.findIndex(
             (session) => session.id === state.activeSessionId,
@@ -268,23 +281,25 @@ export const useCartStore = create<CartState>()(
             return state;
           }
 
+          const resolved = resolveUnit(product, unit);
+          const key = lineKey(product.id, resolved.id);
           const session = state.sessions[sessionIndex];
-          const existingItem = session.items.find((item) => item.product.id === product.id);
+          const existingItem = session.items.find((item) => itemKey(item) === key);
 
           const newItems = existingItem
             ? session.items.map((item) =>
-                item.product.id === product.id
+                itemKey(item) === key
                   ? { ...item, quantity: item.quantity + quantity }
                   : item,
               )
-            : [...session.items, { product, quantity, discount: 0 }];
+            : [...session.items, { product, unit: resolved, quantity, discount: 0 }];
 
           const newSessions = [...state.sessions];
           newSessions[sessionIndex] = { ...session, items: newItems };
           return { sessions: newSessions };
         }),
 
-      removeItem: (productId) =>
+      removeItem: (key) =>
         set((state) => {
           const sessionIndex = state.sessions.findIndex(
             (session) => session.id === state.activeSessionId,
@@ -297,12 +312,12 @@ export const useCartStore = create<CartState>()(
           const newSessions = [...state.sessions];
           newSessions[sessionIndex] = {
             ...session,
-            items: session.items.filter((item) => item.product.id !== productId),
+            items: session.items.filter((item) => itemKey(item) !== key),
           };
           return { sessions: newSessions };
         }),
 
-      updateQuantity: (productId, quantity) =>
+      updateQuantity: (key, quantity) =>
         set((state) => {
           const sessionIndex = state.sessions.findIndex(
             (session) => session.id === state.activeSessionId,
@@ -316,13 +331,54 @@ export const useCartStore = create<CartState>()(
           newSessions[sessionIndex] = {
             ...session,
             items: session.items.map((item) =>
-              item.product.id === productId ? { ...item, quantity } : item,
+              itemKey(item) === key ? { ...item, quantity } : item,
             ),
           };
           return { sessions: newSessions };
         }),
 
-      setDiscount: (productId, discount) =>
+      changeUnit: (key, unit) =>
+        set((state) => {
+          const sessionIndex = state.sessions.findIndex(
+            (session) => session.id === state.activeSessionId,
+          );
+          if (sessionIndex === -1) {
+            return state;
+          }
+
+          const session = state.sessions[sessionIndex];
+          const target = session.items.find((item) => itemKey(item) === key);
+          if (!target) {
+            return state;
+          }
+
+          const newKey = lineKey(target.product.id, unit.id);
+          let newItems;
+          const collision = session.items.find(
+            (item) => item !== target && itemKey(item) === newKey,
+          );
+          if (collision) {
+            // Switching onto an existing line: merge quantities, drop the source.
+            newItems = session.items
+              .filter((item) => item !== target)
+              .map((item) =>
+                item === collision
+                  ? { ...item, quantity: item.quantity + target.quantity }
+                  : item,
+              );
+          } else {
+            // Discount is reset because it was relative to the previous unit's price.
+            newItems = session.items.map((item) =>
+              item === target ? { ...item, unit, discount: 0 } : item,
+            );
+          }
+
+          const newSessions = [...state.sessions];
+          newSessions[sessionIndex] = { ...session, items: newItems };
+          return { sessions: newSessions };
+        }),
+
+      setDiscount: (key, discount) =>
         set((state) => {
           const sessionIndex = state.sessions.findIndex(
             (session) => session.id === state.activeSessionId,
@@ -336,7 +392,7 @@ export const useCartStore = create<CartState>()(
           newSessions[sessionIndex] = {
             ...session,
             items: session.items.map((item) =>
-              item.product.id === productId ? { ...item, discount } : item,
+              itemKey(item) === key ? { ...item, discount } : item,
             ),
           };
           return { sessions: newSessions };
@@ -359,18 +415,14 @@ export const useCartStore = create<CartState>()(
       getSubtotal: () => {
         const items =
           get().sessions.find((session) => session.id === get().activeSessionId)?.items || [];
-        return items.reduce(
-          (sum, item) => sum + Number(item.product.sell_price) * item.quantity,
-          0,
-        );
+        return items.reduce((sum, item) => sum + lineSubtotal(item), 0);
       },
 
       getTax: () => {
         const items =
           get().sessions.find((session) => session.id === get().activeSessionId)?.items || [];
         return items.reduce((sum, item) => {
-          const subtotal = Number(item.product.sell_price) * item.quantity;
-          return sum + subtotal * (Number(item.product.tax_percent) / 100);
+          return sum + lineSubtotal(item) * (Number(item.product.tax_percent) / 100);
         }, 0);
       },
 
@@ -385,6 +437,10 @@ export const useCartStore = create<CartState>()(
     {
       name: CART_STORAGE_KEY,
       storage: createCompanyScopedJSONStorage(),
+      // v1 introduced per-line units (CartItem.unit). Older persisted carts lack
+      // it, so reset rather than risk lines without a unit.
+      version: 1,
+      migrate: () => createDefaultCartState(),
       partialize: (state) => ({
         sessions: state.sessions,
         activeSessionId: state.activeSessionId,
@@ -393,17 +449,41 @@ export const useCartStore = create<CartState>()(
   ),
 );
 
+// Desktop cart panel resize bounds (px). Default matches the previous fixed width.
+export const CART_PANEL_MIN_WIDTH = 320;
+export const CART_PANEL_MAX_WIDTH = 640;
+export const CART_PANEL_DEFAULT_WIDTH = 380;
+
+const clampCartWidth = (width: number) =>
+  Math.min(CART_PANEL_MAX_WIDTH, Math.max(CART_PANEL_MIN_WIDTH, width));
+
+const readSidebarCollapsed = () =>
+  typeof window !== 'undefined' && localStorage.getItem('sidebarCollapsed') === '1';
+
+const readCartPanelWidth = () => {
+  if (typeof window === 'undefined') return CART_PANEL_DEFAULT_WIDTH;
+  const raw = Number(localStorage.getItem('cartPanelWidth'));
+  return Number.isFinite(raw) && raw > 0 ? clampCartWidth(raw) : CART_PANEL_DEFAULT_WIDTH;
+};
+
 interface UIState {
   sidebarOpen: boolean;
+  sidebarCollapsed: boolean;
+  cartPanelWidth: number;
   theme: 'light' | 'dark';
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
+  toggleSidebarCollapsed: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  setCartPanelWidth: (width: number) => void;
   toggleTheme: () => void;
   setTheme: (theme: 'light' | 'dark') => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: true,
+  sidebarCollapsed: readSidebarCollapsed(),
+  cartPanelWidth: readCartPanelWidth(),
   theme:
     (typeof window !== 'undefined'
       ? (localStorage.getItem('theme') as 'light' | 'dark')
@@ -411,6 +491,29 @@ export const useUIStore = create<UIState>((set) => ({
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
+
+  toggleSidebarCollapsed: () =>
+    set((state) => {
+      const sidebarCollapsed = !state.sidebarCollapsed;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('sidebarCollapsed', sidebarCollapsed ? '1' : '0');
+      }
+      return { sidebarCollapsed };
+    }),
+  setSidebarCollapsed: (collapsed) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+    }
+    set({ sidebarCollapsed: collapsed });
+  },
+
+  setCartPanelWidth: (width) => {
+    const cartPanelWidth = clampCartWidth(width);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cartPanelWidth', String(cartPanelWidth));
+    }
+    set({ cartPanelWidth });
+  },
 
   toggleTheme: () => {
     set((state) => {

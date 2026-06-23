@@ -3,6 +3,7 @@ from .company_membership import CompanyMembership
 from .user import User
 from .category import Category
 from .product import Product
+from .product_unit import ProductUnit
 from .sale import Sale, SaleStatus
 from .sale_item import SaleItem
 from .sale_return import SaleReturn, SaleReturnItem
@@ -22,6 +23,7 @@ __all__ = [
     "User",
     "Category",
     "Product",
+    "ProductUnit",
     "Sale",
     "SaleStatus",
     "SaleItem",

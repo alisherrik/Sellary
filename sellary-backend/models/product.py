@@ -48,6 +48,12 @@ class Product(Base):
 
     company = relationship("Company", back_populates="products")
     category = relationship("Category", back_populates="products")
+    units = relationship(
+        "ProductUnit",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="ProductUnit.sort_order",
+    )
     sale_items = relationship("SaleItem", back_populates="product")
     inventory_logs = relationship("InventoryLog", back_populates="product")
     purchase_order_items = relationship("PurchaseOrderItem", back_populates="product")

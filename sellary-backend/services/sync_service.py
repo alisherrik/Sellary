@@ -212,6 +212,11 @@ class SyncService:
             item = SaleItem(
                 product_id=item_create.product_id,
                 quantity=item_create.quantity,
+                # The offline cashier always sells in the product's base unit.
+                product_unit_id=None,
+                sold_quantity=item_create.quantity,
+                sold_unit_label=product.uom,
+                sold_unit_factor=Decimal("1"),
                 unit_price=item_create.sell_price,
                 tax_percent=product.tax_percent,
                 tax_amount=item_tax,
