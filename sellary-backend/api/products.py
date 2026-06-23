@@ -121,5 +121,17 @@ def delete_product(
     auth: AuthContext = Depends(require_manager_or_admin),
 ):
     service = ProductService(db, auth.company_id)
-    if not service.delete(product_id):
-        raise HTTPException(status_code=404, detail="Product not found")
+    try:
+        if not service.delete(product_id, user_id=auth.user.id):
+            raise HTTPException(status_code=404, detail="Product not found")
+        # Commit the stock write-off + soft-delete together.
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:
+        db.rollback()
+        raise

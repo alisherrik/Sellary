@@ -656,13 +656,12 @@ class TestLedgerBackedCreate:
         )
         assert result.cost_price == Decimal("7.00")
 
-    def test_reactivation_cost_price_change_requires_zero_stock(
+    def test_reactivation_writes_off_residual_and_allows_new_cost(
         self, db_session, default_company, test_category, admin_user
     ):
-        # A soft-deleted product whose stock was never zeroed still has residual
-        # stock backed by ledger layers. Reactivating it with stock_quantity=0
-        # (no ledger delta) must NOT silently rewrite cost_price, mirroring the
-        # update() guard.
+        # Re-creating a soft-deleted product that still carries residual stock now
+        # starts FRESH: the old stock is written off and the new cost applies,
+        # rather than raising. This is what lets a deleted product be re-created.
         created = ProductService(db_session, default_company.id).create(
             ProductCreate(
                 name="Снятый с продажи",
@@ -676,23 +675,26 @@ class TestLedgerBackedCreate:
         )
         stored = db_session.get(Product, created.id)
         # Soft-delete (flip is_active without zeroing stock), matching what
-        # ProductRepository.delete does, minus its commit (which would break the
-        # test's transaction-rollback isolation).
+        # ProductRepository.delete used to do, minus its commit.
         stored.is_active = False
         db_session.flush()
 
-        with pytest.raises(ValueError, match="stock is zero"):
-            ProductService(db_session, default_company.id).create(
-                ProductCreate(
-                    name="Снятый с продажи",
-                    barcode="REACT-COST-1",
-                    category_id=test_category.id,
-                    cost_price=Decimal("7.00"),  # changed cost while stock > 0
-                    sell_price=Decimal("9.00"),
-                    stock_quantity=Decimal("0"),
-                ),
-                user_id=admin_user.id,
-            )
+        result = ProductService(db_session, default_company.id).create(
+            ProductCreate(
+                name="Снятый с продажи",
+                barcode="REACT-COST-1",
+                category_id=test_category.id,
+                cost_price=Decimal("7.00"),  # changed cost; residual stock written off
+                sell_price=Decimal("9.00"),
+                stock_quantity=Decimal("0"),
+            ),
+            user_id=admin_user.id,
+        )
+        assert result.is_active is True
+        assert result.stock_quantity == Decimal("0")
+        assert result.cost_price == Decimal("7.00")
+        reloaded = db_session.get(Product, result.id)
+        assert reloaded.inventory_value == Decimal("0.0000")
 
     def test_reactivation_with_added_stock_still_works(
         self, db_session, default_company, test_category, admin_user
@@ -729,6 +731,44 @@ class TestLedgerBackedCreate:
         assert result.stock_quantity == Decimal("6")
         reloaded = db_session.get(Product, result.id)
         assert reloaded.inventory_value == Decimal("30.0000")
+
+    def test_delete_then_recreate_works(
+        self, db_session, default_company, test_category, admin_user
+    ):
+        # The reported bug: after deleting a product you couldn't add it again.
+        # delete() now writes off stock, and re-creating reactivates the row.
+        svc = ProductService(db_session, default_company.id)
+        created = svc.create(
+            ProductCreate(
+                name="Удаляемый",
+                barcode="DEL-RECREATE-1",
+                category_id=test_category.id,
+                cost_price=Decimal("10.00"),
+                sell_price=Decimal("15.00"),
+                stock_quantity=Decimal("5"),
+            ),
+            user_id=admin_user.id,
+        )
+        assert svc.delete(created.id, user_id=admin_user.id) is True
+        stored = db_session.get(Product, created.id)
+        assert stored.is_active is False
+        assert stored.stock_quantity == Decimal("0")
+
+        again = svc.create(
+            ProductCreate(
+                name="Удаляемый снова",
+                barcode="DEL-RECREATE-1",
+                category_id=test_category.id,
+                cost_price=Decimal("12.00"),
+                sell_price=Decimal("18.00"),
+                stock_quantity=Decimal("3"),
+            ),
+            user_id=admin_user.id,
+        )
+        assert again.id == created.id
+        assert again.is_active is True
+        assert again.stock_quantity == Decimal("3")
+        assert again.cost_price == Decimal("12.00")
 
 
 class TestToResponse:

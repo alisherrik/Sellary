@@ -83,22 +83,29 @@ class ProductService:
             # touch stock_quantity / inventory_value directly. Apply only the
             # requested initial quantity as a delta through the ledger.
             #
-            # cost_price backs historical inventory value and FIFO layer costs.
-            # If the soft-deleted row still carries residual stock (delete() only
-            # flips is_active, it never zeros stock or consumes layers), changing
-            # cost_price here would silently rewrite inventory_value without
-            # touching the ledger. Enforce the same guard as update(): require
-            # zero stock before a cost change.
-            new_cost = values.get("cost_price")
-            if (
-                new_cost is not None
-                and Decimal(new_cost) != Decimal(existing.cost_price)
-                and Decimal(existing.stock_quantity or 0) > 0
-            ):
-                raise ValueError(
-                    "Cannot change cost_price unless stock is zero: "
-                    "adjust stock to zero, then edit cost, then receive a new purchase"
-                )
+            # Re-creating a previously-deleted product reactivates this same row.
+            # Treat it as a fresh start: write off any residual stock first (a
+            # soft-deleted row may still carry stock backed by ledger layers), so
+            # a new cost_price can be applied and the new initial quantity isn't
+            # stacked on stale stock.
+            residual = Decimal(existing.stock_quantity or 0)
+            if residual > 0:
+                try:
+                    self.ledger.consume_fifo(
+                        product=existing,
+                        quantity=residual,
+                        consumer_type="product_recreate",
+                        consumer_id=existing.id,
+                        sale_item_id=None,
+                        user_id=user_id,
+                        reason="Product re-created",
+                        reference_type="product_recreate",
+                        reference_id=existing.id,
+                    )
+                except ValueError:
+                    # Balance/layer drift — force a clean zero so re-creation works.
+                    existing.stock_quantity = Decimal("0")
+                    existing.inventory_value = Decimal("0.0000")
             for field, value in values.items():
                 setattr(existing, field, value)
             existing.is_active = True
@@ -178,8 +185,35 @@ class ProductService:
         self._sync_units(product, product_update.units)
         return self._to_response(product)
 
-    def delete(self, product_id: int) -> bool:
-        return self.product_repo.delete(self.company_id, product_id)
+    def delete(self, product_id: int, user_id: int | None = None) -> bool:
+        product = self.product_repo.get_by_id_for_update(self.company_id, product_id)
+        if not product:
+            return False
+        # Write off any remaining stock so the row ends empty. Re-creating a
+        # product reactivates this same row, and the cost-price guard blocks that
+        # while stock > 0 — so a deleted product must end at zero stock to be
+        # re-creatable.
+        remaining = Decimal(product.stock_quantity or 0)
+        if remaining > 0:
+            try:
+                self.ledger.consume_fifo(
+                    product=product,
+                    quantity=remaining,
+                    consumer_type="product_delete",
+                    consumer_id=product.id,
+                    sale_item_id=None,
+                    user_id=user_id,
+                    reason="Product deleted",
+                    reference_type="product_delete",
+                    reference_id=product.id,
+                )
+            except ValueError:
+                # Balance/layer drift — force a clean zero so delete still succeeds.
+                product.stock_quantity = Decimal("0")
+                product.inventory_value = Decimal("0.0000")
+        product.is_active = False
+        self.db.flush()
+        return True
 
     def get_low_stock(self) -> List[ProductResponse]:
         products = self.product_repo.get_low_stock_products(self.company_id)
