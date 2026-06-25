@@ -1,10 +1,13 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import POS from '../page';
 import { useCartStore } from '@/lib/store';
+import { useSettingsStore } from '@/store/settingsStore';
+import { salesApi } from '@/lib/api';
+import { printReceipt } from '@/lib/utils';
 import type { Product } from '@/lib/types';
 
 vi.mock('@/providers/ServerHealthProvider', () => ({
@@ -15,6 +18,13 @@ vi.mock('@/lib/api', () => ({
   salesApi: { create: vi.fn() },
   productsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }), getByBarcode: vi.fn() },
   categoriesApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
+}));
+
+// Keep the real utils (formatCurrency, hotkeyManager, registerHotkeys) but spy
+// on printReceipt so we can assert whether a receipt was printed at checkout.
+vi.mock('@/lib/utils', async (importActual) => ({
+  ...(await importActual<typeof import('@/lib/utils')>()),
+  printReceipt: vi.fn(),
 }));
 
 vi.mock('react-hot-toast', () => ({
@@ -94,5 +104,46 @@ describe('POS multi-sale sessions', () => {
 
     expect(screen.getByText('Не хватает').parentElement).toHaveTextContent('20');
     expect(screen.getByRole('button', { name: /завершить продажу/i })).toBeDisabled();
+  });
+});
+
+describe('POS receipt printing setting', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useCartStore.getState().resetState();
+    useSettingsStore.setState({ receiptPrintEnabled: false });
+    vi.mocked(printReceipt).mockClear();
+    vi.mocked(salesApi.create).mockReset();
+    vi.mocked(salesApi.create).mockResolvedValue({
+      data: { id: 1, items: [], created_at: '2026-06-13T00:00:00Z' },
+    } as never);
+  });
+
+  const completeCashSale = async (user: ReturnType<typeof userEvent.setup>) => {
+    useCartStore.getState().addItem(cashProduct);
+    renderPOS();
+    await user.click(screen.getByRole('button', { name: /оплатить/i }));
+    await user.click(screen.getByRole('button', { name: /завершить продажу/i }));
+    await waitFor(() => expect(salesApi.create).toHaveBeenCalled());
+    // Let the post-checkout setTimeout(0) fire if it was scheduled.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+
+  it('prints the receipt when printing is enabled', async () => {
+    const user = userEvent.setup();
+    useSettingsStore.setState({ receiptPrintEnabled: true });
+
+    await completeCashSale(user);
+
+    await waitFor(() => expect(printReceipt).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not print the receipt when printing is disabled', async () => {
+    const user = userEvent.setup();
+    useSettingsStore.setState({ receiptPrintEnabled: false });
+
+    await completeCashSale(user);
+
+    expect(printReceipt).not.toHaveBeenCalled();
   });
 });

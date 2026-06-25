@@ -20,6 +20,13 @@ export const CURRENCIES: Record<CurrencyCode, Currency> = {
 interface SettingsState {
     currency: CurrencyCode;
     setCurrency: (code: CurrencyCode) => void;
+    // Whether to print a receipt after each completed sale. Default off: the
+    // browser can't silently target a chosen printer, so receipts (and the
+    // unwanted "Save as PDF" dialog) are suppressed until the shop explicitly
+    // enables printing in Settings. See settings page helper text for the
+    // one-time Windows-default-printer + Chrome --kiosk-printing setup.
+    receiptPrintEnabled: boolean;
+    setReceiptPrintEnabled: (enabled: boolean) => void;
 }
 
 const noopStorage: StateStorage = {
@@ -33,6 +40,8 @@ export const useSettingsStore = create<SettingsState>()(
         (set) => ({
             currency: 'UZS',
             setCurrency: (code) => set({ currency: code }),
+            receiptPrintEnabled: false,
+            setReceiptPrintEnabled: (enabled) => set({ receiptPrintEnabled: enabled }),
         }),
         {
             name: 'settings-storage',

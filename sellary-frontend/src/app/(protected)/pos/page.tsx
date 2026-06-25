@@ -10,6 +10,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Category, Product } from '@/lib/types';
 import { canAdd, isOverStock, remainingStock } from '@/lib/posStock';
+import { useSettingsStore } from '@/store/settingsStore';
 import { cartLineKey, hasMultipleUnits, saleUnits } from '@/lib/posUnits';
 import {
   PlusIcon,
@@ -372,7 +373,12 @@ export default function POS() {
       // print on the next tick — window.print() is blocking and must not sit on
       // the checkout's critical path.
       resetCheckout();
-      setTimeout(() => printReceipt(sale), 0);
+      // Only print when the shop has opted in (Settings → «Печать чека»).
+      // Otherwise no print window opens — no receipt, no "Save as PDF" prompt.
+      // Read straight from the store so this callback's deps stay stable.
+      if (useSettingsStore.getState().receiptPrintEnabled) {
+        setTimeout(() => printReceipt(sale), 0);
+      }
     } catch (error: any) {
       const detail = error.response?.data?.detail;
       // The backend FIFO ledger is the final guard against overselling. If a

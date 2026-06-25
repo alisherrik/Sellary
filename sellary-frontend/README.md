@@ -43,3 +43,22 @@ npm run build
 - `Esc` - Clear cart / Cancel
 - `Ctrl+P` - Print receipt
 - `+/-` - Adjust quantity
+
+## Receipt printing
+
+Receipt printing is **off by default** and controlled in **Settings → «Печать чека»**.
+When the toggle is off, completing a sale prints nothing (no receipt, no
+"Save as PDF" dialog). When on, the sale calls `window.print()`.
+
+A web page cannot pick a specific printer or print silently on its own — that is
+an OS-level capability. To make receipts print straight to a thermal printer
+with **no dialog and no PDF**, do this one-time setup on the cashier's machine:
+
+1. Set the receipt/thermal printer as the **default printer** in Windows.
+2. Launch Chrome with the `--kiosk-printing` flag, e.g. a desktop shortcut:
+   ```
+   chrome.exe --kiosk-printing --app=https://<your-pos-url>
+   ```
+
+With `--kiosk-printing`, `window.print()` sends the job directly to the default
+printer without showing the print dialog.

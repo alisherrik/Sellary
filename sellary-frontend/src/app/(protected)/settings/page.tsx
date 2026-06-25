@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { BanknotesIcon, ServerIcon } from '@heroicons/react/24/outline';
+import { BanknotesIcon, PrinterIcon, ServerIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 
 import CompanyAdminSection from '@/components/settings/CompanyAdminSection';
@@ -30,7 +30,7 @@ function StatusBadge({
 }
 
 export default function SettingsPage() {
-  const { currency, setCurrency } = useSettingsStore();
+  const { currency, setCurrency, receiptPrintEnabled, setReceiptPrintEnabled } = useSettingsStore();
   const { isServerReachable, isChecking } = useServerHealth();
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
 
@@ -52,6 +52,12 @@ export default function SettingsPage() {
   const handleCurrencyChange = (code: CurrencyCode) => {
     setCurrency(code);
     toast.success(`Валюта изменена на ${CURRENCIES[code].name}.`);
+  };
+
+  const handleReceiptPrintToggle = () => {
+    const next = !receiptPrintEnabled;
+    setReceiptPrintEnabled(next);
+    toast.success(next ? 'Печать чека включена.' : 'Печать чека отключена.');
   };
 
   return (
@@ -95,6 +101,62 @@ export default function SettingsPage() {
                 </button>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="border-b border-gray-100 p-4 sm:p-6">
+          <div className="flex items-center gap-2">
+            <PrinterIcon className="h-5 w-5 text-gray-500" />
+            <h2 className="text-lg font-semibold text-gray-900">Печать чека</h2>
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            Управляйте печатью чека после продажи. Когда печать выключена — после
+            продажи ничего не печатается и не открывается окно «Сохранить как PDF».
+          </p>
+        </div>
+
+        <div className="p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-gray-900">
+                Печатать чек после продажи
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Включите, когда подключён принтер. Чтобы чек печатался сразу, без
+                диалога и PDF: сделайте чековый принтер принтером по умолчанию в
+                Windows и запускайте Chrome с флагом{' '}
+                <code className="rounded bg-gray-100 px-1 py-0.5 text-[11px]">
+                  --kiosk-printing
+                </code>
+                .
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={receiptPrintEnabled}
+              aria-label="Печатать чек после продажи"
+              onClick={handleReceiptPrintToggle}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                receiptPrintEnabled ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                  receiptPrintEnabled ? 'translate-x-5' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="mt-4">
+            <StatusBadge
+              enabled={receiptPrintEnabled}
+              activeLabel="Печать включена"
+              inactiveLabel="Печать отключена"
+            />
           </div>
         </div>
       </section>
