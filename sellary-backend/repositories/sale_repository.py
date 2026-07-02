@@ -1,5 +1,5 @@
-from decimal import Decimal
-from sqlalchemy import String, cast, or_
+from decimal import Decimal, InvalidOperation
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 from models.sale import Sale, SaleStatus
 from models.sale_item import SaleItem
@@ -71,49 +71,85 @@ class SaleRepository:
             )
         if search_terms:
             conditions = []
+            item_count = (
+                select(func.count(SaleItem.id))
+                .where(SaleItem.sale_id == Sale.id)
+                .correlate(Sale)
+                .scalar_subquery()
+            )
+            total_base_quantity = (
+                select(func.coalesce(func.sum(SaleItem.quantity), 0))
+                .where(SaleItem.sale_id == Sale.id)
+                .correlate(Sale)
+                .scalar_subquery()
+            )
+            total_sold_quantity = (
+                select(func.coalesce(func.sum(SaleItem.sold_quantity), 0))
+                .where(SaleItem.sale_id == Sale.id)
+                .correlate(Sale)
+                .scalar_subquery()
+            )
             for term in search_terms:
                 pattern = f"%{term}%"
-                conditions.extend(
-                    [
-                        cast(Sale.id, String).ilike(pattern),
-                        cast(Sale.created_at, String).ilike(pattern),
-                        cast(Sale.voided_at, String).ilike(pattern),
-                        cast(Sale.subtotal, String).ilike(pattern),
-                        cast(Sale.tax_amount, String).ilike(pattern),
-                        cast(Sale.discount_amount, String).ilike(pattern),
-                        cast(Sale.total_amount, String).ilike(pattern),
-                        cast(Sale.payment_method, String).ilike(pattern),
-                        cast(Sale.card_type, String).ilike(pattern),
-                        cast(Sale.status, String).ilike(pattern),
-                        Sale.notes.ilike(pattern),
-                        Sale.void_reason.ilike(pattern),
-                        Sale.cashier.has(
+                term_conditions = [
+                    cast(Sale.id, String).ilike(pattern),
+                    cast(Sale.created_at, String).ilike(pattern),
+                    cast(Sale.voided_at, String).ilike(pattern),
+                    cast(Sale.subtotal, String).ilike(pattern),
+                    cast(Sale.tax_amount, String).ilike(pattern),
+                    cast(Sale.discount_amount, String).ilike(pattern),
+                    cast(Sale.total_amount, String).ilike(pattern),
+                    cast(Sale.payment_method, String).ilike(pattern),
+                    cast(Sale.card_type, String).ilike(pattern),
+                    cast(Sale.status, String).ilike(pattern),
+                    Sale.notes.ilike(pattern),
+                    Sale.void_reason.ilike(pattern),
+                    Sale.cashier.has(
+                        or_(
+                            User.username.ilike(pattern),
+                            User.full_name.ilike(pattern),
+                            User.email.ilike(pattern),
+                        )
+                    ),
+                    Sale.customer.has(
+                        or_(
+                            Customer.name.ilike(pattern),
+                            Customer.phone.ilike(pattern),
+                            Customer.email.ilike(pattern),
+                        )
+                    ),
+                    Sale.items.any(
+                        SaleItem.product.has(
                             or_(
-                                User.username.ilike(pattern),
-                                User.full_name.ilike(pattern),
-                                User.email.ilike(pattern),
+                                Product.name.ilike(pattern),
+                                Product.barcode.ilike(pattern),
                             )
-                        ),
-                        Sale.customer.has(
-                            or_(
-                                Customer.name.ilike(pattern),
-                                Customer.phone.ilike(pattern),
-                                Customer.email.ilike(pattern),
-                            )
-                        ),
-                        Sale.items.any(
-                            SaleItem.product.has(
+                        )
+                    ),
+                    Sale.returns.any(
+                        cast(SaleReturn.total_refund_amount, String).ilike(pattern)
+                    ),
+                ]
+                try:
+                    Decimal(term)
+                except InvalidOperation:
+                    pass
+                else:
+                    term_conditions.extend(
+                        [
+                            Sale.items.any(
                                 or_(
-                                    Product.name.ilike(pattern),
-                                    Product.barcode.ilike(pattern),
+                                    cast(SaleItem.quantity, String).ilike(pattern),
+                                    cast(SaleItem.sold_quantity, String).ilike(pattern),
+                                    cast(SaleItem.quantity_returned, String).ilike(pattern),
                                 )
-                            )
-                        ),
-                        Sale.returns.any(
-                            cast(SaleReturn.total_refund_amount, String).ilike(pattern)
-                        ),
-                    ]
-                )
+                            ),
+                            cast(item_count, String).ilike(pattern),
+                            cast(total_base_quantity, String).ilike(pattern),
+                            cast(total_sold_quantity, String).ilike(pattern),
+                        ]
+                    )
+                conditions.extend(term_conditions)
             query = query.filter(or_(*conditions))
 
         query = query.order_by(Sale.created_at.desc())

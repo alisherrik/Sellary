@@ -124,6 +124,71 @@ class TestListSales:
         assert response.status_code == 200
         assert [sale["id"] for sale in response.json()] == [test_sale.id]
 
+    def test_search_sales_by_total_sold_quantity(
+        self,
+        client: TestClient,
+        db_session,
+        cashier_headers,
+        default_company,
+        cashier_user,
+        test_product,
+    ):
+        test_product.name = "Quantity Product"
+        test_product.barcode = "QTYSAFE"
+        sale = Sale(
+            id=900001,
+            company_id=default_company.id,
+            customer_id=None,
+            cashier_id=cashier_user.id,
+            subtotal=Decimal("31.00"),
+            tax_amount=Decimal("3.00"),
+            discount_amount=Decimal("0.00"),
+            total_amount=Decimal("34.00"),
+            payment_method=PaymentMethod.CASH,
+            status=SaleStatus.COMPLETED,
+            created_at=datetime(2034, 3, 4, 5, 6, 7),
+        )
+        db_session.add(sale)
+        db_session.flush()
+        db_session.add_all(
+            [
+                SaleItem(
+                    sale_id=sale.id,
+                    product_id=test_product.id,
+                    quantity=Decimal("7"),
+                    sold_quantity=Decimal("7"),
+                    unit_price=Decimal("2.00"),
+                    tax_percent=Decimal("0.00"),
+                    tax_amount=Decimal("0.00"),
+                    discount_amount=Decimal("0.00"),
+                    subtotal=Decimal("14.00"),
+                    total=Decimal("14.00"),
+                ),
+                SaleItem(
+                    sale_id=sale.id,
+                    product_id=test_product.id,
+                    quantity=Decimal("5"),
+                    sold_quantity=Decimal("5"),
+                    unit_price=Decimal("4.00"),
+                    tax_percent=Decimal("0.00"),
+                    tax_amount=Decimal("0.00"),
+                    discount_amount=Decimal("0.00"),
+                    subtotal=Decimal("20.00"),
+                    total=Decimal("20.00"),
+                ),
+            ]
+        )
+        db_session.flush()
+
+        response = client.get(
+            "/api/sales",
+            params={"search": "12"},
+            headers=cashier_headers,
+        )
+
+        assert response.status_code == 200
+        assert sale.id in [result["id"] for result in response.json()]
+
     def test_search_suggestions_return_close_typed_value(
         self,
         client: TestClient,
