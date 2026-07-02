@@ -92,4 +92,17 @@ describe('Products stock editing', () => {
       });
     });
   });
+
+  it('omits a blank minimum stock level instead of sending null', async () => {
+    const user = userEvent.setup();
+    renderProducts();
+
+    await user.click(screen.getAllByRole('button', { name: 'Редактировать' })[0]);
+    await user.clear(screen.getByDisplayValue('5'));
+    fireEvent.submit(screen.getByRole('button', { name: 'Сохранить' }).closest('form')!);
+
+    await waitFor(() => expect(productsApi.update).toHaveBeenCalled());
+    const [, payload] = vi.mocked(productsApi.update).mock.calls[0];
+    expect(payload).not.toHaveProperty('min_stock_level');
+  });
 });

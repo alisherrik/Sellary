@@ -321,13 +321,16 @@ export default function Products() {
       }))
       .filter((row) => row.name && row.factor > 0 && row.sell_price >= 0);
 
+    const { min_stock_level: minStockLevel, ...productFormData } = formData;
     const data = {
-      ...formData,
+      ...productFormData,
       cost_price: parseFloat(formData.cost_price),
       sell_price: parseFloat(formData.sell_price),
       tax_percent: parseFloat(formData.tax_percent),
       stock_quantity: parseFloat(formData.stock_quantity),
-      min_stock_level: parseFloat(formData.min_stock_level),
+      ...(minStockLevel.trim()
+        ? { min_stock_level: parseFloat(minStockLevel) }
+        : {}),
       category_id: formData.category_id ? parseInt(formData.category_id, 10) : null,
       units,
     };
