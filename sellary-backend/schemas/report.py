@@ -65,8 +65,8 @@ class LowStockItem(BaseModel):
     product_id: int
     product_name: str
     barcode: str
-    current_stock: int
-    min_stock_level: int
+    current_stock: Decimal
+    min_stock_level: Decimal
 
 
 class DashboardWidgets(BaseModel):

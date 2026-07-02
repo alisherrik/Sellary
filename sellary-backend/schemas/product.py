@@ -1,5 +1,5 @@
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from datetime import datetime
 from enum import Enum
@@ -62,6 +62,13 @@ class ProductUpdate(BaseModel):
     # When provided, replaces the product's additional sale units (units removed
     # from the list are deactivated, not hard-deleted, to keep sale FKs valid).
     units: Optional[List[ProductUnitCreate]] = None
+
+    @field_validator("min_stock_level")
+    @classmethod
+    def reject_null_min_stock_level(cls, value: Optional[Decimal]) -> Decimal:
+        if value is None:
+            raise ValueError("min_stock_level cannot be null")
+        return value
 
 
 class Product(ProductBase):
