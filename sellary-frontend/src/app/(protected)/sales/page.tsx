@@ -14,7 +14,9 @@ import { TableSkeleton } from '@/components/skeletons';
 import AnnulmentDialog from '@/components/transactions/AnnulmentDialog';
 import { Sale, SaleItem, VoidPreview } from '@/lib/types';
 import { useAuthStore } from '@/lib/store';
-import { useSales } from '@/hooks/useQueries';
+import { useDebounce } from '@/hooks/useDebounce';
+import { useSaleSearchSuggestions, useSales } from '@/hooks/useQueries';
+import SalesSearch from '@/components/sales/SalesSearch';
 
 interface SaleReturnItem {
   id: number;
@@ -64,6 +66,7 @@ export default function SalesHistory() {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [searchInput, setSearchInput] = useState('');
   const [returns, setReturns] = useState<SaleReturn[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [refundMethods, setRefundMethods] = useState<string[]>([]);
@@ -75,16 +78,30 @@ export default function SalesHistory() {
   const [voidLoading, setVoidLoading] = useState(false);
   const [voidSubmitting, setVoidSubmitting] = useState(false);
   const isAdmin = useAuthStore((state) => state.currentCompany?.role === 'admin');
+  const debouncedSearch = useDebounce(searchInput, 300);
 
-  const { data: sales = [], isLoading: loading, refetch } = useSales({ limit: 100 });
+  const salesParams = useMemo(() => {
+    const params: Record<string, string | number> = { limit: 200 };
+    const search = debouncedSearch.trim();
 
-  const visibleSales = useMemo(() => {
-    if (statusFilter === 'completed') return sales.filter((s) => s.status === 'completed');
-    if (statusFilter === 'returns')
-      return sales.filter((s) => s.status === 'returned' || s.status === 'partially_returned');
-    if (statusFilter === 'cancelled') return sales.filter((s) => s.status === 'cancelled');
-    return sales;
-  }, [sales, statusFilter]);
+    if (search) params.search = search;
+    if (statusFilter === 'completed') params.status = 'completed';
+    if (statusFilter === 'cancelled') params.status = 'cancelled';
+    if (statusFilter === 'returns') params.status_group = 'returns';
+
+    return params;
+  }, [debouncedSearch, statusFilter]);
+
+  const {
+    data: sales = [],
+    isLoading: loading,
+    isFetching,
+    refetch,
+  } = useSales(salesParams, { placeholderData: (previous) => previous });
+  const { data: searchSuggestions = [], isLoading: suggestionsLoading } =
+    useSaleSearchSuggestions(debouncedSearch);
+  const suggestionsSettled = searchInput.trim() === debouncedSearch.trim();
+  const visibleSales = sales;
 
   const totals = useMemo(() => {
     const financialSales = visibleSales.filter((s) => s.status !== 'cancelled');
@@ -276,8 +293,8 @@ export default function SalesHistory() {
       <div className="flex h-full min-h-0 gap-4">
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
           {/* Header row */}
-          <div className="mb-3 flex items-center gap-3">
-            <div className="flex gap-0.5 rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+          <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center">
+            <div className="flex shrink-0 gap-0.5 overflow-x-auto rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
               {statusTabs.map((tab) => (
                 <button
                   key={tab.key}
@@ -293,13 +310,28 @@ export default function SalesHistory() {
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => refetch()}
-              className="ml-auto flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 sm:px-4"
-            >
-              <ArrowPathIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="hidden sm:inline">Обновить</span>
-            </button>
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <SalesSearch
+                value={searchInput}
+                onChange={setSearchInput}
+                onSelect={setSearchInput}
+                suggestions={suggestionsSettled ? searchSuggestions : []}
+                isLoading={
+                  suggestionsLoading ||
+                  (!suggestionsSettled && searchInput.trim().length >= 2)
+                }
+                isSearching={isFetching && !loading}
+              />
+              <button
+                type="button"
+                aria-label="Обновить продажи"
+                onClick={() => refetch()}
+                className="ml-auto flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-sm text-white hover:bg-blue-700 sm:px-4"
+              >
+                <ArrowPathIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="hidden sm:inline">Обновить</span>
+              </button>
+            </div>
           </div>
 
           {/* KPI cards */}
