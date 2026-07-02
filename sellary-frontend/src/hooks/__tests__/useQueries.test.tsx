@@ -6,6 +6,7 @@ import {
     useDashboard,
     useProducts,
     useSales,
+    useSaleSearchSuggestions,
     useSuppliers,
     usePurchaseOrders,
     usePurchaseOrder,
@@ -36,6 +37,7 @@ vi.mock('@/lib/api', () => ({
     },
     salesApi: {
         getAll: vi.fn(),
+        getSearchSuggestions: vi.fn(),
     },
     suppliersApi: {
         getAll: vi.fn(),
@@ -273,6 +275,46 @@ describe('useSales', () => {
         });
 
         expect(api.salesApi.getAll).not.toHaveBeenCalled();
+    });
+});
+
+describe('useSaleSearchSuggestions', () => {
+    it('fetches tenant-scoped suggestions for two or more characters', async () => {
+        const suggestions = [
+            { kind: 'product', label: 'Кола', value: 'Кола', score: 89 },
+        ];
+        vi.mocked(api.salesApi.getSearchSuggestions).mockResolvedValue(
+            createMockAxiosResponse(suggestions),
+        );
+
+        const { result } = renderHook(() => useSaleSearchSuggestions('колаа'), {
+            wrapper: createWrapper(true),
+        });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(api.salesApi.getSearchSuggestions).toHaveBeenCalledWith('колаа', 8);
+        expect(result.current.data).toEqual(suggestions);
+        expect(queryKeys.saleSearchSuggestions(TEST_COMPANY_ID, 'колаа')).toEqual([
+            'saleSearchSuggestions',
+            TEST_COMPANY_ID,
+            'колаа',
+        ]);
+    });
+
+    it('does not fetch suggestions below two characters', () => {
+        renderHook(() => useSaleSearchSuggestions('к'), {
+            wrapper: createWrapper(true),
+        });
+
+        expect(api.salesApi.getSearchSuggestions).not.toHaveBeenCalled();
+    });
+
+    it('does not fetch suggestions while offline', () => {
+        renderHook(() => useSaleSearchSuggestions('колаа'), {
+            wrapper: createWrapper(false),
+        });
+
+        expect(api.salesApi.getSearchSuggestions).not.toHaveBeenCalled();
     });
 });
 

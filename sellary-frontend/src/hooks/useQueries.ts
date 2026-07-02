@@ -3,7 +3,7 @@ import { reportsApi, productsApi, salesApi, suppliersApi, purchaseOrdersApi } fr
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { useAuthStore } from '@/lib/store';
 import {
-    Product, Sale, Supplier, PurchaseOrder,
+    Product, Sale, SaleSearchSuggestion, Supplier, PurchaseOrder,
     DailySalesReport, ProfitReport, TopProductsReport
 } from '@/lib/types';
 
@@ -14,6 +14,8 @@ export const queryKeys = {
     dashboard: (companyId: number | null) => ['dashboard', tenantKey(companyId)] as const,
     products: (companyId: number | null, params?: any) => ['products', tenantKey(companyId), params] as const,
     sales: (companyId: number | null, params?: any) => ['sales', tenantKey(companyId), params] as const,
+    saleSearchSuggestions: (companyId: number | null, query: string) =>
+        ['saleSearchSuggestions', tenantKey(companyId), query] as const,
     suppliers: (companyId: number | null, params?: any) => ['suppliers', tenantKey(companyId), params] as const,
     purchaseOrders: (companyId: number | null, params?: any) => ['purchaseOrders', tenantKey(companyId), params] as const,
     purchaseOrder: (companyId: number | null, id: number) => ['purchaseOrder', tenantKey(companyId), id] as const,
@@ -63,6 +65,21 @@ export function useSales(params?: any, options?: Partial<UseQueryOptions<Sale[]>
         },
         ...options,
         enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
+    });
+}
+
+export function useSaleSearchSuggestions(query: string, limit = 8) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    const normalizedQuery = query.trim();
+    return useQuery<SaleSearchSuggestion[]>({
+        queryKey: queryKeys.saleSearchSuggestions(companyId, normalizedQuery),
+        queryFn: async () => {
+            const response = await salesApi.getSearchSuggestions(normalizedQuery, limit);
+            return response.data;
+        },
+        enabled: isServerReachable && companyId !== null && normalizedQuery.length >= 2,
+        staleTime: 30_000,
     });
 }
 

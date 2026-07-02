@@ -204,6 +204,13 @@ export interface Sale {
   items: SaleItem[];
 }
 
+export interface SaleSearchSuggestion {
+  kind: 'product' | 'cashier' | 'customer' | 'status' | 'payment';
+  label: string;
+  value: string;
+  score: number;
+}
+
 export interface SaleReturnItem {
   id: number;
   sale_item_id: number;

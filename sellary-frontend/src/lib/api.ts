@@ -16,6 +16,7 @@ import type {
   PurchaseOrder,
   PurchaseOrderPayload,
   ReceivePurchaseOrderPayload,
+  SaleSearchSuggestion,
   VoidPreview,
   VoidResult,
 } from './types';
@@ -204,6 +205,10 @@ export const productsApi = {
 
 export const salesApi = {
   getAll: (params?: any) => api.get('/sales', { params }),
+  getSearchSuggestions: (query: string, limit = 8) =>
+    api.get<SaleSearchSuggestion[]>('/sales/search-suggestions', {
+      params: { q: query, limit },
+    }),
   getById: (id: number) => api.get(`/sales/${id}`),
   create: (data: any, idempotencyKey?: string) => {
     const key = idempotencyKey || generateIdempotencyKey();
