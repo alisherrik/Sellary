@@ -299,6 +299,180 @@ class TestGetAll:
         assert sales[0].status == SaleStatus.COMPLETED
 
 
+class TestSmartSearch:
+    def test_search_matches_all_sale_history_properties(
+        self,
+        db_session,
+        test_sale,
+        test_product,
+        test_customer,
+        cashier_user,
+    ):
+        test_product.name = "Coca Cola Classic"
+        test_product.barcode = "COLA-9988"
+        test_customer.name = "Firuz Market"
+        test_customer.phone = "+992900112233"
+        test_customer.email = "firuz@example.com"
+        cashier_user.full_name = "Madina Karimova"
+        test_sale.notes = "вечерняя смена"
+        test_sale.void_reason = "ошибка кассира"
+        db_session.flush()
+
+        service = SaleService(db_session)
+        queries = (
+            str(test_sale.id),
+            test_sale.created_at.strftime("%Y-%m-%d"),
+            "Madina",
+            "Firuz",
+            "+992900112233",
+            "firuz@example.com",
+            "Coca Cola",
+            "COLA-9988",
+            "cash",
+            "completed",
+            "33.00",
+            "вечерняя",
+            "ошибка кассира",
+        )
+
+        for query in queries:
+            results, total = service.get_all(search=query)
+            assert total == 1, query
+            assert results[0].id == test_sale.id, query
+
+    def test_search_uses_high_confidence_product_correction(
+        self, db_session, test_sale, test_product
+    ):
+        test_product.name = "Кола"
+        db_session.flush()
+
+        results, total = SaleService(db_session).get_all(search="колаа")
+
+        assert total == 1
+        assert results[0].id == test_sale.id
+
+    def test_search_does_not_apply_low_confidence_correction(
+        self, db_session, test_sale, test_product
+    ):
+        test_product.name = "Кола"
+        db_session.flush()
+
+        results, total = SaleService(db_session).get_all(search="xyz")
+
+        assert results == []
+        assert total == 0
+
+    def test_suggestions_return_typed_close_tenant_values(
+        self,
+        db_session,
+        test_sale,
+        test_product,
+        test_customer,
+        cashier_user,
+    ):
+        test_product.name = "Кола"
+        test_customer.name = "Фируз"
+        cashier_user.full_name = "Мадина"
+        db_session.flush()
+
+        suggestions = SaleService(db_session).get_search_suggestions("колаа")
+
+        assert suggestions[0].kind == "product"
+        assert suggestions[0].label == "Кола"
+        assert suggestions[0].score >= 82
+
+    def test_return_status_group_includes_both_return_states(
+        self, db_session, test_sale, cashier_user
+    ):
+        returned = Sale(
+            cashier_id=cashier_user.id,
+            subtotal=Decimal("10.00"),
+            tax_amount=Decimal("0.00"),
+            discount_amount=Decimal("0.00"),
+            total_amount=Decimal("10.00"),
+            payment_method=PaymentMethod.CASH,
+            status=SaleStatus.RETURNED,
+        )
+        partial = Sale(
+            cashier_id=cashier_user.id,
+            subtotal=Decimal("20.00"),
+            tax_amount=Decimal("0.00"),
+            discount_amount=Decimal("0.00"),
+            total_amount=Decimal("20.00"),
+            payment_method=PaymentMethod.CASH,
+            status=SaleStatus.PARTIALLY_RETURNED,
+        )
+        db_session.add_all([returned, partial])
+        db_session.flush()
+
+        results, total = SaleService(db_session).get_all(status_group="returns")
+
+        assert total == 2
+        assert {result.status for result in results} == {
+            SaleStatus.RETURNED,
+            SaleStatus.PARTIALLY_RETURNED,
+        }
+
+    def test_search_and_suggestions_do_not_cross_company_boundary(
+        self,
+        db_session,
+        default_company,
+        secondary_company,
+        cashier_user,
+    ):
+        private_product = Product(
+            company_id=secondary_company.id,
+            name="Секретный товар",
+            barcode="SECRET-OTHER-TENANT",
+            cost_price=Decimal("1.00"),
+            sell_price=Decimal("2.00"),
+            stock_quantity=Decimal("0"),
+            min_stock_level=Decimal("0"),
+            is_active=True,
+        )
+        db_session.add(private_product)
+        db_session.flush()
+        private_sale = Sale(
+            company_id=secondary_company.id,
+            cashier_id=cashier_user.id,
+            subtotal=Decimal("2.00"),
+            tax_amount=Decimal("0.00"),
+            discount_amount=Decimal("0.00"),
+            total_amount=Decimal("2.00"),
+            payment_method=PaymentMethod.CASH,
+            status=SaleStatus.COMPLETED,
+        )
+        db_session.add(private_sale)
+        db_session.flush()
+        db_session.add(
+            SaleItem(
+                sale_id=private_sale.id,
+                product_id=private_product.id,
+                quantity=Decimal("1"),
+                quantity_returned=Decimal("0"),
+                sold_quantity=Decimal("1"),
+                sold_unit_factor=Decimal("1"),
+                unit_price=Decimal("2.00"),
+                tax_percent=Decimal("0"),
+                tax_amount=Decimal("0"),
+                discount_amount=Decimal("0"),
+                subtotal=Decimal("2.00"),
+                total=Decimal("2.00"),
+                unit_cost_at_sale=Decimal("1.00"),
+                cost_total_at_sale=Decimal("1.00"),
+            )
+        )
+        db_session.flush()
+
+        service = SaleService(db_session, default_company.id)
+        results, total = service.get_all(search="Секретный")
+        suggestions = service.get_search_suggestions("секретний")
+
+        assert results == []
+        assert total == 0
+        assert all("Секрет" not in item.label for item in suggestions)
+
+
 class TestCreateSale:
     """Tests for creating sales."""
 

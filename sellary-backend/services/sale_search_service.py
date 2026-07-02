@@ -1,6 +1,7 @@
 """Typo-tolerant vocabulary ranking for sales-history search."""
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 import re
 from typing import Literal, Sequence
 
@@ -112,6 +113,13 @@ def automatic_terms(
 
     terms = [original]
     seen = {normalize_search(original)}
+    try:
+        numeric = format(Decimal(original).normalize(), "f")
+    except InvalidOperation:
+        numeric = ""
+    if numeric and normalize_search(numeric) not in seen:
+        seen.add(normalize_search(numeric))
+        terms.append(numeric)
     for suggestion in rank_candidates(
         original,
         candidates,

@@ -11,9 +11,15 @@ from repositories.customer_repository import CustomerRepository
 from repositories.inventory_repository import InventoryRepository
 from repositories.product_repository import ProductRepository
 from repositories.sale_repository import SaleRepository
-from schemas.sale import SaleCreate, SaleResponse
+from schemas.sale import SaleCreate, SaleResponse, SaleSearchSuggestion
 from services.calculation_service import CalculationService
 from services.inventory_ledger_service import InventoryLedgerService
+from services.sale_search_service import (
+    STATIC_SEARCH_CANDIDATES,
+    SearchCandidate,
+    automatic_terms,
+    rank_candidates,
+)
 from services.tenant import resolve_company_id
 
 
@@ -42,7 +48,12 @@ class SaleService:
         end_date: Optional[datetime] = None,
         cashier_id: Optional[int] = None,
         status: Optional[SaleStatus] = None,
+        search: Optional[str] = None,
+        status_group: Optional[str] = None,
     ) -> Tuple[List[SaleResponse], int]:
+        search_terms = None
+        if search and search.strip():
+            search_terms = automatic_terms(search, self._search_candidates())
         sales, total = self.sale_repo.get_all(
             self.company_id,
             skip=skip,
@@ -51,8 +62,34 @@ class SaleService:
             end_date=end_date,
             cashier_id=cashier_id,
             status=status,
+            search_terms=search_terms,
+            status_group=status_group,
         )
         return [self._to_response(sale) for sale in sales], total
+
+    def _search_candidates(self) -> list[SearchCandidate]:
+        dynamic = [
+            SearchCandidate(kind, label, value)
+            for kind, label, value in self.sale_repo.get_search_candidates(self.company_id)
+        ]
+        return [*dynamic, *STATIC_SEARCH_CANDIDATES]
+
+    def get_search_suggestions(
+        self, query: str, limit: int = 8
+    ) -> List[SaleSearchSuggestion]:
+        return [
+            SaleSearchSuggestion(
+                kind=item.kind,
+                label=item.label,
+                value=item.value,
+                score=item.score,
+            )
+            for item in rank_candidates(
+                query,
+                self._search_candidates(),
+                limit=limit,
+            )
+        ]
 
     def _resolve_sale_unit(self, product, item_create):
         """Resolve the chosen sale unit into base-unit terms.

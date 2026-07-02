@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -13,7 +13,7 @@ from core.idempotency import (
 )
 from core.state_machine import StateTransitionError
 from schemas.reversal import VoidPreview, VoidRequest, VoidResult
-from schemas.sale import SaleCreate, SaleResponse, SaleStatus
+from schemas.sale import SaleCreate, SaleResponse, SaleSearchSuggestion, SaleStatus
 from schemas.sale_return import SaleReturnCreate, SaleReturnResponse
 from services.sale_return_service import SaleReturnService
 from services.sale_service import SaleService
@@ -87,6 +87,8 @@ def get_sales(
     end_date: Optional[datetime] = None,
     cashier_id: Optional[int] = None,
     status: Optional[SaleStatus] = None,
+    search: Optional[str] = Query(None, max_length=100),
+    status_group: Optional[Literal["returns"]] = None,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context),
 ):
@@ -98,8 +100,20 @@ def get_sales(
         end_date=end_date,
         cashier_id=cashier_id,
         status=status,
+        search=search.strip() if search else None,
+        status_group=status_group,
     )
     return sales
+
+
+@router.get("/search-suggestions", response_model=list[SaleSearchSuggestion])
+def get_sale_search_suggestions(
+    q: str = Query(..., min_length=2, max_length=100),
+    limit: int = Query(8, ge=1, le=10),
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(get_auth_context),
+):
+    return SaleService(db, auth.company_id).get_search_suggestions(q.strip(), limit)
 
 
 @router.get("/{sale_id}", response_model=SaleResponse)

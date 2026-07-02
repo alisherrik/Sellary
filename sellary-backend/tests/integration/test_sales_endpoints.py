@@ -104,6 +104,111 @@ class TestListSales:
         assert isinstance(data, list)
         assert len(data) == 1
 
+    def test_search_sales_by_misspelled_product_name(
+        self,
+        client: TestClient,
+        db_session,
+        cashier_headers,
+        test_sale,
+        test_product,
+    ):
+        test_product.name = "Кола"
+        db_session.flush()
+
+        response = client.get(
+            "/api/sales",
+            params={"search": "колаа"},
+            headers=cashier_headers,
+        )
+
+        assert response.status_code == 200
+        assert [sale["id"] for sale in response.json()] == [test_sale.id]
+
+    def test_search_suggestions_return_close_typed_value(
+        self,
+        client: TestClient,
+        db_session,
+        cashier_headers,
+        test_sale,
+        test_product,
+    ):
+        test_product.name = "Кола"
+        db_session.flush()
+
+        response = client.get(
+            "/api/sales/search-suggestions",
+            params={"q": "колаа"},
+            headers=cashier_headers,
+        )
+
+        assert response.status_code == 200
+        assert response.json()[0] == {
+            "kind": "product",
+            "label": "Кола",
+            "value": "Кола",
+            "score": response.json()[0]["score"],
+        }
+        assert response.json()[0]["score"] >= 82
+
+    def test_sales_search_rejects_overlong_query(
+        self, client: TestClient, cashier_headers
+    ):
+        response = client.get(
+            "/api/sales",
+            params={"search": "x" * 101},
+            headers=cashier_headers,
+        )
+
+        assert response.status_code == 422
+
+    def test_return_status_group_filters_on_server(
+        self, client: TestClient, db_session, cashier_headers, cashier_user
+    ):
+        db_session.add_all(
+            [
+                Sale(
+                    cashier_id=cashier_user.id,
+                    subtotal=Decimal("10"),
+                    tax_amount=Decimal("0"),
+                    discount_amount=Decimal("0"),
+                    total_amount=Decimal("10"),
+                    payment_method=PaymentMethod.CASH,
+                    status=SaleStatus.RETURNED,
+                ),
+                Sale(
+                    cashier_id=cashier_user.id,
+                    subtotal=Decimal("20"),
+                    tax_amount=Decimal("0"),
+                    discount_amount=Decimal("0"),
+                    total_amount=Decimal("20"),
+                    payment_method=PaymentMethod.CASH,
+                    status=SaleStatus.PARTIALLY_RETURNED,
+                ),
+                Sale(
+                    cashier_id=cashier_user.id,
+                    subtotal=Decimal("30"),
+                    tax_amount=Decimal("0"),
+                    discount_amount=Decimal("0"),
+                    total_amount=Decimal("30"),
+                    payment_method=PaymentMethod.CASH,
+                    status=SaleStatus.COMPLETED,
+                ),
+            ]
+        )
+        db_session.flush()
+
+        response = client.get(
+            "/api/sales",
+            params={"status_group": "returns"},
+            headers=cashier_headers,
+        )
+
+        assert response.status_code == 200
+        assert {sale["status"] for sale in response.json()} == {
+            "returned",
+            "partially_returned",
+        }
+
     def test_list_sales_with_pagination(self, client: TestClient, db_session, cashier_headers):
         """Test sales list pagination."""
         category = Category(name="Test Category")

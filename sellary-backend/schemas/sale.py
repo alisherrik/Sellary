@@ -1,6 +1,6 @@
 from decimal import Decimal
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional, List
+from typing import Literal, Optional, List
 from datetime import datetime
 from enum import Enum
 
@@ -109,3 +109,10 @@ class Sale(BaseModel):
 
 class SaleResponse(Sale):
     items: List[SaleItemResponse]
+
+
+class SaleSearchSuggestion(BaseModel):
+    kind: Literal["product", "cashier", "customer", "status", "payment"]
+    label: str
+    value: str
+    score: int = Field(..., ge=0, le=100)
