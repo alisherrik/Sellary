@@ -21,7 +21,7 @@
 - Modify: `sellary-frontend/src/app/(protected)/pos/__tests__/page.test.tsx`
 - Modify: `sellary-frontend/src/app/(protected)/pos/page.tsx`
 
-- [ ] **Step 1: Write the failing component test**
+- [x] **Step 1: Write the failing component test**
 
 Add a dedicated test that places a product in the cart, opens payment, selects `В долг`, confirms that `Получено наличными` disappears, completes the sale, and checks the payload:
 
@@ -54,7 +54,7 @@ it('records a credit sale as cash with a Russian note', async () => {
 
 Reset and configure `salesApi.create` in the relevant `beforeEach` so the test is isolated.
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -64,7 +64,7 @@ npx vitest run "src/app/(protected)/pos/__tests__/page.test.tsx"
 
 Expected: FAIL because no button named `В долг` exists.
 
-- [ ] **Step 3: Add the frontend-only credit option**
+- [x] **Step 3: Add the frontend-only credit option**
 
 In `page.tsx`, add `DocumentTextIcon`, extend the local type, and add the fourth option:
 
@@ -92,7 +92,7 @@ const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('cash');
 <div className="mb-4 grid grid-cols-2 gap-2 sm:mb-6 sm:grid-cols-4 sm:gap-4">
 ```
 
-- [ ] **Step 4: Map credit state to the existing sale API contract**
+- [x] **Step 4: Map credit state to the existing sale API contract**
 
 Build the sale payload with the current backend enum and note:
 
@@ -111,7 +111,7 @@ const saleData: any = {
 
 Keep the existing cash validation and cash controls conditional on `paymentMethod === 'cash'`. Credit therefore does not require cash received and does not show change. Preserve the existing card-only `card_type` logic.
 
-- [ ] **Step 5: Run the focused test and verify GREEN**
+- [x] **Step 5: Run the focused test and verify GREEN**
 
 Run:
 
@@ -121,7 +121,7 @@ npx vitest run "src/app/(protected)/pos/__tests__/page.test.tsx"
 
 Expected: all POS component tests PASS.
 
-- [ ] **Step 6: Run full frontend verification**
+- [x] **Step 6: Run full frontend verification**
 
 Run:
 
@@ -132,7 +132,7 @@ npm run build
 
 Expected: 0 failed tests and Next.js production build exits 0.
 
-- [ ] **Step 7: Commit the implementation**
+- [x] **Step 7: Commit the implementation**
 
 ```bash
 git add -- "sellary-frontend/src/app/(protected)/pos/page.tsx" "sellary-frontend/src/app/(protected)/pos/__tests__/page.test.tsx"

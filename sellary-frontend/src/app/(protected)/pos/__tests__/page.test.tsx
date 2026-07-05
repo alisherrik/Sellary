@@ -107,6 +107,42 @@ describe('POS multi-sale sessions', () => {
   });
 });
 
+describe('POS credit payment', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useCartStore.getState().resetState();
+    useSettingsStore.setState({ receiptPrintEnabled: false });
+    vi.mocked(salesApi.create).mockReset();
+    vi.mocked(salesApi.create).mockResolvedValue({
+      data: { id: 2, items: [], created_at: '2026-07-05T00:00:00Z' },
+    } as never);
+  });
+
+  it('records a credit sale as cash with a Russian note', async () => {
+    const user = userEvent.setup();
+    useCartStore.getState().addItem(cashProduct);
+
+    renderPOS();
+    await user.click(screen.getByRole('button', { name: /оплатить/i }));
+    await user.click(screen.getByRole('button', { name: /в долг/i }));
+
+    expect(
+      screen.queryByRole('textbox', { name: /получено наличными/i }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /завершить продажу/i }));
+
+    await waitFor(() =>
+      expect(salesApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payment_method: 'cash',
+          notes: 'Продано в долг',
+        }),
+      ),
+    );
+    expect(vi.mocked(salesApi.create).mock.calls[0][0]).not.toHaveProperty('card_type');
+  });
+});
+
 describe('POS receipt printing setting', () => {
   beforeEach(() => {
     localStorage.clear();

@@ -18,6 +18,7 @@ import {
   BanknotesIcon,
   CreditCardIcon,
   DevicePhoneMobileIcon,
+  DocumentTextIcon,
   XMarkIcon,
   ShoppingBagIcon,
   ArchiveBoxXMarkIcon,
@@ -35,10 +36,13 @@ import {
   formatEditableAmount,
 } from '@/lib/posPricing';
 
+type PosPaymentMethod = 'cash' | 'card' | 'mobile' | 'credit';
+
 const PAYMENT_METHODS = [
   { id: 'cash', label: 'Наличные', Icon: BanknotesIcon },
   { id: 'card', label: 'Карта', Icon: CreditCardIcon },
   { id: 'mobile', label: 'Мобильный', Icon: DevicePhoneMobileIcon },
+  { id: 'credit', label: 'В долг', Icon: DocumentTextIcon },
 ] as const;
 
 const CARD_TYPES = [
@@ -64,7 +68,7 @@ const tileColor = (id?: number | null) =>
 
 export default function POS() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('cash');
   const [cardType, setCardType] = useState<'alif' | 'eskhata' | 'dc' | null>(null);
   const [cashReceived, setCashReceived] = useState('');
   const [loading, setLoading] = useState(false);
@@ -348,10 +352,12 @@ export default function POS() {
         discount_amount: Math.max(0, item.discount || 0),
       };
     });
+    const isCreditSale = paymentMethod === 'credit';
     const saleData: any = {
       items: saleItems,
-      payment_method: paymentMethod,
+      payment_method: isCreditSale ? 'cash' : paymentMethod,
       discount_amount: Math.max(0, items.reduce((sum, item) => sum + Math.max(0, item.discount || 0), 0) + overallDiscount),
+      ...(isCreditSale ? { notes: 'Продано в долг' } : {}),
     };
 
     if (paymentMethod === 'card' && cardType) {
@@ -973,7 +979,7 @@ export default function POS() {
               </div>
             </div>
 
-            <div className="mb-4 grid grid-cols-3 gap-2 sm:mb-6 sm:gap-4">
+            <div className="mb-4 grid grid-cols-2 gap-2 sm:mb-6 sm:grid-cols-4 sm:gap-4">
               {PAYMENT_METHODS.map(({ id, label, Icon }) => {
                 const selected = paymentMethod === id;
                 return (
