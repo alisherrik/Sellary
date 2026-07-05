@@ -9,7 +9,7 @@ import { useProducts } from '@/hooks/useQueries';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Category, Product } from '@/lib/types';
-import { canAdd, isOverStock, remainingStock } from '@/lib/posStock';
+import { isOverStock, nextAddQuantity, remainingStock } from '@/lib/posStock';
 import { useSettingsStore } from '@/store/settingsStore';
 import { cartLineKey, hasMultipleUnits, saleUnits } from '@/lib/posUnits';
 import {
@@ -267,10 +267,10 @@ export default function POS() {
 
   const handleAddToCart = useCallback(
     (product: Product) => {
-      // Tiles add one unit of the base unit (factor 1 -> +1 base unit).
       const inCartBase = cartBaseByProduct.get(product.id) ?? 0;
       const stock = Number(product.stock_quantity);
-      if (!canAdd(stock, inCartBase, 1)) {
+      const addQuantity = nextAddQuantity(stock, inCartBase);
+      if (addQuantity <= 0) {
         const left = remainingStock(stock, inCartBase);
         toast.error(
           left > 0
@@ -279,7 +279,7 @@ export default function POS() {
         );
         return;
       }
-      addItem(product);
+      addItem(product, undefined, addQuantity);
       toast.success(`${product.name} добавлен`);
     },
     [addItem, cartBaseByProduct],
@@ -843,8 +843,7 @@ export default function POS() {
                     const inCartBase = cartBaseByProduct.get(product.id) ?? 0;
                     const left = remainingStock(stock, inCartBase);
                     const out = stock <= 0;
-                    // Tiles add one base unit; disable when a full unit no longer fits.
-                    const cannotAdd = out || !canAdd(stock, inCartBase, 1);
+                    const cannotAdd = nextAddQuantity(stock, inCartBase) <= 0;
                     return (
                       <button
                         key={product.id}

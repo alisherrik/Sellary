@@ -14,6 +14,15 @@ export function remainingStock(stockQuantity: number | string, qtyInCart: number
   return Math.max(0, Number(stockQuantity) - qtyInCart);
 }
 
+/** Quantity added by a catalog tile: one base unit, or the smaller positive remainder. */
+export function nextAddQuantity(
+  stockQuantity: number | string,
+  qtyInCart: number,
+): number {
+  const remaining = remainingStock(stockQuantity, qtyInCart);
+  return remaining > EPSILON ? Math.min(1, remaining) : 0;
+}
+
 /** Can `addQty` more base units be added without exceeding available stock? */
 export function canAdd(
   stockQuantity: number | string,

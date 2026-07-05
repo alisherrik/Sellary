@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { useCartStore } from '@/lib/store';
-import { canAdd, isOverStock, remainingStock } from '@/lib/posStock';
+import { canAdd, isOverStock, nextAddQuantity, remainingStock } from '@/lib/posStock';
 import { baseUnit, saleUnits, cartLineKey } from '@/lib/posUnits';
 import type { CartUnit, Product } from '@/lib/types';
 
@@ -40,6 +40,13 @@ describe('posStock helpers', () => {
     expect(canAdd(12, 10, 5)).toBe(false); // 10 + 5 > 12
     expect(isOverStock(5, 6)).toBe(true);
     expect(isOverStock(5, 5)).toBe(false);
+  });
+
+  it('uses a positive fractional remainder as the next catalog add quantity', () => {
+    expect(nextAddQuantity(0.5, 0)).toBeCloseTo(0.5);
+    expect(nextAddQuantity(1.5, 0)).toBe(1);
+    expect(nextAddQuantity(1.5, 1)).toBeCloseTo(0.5);
+    expect(nextAddQuantity(0.5, 0.5)).toBe(0);
   });
 });
 
