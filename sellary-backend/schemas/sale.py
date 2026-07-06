@@ -9,6 +9,7 @@ class PaymentMethod(str, Enum):
     CASH = "cash"
     CARD = "card"
     MOBILE = "mobile"
+    CREDIT = "credit"
 
 
 class CardType(str, Enum):
@@ -93,6 +94,10 @@ class Sale(BaseModel):
     remaining_refundable_amount: Decimal  # total_amount - refunded_amount
     payment_method: PaymentMethod
     card_type: Optional[CardType]
+    payment_status: str = "paid"
+    credit_amount: Decimal = Decimal("0.00")
+    credit_paid_amount: Decimal = Decimal("0.00")
+    credit_remaining_amount: Decimal = Decimal("0.00")
     status: SaleStatus
     can_return: bool  # True if sale can be returned
     notes: Optional[str]

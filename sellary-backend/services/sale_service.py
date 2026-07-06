@@ -13,6 +13,7 @@ from repositories.product_repository import ProductRepository
 from repositories.sale_repository import SaleRepository
 from schemas.sale import SaleCreate, SaleResponse, SaleSearchSuggestion
 from services.calculation_service import CalculationService
+from services.customer_ledger_service import CustomerLedgerService
 from services.inventory_ledger_service import InventoryLedgerService
 from services.sale_search_service import (
     STATIC_SEARCH_CANDIDATES,
@@ -33,6 +34,7 @@ class SaleService:
         self.customer_repo = CustomerRepository(db)
         self.calc = CalculationService
         self.ledger = InventoryLedgerService(db, self.company_id)
+        self.customer_ledger = CustomerLedgerService(db, self.company_id)
 
     def get_by_id(self, sale_id: int) -> Optional[SaleResponse]:
         sale = self.sale_repo.get_by_id(self.company_id, sale_id)
@@ -215,6 +217,9 @@ class SaleService:
         if total_amount < 0:
             raise ValueError("Sale total cannot be negative")
 
+        if sale_create.payment_method.value == "credit" and not sale_create.customer_id:
+            raise ValueError("Customer is required for credit sales")
+
         if sale_create.customer_id:
             customer = self.customer_repo.get_by_id(
                 self.company_id,
@@ -233,6 +238,7 @@ class SaleService:
             total_amount=total_amount,
             payment_method=sale_create.payment_method,
             card_type=sale_create.card_type,
+            payment_status="unpaid" if sale_create.payment_method.value == "credit" else "paid",
             status=SaleStatus.COMPLETED,
             notes=sale_create.notes,
             created_at=datetime.now(),
@@ -263,6 +269,7 @@ class SaleService:
                 consumption.value / item.quantity
             ).quantize(Decimal("0.01"))
 
+        self.customer_ledger.record_credit_sale(sale, cashier_id)
         self.db.flush()
         return self._to_response(sale)
 
@@ -320,6 +327,7 @@ class SaleService:
         can_return = sale.status in (SaleStatus.COMPLETED, SaleStatus.PARTIALLY_RETURNED)
 
         items_source = items_override if items_override is not None else sale.items
+        credit_summary = self.customer_ledger.sale_credit_summary(sale)
 
         return SaleResponse(
             id=sale.id,
@@ -335,6 +343,10 @@ class SaleService:
             remaining_refundable_amount=remaining_refundable,
             payment_method=sale.payment_method,
             card_type=sale.card_type,
+            payment_status=sale.payment_status or "paid",
+            credit_amount=credit_summary["amount"],
+            credit_paid_amount=credit_summary["paid"],
+            credit_remaining_amount=credit_summary["remaining"],
             status=sale.status,
             can_return=can_return,
             notes=sale.notes,

@@ -8,6 +8,7 @@ from .sale import Sale, SaleStatus
 from .sale_item import SaleItem
 from .sale_return import SaleReturn, SaleReturnItem
 from .customer import Customer
+from .customer_ledger_entry import CustomerLedgerEntry
 from .inventory_log import InventoryLog
 from .supplier import Supplier
 from .purchase_order import PurchaseOrder, PurchaseOrderStatus
@@ -30,6 +31,7 @@ __all__ = [
     "SaleReturn",
     "SaleReturnItem",
     "Customer",
+    "CustomerLedgerEntry",
     "InventoryLog",
     "Supplier",
     "PurchaseOrder",

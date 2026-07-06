@@ -24,6 +24,7 @@ from models.category import Category
 from models.company import Company
 from models.company_membership import CompanyMembership
 from models.customer import Customer
+from models.customer_ledger_entry import CustomerLedgerEntry
 from models.inventory_layer import InventoryLayer
 from models.inventory_log import InventoryLog
 from models.product import Product
@@ -42,6 +43,7 @@ TEST_DATABASE_URL = "sqlite:///:memory:"
 TENANT_MODELS = (
     Category,
     Customer,
+    CustomerLedgerEntry,
     Product,
     Supplier,
     PurchaseOrder,
@@ -509,6 +511,7 @@ def test_customer(db_session: Session, default_company: Company) -> Customer:
         email=f"customer{uid}@test.com",
         phone=f"+992123{uid}",
         address="Test Address 123",
+        description="Test customer description",
     )
     db_session.add(customer)
     db_session.commit()

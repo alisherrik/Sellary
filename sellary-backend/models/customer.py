@@ -16,8 +16,10 @@ class Customer(Base):
     phone = Column(String(20), index=True)
     email = Column(String(100))
     address = Column(String(255))
+    description = Column(String(500))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     company = relationship("Company", back_populates="customers")
     sales = relationship("Sale", back_populates="customer")
+    ledger_entries = relationship("CustomerLedgerEntry", back_populates="customer")

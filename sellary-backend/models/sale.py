@@ -17,6 +17,7 @@ class PaymentMethod(str, enum.Enum):
     CASH = "cash"
     CARD = "card"
     MOBILE = "mobile"
+    CREDIT = "credit"
 
 
 class CardType(str, enum.Enum):
@@ -70,6 +71,7 @@ class Sale(Base):
         ),
         default=SaleStatus.COMPLETED,
     )
+    payment_status = Column(String(20), nullable=False, default="paid")
     notes = Column(String(500))
     voided_at = Column(DateTime(timezone=True))
     voided_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -82,6 +84,7 @@ class Sale(Base):
     cashier = relationship("User", back_populates="sales", foreign_keys=[cashier_id])
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
     returns = relationship("SaleReturn", back_populates="sale", cascade="all, delete-orphan")
+    customer_ledger_entries = relationship("CustomerLedgerEntry", back_populates="sale")
     voided_by_user = relationship(
         "User",
         foreign_keys=[voided_by_user_id],

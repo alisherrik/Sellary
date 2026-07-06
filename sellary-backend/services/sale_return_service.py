@@ -17,6 +17,7 @@ from schemas.sale_return import (
     SaleReturnResponse,
 )
 from services.inventory_ledger_service import InventoryLedgerService
+from services.customer_ledger_service import CustomerLedgerService
 from services.tenant import resolve_company_id
 
 
@@ -28,6 +29,7 @@ class SaleReturnService:
         self.product_repo = ProductRepository(db)
         self.ledger = InventoryLedgerService(db, self.company_id)
         self.ledger_repo = InventoryLedgerRepository(db)
+        self.customer_ledger = CustomerLedgerService(db, self.company_id)
 
     def process_return(
         self,
@@ -165,6 +167,12 @@ class SaleReturnService:
             SaleStatus.RETURNED
             if all_fully_returned
             else SaleStatus.PARTIALLY_RETURNED
+        )
+        self.customer_ledger.record_return_adjustment(
+            sale,
+            total_refund,
+            user_id,
+            description=f"Возврат по продаже #{sale_id}",
         )
         self.db.flush()
         return self._to_response(sale_return)

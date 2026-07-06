@@ -34,6 +34,7 @@ from repositories.purchase_order_repository import PurchaseOrderRepository
 from repositories.sale_repository import SaleRepository
 from schemas.reversal import InventoryImpact, ReversalBlocker, VoidPreview, VoidResult
 from services.inventory_ledger_service import InventoryLedgerService
+from services.customer_ledger_service import CustomerLedgerService
 from services.tenant import resolve_company_id
 
 MONEY_QUANT = Decimal("0.0001")
@@ -81,6 +82,7 @@ class TransactionReversalService:
         self.product_repo = ProductRepository(db)
         self.po_repo = PurchaseOrderRepository(db)
         self.ledger = InventoryLedgerService(db, self.company_id)
+        self.customer_ledger = CustomerLedgerService(db, self.company_id)
 
     # ------------------------------------------------------------------
     # Sale annulment
@@ -248,6 +250,11 @@ class TransactionReversalService:
         sale.voided_by_user_id = user_id
         sale.void_reason = reason
         sale.reversal_operation_id = operation.id
+        self.customer_ledger.record_cancel_adjustment(
+            sale,
+            user_id,
+            description=f"Аннулирование продажи #{sale.id}: {reason}",
+        )
         self.db.flush()
 
         return VoidResult(

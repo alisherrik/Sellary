@@ -7,6 +7,7 @@ from starlette.responses import Response
 from core.config import settings
 from core.database import SessionLocal
 from bootstrap_utils import ensure_super_admin
+from services.customer_credit_schema import ensure_customer_credit_schema
 from api import (
     admin_router,
     auth_router,
@@ -36,6 +37,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    ensure_customer_credit_schema()
     db = SessionLocal()
     try:
         ensure_super_admin(db)
