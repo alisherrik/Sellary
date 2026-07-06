@@ -15,6 +15,7 @@ const headerTitles: Record<string, string> = {
   '/products': 'Товары',
   '/sales': 'История продаж',
   '/dashboard': 'Дашборд',
+  '/customers': 'Клиенты',
   '/suppliers': 'Поставщики',
   '/purchase-orders': 'Закупки',
   '/reports': 'Отчеты',

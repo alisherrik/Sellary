@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
-import { reportsApi, productsApi, salesApi, suppliersApi, purchaseOrdersApi } from '@/lib/api';
+import { reportsApi, productsApi, salesApi, suppliersApi, purchaseOrdersApi, customersApi } from '@/lib/api';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { useAuthStore } from '@/lib/store';
 import {
-    Product, Sale, SaleSearchSuggestion, Supplier, PurchaseOrder,
+    Product, Sale, SaleSearchSuggestion, Supplier, PurchaseOrder, Customer, CustomerLedgerResponse,
     DailySalesReport, ProfitReport, TopProductsReport
 } from '@/lib/types';
 
@@ -19,6 +19,8 @@ export const queryKeys = {
     suppliers: (companyId: number | null, params?: any) => ['suppliers', tenantKey(companyId), params] as const,
     purchaseOrders: (companyId: number | null, params?: any) => ['purchaseOrders', tenantKey(companyId), params] as const,
     purchaseOrder: (companyId: number | null, id: number) => ['purchaseOrder', tenantKey(companyId), id] as const,
+    customers: (companyId: number | null, params?: any) => ['customers', tenantKey(companyId), params] as const,
+    customerLedger: (companyId: number | null, id: number | null) => ['customerLedger', tenantKey(companyId), id] as const,
     dailySales: (companyId: number | null, days: number) => ['dailySales', tenantKey(companyId), days] as const,
     profit: (companyId: number | null, days: number) => ['profit', tenantKey(companyId), days] as const,
     topProducts: (companyId: number | null, days: number, limit: number) => ['topProducts', tenantKey(companyId), days, limit] as const,
@@ -134,6 +136,41 @@ export function usePurchaseOrder(
     });
 }
 
+export function useCustomers(params?: any, options?: Partial<UseQueryOptions<Customer[]>>) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    return useQuery<Customer[]>({
+        queryKey: queryKeys.customers(companyId, params),
+        queryFn: async () => {
+            const response = await customersApi.getAll(params || { limit: 100 });
+            return response.data;
+        },
+        ...options,
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
+    });
+}
+
+export function useCustomerLedger(
+    customerId: number | null,
+    options?: Partial<UseQueryOptions<CustomerLedgerResponse>>,
+) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    return useQuery<CustomerLedgerResponse>({
+        queryKey: queryKeys.customerLedger(companyId, customerId),
+        queryFn: async () => {
+            const response = await customersApi.getLedger(customerId!);
+            return response.data;
+        },
+        ...options,
+        enabled:
+            isServerReachable &&
+            companyId !== null &&
+            customerId !== null &&
+            (options?.enabled !== false),
+    });
+}
+
 // Reports Hooks
 export function useDailySales(days: number, options?: Partial<UseQueryOptions<DailySalesReport>>) {
     const { isServerReachable } = useServerHealth();
@@ -244,11 +281,24 @@ export function usePrefetchOnHover() {
         });
     };
 
+    const prefetchCustomers = () => {
+        if (!isServerReachable || companyId === null) return;
+        queryClient.prefetchQuery({
+            queryKey: queryKeys.customers(companyId, { limit: 100 }),
+            queryFn: async () => {
+                const response = await customersApi.getAll({ limit: 100 });
+                return response.data;
+            },
+            staleTime: 30 * 1000,
+        });
+    };
+
     return {
         prefetchDashboard,
         prefetchProducts,
         prefetchSales,
         prefetchSuppliers,
         prefetchPurchaseOrders,
+        prefetchCustomers,
     };
 }

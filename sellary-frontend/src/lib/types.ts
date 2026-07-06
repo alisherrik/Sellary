@@ -154,6 +154,8 @@ export interface Customer {
   phone?: string | null;
   email?: string;
   address?: string;
+  description?: string | null;
+  balance?: string;
   is_active: boolean;
   created_at: string;
 }
@@ -192,8 +194,12 @@ export interface Sale {
   total_amount: string;
   refunded_amount?: string;
   remaining_refundable_amount?: string;
-  payment_method: 'cash' | 'card' | 'mobile';
+  payment_method: 'cash' | 'card' | 'mobile' | 'credit';
   card_type?: 'alif' | 'eskhata' | 'dc';
+  payment_status?: 'paid' | 'unpaid' | 'partial' | 'settled';
+  credit_amount?: string;
+  credit_paid_amount?: string;
+  credit_remaining_amount?: string;
   status: SaleStatus;
   can_return?: boolean;
   notes?: string;
@@ -234,6 +240,42 @@ export interface SaleReturn {
 export interface SaleReturnOptions {
   refund_methods: string[];
   returnable_statuses: string[];
+}
+
+export type CustomerLedgerEntryType =
+  | 'credit_sale'
+  | 'payment'
+  | 'return_adjustment'
+  | 'cancel_adjustment';
+
+export interface CustomerLedgerEntry {
+  id: number;
+  customer_id: number;
+  sale_id?: number | null;
+  entry_type: CustomerLedgerEntryType;
+  amount: string;
+  payment_method?: 'cash' | 'card' | 'mobile' | null;
+  description?: string | null;
+  created_by_user_id: number;
+  created_at: string;
+}
+
+export interface CustomerLedgerResponse {
+  customer_id: number;
+  balance: string;
+  entries: CustomerLedgerEntry[];
+}
+
+export interface CustomerPaymentPayload {
+  amount: string | number;
+  payment_method: 'cash' | 'card' | 'mobile';
+  description?: string | null;
+}
+
+export interface CustomerPaymentResponse {
+  customer_id: number;
+  balance: string;
+  entries: CustomerLedgerEntry[];
 }
 
 // The chosen sale unit for a cart line. `id: null` means the product's base unit.

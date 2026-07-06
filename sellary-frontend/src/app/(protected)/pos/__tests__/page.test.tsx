@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import POS from '../page';
 import { useCartStore } from '@/lib/store';
 import { useSettingsStore } from '@/store/settingsStore';
-import { salesApi } from '@/lib/api';
+import { salesApi, customersApi } from '@/lib/api';
 import { printReceipt } from '@/lib/utils';
 import type { Product } from '@/lib/types';
 
@@ -16,6 +16,10 @@ vi.mock('@/providers/ServerHealthProvider', () => ({
 
 vi.mock('@/lib/api', () => ({
   salesApi: { create: vi.fn() },
+  customersApi: {
+    getAll: vi.fn().mockResolvedValue({ data: [] }),
+    create: vi.fn(),
+  },
   productsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }), getByBarcode: vi.fn() },
   categoriesApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
 }));
@@ -113,12 +117,15 @@ describe('POS credit payment', () => {
     useCartStore.getState().resetState();
     useSettingsStore.setState({ receiptPrintEnabled: false });
     vi.mocked(salesApi.create).mockReset();
+    vi.mocked(customersApi.getAll).mockReset();
+    vi.mocked(customersApi.getAll).mockResolvedValue({ data: [] } as never);
+    vi.mocked(customersApi.create).mockReset();
     vi.mocked(salesApi.create).mockResolvedValue({
       data: { id: 2, items: [], created_at: '2026-07-05T00:00:00Z' },
     } as never);
   });
 
-  it('records a credit sale as cash with a Russian note', async () => {
+  it('requires a customer before completing a credit sale', async () => {
     const user = userEvent.setup();
     useCartStore.getState().addItem(cashProduct);
 
@@ -129,16 +136,51 @@ describe('POS credit payment', () => {
     expect(
       screen.queryByRole('textbox', { name: /получено наличными/i }),
     ).not.toBeInTheDocument();
+    expect(screen.getByText('Клиент для продажи в долг')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /завершить продажу/i })).toBeDisabled();
+    expect(salesApi.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a quick customer and sends a real credit sale with customer_id', async () => {
+    const user = userEvent.setup();
+    useCartStore.getState().addItem(cashProduct);
+    vi.mocked(customersApi.create).mockResolvedValue({
+      data: {
+        id: 77,
+        name: 'Фируз Саидов',
+        phone: '+992900001122',
+        description: 'Сосед',
+        balance: '0.00',
+        is_active: true,
+        created_at: '2026-07-06T00:00:00Z',
+      },
+    } as never);
+
+    renderPOS();
+    await user.click(screen.getByRole('button', { name: /оплатить/i }));
+    await user.click(screen.getByRole('button', { name: /в долг/i }));
+
+    await user.type(screen.getByLabelText('ФИО клиента'), 'Фируз Саидов');
+    await user.type(screen.getByLabelText('Телефон клиента'), '+992900001122');
+    await user.type(screen.getByLabelText('Описание клиента'), 'Сосед');
+    await user.click(screen.getByRole('button', { name: /создать клиента/i }));
+
+    await waitFor(() => expect(customersApi.create).toHaveBeenCalledWith({
+      name: 'Фируз Саидов',
+      phone: '+992900001122',
+      description: 'Сосед',
+    }));
     await user.click(screen.getByRole('button', { name: /завершить продажу/i }));
 
     await waitFor(() =>
       expect(salesApi.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          payment_method: 'cash',
-          notes: 'Продано в долг',
+          payment_method: 'credit',
+          customer_id: 77,
         }),
       ),
     );
+    expect(vi.mocked(salesApi.create).mock.calls[0][0]).not.toHaveProperty('notes');
     expect(vi.mocked(salesApi.create).mock.calls[0][0]).not.toHaveProperty('card_type');
   });
 });

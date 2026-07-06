@@ -58,6 +58,7 @@ export const printReceipt = (sale: any): void => {
     cash: 'Наличные',
     card: 'Карта',
     mobile: 'Мобильный',
+    credit: 'В долг',
   };
   const cardLabels: Record<string, string> = {
     alif: 'Alif', eskhata: 'Эсхата', dc: 'DC',

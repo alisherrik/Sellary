@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useCartStore, useUIStore } from '@/lib/store';
-import { salesApi, productsApi, categoriesApi } from '@/lib/api';
+import { salesApi, productsApi, categoriesApi, customersApi } from '@/lib/api';
 import { formatCurrency, hotkeyManager, printReceipt, registerHotkeys } from '@/lib/utils';
 import { useProducts } from '@/hooks/useQueries';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Category, Product } from '@/lib/types';
+import { Category, Customer, Product } from '@/lib/types';
 import { isOverStock, nextAddQuantity, remainingStock } from '@/lib/posStock';
 import { useSettingsStore } from '@/store/settingsStore';
 import { cartLineKey, hasMultipleUnits, saleUnits } from '@/lib/posUnits';
@@ -70,6 +70,11 @@ export default function POS() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('cash');
   const [cardType, setCardType] = useState<'alif' | 'eskhata' | 'dc' | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [quickCustomerName, setQuickCustomerName] = useState('');
+  const [quickCustomerPhone, setQuickCustomerPhone] = useState('');
+  const [quickCustomerDescription, setQuickCustomerDescription] = useState('');
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [cashReceived, setCashReceived] = useState('');
   const [loading, setLoading] = useState(false);
   const [totalEdit, setTotalEdit] = useState<string | null>(null);
@@ -129,6 +134,15 @@ export default function POS() {
       const response = await categoriesApi.getAll({ active_only: true });
       return response.data;
     },
+  });
+
+  const { data: creditCustomers = [] } = useQuery<Customer[]>({
+    queryKey: ['customers', 'pos-credit'],
+    queryFn: async () => {
+      const response = await customersApi.getAll({ limit: 100 });
+      return response.data;
+    },
+    enabled: showPaymentModal && paymentMethod === 'credit',
   });
 
   // Two-button confirm in a toast for destructive actions.
@@ -261,6 +275,10 @@ export default function POS() {
     setShowPaymentModal(false);
     setCardType(null);
     setPaymentMethod('cash');
+    setSelectedCustomer(null);
+    setQuickCustomerName('');
+    setQuickCustomerPhone('');
+    setQuickCustomerDescription('');
     setCashReceived('');
     setTotalEdit(null);
     setPriceEdits({});
@@ -308,6 +326,10 @@ export default function POS() {
     setShowCartSheet(false);
     setCardType(null);
     setPaymentMethod('cash');
+    setSelectedCustomer(null);
+    setQuickCustomerName('');
+    setQuickCustomerPhone('');
+    setQuickCustomerDescription('');
     setCashReceived('');
     setActiveOverallDiscount(0);
     setTotalEdit(null);
@@ -315,6 +337,36 @@ export default function POS() {
     setQtyEdits({});
     setLineTotalEdits({});
   }, [clearCart, setActiveOverallDiscount]);
+
+  const createQuickCustomer = useCallback(async () => {
+    const name = quickCustomerName.trim();
+    const phone = quickCustomerPhone.trim();
+    const description = quickCustomerDescription.trim();
+
+    if (!name || !phone) {
+      toast.error('Укажите ФИО и телефон клиента');
+      return;
+    }
+
+    setCreatingCustomer(true);
+    try {
+      const response = await customersApi.create({
+        name,
+        phone,
+        ...(description ? { description } : {}),
+      });
+      setSelectedCustomer(response.data);
+      setQuickCustomerName('');
+      setQuickCustomerPhone('');
+      setQuickCustomerDescription('');
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Клиент создан');
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Не удалось создать клиента');
+    } finally {
+      setCreatingCustomer(false);
+    }
+  }, [quickCustomerName, quickCustomerPhone, quickCustomerDescription, queryClient]);
 
   const completeSale = useCallback(async () => {
     if (items.length === 0) {
@@ -337,6 +389,11 @@ export default function POS() {
       return;
     }
 
+    if (paymentMethod === 'credit' && !selectedCustomer) {
+      toast.error('Выберите клиента для продажи в долг');
+      return;
+    }
+
     setLoading(true);
 
     const saleItems = items.map((item) => {
@@ -355,9 +412,9 @@ export default function POS() {
     const isCreditSale = paymentMethod === 'credit';
     const saleData: any = {
       items: saleItems,
-      payment_method: isCreditSale ? 'cash' : paymentMethod,
+      payment_method: paymentMethod,
       discount_amount: Math.max(0, items.reduce((sum, item) => sum + Math.max(0, item.discount || 0), 0) + overallDiscount),
-      ...(isCreditSale ? { notes: 'Продано в долг' } : {}),
+      ...(isCreditSale ? { customer_id: selectedCustomer!.id } : {}),
     };
 
     if (paymentMethod === 'card' && cardType) {
@@ -375,6 +432,8 @@ export default function POS() {
       toast.success('Продажа завершена');
       // Refresh stock counts so the catalog reflects what was just sold.
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
       // Clear the register first so the next sale can start immediately, then
       // print on the next tick — window.print() is blocking and must not sit on
       // the checkout's critical path.
@@ -402,7 +461,7 @@ export default function POS() {
     } finally {
       setLoading(false);
     }
-  }, [items, hasOverStock, paymentMethod, cardType, cashPayment.isSufficient, isServerReachable, overallDiscount, resetCheckout, queryClient]);
+  }, [items, hasOverStock, paymentMethod, cardType, cashPayment.isSufficient, selectedCustomer, isServerReachable, overallDiscount, resetCheckout, queryClient]);
 
   useEffect(() => {
     hotkeyManager.register({
@@ -990,6 +1049,7 @@ export default function POS() {
                     onClick={() => {
                       setPaymentMethod(id);
                       if (id !== 'card') setCardType(null);
+                      if (id !== 'credit') setSelectedCustomer(null);
                       if (id === 'cash') setCashReceived(formatEditableAmount(finalTotal));
                     }}
                     className={`relative flex min-h-[44px] flex-col items-center justify-center rounded-xl border-2 p-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-4 ${
@@ -1062,9 +1122,89 @@ export default function POS() {
               </div>
             )}
 
+            {paymentMethod === 'credit' && (
+              <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-900/10 sm:mb-6">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">Клиент для продажи в долг</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Выберите существующего клиента или создайте нового.</p>
+                  </div>
+                  {selectedCustomer && (
+                    <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-amber-700 shadow-sm dark:bg-gray-800">
+                      {selectedCustomer.name}
+                    </span>
+                  )}
+                </div>
+
+                {creditCustomers.length > 0 && (
+                  <div className="mb-3 grid max-h-28 gap-2 overflow-y-auto">
+                    {creditCustomers.map((customer) => {
+                      const selected = selectedCustomer?.id === customer.id;
+                      return (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => setSelectedCustomer(customer)}
+                          className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                            selected
+                              ? 'border-amber-500 bg-white text-amber-800 shadow-sm dark:bg-gray-800'
+                              : 'border-amber-100 bg-white/70 text-gray-700 hover:border-amber-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'
+                          }`}
+                        >
+                          <span className="font-semibold">{customer.name}</span>
+                          {customer.phone && <span className="ml-2 text-xs text-gray-500">{customer.phone}</span>}
+                          {Number(customer.balance || 0) > 0 && (
+                            <span className="float-right text-xs font-bold text-red-600">{formatCurrency(customer.balance || '0')}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                    ФИО клиента
+                    <input
+                      type="text"
+                      value={quickCustomerName}
+                      onChange={(event) => setQuickCustomerName(event.target.value)}
+                      className="mt-1 h-10 w-full rounded-xl border border-amber-200 bg-white px-3 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 dark:border-gray-600 dark:bg-gray-900"
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Телефон клиента
+                    <input
+                      type="text"
+                      value={quickCustomerPhone}
+                      onChange={(event) => setQuickCustomerPhone(event.target.value)}
+                      className="mt-1 h-10 w-full rounded-xl border border-amber-200 bg-white px-3 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 dark:border-gray-600 dark:bg-gray-900"
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-gray-600 dark:text-gray-300 sm:col-span-2">
+                    Описание клиента
+                    <input
+                      type="text"
+                      value={quickCustomerDescription}
+                      onChange={(event) => setQuickCustomerDescription(event.target.value)}
+                      className="mt-1 h-10 w-full rounded-xl border border-amber-200 bg-white px-3 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 dark:border-gray-600 dark:bg-gray-900"
+                    />
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  onClick={createQuickCustomer}
+                  disabled={creatingCustomer}
+                  className="mt-3 w-full rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-gray-400"
+                >
+                  {creatingCustomer ? 'Создание...' : 'Создать клиента'}
+                </button>
+              </div>
+            )}
+
             <button
               onClick={completeSale}
-              disabled={loading || hasOverStock || (paymentMethod === 'cash' && !cashPayment.isSufficient)}
+              disabled={loading || hasOverStock || (paymentMethod === 'cash' && !cashPayment.isSufficient) || (paymentMethod === 'credit' && !selectedCustomer)}
               className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3 text-base font-bold text-white transition-all hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-400 sm:py-4 sm:text-xl"
             >
               {loading ? (

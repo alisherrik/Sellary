@@ -19,6 +19,10 @@ import type {
   SaleSearchSuggestion,
   VoidPreview,
   VoidResult,
+  Customer,
+  CustomerLedgerResponse,
+  CustomerPaymentPayload,
+  CustomerPaymentResponse,
 } from './types';
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
@@ -257,10 +261,17 @@ export const categoriesApi = {
 };
 
 export const customersApi = {
-  getAll: (params?: any) => api.get('/customers', { params }),
-  getById: (id: number) => api.get(`/customers/${id}`),
-  create: (data: any) => api.post('/customers', data),
+  getAll: (params?: any) => api.get<Customer[]>('/customers', { params }),
+  getById: (id: number) => api.get<Customer>(`/customers/${id}`),
+  getLedger: (id: number) => api.get<CustomerLedgerResponse>(`/customers/${id}/ledger`),
+  create: (data: any) => api.post<Customer>('/customers', data),
   update: (id: number, data: any) => api.put(`/customers/${id}`, data),
+  recordPayment: (id: number, data: CustomerPaymentPayload, idempotencyKey?: string) => {
+    const key = idempotencyKey || generateIdempotencyKey();
+    return api.post<CustomerPaymentResponse>(`/customers/${id}/payments`, data, {
+      headers: { 'Idempotency-Key': key },
+    });
+  },
   delete: (id: number) => api.delete(`/customers/${id}`),
 };
 

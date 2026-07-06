@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSaleSearchSuggestions, useSales } from '@/hooks/useQueries';
 import SalesHistory from '../page';
+import { customersApi } from '@/lib/api';
 
 const sale = {
   id: 42,
@@ -31,6 +32,9 @@ vi.mock('@/hooks/useQueries', () => ({
 }));
 
 vi.mock('@/lib/api', () => ({
+  customersApi: {
+    recordPayment: vi.fn(),
+  },
   salesApi: {
     getReturns: vi.fn().mockResolvedValue({ data: [] }),
     previewVoid: vi.fn(),
@@ -128,6 +132,50 @@ describe('Sales history smart search', () => {
           expect.any(Object),
         ),
       { timeout: 1500 },
+    );
+  });
+
+  it('shows credit debt status and accepts a debt payment from sale details', async () => {
+    const user = userEvent.setup();
+    vi.mocked(useSales).mockReturnValue({
+      data: [
+        {
+          ...sale,
+          payment_method: 'credit',
+          payment_status: 'unpaid',
+          credit_amount: '33.00',
+          credit_paid_amount: '5.00',
+          credit_remaining_amount: '28.00',
+        },
+      ],
+      isLoading: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as any);
+    vi.mocked(customersApi.recordPayment).mockResolvedValue({
+      data: { customer_id: 3, balance: '18.00', entries: [] },
+    } as never);
+
+    renderPage();
+
+    expect((await screen.findAllByText(/В долг/)).length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByText('#42')[0]);
+
+    expect(screen.getAllByText('Осталось по долгу').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Не оплачено/).length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByRole('button', { name: /принять оплату долга/i })[0]);
+    await user.clear(screen.getByLabelText('Сумма оплаты'));
+    await user.type(screen.getByLabelText('Сумма оплаты'), '10');
+    await user.click(screen.getByRole('button', { name: /^сохранить оплату$/i }));
+
+    await waitFor(() =>
+      expect(customersApi.recordPayment).toHaveBeenCalledWith(
+        3,
+        { amount: '10', payment_method: 'cash', description: undefined },
+        'search-test-key-1234',
+      ),
     );
   });
 });

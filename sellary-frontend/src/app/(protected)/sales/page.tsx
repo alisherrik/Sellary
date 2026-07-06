@@ -8,7 +8,7 @@ import {
   ArrowUturnLeftIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { salesApi, metaApi, generateIdempotencyKey } from '@/lib/api';
+import { salesApi, metaApi, customersApi, generateIdempotencyKey } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { TableSkeleton } from '@/components/skeletons';
 import AnnulmentDialog from '@/components/transactions/AnnulmentDialog';
@@ -48,6 +48,12 @@ type StatusFilter = 'all' | 'completed' | 'returns' | 'cancelled';
 
 const paymentChip = (sale: Sale) => {
   const cardLabels: Record<string, string> = { alif: 'Alif', eskhata: 'Eskhata', dc: 'DC' };
+  if (sale.payment_method === 'credit') {
+    return {
+      label: '🧾 В долг',
+      cls: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    };
+  }
   if (sale.payment_method === 'card') {
     return {
       label: `💳 ${sale.card_type ? cardLabels[sale.card_type] ?? sale.card_type : 'Карта'}`,
@@ -58,6 +64,16 @@ const paymentChip = (sale: Sale) => {
     return { label: '📱 Мобильный', cls: 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300' };
   }
   return { label: '💵 Наличные', cls: 'bg-zinc-100 text-zinc-600 dark:bg-gray-700 dark:text-gray-300' };
+};
+
+const debtStatusText = (status?: Sale['payment_status']) => {
+  const labels: Record<string, string> = {
+    unpaid: 'Не оплачено',
+    partial: 'Частично оплачено',
+    paid: 'Оплачено',
+    settled: 'Оплачено',
+  };
+  return labels[status || 'paid'] || status || 'Оплачено';
 };
 
 export default function SalesHistory() {
@@ -77,6 +93,11 @@ export default function SalesHistory() {
   const [showVoidDialog, setShowVoidDialog] = useState(false);
   const [voidLoading, setVoidLoading] = useState(false);
   const [voidSubmitting, setVoidSubmitting] = useState(false);
+  const [showDebtPaymentModal, setShowDebtPaymentModal] = useState(false);
+  const [debtPaymentAmount, setDebtPaymentAmount] = useState('');
+  const [debtPaymentMethod, setDebtPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
+  const [debtPaymentDescription, setDebtPaymentDescription] = useState('');
+  const [debtPaymentSubmitting, setDebtPaymentSubmitting] = useState(false);
   const isAdmin = useAuthStore((state) => state.currentCompany?.role === 'admin');
   const debouncedSearch = useDebounce(searchInput, 300);
 
@@ -256,6 +277,106 @@ export default function SalesHistory() {
       },
       idempotencyKey,
     });
+  };
+
+  const creditRemaining = (sale: Sale | null) => Number(sale?.credit_remaining_amount || 0);
+  const canAcceptDebtPayment = (sale: Sale | null) =>
+    Boolean(
+      sale &&
+        sale.payment_method === 'credit' &&
+        sale.customer_id &&
+        sale.status !== 'cancelled' &&
+        creditRemaining(sale) > 0,
+    );
+
+  const openDebtPaymentModal = (sale: Sale) => {
+    setSelectedSale(sale);
+    setDebtPaymentAmount(String(Number(sale.credit_remaining_amount || sale.total_amount || 0)));
+    setDebtPaymentMethod('cash');
+    setDebtPaymentDescription('');
+    setShowDebtPaymentModal(true);
+  };
+
+  const saveDebtPayment = async () => {
+    if (!selectedSale?.customer_id) {
+      toast.error('У продажи нет клиента для оплаты долга');
+      return;
+    }
+    if (!debtPaymentAmount.trim() || Number(debtPaymentAmount) <= 0) {
+      toast.error('Введите сумму оплаты');
+      return;
+    }
+
+    setDebtPaymentSubmitting(true);
+    try {
+      await customersApi.recordPayment(
+        selectedSale.customer_id,
+        {
+          amount: debtPaymentAmount,
+          payment_method: debtPaymentMethod,
+          description: debtPaymentDescription.trim() || undefined,
+        },
+        generateIdempotencyKey(),
+      );
+      toast.success('Оплата долга сохранена');
+      setShowDebtPaymentModal(false);
+      setShowDetail(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['sales'] }),
+        queryClient.invalidateQueries({ queryKey: ['customers'] }),
+        queryClient.invalidateQueries({ queryKey: ['customerLedger'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      ]);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Не удалось сохранить оплату долга');
+    } finally {
+      setDebtPaymentSubmitting(false);
+    }
+  };
+
+  const renderCreditDebtSummary = (sale: Sale, compact = false) => {
+    if (sale.payment_method !== 'credit') {
+      return null;
+    }
+
+    return (
+      <div className={`rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-900/20 ${compact ? 'text-xs' : ''}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[12px] font-semibold text-amber-800 dark:text-amber-200">Долг клиента</p>
+            <p className="mt-0.5 text-[11px] text-amber-700/80 dark:text-amber-300/80">
+              {sale.customer_name || (sale.customer_id ? `Клиент #${sale.customer_id}` : 'Клиент не указан')}
+            </p>
+          </div>
+          <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+            {debtStatusText(sale.payment_status)}
+          </span>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+          <div>
+            <p className="text-amber-700/70 dark:text-amber-300/70">Сумма</p>
+            <p className="font-bold tabular-nums text-amber-900 dark:text-amber-100">{formatCurrency(sale.credit_amount || sale.total_amount)}</p>
+          </div>
+          <div>
+            <p className="text-amber-700/70 dark:text-amber-300/70">Оплачено</p>
+            <p className="font-bold tabular-nums text-green-700 dark:text-green-300">{formatCurrency(sale.credit_paid_amount || '0')}</p>
+          </div>
+          <div>
+            <p className="text-amber-700/70 dark:text-amber-300/70">Осталось по долгу</p>
+            <p className="font-bold tabular-nums text-red-700 dark:text-red-300">{formatCurrency(sale.credit_remaining_amount || '0')}</p>
+          </div>
+        </div>
+        {canAcceptDebtPayment(sale) && (
+          <button
+            type="button"
+            onClick={() => openDebtPaymentModal(sale)}
+            className="mt-3 w-full rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700"
+          >
+            Принять оплату долга
+          </button>
+        )}
+      </div>
+    );
   };
 
   const getStatusBadge = (status: string) => {
@@ -543,6 +664,8 @@ export default function SalesHistory() {
                 <div className="mt-1 flex justify-between text-[13px] text-gray-500"><span>Оплата</span><span>{paymentChip(selectedSale).label}</span></div>
               </div>
 
+              {renderCreditDebtSummary(selectedSale)}
+
               <div>
                 <p className="mb-2 text-[13px] font-semibold text-gray-900 dark:text-white">История возвратов</p>
                 {returnsLoading ? (
@@ -611,6 +734,7 @@ export default function SalesHistory() {
                 <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-700"><p className="text-[10px] text-gray-500">Итого</p><p className="font-bold tabular-nums text-gray-900 dark:text-white">{formatCurrency(selectedSale.total_amount)}</p></div>
                 <div className="rounded-xl bg-emerald-50 p-3 dark:bg-emerald-900/20"><p className="text-[10px] text-emerald-600">К возврату</p><p className="font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{formatCurrency((selectedSale as any).remaining_refundable_amount || '0')}</p></div>
               </div>
+              {renderCreditDebtSummary(selectedSale, true)}
               <div className="space-y-2">
                 {selectedSale.items.map((item: any) => (
                   <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl bg-gray-50 p-2 text-xs dark:bg-gray-700">
@@ -755,6 +879,74 @@ export default function SalesHistory() {
                 className="order-1 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-semibold text-white hover:from-orange-600 hover:to-red-600 disabled:opacity-50 sm:order-2 sm:px-6 sm:text-base"
               >
                 {returnMutation.isPending ? 'Обработка...' : 'Подтвердить возврат'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDebtPaymentModal && selectedSale && (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-2xl dark:bg-gray-800 sm:max-w-md sm:rounded-2xl">
+            <h2 className="text-lg font-black text-gray-900 dark:text-white">Оплата долга</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Чек #{selectedSale.id}
+              {selectedSale.customer_name ? ` · ${selectedSale.customer_name}` : ''}
+            </p>
+            <div className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+              Осталось по долгу: <span className="font-black tabular-nums">{formatCurrency(selectedSale.credit_remaining_amount || '0')}</span>
+            </div>
+
+            <label className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Сумма оплаты
+              <input
+                type="text"
+                inputMode="decimal"
+                value={debtPaymentAmount}
+                onChange={(event) => setDebtPaymentAmount(event.target.value)}
+                className="mt-1 h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-right text-lg font-bold tabular-nums outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+              />
+            </label>
+
+            <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Способ оплаты долга
+              <select
+                value={debtPaymentMethod}
+                onChange={(event) => setDebtPaymentMethod(event.target.value as 'cash' | 'card' | 'mobile')}
+                className="mt-1 h-11 w-full rounded-xl border border-gray-300 bg-white px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+              >
+                <option value="cash">Наличные</option>
+                <option value="card">Карта</option>
+                <option value="mobile">Мобильный</option>
+              </select>
+            </label>
+
+            <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Примечание
+              <input
+                type="text"
+                value={debtPaymentDescription}
+                onChange={(event) => setDebtPaymentDescription(event.target.value)}
+                className="mt-1 h-11 w-full rounded-xl border border-gray-300 bg-white px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+              />
+            </label>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDebtPaymentModal(false)}
+                className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                disabled={debtPaymentSubmitting}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={saveDebtPayment}
+                disabled={debtPaymentSubmitting}
+                className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:bg-gray-400"
+              >
+                Сохранить оплату
               </button>
             </div>
           </div>

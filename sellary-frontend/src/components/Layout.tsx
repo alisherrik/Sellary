@@ -33,6 +33,7 @@ const navigation = [
   { name: 'Дашборд', href: '/dashboard', icon: HomeIcon, prefetchKey: 'dashboard' },
   { name: 'История продаж', href: '/sales', icon: ArrowUturnLeftIcon, prefetchKey: 'sales' },
   { name: 'Товары', href: '/products', icon: CubeIcon, prefetchKey: 'products' },
+  { name: 'Клиенты', href: '/customers', icon: UserGroupIcon, prefetchKey: 'customers' },
   { name: 'Поставщики', href: '/suppliers', icon: UserGroupIcon, prefetchKey: 'suppliers' },
   { name: 'Закупки', href: '/purchase-orders', icon: TruckIcon, prefetchKey: 'purchaseOrders' },
   { name: 'Отчеты', href: '/reports', icon: ChartBarIcon, prefetchKey: null },
@@ -99,6 +100,9 @@ export default function Layout({ children }: LayoutProps) {
           break;
         case 'suppliers':
           prefetch.prefetchSuppliers();
+          break;
+        case 'customers':
+          prefetch.prefetchCustomers();
           break;
         case 'purchaseOrders':
           prefetch.prefetchPurchaseOrders();

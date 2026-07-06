@@ -164,6 +164,7 @@ class TestCreateCustomer:
             headers=cashier_headers,
             json={
                 "name": "John Doe",
+                "phone": "+992 900 000 001",
             }
         )
 
@@ -171,7 +172,7 @@ class TestCreateCustomer:
         data = response.json()
         assert data["name"] == "John Doe"
         assert data["email"] is None
-        assert data["phone"] is None
+        assert data["phone"] == "+992 900 000 001"
         assert data["address"] is None
 
 
@@ -294,6 +295,7 @@ class TestCustomerValidation:
             headers=cashier_headers,
             json={
                 "name": "Алишер Джунусов",  # Russian characters
+                "phone": "+992 900 000 002",
                 "email": "alisher@test.com",
             }
         )
@@ -327,6 +329,7 @@ class TestCustomerValidation:
             headers=cashier_headers,
             json={
                 "name": "Jane Smith",
+                "phone": "+992 900 000 003",
                 "email": "john@test.com",  # Duplicate
             }
         )
