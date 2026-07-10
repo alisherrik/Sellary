@@ -87,25 +87,17 @@ class ProductService:
             # Treat it as a fresh start: write off any residual stock first (a
             # soft-deleted row may still carry stock backed by ledger layers), so
             # a new cost_price can be applied and the new initial quantity isn't
-            # stacked on stale stock.
-            residual = Decimal(existing.stock_quantity or 0)
-            if residual > 0:
-                try:
-                    self.ledger.consume_fifo(
-                        product=existing,
-                        quantity=residual,
-                        consumer_type="product_recreate",
-                        consumer_id=existing.id,
-                        sale_item_id=None,
-                        user_id=user_id,
-                        reason="Product re-created",
-                        reference_type="product_recreate",
-                        reference_id=existing.id,
-                    )
-                except ValueError:
-                    # Balance/layer drift — force a clean zero so re-creation works.
-                    existing.stock_quantity = Decimal("0")
-                    existing.inventory_value = Decimal("0.0000")
+            # stacked on stale stock. Draining every open layer keeps balance and
+            # layers consistent (no orphaned "ghost" units).
+            self.ledger.writeoff_all_stock(
+                product=existing,
+                consumer_type="product_recreate",
+                consumer_id=existing.id,
+                user_id=user_id,
+                reason="Product re-created",
+                reference_type="product_recreate",
+                reference_id=existing.id,
+            )
             for field, value in values.items():
                 setattr(existing, field, value)
             existing.is_active = True
@@ -189,28 +181,22 @@ class ProductService:
         product = self.product_repo.get_by_id_for_update(self.company_id, product_id)
         if not product:
             return False
-        # Write off any remaining stock so the row ends empty. Re-creating a
-        # product reactivates this same row, and the cost-price guard blocks that
-        # while stock > 0 — so a deleted product must end at zero stock to be
-        # re-creatable.
-        remaining = Decimal(product.stock_quantity or 0)
-        if remaining > 0:
-            try:
-                self.ledger.consume_fifo(
-                    product=product,
-                    quantity=remaining,
-                    consumer_type="product_delete",
-                    consumer_id=product.id,
-                    sale_item_id=None,
-                    user_id=user_id,
-                    reason="Product deleted",
-                    reference_type="product_delete",
-                    reference_id=product.id,
-                )
-            except ValueError:
-                # Balance/layer drift — force a clean zero so delete still succeeds.
-                product.stock_quantity = Decimal("0")
-                product.inventory_value = Decimal("0.0000")
+        # Write off any remaining stock so the row ends empty, draining every open
+        # FIFO layer through releasable ``product_delete`` allocations. This never
+        # leaves orphaned ("ghost") layer units behind, and — because the void
+        # path can release these allocations — never permanently traps the
+        # purchase that stocked the product. Re-creating a product reactivates
+        # this same row, and the cost-price guard blocks that while stock > 0, so
+        # a deleted product must end at zero stock to be re-creatable.
+        self.ledger.writeoff_all_stock(
+            product=product,
+            consumer_type="product_delete",
+            consumer_id=product.id,
+            user_id=user_id,
+            reason="Product deleted",
+            reference_type="product_delete",
+            reference_id=product.id,
+        )
         product.is_active = False
         self.db.flush()
         return True

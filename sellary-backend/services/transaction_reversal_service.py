@@ -33,7 +33,10 @@ from repositories.product_repository import ProductRepository
 from repositories.purchase_order_repository import PurchaseOrderRepository
 from repositories.sale_repository import SaleRepository
 from schemas.reversal import InventoryImpact, ReversalBlocker, VoidPreview, VoidResult
-from services.inventory_ledger_service import InventoryLedgerService
+from services.inventory_ledger_service import (
+    INTERNAL_WRITEOFF_CONSUMER_TYPES,
+    InventoryLedgerService,
+)
 from services.customer_ledger_service import CustomerLedgerService
 from services.tenant import resolve_company_id
 
@@ -312,15 +315,6 @@ class TransactionReversalService:
             if not layer or layer.reversed_at is not None:
                 continue
             product = item.product
-            impacts.append(
-                InventoryImpact(
-                    product_id=product.id,
-                    product_name=product.name,
-                    quantity_change=-Decimal(item.quantity),
-                    value_change=-(Decimal(item.quantity) * Decimal(item.unit_cost)).quantize(MONEY_QUANT),
-                    resulting_stock=Decimal(product.stock_quantity) - Decimal(item.quantity),
-                )
-            )
             active_allocations = (
                 self.db.query(InventoryAllocation)
                 .filter(
@@ -329,8 +323,15 @@ class TransactionReversalService:
                 )
                 .all()
             )
+            writeoff_release = Decimal("0")
             for allocation in active_allocations:
                 remaining = Decimal(allocation.quantity) - Decimal(allocation.released_quantity)
+                if allocation.consumer_type in INTERNAL_WRITEOFF_CONSUMER_TYPES:
+                    # A product delete/recreate write-off — the void releases it
+                    # automatically, so it is not a blocker. Its units flow back
+                    # into the layer before the reversal, netting against it.
+                    writeoff_release += remaining
+                    continue
                 sale_item = allocation.sale_item
                 if sale_item is not None:
                     blockers.append(
@@ -356,6 +357,20 @@ class TransactionReversalService:
                             message="Остаток использован последующей корректировкой.",
                         )
                     )
+
+            # Net effect of voiding this layer on the product balance: the
+            # reversal removes the layer's received quantity, while any released
+            # write-off restores its consumed units first.
+            net_quantity = writeoff_release - Decimal(item.quantity)
+            impacts.append(
+                InventoryImpact(
+                    product_id=product.id,
+                    product_name=product.name,
+                    quantity_change=net_quantity,
+                    value_change=(net_quantity * Decimal(item.unit_cost)).quantize(MONEY_QUANT),
+                    resulting_stock=Decimal(product.stock_quantity) + net_quantity,
+                )
+            )
 
         allowed_status = po.status in (
             PurchaseOrderStatus.PARTIALLY_RECEIVED,
@@ -400,6 +415,19 @@ class TransactionReversalService:
                 layer = item.inventory_layer
                 if not layer or layer.reversed_at is not None:
                     continue
+                # Release any internal write-off (product delete/recreate) that
+                # consumed this layer, restoring it to fully unconsumed so the
+                # reversal below can remove it. Sale/manual allocations are not
+                # released here — the preview blocks the void while those exist.
+                self.ledger.release_internal_writeoffs(
+                    layer=layer,
+                    product=item.product,
+                    user_id=user_id,
+                    reason=f"Аннулирование закупки #{po.id}: возврат списания",
+                    reference_type="po_void",
+                    reference_id=po.id,
+                    reversal_operation_id=operation.id,
+                )
                 self.ledger.reverse_unconsumed_layer(
                     layer=layer,
                     product=item.product,
