@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   calculateCashPayment,
+  calculateCreditInitialPayment,
   calculateDiscountFromEditedPrice,
   calculatePosPricing,
   formatEditableAmount,
@@ -61,6 +62,33 @@ describe('posPricing', () => {
       change: 0,
       shortfall: 0.01,
       isSufficient: false,
+    });
+  });
+
+  it('calculates upfront credit payment and remaining debt', () => {
+    expect(calculateCreditInitialPayment('40', 100)).toEqual({
+      amount: 40,
+      remaining: 60,
+      exceedsTotal: false,
+      isValid: true,
+    });
+  });
+
+  it('flags upfront credit payments above the sale total', () => {
+    expect(calculateCreditInitialPayment('120', 100)).toEqual({
+      amount: 120,
+      remaining: 0,
+      exceedsTotal: true,
+      isValid: false,
+    });
+  });
+
+  it('treats empty upfront credit payment as zero', () => {
+    expect(calculateCreditInitialPayment('', 100)).toEqual({
+      amount: 0,
+      remaining: 100,
+      exceedsTotal: false,
+      isValid: true,
     });
   });
 });

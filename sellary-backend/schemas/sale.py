@@ -43,6 +43,8 @@ class SaleCreate(BaseModel):
     payment_method: PaymentMethod
     card_type: Optional[CardType] = None
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
+    paid_amount: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
+    initial_payment_method: Optional[PaymentMethod] = None
     notes: Optional[str] = None
 
     @model_validator(mode="after")
@@ -51,6 +53,14 @@ class SaleCreate(BaseModel):
             raise ValueError("card_type is required when payment_method is card")
         if self.payment_method != PaymentMethod.CARD and self.card_type:
             raise ValueError("card_type must not be set when payment_method is not card")
+        if self.paid_amount > 0 and self.payment_method != PaymentMethod.CREDIT:
+            raise ValueError("paid_amount is only supported for credit sales")
+        if self.paid_amount > 0 and not self.initial_payment_method:
+            raise ValueError("initial_payment_method is required when paid_amount is greater than zero")
+        if self.initial_payment_method == PaymentMethod.CREDIT:
+            raise ValueError("initial_payment_method cannot be credit")
+        if self.paid_amount <= 0 and self.initial_payment_method:
+            raise ValueError("initial_payment_method requires paid_amount")
         return self
 
 

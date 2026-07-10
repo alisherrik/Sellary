@@ -77,6 +77,48 @@ def test_credit_sale_creates_customer_balance_and_ledger(
     assert ledger["entries"][0]["sale_id"] == sale["id"]
 
 
+def test_credit_sale_accepts_initial_partial_payment(
+    client: TestClient,
+    cashier_headers,
+    test_customer,
+    test_product,
+):
+    sale_response = client.post(
+        "/api/sales",
+        headers=with_idempotency(cashier_headers, "credit-sale-initial-payment-001"),
+        json={
+            **credit_sale_payload(test_customer.id, test_product.id),
+            "paid_amount": "10.00",
+            "initial_payment_method": "cash",
+        },
+    )
+
+    assert sale_response.status_code == 201
+    sale = sale_response.json()
+    assert sale["payment_method"] == "credit"
+    assert sale["payment_status"] == "partial"
+    assert sale["credit_amount"] == "30.00"
+    assert sale["credit_paid_amount"] == "10.00"
+    assert sale["credit_remaining_amount"] == "20.00"
+
+    customer_response = client.get(f"/api/customers/{test_customer.id}", headers=cashier_headers)
+    assert customer_response.status_code == 200
+    assert customer_response.json()["balance"] == "20.00"
+
+    ledger_response = client.get(
+        f"/api/customers/{test_customer.id}/ledger",
+        headers=cashier_headers,
+    )
+    assert ledger_response.status_code == 200
+    ledger = ledger_response.json()
+    assert ledger["balance"] == "20.00"
+    assert [entry["entry_type"] for entry in ledger["entries"]] == ["credit_sale", "payment"]
+    assert ledger["entries"][0]["amount"] == "30.00"
+    assert ledger["entries"][1]["amount"] == "-10.00"
+    assert ledger["entries"][1]["payment_method"] == "cash"
+    assert ledger["entries"][1]["sale_id"] == sale["id"]
+
+
 def test_customer_debt_payment_reduces_balance(
     client: TestClient,
     cashier_headers,

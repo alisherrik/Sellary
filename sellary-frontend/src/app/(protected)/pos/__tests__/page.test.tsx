@@ -1,14 +1,4 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-import POS from '../page';
-import { useCartStore } from '@/lib/store';
-import { useSettingsStore } from '@/store/settingsStore';
-import { salesApi, customersApi } from '@/lib/api';
-import { printReceipt } from '@/lib/utils';
-import type { Product } from '@/lib/types';
 
 vi.mock('@/providers/ServerHealthProvider', () => ({
   useServerHealth: () => ({ isServerReachable: true }),
@@ -23,6 +13,17 @@ vi.mock('@/lib/api', () => ({
   productsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }), getByBarcode: vi.fn() },
   categoriesApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
 }));
+
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+import POS from '../page';
+import { useAuthStore, useCartStore } from '@/lib/store';
+import { useSettingsStore } from '@/store/settingsStore';
+import { salesApi, customersApi, productsApi } from '@/lib/api';
+import { printReceipt } from '@/lib/utils';
+import type { CompanySummary, Product, User } from '@/lib/types';
 
 // Keep the real utils (formatCurrency, hotkeyManager, registerHotkeys) but spy
 // on printReceipt so we can assert whether a receipt was printed at checkout.
@@ -63,6 +64,93 @@ const cashProduct: Product = {
   is_active: true,
   created_at: '2026-06-13T00:00:00Z',
 };
+
+const testUser: User = {
+  id: 1,
+  username: 'admin',
+  email: 'admin@example.com',
+  global_role: 'standard',
+  is_active: true,
+  created_at: '2026-06-13T00:00:00Z',
+};
+
+const testCompany: CompanySummary = {
+  id: 1,
+  name: 'Sellary Demo',
+  slug: 'sellary-demo',
+  is_active: true,
+  role: 'admin',
+  is_default: true,
+};
+
+beforeEach(() => {
+  useAuthStore.setState({
+    user: null,
+    companies: [],
+    currentCompany: null,
+    loginToken: null,
+    accessToken: null,
+    isAuthenticated: false,
+    hasHydrated: true,
+  });
+  vi.mocked(productsApi.getAll).mockReset();
+  vi.mocked(productsApi.getAll).mockResolvedValue({ data: [] } as never);
+});
+
+const outOfStockProduct: Product = {
+  ...cashProduct,
+  id: 2,
+  barcode: '100000000002',
+  name: 'Неточный товар',
+  sell_price: '25',
+  stock_quantity: 0,
+};
+
+const lowStockProduct: Product = {
+  ...cashProduct,
+  id: 3,
+  barcode: '100000000003',
+  name: 'Последняя пачка',
+  sell_price: '15',
+  stock_quantity: 1,
+  min_stock_level: 2,
+};
+
+describe('POS catalog filters', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useCartStore.getState().resetState();
+  });
+
+  it('opens compact filters and filters catalog products by stock status', async () => {
+    const user = userEvent.setup();
+    useAuthStore.setState({
+      user: testUser,
+      companies: [testCompany],
+      currentCompany: testCompany,
+      loginToken: null,
+      accessToken: 'test-token',
+      isAuthenticated: true,
+      hasHydrated: true,
+    });
+    vi.mocked(productsApi.getAll).mockResolvedValue({
+      data: [cashProduct, outOfStockProduct, lowStockProduct],
+    } as never);
+
+    renderPOS();
+
+    expect(await screen.findByText('Тестовый товар')).toBeInTheDocument();
+    expect(screen.getByText('Неточный товар')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Нет в наличии' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Фильтры' }));
+    await user.click(screen.getByRole('button', { name: 'Нет в наличии' }));
+
+    expect(screen.getByText('Неточный товар')).toBeInTheDocument();
+    expect(screen.queryByText('Тестовый товар')).not.toBeInTheDocument();
+    expect(screen.queryByText('Последняя пачка')).not.toBeInTheDocument();
+  });
+});
 
 describe('POS multi-sale sessions', () => {
   beforeEach(() => {
@@ -170,6 +258,11 @@ describe('POS credit payment', () => {
       phone: '+992900001122',
       description: 'Сосед',
     }));
+
+    await user.type(screen.getByLabelText('Оплачено сейчас'), '40');
+    await user.click(screen.getByRole('button', { name: 'Первый платеж: Мобильный' }));
+    expect(screen.getByText('Останется долг').parentElement).toHaveTextContent('60');
+
     await user.click(screen.getByRole('button', { name: /завершить продажу/i }));
 
     await waitFor(() =>
@@ -177,11 +270,40 @@ describe('POS credit payment', () => {
         expect.objectContaining({
           payment_method: 'credit',
           customer_id: 77,
+          paid_amount: 40,
+          initial_payment_method: 'mobile',
         }),
       ),
     );
     expect(vi.mocked(salesApi.create).mock.calls[0][0]).not.toHaveProperty('notes');
     expect(vi.mocked(salesApi.create).mock.calls[0][0]).not.toHaveProperty('card_type');
+  });
+
+  it('blocks credit checkout when upfront payment exceeds the sale total', async () => {
+    const user = userEvent.setup();
+    useCartStore.getState().addItem(cashProduct);
+    vi.mocked(customersApi.getAll).mockResolvedValue({
+      data: [
+        {
+          id: 88,
+          name: 'Мадина Каримова',
+          phone: '+992900009988',
+          balance: '0.00',
+          is_active: true,
+          created_at: '2026-07-06T00:00:00Z',
+        },
+      ],
+    } as never);
+
+    renderPOS();
+    await user.click(screen.getByRole('button', { name: /оплатить/i }));
+    await user.click(screen.getByRole('button', { name: /в долг/i }));
+    await user.click(await screen.findByRole('button', { name: /мадина каримова/i }));
+    await user.type(screen.getByLabelText('Оплачено сейчас'), '120');
+
+    expect(screen.getByText('Останется долг').parentElement).toHaveTextContent('0');
+    expect(screen.getByRole('button', { name: /завершить продажу/i })).toBeDisabled();
+    expect(salesApi.create).not.toHaveBeenCalled();
   });
 });
 

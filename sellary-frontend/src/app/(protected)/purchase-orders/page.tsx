@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/20/solid';
 
+import FilterMenu from '@/components/filters/FilterMenu';
 import PurchaseOrderStatusBadge from '@/components/purchase-orders/PurchaseOrderStatusBadge';
 import { TableSkeleton } from '@/components/skeletons';
 import { usePurchaseOrders, useSuppliers } from '@/hooks/useQueries';
@@ -29,10 +30,14 @@ export default function PurchaseOrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<PurchaseOrderStatus | ''>('');
   const [supplierFilter, setSupplierFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const params: Record<string, string | number> = { limit: 200 };
   if (statusFilter) params.status = statusFilter;
   if (supplierFilter) params.supplier_id = Number(supplierFilter);
+  if (startDate) params.start_date = startDate;
+  if (endDate) params.end_date = endDate;
 
   const ordersQuery = usePurchaseOrders(params);
   const suppliersQuery = useSuppliers({ limit: 200 });
@@ -49,11 +54,21 @@ export default function PurchaseOrdersPage() {
     );
   }, [purchaseOrders, searchQuery]);
 
-  const hasFilters = Boolean(searchQuery || statusFilter || supplierFilter);
+  const hasFilters = Boolean(searchQuery || statusFilter || supplierFilter || startDate || endDate);
+  const activeFilterCount =
+    (statusFilter ? 1 : 0) + (supplierFilter ? 1 : 0) + (startDate ? 1 : 0) + (endDate ? 1 : 0);
+  const resetAdvancedFilters = () => {
+    setStatusFilter('');
+    setSupplierFilter('');
+    setStartDate('');
+    setEndDate('');
+  };
   const resetFilters = () => {
     setSearchQuery('');
     setStatusFilter('');
     setSupplierFilter('');
+    setStartDate('');
+    setEndDate('');
   };
 
   return (
@@ -74,9 +89,9 @@ export default function PurchaseOrdersPage() {
         </Link>
       </header>
 
-      <section aria-label="Фильтры закупок" className="mt-6 border-y border-gray-200 bg-white py-4">
-        <div className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_200px_220px]">
-          <label className="relative block">
+      <section aria-label="Поиск и фильтры закупок" className="mt-6 border-y border-gray-200 bg-white py-4">
+        <div className="flex items-center gap-2">
+          <label className="relative block min-w-0 flex-1">
             <span className="sr-only">Поиск закупок</span>
             <MagnifyingGlassIcon
               className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
@@ -92,40 +107,80 @@ export default function PurchaseOrdersPage() {
             />
           </label>
 
-          <label>
-            <span className="sr-only">Статус закупки</span>
-            <select
-              aria-label="Статус закупки"
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as PurchaseOrderStatus | '')
-              }
-              className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
-            >
-              {statusOptions.map((option) => (
-                <option key={option.value || 'all'} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <FilterMenu activeCount={activeFilterCount} onReset={resetAdvancedFilters}>
+            <div className="space-y-4">
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  Статус
+                </span>
+                <select
+                  aria-label="Статус закупки"
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as PurchaseOrderStatus | '')
+                  }
+                  className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                >
+                  {statusOptions.map((option) => (
+                    <option key={option.value || 'all'} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-          <label>
-            <span className="sr-only">Поставщик</span>
-            <select
-              aria-label="Поставщик"
-              value={supplierFilter}
-              onChange={(event) => setSupplierFilter(event.target.value)}
-              className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
-            >
-              <option value="">Все поставщики</option>
-              {suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id}>
-                  {supplier.name}
-                </option>
-              ))}
-            </select>
-          </label>
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  Поставщик
+                </span>
+                <select
+                  aria-label="Поставщик"
+                  value={supplierFilter}
+                  onChange={(event) => setSupplierFilter(event.target.value)}
+                  className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                >
+                  <option value="">Все поставщики</option>
+                  {suppliers.map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>
+                      {supplier.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                    Дата от
+                  </span>
+                  <input
+                    type="date"
+                    aria-label="Дата от"
+                    value={startDate}
+                    onChange={(event) => setStartDate(event.target.value)}
+                    className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                    Дата до
+                  </span>
+                  <input
+                    type="date"
+                    aria-label="Дата до"
+                    value={endDate}
+                    onChange={(event) => setEndDate(event.target.value)}
+                    className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                  />
+                </label>
+              </div>
+
+              <p className="text-xs tabular-nums text-gray-500">
+                Показано: {visibleOrders.length} из {purchaseOrders.length}
+              </p>
+            </div>
+          </FilterMenu>
         </div>
       </section>
 

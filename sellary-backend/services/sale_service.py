@@ -217,6 +217,9 @@ class SaleService:
         if total_amount < 0:
             raise ValueError("Sale total cannot be negative")
 
+        if sale_create.paid_amount > total_amount:
+            raise ValueError("Initial payment exceeds sale total")
+
         if sale_create.payment_method.value == "credit" and not sale_create.customer_id:
             raise ValueError("Customer is required for credit sales")
 
@@ -269,7 +272,12 @@ class SaleService:
                 consumption.value / item.quantity
             ).quantize(Decimal("0.01"))
 
-        self.customer_ledger.record_credit_sale(sale, cashier_id)
+        self.customer_ledger.record_credit_sale(
+            sale,
+            cashier_id,
+            initial_payment_amount=sale_create.paid_amount,
+            initial_payment_method=sale_create.initial_payment_method,
+        )
         self.db.flush()
         return self._to_response(sale)
 
