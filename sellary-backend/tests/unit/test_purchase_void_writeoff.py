@@ -96,6 +96,47 @@ def test_purchase_preview_still_blocks_on_manual_adjustment(
     assert preview.blockers[0].blocker_type == "inventory_adjustment"
 
 
+def test_void_purchase_reverses_reconciled_ghost_layer(
+    db_session, partially_received_po, admin_user
+):
+    """A purchase layer whose product balance drifted to zero (a 'ghost') becomes
+    voidable once the balance is reconciled to match the layer: the void reverses
+    the layer and the product lands at zero without ever going negative. This is
+    the mechanism the production #15 repair relies on for product 252."""
+    po = partially_received_po
+    company_id = po.company_id
+    layer = po.receipts[0].items[0].inventory_layer
+    product = po.receipts[0].items[0].product
+    ledger = InventoryLedgerService(db_session, company_id)
+
+    # Force the ghost: drop the product balance to zero while the layer keeps its
+    # received units (exactly the shape the buggy delete fallback used to leave).
+    ghost_units = Decimal(layer.remaining_quantity)
+    product.stock_quantity = Decimal("0")
+    product.inventory_value = Decimal("0.0000")
+    db_session.flush()
+
+    # Reconcile: restore the layer's units to the balance before voiding.
+    value = (ghost_units * Decimal(layer.unit_cost)).quantize(Decimal("0.0001"))
+    ledger._apply_balance(product, ghost_units, value)
+    db_session.flush()
+
+    service = TransactionReversalService(db_session, company_id)
+    preview = service.preview_purchase(po.id)
+    assert preview.can_void is True
+    assert preview.blockers == []
+
+    result = service.void_purchase(po.id, "Void after ghost reconcile", admin_user.id)
+    assert result.status == "cancelled"
+
+    db_session.refresh(layer)
+    db_session.refresh(product)
+    assert layer.reversed_at is not None
+    assert Decimal(layer.remaining_quantity) == Decimal("0")
+    assert Decimal(product.stock_quantity) == Decimal("0")
+    assert Decimal(product.inventory_value) >= Decimal("0")
+
+
 def test_delete_with_balance_drift_leaves_no_ghost_layer(
     db_session, default_company, test_category, admin_user
 ):
