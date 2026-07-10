@@ -398,13 +398,16 @@ class TestUpdate:
 class TestDelete:
     """Tests for deleting products."""
 
-    def test_delete_existing_product(self, db_session):
-        """Test deleting an existing product."""
-        category = Category(name="Test Category")
+    def test_delete_existing_product(self, db_session, default_company, admin_user):
+        """Test deleting an existing product. The stock write-off is audited to
+        the acting user, so a real user_id is required (production always passes
+        one from the authenticated request)."""
+        category = Category(company_id=default_company.id, name="Test Category")
         db_session.add(category)
         db_session.flush()
 
         product = Product(
+            company_id=default_company.id,
             name="Test Product",
             barcode="TEST123",
             category_id=category.id,
@@ -413,10 +416,10 @@ class TestDelete:
             stock_quantity=100,
         )
         db_session.add(product)
-        db_session.commit()
+        db_session.flush()
 
-        service = ProductService(db_session)
-        result = service.delete(product.id)
+        service = ProductService(db_session, default_company.id)
+        result = service.delete(product.id, admin_user.id)
 
         assert result is True
 

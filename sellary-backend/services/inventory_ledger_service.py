@@ -24,6 +24,14 @@ MONEY_QUANT = Decimal("0.0001")
 # precision (e.g. 45 / 24 = 1.8750) when rolled into the product balance.
 PRICE_QUANT = Decimal("0.0001")
 
+# Consumer types that represent internal, reversible write-offs (not independent
+# business documents). Deleting/recreating a product drains its stock through
+# these. A purchase void may safely release them back onto their layers, so a
+# product deletion never permanently traps the purchase that stocked it. Real
+# documents (``sale_item``) and manual edits (``manual_adjustment``) are NOT
+# listed here — those still block a void until reversed on their own.
+INTERNAL_WRITEOFF_CONSUMER_TYPES = ("product_delete", "product_recreate")
+
 
 @dataclass
 class InventoryConsumption:
@@ -292,3 +300,129 @@ class InventoryLedgerService:
             reversal_operation_id=reversal_operation_id,
         )
         self.db.flush()
+
+    # ------------------------------------------------------------------
+    # Write-off (product delete/recreate) and its release on purchase void
+    # ------------------------------------------------------------------
+    def writeoff_all_stock(
+        self,
+        product: Product,
+        consumer_type: str,
+        consumer_id: int,
+        user_id: int,
+        reason: Optional[str],
+        reference_type: Optional[str],
+        reference_id: Optional[int],
+    ) -> Decimal:
+        """Write off ALL of a product's stock, draining every open FIFO layer.
+
+        Unlike :meth:`consume_fifo` (all-or-nothing against a target quantity),
+        this consumes whatever each non-reversed layer still holds and then
+        forces the product balance to zero, emitting a single reconciling log
+        for any balance/layer drift. Post-conditions: the product has no layer
+        with remaining stock AND ``stock_quantity == 0`` — so a later purchase
+        void never meets an orphaned ("ghost") layer, and delete/recreate can no
+        longer silently strand units. Returns the quantity consumed from layers.
+
+        ``consumer_type`` must be an internal write-off type (see
+        :data:`INTERNAL_WRITEOFF_CONSUMER_TYPES`) so the resulting allocations
+        remain releasable by a later purchase void.
+        """
+        layers = self.repo.lock_available_layers(self.company_id, product.id)
+        consumed_qty = Decimal("0")
+        for layer in layers:
+            take = Decimal(layer.remaining_quantity)
+            if take <= 0:
+                continue
+            layer.remaining_quantity = Decimal("0")
+            self.repo.add_allocation(
+                company_id=self.company_id,
+                product_id=product.id,
+                layer_id=layer.id,
+                consumer_type=consumer_type,
+                consumer_id=consumer_id,
+                sale_item_id=None,
+                quantity=take,
+            )
+            consumed_qty += take
+
+        previous_quantity = Decimal(product.stock_quantity or 0)
+        previous_value = Decimal(product.inventory_value or 0)
+        if previous_quantity == 0 and consumed_qty == 0:
+            # Nothing to write off and no drift to reconcile.
+            return consumed_qty
+
+        # Force the balance to zero, capturing the full delta (real stock plus
+        # any pre-existing drift) in one honest audit log. cost_price is left
+        # untouched, matching the existing zero-stock convention.
+        product.stock_quantity = Decimal("0")
+        product.inventory_value = Decimal("0.0000")
+        self.repo.create_log(
+            company_id=self.company_id,
+            product_id=product.id,
+            user_id=user_id,
+            quantity_change=-previous_quantity,
+            value_change=-previous_value,
+            previous_quantity=previous_quantity,
+            new_quantity=Decimal("0"),
+            reason=reason,
+            reference_type=reference_type,
+            reference_id=reference_id,
+        )
+        self.db.flush()
+        return consumed_qty
+
+    def release_internal_writeoffs(
+        self,
+        layer: InventoryLayer,
+        product: Product,
+        user_id: int,
+        reason: Optional[str],
+        reference_type: Optional[str],
+        reference_id: Optional[int],
+        reversal_operation_id: Optional[int] = None,
+    ) -> Decimal:
+        """Release internal write-off allocations on a layer back onto it.
+
+        Restores the quantity/value that a ``product_delete`` / ``product_recreate``
+        write-off consumed from ``layer`` (crediting the product balance), so a
+        purchase void can then reverse the now-unconsumed layer. Allocations from
+        independent documents (sales) or manual adjustments are intentionally
+        left untouched — those still block a void. Returns the quantity restored.
+        """
+        allocations = self.repo.active_allocations_for_layers([layer.id])
+        restored_qty = Decimal("0")
+        restored_value = Decimal("0")
+        for allocation in allocations:
+            if allocation.consumer_type not in INTERNAL_WRITEOFF_CONSUMER_TYPES:
+                continue
+            releasable = Decimal(allocation.quantity) - Decimal(allocation.released_quantity)
+            if releasable <= 0:
+                continue
+            allocation.released_quantity = Decimal(allocation.quantity)
+            layer.remaining_quantity = Decimal(layer.remaining_quantity) + releasable
+            restored_qty += releasable
+            restored_value += releasable * Decimal(layer.unit_cost)
+
+        if restored_qty <= 0:
+            return restored_qty
+
+        restored_value = restored_value.quantize(MONEY_QUANT)
+        previous_quantity, new_quantity = self._apply_balance(
+            product, restored_qty, restored_value
+        )
+        self.repo.create_log(
+            company_id=self.company_id,
+            product_id=product.id,
+            user_id=user_id,
+            quantity_change=restored_qty,
+            value_change=restored_value,
+            previous_quantity=previous_quantity,
+            new_quantity=new_quantity,
+            reason=reason,
+            reference_type=reference_type,
+            reference_id=reference_id,
+            reversal_operation_id=reversal_operation_id,
+        )
+        self.db.flush()
+        return restored_qty
