@@ -55,6 +55,145 @@ def test_credit_sale_records_positive_customer_balance(
     assert entry.amount == Decimal("30.00")
 
 
+def test_credit_sale_with_initial_partial_payment_records_remaining_debt(
+    db_session,
+    default_company,
+    test_customer,
+    cashier_user,
+    test_product,
+):
+    sale = SaleService(db_session, default_company.id).create(
+        SaleCreate(
+            customer_id=test_customer.id,
+            items=[
+                SaleItemCreate(
+                    product_id=test_product.id,
+                    quantity=Decimal("2"),
+                    unit_price=Decimal("15.00"),
+                    tax_percent=Decimal("0.00"),
+                    discount_amount=Decimal("0.00"),
+                )
+            ],
+            payment_method=PaymentMethod.CREDIT,
+            discount_amount=Decimal("0.00"),
+            paid_amount=Decimal("10.00"),
+            initial_payment_method=PaymentMethod.CASH,
+        ),
+        cashier_user.id,
+    )
+
+    ledger = CustomerLedgerService(db_session, default_company.id)
+
+    assert sale.payment_status == "partial"
+    assert sale.credit_amount == Decimal("30.00")
+    assert sale.credit_paid_amount == Decimal("10.00")
+    assert sale.credit_remaining_amount == Decimal("20.00")
+    assert ledger.get_customer_balance(test_customer.id) == Decimal("20.00")
+
+    entries = (
+        db_session.query(CustomerLedgerEntry)
+        .filter(CustomerLedgerEntry.sale_id == sale.id)
+        .order_by(CustomerLedgerEntry.id.asc())
+        .all()
+    )
+    assert [entry.entry_type for entry in entries] == [
+        CustomerLedgerEntryType.CREDIT_SALE,
+        CustomerLedgerEntryType.PAYMENT,
+    ]
+    assert entries[0].amount == Decimal("30.00")
+    assert entries[1].amount == Decimal("-10.00")
+    assert entries[1].payment_method == "cash"
+
+
+def test_credit_sale_with_initial_full_payment_is_settled(
+    db_session,
+    default_company,
+    test_customer,
+    cashier_user,
+    test_product,
+):
+    sale = SaleService(db_session, default_company.id).create(
+        SaleCreate(
+            customer_id=test_customer.id,
+            items=[
+                SaleItemCreate(
+                    product_id=test_product.id,
+                    quantity=Decimal("2"),
+                    unit_price=Decimal("15.00"),
+                    tax_percent=Decimal("0.00"),
+                    discount_amount=Decimal("0.00"),
+                )
+            ],
+            payment_method=PaymentMethod.CREDIT,
+            discount_amount=Decimal("0.00"),
+            paid_amount=Decimal("30.00"),
+            initial_payment_method=PaymentMethod.CASH,
+        ),
+        cashier_user.id,
+    )
+
+    ledger = CustomerLedgerService(db_session, default_company.id)
+
+    assert sale.payment_status == "settled"
+    assert sale.credit_amount == Decimal("30.00")
+    assert sale.credit_paid_amount == Decimal("30.00")
+    assert sale.credit_remaining_amount == Decimal("0.00")
+    assert ledger.get_customer_balance(test_customer.id) == Decimal("0.00")
+
+
+def test_credit_sale_initial_payment_cannot_exceed_total(
+    db_session,
+    default_company,
+    test_customer,
+    cashier_user,
+    test_product,
+):
+    payload = SaleCreate(
+        customer_id=test_customer.id,
+        items=[
+            SaleItemCreate(
+                product_id=test_product.id,
+                quantity=Decimal("2"),
+                unit_price=Decimal("15.00"),
+                tax_percent=Decimal("0.00"),
+                discount_amount=Decimal("0.00"),
+            )
+        ],
+        payment_method=PaymentMethod.CREDIT,
+        discount_amount=Decimal("0.00"),
+        paid_amount=Decimal("31.00"),
+        initial_payment_method=PaymentMethod.CASH,
+    )
+
+    with pytest.raises(ValueError, match="Initial payment exceeds sale total"):
+        SaleService(db_session, default_company.id).create(payload, cashier_user.id)
+
+
+def test_credit_sale_initial_payment_requires_real_payment_method(
+    db_session,
+    default_company,
+    test_customer,
+    cashier_user,
+    test_product,
+):
+    with pytest.raises(ValueError, match="initial_payment_method is required"):
+        SaleCreate(
+            customer_id=test_customer.id,
+            items=[
+                SaleItemCreate(
+                    product_id=test_product.id,
+                    quantity=Decimal("2"),
+                    unit_price=Decimal("15.00"),
+                    tax_percent=Decimal("0.00"),
+                    discount_amount=Decimal("0.00"),
+                )
+            ],
+            payment_method=PaymentMethod.CREDIT,
+            discount_amount=Decimal("0.00"),
+            paid_amount=Decimal("10.00"),
+        )
+
+
 def test_credit_sale_requires_customer(db_session, default_company, cashier_user, test_product):
     payload = _credit_sale_payload(customer_id=0, product_id=test_product.id)
     payload.customer_id = None

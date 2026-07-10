@@ -37,12 +37,26 @@ class CustomerLedgerService:
             entries=[self._entry_response(entry) for entry in entries],
         )
 
-    def record_credit_sale(self, sale: Sale, user_id: int) -> CustomerLedgerEntry | None:
+    def record_credit_sale(
+        self,
+        sale: Sale,
+        user_id: int,
+        initial_payment_amount: Decimal = ZERO,
+        initial_payment_method: PaymentMethod | None = None,
+    ) -> CustomerLedgerEntry | None:
         if sale.payment_method != PaymentMethod.CREDIT:
             sale.payment_status = "paid"
             return None
         if not sale.customer_id:
             raise ValueError("Customer is required for credit sales")
+
+        initial_payment = Decimal(initial_payment_amount or ZERO).quantize(Decimal("0.01"))
+        if initial_payment > Decimal(sale.total_amount).quantize(Decimal("0.01")):
+            raise ValueError("Initial payment exceeds sale total")
+        if initial_payment > ZERO and not initial_payment_method:
+            raise ValueError("initial_payment_method is required when paid_amount is greater than zero")
+        if initial_payment_method == PaymentMethod.CREDIT:
+            raise ValueError("initial_payment_method cannot be credit")
 
         self._require_customer(sale.customer_id)
         entry = self._add_entry(
@@ -54,6 +68,16 @@ class CustomerLedgerService:
             user_id=user_id,
             description=f"Продажа в долг #{sale.id}",
         )
+        if initial_payment > ZERO:
+            self._add_entry(
+                customer_id=sale.customer_id,
+                sale_id=sale.id,
+                entry_type=CustomerLedgerEntryType.PAYMENT,
+                amount=-initial_payment,
+                payment_method=initial_payment_method.value,
+                user_id=user_id,
+                description=f"Первый платеж по продаже #{sale.id}",
+            )
         self._refresh_sale_payment_status(sale)
         return entry
 

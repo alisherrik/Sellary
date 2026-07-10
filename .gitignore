@@ -42,3 +42,10 @@ sellary-backend/supabase/.temp/
 
 # Local Codex worktrees
 .worktrees/
+
+# Codex tool artifacts (other AI tool, not project source)
+.codex/
+.codex-remote-attachments/
+
+# DB backups / cleanup dumps (production data, not source)
+sellary-backend/backups/

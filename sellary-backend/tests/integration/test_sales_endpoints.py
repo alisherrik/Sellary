@@ -104,6 +104,64 @@ class TestListSales:
         assert isinstance(data, list)
         assert len(data) == 1
 
+    def _seed_completed_sales(self, db_session, company_id, cashier_id, count):
+        """Insert ``count`` completed sales with strictly increasing timestamps."""
+        base = datetime(2030, 1, 1, 8, 0, 0)
+        created = []
+        for i in range(count):
+            sale = Sale(
+                company_id=company_id,
+                cashier_id=cashier_id,
+                subtotal=Decimal("10.00"),
+                tax_amount=Decimal("0.00"),
+                total_amount=Decimal("10.00"),
+                payment_method=PaymentMethod.CASH,
+                status=SaleStatus.COMPLETED,
+                created_at=base.replace(minute=i),
+            )
+            db_session.add(sale)
+            created.append(sale)
+        db_session.flush()
+        return created
+
+    def test_list_sales_exposes_total_count_header(
+        self, client: TestClient, db_session, default_company, cashier_user, cashier_headers
+    ):
+        """The list endpoint reports the full tenant total via X-Total-Count so
+        the client can paginate beyond a single page."""
+        self._seed_completed_sales(db_session, default_company.id, cashier_user.id, 3)
+
+        response = client.get(
+            "/api/sales", params={"skip": 0, "limit": 2}, headers=cashier_headers
+        )
+
+        assert response.status_code == 200
+        assert len(response.json()) == 2  # page is capped by limit
+        assert response.headers["X-Total-Count"] == "3"  # total ignores the limit
+
+    def test_list_sales_paginates_with_skip(
+        self, client: TestClient, db_session, default_company, cashier_user, cashier_headers
+    ):
+        """skip/limit walk the full history in disjoint pages (older sales are
+        reachable on later pages, not lost)."""
+        self._seed_completed_sales(db_session, default_company.id, cashier_user.id, 3)
+
+        page1 = client.get(
+            "/api/sales", params={"skip": 0, "limit": 2}, headers=cashier_headers
+        )
+        page2 = client.get(
+            "/api/sales", params={"skip": 2, "limit": 2}, headers=cashier_headers
+        )
+
+        ids1 = [s["id"] for s in page1.json()]
+        ids2 = [s["id"] for s in page2.json()]
+
+        assert len(ids1) == 2
+        assert len(ids2) == 1
+        assert set(ids1).isdisjoint(ids2)  # no overlap between pages
+        assert len(set(ids1) | set(ids2)) == 3  # together they cover everything
+        assert page2.headers["X-Total-Count"] == "3"
+
     def test_search_sales_by_misspelled_product_name(
         self,
         client: TestClient,

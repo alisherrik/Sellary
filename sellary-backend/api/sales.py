@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from api.dependencies import AuthContext, get_auth_context, require_admin
@@ -81,6 +81,7 @@ def create_sale(
 
 @router.get("", response_model=list[SaleResponse])
 def get_sales(
+    response: Response,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     start_date: Optional[datetime] = None,
@@ -93,7 +94,7 @@ def get_sales(
     auth: AuthContext = Depends(get_auth_context),
 ):
     service = SaleService(db, auth.company_id)
-    sales, _ = service.get_all(
+    sales, total = service.get_all(
         skip=skip,
         limit=limit,
         start_date=start_date,
@@ -103,6 +104,9 @@ def get_sales(
         search=search.strip() if search else None,
         status_group=status_group,
     )
+    # Expose the full match count (ignoring skip/limit) so the client can
+    # page through the entire history instead of seeing only the first window.
+    response.headers["X-Total-Count"] = str(total)
     return sales
 
 

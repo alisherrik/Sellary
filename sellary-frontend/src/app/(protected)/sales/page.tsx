@@ -11,11 +11,12 @@ import {
 import { salesApi, metaApi, customersApi, generateIdempotencyKey } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { TableSkeleton } from '@/components/skeletons';
+import FilterMenu from '@/components/filters/FilterMenu';
 import AnnulmentDialog from '@/components/transactions/AnnulmentDialog';
 import { Sale, SaleItem, VoidPreview } from '@/lib/types';
 import { useAuthStore } from '@/lib/store';
 import { useDebounce } from '@/hooks/useDebounce';
-import { useSaleSearchSuggestions, useSales } from '@/hooks/useQueries';
+import { useSaleSearchSuggestions, useInfiniteSales } from '@/hooks/useQueries';
 import SalesSearch from '@/components/sales/SalesSearch';
 
 interface SaleReturnItem {
@@ -45,6 +46,7 @@ interface ReturnQuantity {
 }
 
 type StatusFilter = 'all' | 'completed' | 'returns' | 'cancelled';
+type PaymentFilter = 'all' | Sale['payment_method'];
 
 const paymentChip = (sale: Sale) => {
   const cardLabels: Record<string, string> = { alif: 'Alif', eskhata: 'Eskhata', dc: 'DC' };
@@ -82,6 +84,9 @@ export default function SalesHistory() {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [returns, setReturns] = useState<SaleReturn[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
@@ -109,20 +114,29 @@ export default function SalesHistory() {
     if (statusFilter === 'completed') params.status = 'completed';
     if (statusFilter === 'cancelled') params.status = 'cancelled';
     if (statusFilter === 'returns') params.status_group = 'returns';
+    if (startDate) params.start_date = `${startDate}T00:00:00`;
+    if (endDate) params.end_date = `${endDate}T23:59:59`;
 
     return params;
-  }, [debouncedSearch, statusFilter]);
+  }, [debouncedSearch, statusFilter, startDate, endDate]);
 
   const {
-    data: sales = [],
+    sales = [],
+    total,
     isLoading: loading,
     isFetching,
+    isFetchingNextPage,
+    hasMore,
+    loadMore,
     refetch,
-  } = useSales(salesParams, { placeholderData: (previous) => previous });
+  } = useInfiniteSales(salesParams);
   const { data: searchSuggestions = [], isLoading: suggestionsLoading } =
     useSaleSearchSuggestions(debouncedSearch);
   const suggestionsSettled = searchInput.trim() === debouncedSearch.trim();
-  const visibleSales = sales;
+  const visibleSales = useMemo(() => {
+    if (paymentFilter === 'all') return sales;
+    return sales.filter((sale) => sale.payment_method === paymentFilter);
+  }, [sales, paymentFilter]);
 
   const totals = useMemo(() => {
     const financialSales = visibleSales.filter((s) => s.status !== 'cancelled');
@@ -408,6 +422,20 @@ export default function SalesHistory() {
     { key: 'returns', label: 'Возвраты' },
     { key: 'cancelled', label: 'Аннулирован' },
   ];
+  const paymentOptions: Array<{ value: PaymentFilter; label: string }> = [
+    { value: 'all', label: 'Все оплаты' },
+    { value: 'cash', label: 'Наличные' },
+    { value: 'card', label: 'Карта' },
+    { value: 'mobile', label: 'Мобильный' },
+    { value: 'credit', label: 'В долг' },
+  ];
+  const activeFilterCount =
+    (paymentFilter !== 'all' ? 1 : 0) + (startDate ? 1 : 0) + (endDate ? 1 : 0);
+  const resetAdvancedFilters = () => {
+    setPaymentFilter('all');
+    setStartDate('');
+    setEndDate('');
+  };
 
   return (
     <>
@@ -443,11 +471,63 @@ export default function SalesHistory() {
                 }
                 isSearching={isFetching && !loading}
               />
+              <FilterMenu activeCount={activeFilterCount} onReset={resetAdvancedFilters}>
+                <div className="space-y-4">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                      Способ оплаты
+                    </span>
+                    <select
+                      aria-label="Способ оплаты"
+                      value={paymentFilter}
+                      onChange={(event) => setPaymentFilter(event.target.value as PaymentFilter)}
+                      className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                    >
+                      {paymentOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                        Дата от
+                      </span>
+                      <input
+                        type="date"
+                        aria-label="Дата от"
+                        value={startDate}
+                        onChange={(event) => setStartDate(event.target.value)}
+                        className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                        Дата до
+                      </span>
+                      <input
+                        type="date"
+                        aria-label="Дата до"
+                        value={endDate}
+                        onChange={(event) => setEndDate(event.target.value)}
+                        className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                      />
+                    </label>
+                  </div>
+
+                  <p className="text-xs tabular-nums text-gray-400">
+                    Показано: {visibleSales.length} из {total ?? sales.length}
+                  </p>
+                </div>
+              </FilterMenu>
               <button
                 type="button"
                 aria-label="Обновить продажи"
                 onClick={() => refetch()}
-                className="ml-auto flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-sm text-white hover:bg-blue-700 sm:px-4"
+                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-sm text-white hover:bg-blue-700 sm:px-4"
               >
                 <ArrowPathIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span className="hidden sm:inline">Обновить</span>
@@ -597,6 +677,21 @@ export default function SalesHistory() {
                     })}
                   </tbody>
                 </table>
+
+                {hasMore && (
+                  <div className="flex justify-center border-t border-gray-50 p-4 dark:border-gray-700/50">
+                    <button
+                      type="button"
+                      onClick={() => loadMore()}
+                      disabled={isFetchingNextPage}
+                      className="rounded-xl border border-gray-200 px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
+                      {isFetchingNextPage
+                        ? 'Загрузка…'
+                        : `Показать ещё${total ? ` · ${sales.length} из ${total}` : ''}`}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

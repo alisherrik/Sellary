@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   PencilIcon,
@@ -13,12 +13,17 @@ import {
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { suppliersApi } from '@/lib/api';
 import { Supplier } from '@/lib/types';
+import FilterMenu from '@/components/filters/FilterMenu';
 import { TableSkeleton } from '@/components/skeletons';
 import { useSuppliers } from '@/hooks/useQueries';
+import { useDebounce } from '@/hooks/useDebounce';
+
+type SupplierFilter = 'all' | 'with_terms' | 'without_terms' | 'with_email';
 
 export default function Suppliers() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState<SupplierFilter>('all');
   const [showModal, setShowModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
 
@@ -31,10 +36,46 @@ export default function Suppliers() {
     address: '',
   });
 
-  const params: any = { limit: 100 };
-  if (searchQuery) params.search = searchQuery;
+  const debouncedSearch = useDebounce(searchQuery, 300);
+  const params: Record<string, string | number> = { limit: 100 };
+  if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
 
   const { data: suppliers = [], isLoading: loading } = useSuppliers(params);
+  const visibleSuppliers = useMemo(() => {
+    if (supplierFilter === 'with_terms') {
+      return suppliers.filter((supplier) => Boolean(supplier.payment_terms?.trim()));
+    }
+    if (supplierFilter === 'without_terms') {
+      return suppliers.filter((supplier) => !supplier.payment_terms?.trim());
+    }
+    if (supplierFilter === 'with_email') {
+      return suppliers.filter((supplier) => Boolean(supplier.email?.trim()));
+    }
+    return suppliers;
+  }, [suppliers, supplierFilter]);
+  const filterTabs: Array<{ key: SupplierFilter; label: string; count: number }> = [
+    { key: 'all', label: 'Все', count: suppliers.length },
+    {
+      key: 'with_terms',
+      label: 'С условиями',
+      count: suppliers.filter((supplier) => Boolean(supplier.payment_terms?.trim())).length,
+    },
+    {
+      key: 'without_terms',
+      label: 'Без условий',
+      count: suppliers.filter((supplier) => !supplier.payment_terms?.trim()).length,
+    },
+    {
+      key: 'with_email',
+      label: 'Есть email',
+      count: suppliers.filter((supplier) => Boolean(supplier.email?.trim())).length,
+    },
+  ];
+  const hasFilters = Boolean(searchQuery.trim() || supplierFilter !== 'all');
+  const activeFilterCount = supplierFilter !== 'all' ? 1 : 0;
+  const resetAdvancedFilters = () => {
+    setSupplierFilter('all');
+  };
 
   const createSupplierMutation = useMutation({
     mutationFn: (data: any) => suppliersApi.create(data),
@@ -130,15 +171,51 @@ export default function Suppliers() {
         </div>
 
         <div className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-4">
-          <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 sm:h-5 sm:w-5" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск поставщиков..."
-              className="h-9 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-sm dark:border-gray-600 dark:bg-gray-700 sm:h-10 sm:pl-10 sm:text-base"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 sm:h-5 sm:w-5" />
+              <input
+                type="search"
+                aria-label="Поиск поставщиков"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Поиск поставщиков..."
+                className="h-9 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-sm dark:border-gray-600 dark:bg-gray-700 sm:h-10 sm:pl-10 sm:text-base"
+              />
+            </div>
+            <FilterMenu activeCount={activeFilterCount} onReset={resetAdvancedFilters}>
+              <div className="space-y-3">
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    Данные поставщика
+                  </p>
+                  <div className="grid gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-900">
+                    {filterTabs.map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        aria-label={tab.label}
+                        data-filter-close
+                        onClick={() => setSupplierFilter(tab.key)}
+                        className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                          supplierFilter === tab.key
+                            ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                        }`}
+                      >
+                        <span>{tab.label}</span>
+                        <span aria-hidden="true" className="text-xs tabular-nums text-gray-400">
+                          {tab.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-xs tabular-nums text-gray-400">
+                  Показано: {visibleSuppliers.length} из {suppliers.length}
+                </p>
+              </div>
+            </FilterMenu>
           </div>
         </div>
 
@@ -147,12 +224,14 @@ export default function Suppliers() {
             <div className="p-4">
               <TableSkeleton rows={5} columns={5} />
             </div>
-          ) : suppliers.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">Поставщики не найдены</div>
+          ) : visibleSuppliers.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              {hasFilters ? 'Поставщики не найдены' : 'Поставщиков пока нет'}
+            </div>
           ) : (
             <>
               <div className="space-y-2 sm:hidden">
-                {suppliers.map((supplier: Supplier) => (
+                {visibleSuppliers.map((supplier: Supplier) => (
                   <div key={supplier.id} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                     <div className="flex items-start justify-between">
                       <div className="min-w-0 flex-1">
@@ -199,7 +278,7 @@ export default function Suppliers() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {suppliers.map((supplier: Supplier) => (
+                    {visibleSuppliers.map((supplier: Supplier) => (
                       <tr key={supplier.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{supplier.name}</td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{supplier.contact_person || '-'}</td>

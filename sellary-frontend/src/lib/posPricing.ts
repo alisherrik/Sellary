@@ -42,6 +42,20 @@ export function calculateCashPayment(value: string, total: number) {
   };
 }
 
+export function calculateCreditInitialPayment(value: string, total: number) {
+  const parsed = parseEditableAmount(value);
+  const roundedTotal = roundMoney(Math.max(0, total));
+  const amount = parsed === null ? 0 : roundMoney(Math.max(0, parsed));
+  const exceedsTotal = amount > roundedTotal;
+
+  return {
+    amount,
+    remaining: roundMoney(Math.max(0, roundedTotal - amount)),
+    exceedsTotal,
+    isValid: !exceedsTotal,
+  };
+}
+
 export function calculateDiscountFromEditedPrice(value: string, originalPrice: number): number {
   const editedPrice = parseEditableAmount(value);
   if (editedPrice === null || editedPrice < 0) {

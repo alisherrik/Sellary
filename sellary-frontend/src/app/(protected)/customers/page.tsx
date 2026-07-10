@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 import { customersApi, generateIdempotencyKey } from '@/lib/api';
 import { Customer } from '@/lib/types';
+import FilterMenu from '@/components/filters/FilterMenu';
 import { formatCurrency } from '@/lib/utils';
 import { queryKeys, useCustomerLedger, useCustomers } from '@/hooks/useQueries';
 import { useAuthStore } from '@/lib/store';
+import { useDebounce } from '@/hooks/useDebounce';
 
 const entryLabels: Record<string, string> = {
   credit_sale: 'Продажа в долг',
@@ -17,28 +20,66 @@ const entryLabels: Record<string, string> = {
   cancel_adjustment: 'Аннулирование',
 };
 
+type CustomerDebtFilter = 'all' | 'debt' | 'clear';
+
 export default function CustomersPage() {
   const queryClient = useQueryClient();
   const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debtFilter, setDebtFilter] = useState<CustomerDebtFilter>('all');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
   const [paymentDescription, setPaymentDescription] = useState('');
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
-  const { data: customers = [], isLoading: customersLoading } = useCustomers({ limit: 200 });
+  const debouncedSearch = useDebounce(searchQuery, 300);
+  const customerParams: Record<string, string | number> = { limit: 200 };
+  if (debouncedSearch.trim()) customerParams.search = debouncedSearch.trim();
+
+  const { data: customers = [], isLoading: customersLoading } = useCustomers(customerParams);
+  const visibleCustomers = useMemo(() => {
+    if (debtFilter === 'debt') {
+      return customers.filter((customer) => Number(customer.balance || 0) > 0);
+    }
+    if (debtFilter === 'clear') {
+      return customers.filter((customer) => Number(customer.balance || 0) <= 0);
+    }
+    return customers;
+  }, [customers, debtFilter]);
   const selectedCustomer = useMemo(
-    () => customers.find((customer) => customer.id === selectedCustomerId) ?? customers[0] ?? null,
-    [customers, selectedCustomerId],
+    () => visibleCustomers.find((customer) => customer.id === selectedCustomerId) ?? visibleCustomers[0] ?? null,
+    [visibleCustomers, selectedCustomerId],
   );
   const { data: ledger, isLoading: ledgerLoading } = useCustomerLedger(selectedCustomer?.id ?? null);
 
   useEffect(() => {
-    if (selectedCustomerId === null && customers.length > 0) {
-      setSelectedCustomerId(customers[0].id);
+    if (visibleCustomers.length === 0) {
+      setSelectedCustomerId(null);
+      return;
     }
-  }, [customers, selectedCustomerId]);
+
+    if (!visibleCustomers.some((customer) => customer.id === selectedCustomerId)) {
+      setSelectedCustomerId(visibleCustomers[0].id);
+    }
+  }, [visibleCustomers, selectedCustomerId]);
+
+  const customersWithDebt = useMemo(
+    () => customers.filter((customer) => Number(customer.balance || 0) > 0).length,
+    [customers],
+  );
+  const customersWithoutDebt = customers.length - customersWithDebt;
+  const debtTabs: Array<{ key: CustomerDebtFilter; label: string; count: number }> = [
+    { key: 'all', label: 'Все', count: customers.length },
+    { key: 'debt', label: 'С долгом', count: customersWithDebt },
+    { key: 'clear', label: 'Без долга', count: customersWithoutDebt },
+  ];
+  const hasFilters = Boolean(searchQuery.trim() || debtFilter !== 'all');
+  const activeFilterCount = debtFilter !== 'all' ? 1 : 0;
+  const resetAdvancedFilters = () => {
+    setDebtFilter('all');
+  };
 
   const openPayment = () => {
     if (!selectedCustomer) return;
@@ -69,7 +110,7 @@ export default function CustomersPage() {
       toast.success('Оплата долга сохранена');
       setShowPaymentModal(false);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.customers(companyId, { limit: 200 }) }),
+        queryClient.invalidateQueries({ queryKey: ['customers'] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.customerLedger(companyId, selectedCustomer.id) }),
         queryClient.invalidateQueries({ queryKey: ['sales'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
@@ -84,19 +125,69 @@ export default function CustomersPage() {
   return (
     <>
       <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
-        <section className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
           <div className="border-b border-gray-100 p-4 dark:border-gray-700">
             <h1 className="text-xl font-black text-gray-900 dark:text-white">Клиенты</h1>
             <p className="text-sm text-gray-500">Клиенты для продаж в долг и история оплат.</p>
           </div>
-          <div className="h-full overflow-y-auto p-3">
+          <div className="border-b border-gray-100 p-3 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="search"
+                aria-label="Поиск клиентов"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Поиск по имени, телефону или email..."
+                className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+              />
+              </div>
+              <FilterMenu activeCount={activeFilterCount} onReset={resetAdvancedFilters}>
+                <div className="space-y-3">
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Баланс
+                    </p>
+                    <div className="grid gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-900">
+                      {debtTabs.map((tab) => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          aria-label={tab.label}
+                          data-filter-close
+                          onClick={() => setDebtFilter(tab.key)}
+                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                            debtFilter === tab.key
+                              ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                          }`}
+                        >
+                          <span>{tab.label}</span>
+                          <span aria-hidden="true" className="text-xs tabular-nums text-gray-400">
+                            {tab.count}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs tabular-nums text-gray-400">
+                    Показано: {visibleCustomers.length} из {customers.length}
+                  </p>
+                </div>
+              </FilterMenu>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {customersLoading ? (
               <div className="py-10 text-center text-sm text-gray-400">Загрузка клиентов…</div>
-            ) : customers.length === 0 ? (
-              <div className="py-10 text-center text-sm text-gray-400">Клиентов пока нет</div>
+            ) : visibleCustomers.length === 0 ? (
+              <div className="py-10 text-center text-sm text-gray-400">
+                {hasFilters ? 'Клиенты не найдены' : 'Клиентов пока нет'}
+              </div>
             ) : (
               <div className="space-y-2">
-                {customers.map((customer: Customer) => {
+                {visibleCustomers.map((customer: Customer) => {
                   const selected = selectedCustomer?.id === customer.id;
                   const balance = Number(customer.balance || 0);
                   return (

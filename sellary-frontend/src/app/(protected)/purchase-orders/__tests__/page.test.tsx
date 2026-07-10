@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { usePurchaseOrders } from '@/hooks/useQueries';
 import type { PurchaseOrder, Supplier } from '@/lib/types';
 import PurchaseOrdersPage from '../page';
 
@@ -79,6 +80,30 @@ describe('PurchaseOrdersPage', () => {
     await user.type(search, '1049');
     expect(screen.getAllByText('#1049').length).toBeGreaterThan(0);
     expect(screen.queryByText('#1048')).not.toBeInTheDocument();
+  });
+
+  it('sends date range filters to the purchase orders query', async () => {
+    render(<PurchaseOrdersPage />);
+
+    expect(screen.queryByLabelText('Дата от')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Фильтры' }));
+
+    fireEvent.change(screen.getByLabelText('Дата от'), {
+      target: { value: '2026-06-01' },
+    });
+    fireEvent.change(screen.getByLabelText('Дата до'), {
+      target: { value: '2026-06-30' },
+    });
+
+    await waitFor(() =>
+      expect(usePurchaseOrders).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          limit: 200,
+          start_date: '2026-06-01',
+          end_date: '2026-06-30',
+        }),
+      ),
+    );
   });
 
   it('opens order detail from the primary row action', () => {

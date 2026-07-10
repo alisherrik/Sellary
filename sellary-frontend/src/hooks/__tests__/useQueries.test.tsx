@@ -6,6 +6,7 @@ import {
     useDashboard,
     useProducts,
     useSales,
+    useInfiniteSales,
     useSaleSearchSuggestions,
     useSuppliers,
     usePurchaseOrders,
@@ -274,6 +275,49 @@ describe('useSales', () => {
             wrapper: createWrapper(false),
         });
 
+        expect(api.salesApi.getAll).not.toHaveBeenCalled();
+    });
+});
+
+describe('useInfiniteSales', () => {
+    const pageResponse = (data: any[], total: number) => ({
+        data,
+        status: 200,
+        statusText: 'OK',
+        headers: { 'x-total-count': String(total) },
+        config: {} as any,
+    });
+
+    it('accumulates pages and exposes the full total so older sales stay reachable', async () => {
+        const all = [{ id: 1 }, { id: 2 }, { id: 3 }];
+        vi.mocked(api.salesApi.getAll).mockImplementation((params?: any) => {
+            const skip = params?.skip ?? 0;
+            return Promise.resolve(pageResponse(all.slice(skip, skip + 2), all.length)) as any;
+        });
+
+        const { result } = renderHook(() => useInfiniteSales({ limit: 2 }), {
+            wrapper: createWrapper(true),
+        });
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+        expect(result.current.sales).toEqual([{ id: 1 }, { id: 2 }]);
+        expect(result.current.total).toBe(3);
+        expect(result.current.hasMore).toBe(true);
+
+        result.current.loadMore();
+
+        await waitFor(() =>
+            expect(result.current.sales).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]),
+        );
+        expect(result.current.hasMore).toBe(false);
+        expect(api.salesApi.getAll).toHaveBeenLastCalledWith(
+            expect.objectContaining({ skip: 2, limit: 2 }),
+        );
+    });
+
+    it('CRITICAL: does not fetch when the server is unreachable', () => {
+        renderHook(() => useInfiniteSales(), { wrapper: createWrapper(false) });
         expect(api.salesApi.getAll).not.toHaveBeenCalled();
     });
 });

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useCartStore, useUIStore } from '@/lib/store';
 import { salesApi, productsApi, categoriesApi, customersApi } from '@/lib/api';
 import { formatCurrency, hotkeyManager, printReceipt, registerHotkeys } from '@/lib/utils';
+import FilterMenu from '@/components/filters/FilterMenu';
 import { useProducts } from '@/hooks/useQueries';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -31,12 +32,15 @@ import toast from 'react-hot-toast';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import {
   calculateCashPayment,
+  calculateCreditInitialPayment,
   calculateDiscountFromEditedPrice,
   calculatePosPricing,
   formatEditableAmount,
 } from '@/lib/posPricing';
 
 type PosPaymentMethod = 'cash' | 'card' | 'mobile' | 'credit';
+type CreditInitialPaymentMethod = 'cash' | 'card' | 'mobile';
+type PosStockFilter = 'all' | 'available' | 'low' | 'out';
 
 const PAYMENT_METHODS = [
   { id: 'cash', label: 'Наличные', Icon: BanknotesIcon },
@@ -50,6 +54,11 @@ const CARD_TYPES = [
   { id: 'eskhata', label: 'Eskhata' },
   { id: 'dc', label: 'DC' },
 ] as const;
+
+const CREDIT_INITIAL_PAYMENT_METHODS = PAYMENT_METHODS.filter(
+  (method): method is Extract<(typeof PAYMENT_METHODS)[number], { id: CreditInitialPaymentMethod }> =>
+    method.id !== 'credit',
+);
 
 // Soft per-category tint for the tile icon chip, keyed deterministically so a
 // category always reads the same colour.
@@ -76,6 +85,8 @@ export default function POS() {
   const [quickCustomerDescription, setQuickCustomerDescription] = useState('');
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [cashReceived, setCashReceived] = useState('');
+  const [creditPaidAmount, setCreditPaidAmount] = useState('');
+  const [creditPaymentMethod, setCreditPaymentMethod] = useState<CreditInitialPaymentMethod>('cash');
   const [loading, setLoading] = useState(false);
   const [totalEdit, setTotalEdit] = useState<string | null>(null);
   const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
@@ -120,6 +131,9 @@ export default function POS() {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 300);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [stockFilter, setStockFilter] = useState<PosStockFilter>('all');
+  const [minPriceFilter, setMinPriceFilter] = useState('');
+  const [maxPriceFilter, setMaxPriceFilter] = useState('');
   const [barcode, setBarcode] = useState('');
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -220,6 +234,67 @@ export default function POS() {
     }
     return map;
   }, [items]);
+  const parseCatalogPrice = useCallback((value: string) => {
+    const normalized = value.trim().replace(',', '.');
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, []);
+  const stockFilterOptions = useMemo(() => {
+    const getLeft = (product: Product) =>
+      remainingStock(Number(product.stock_quantity), cartBaseByProduct.get(product.id) ?? 0);
+    return [
+      { key: 'all' as const, label: 'Все товары', count: products.length },
+      {
+        key: 'available' as const,
+        label: 'В наличии',
+        count: products.filter((product) =>
+          nextAddQuantity(Number(product.stock_quantity), cartBaseByProduct.get(product.id) ?? 0) > 0,
+        ).length,
+      },
+      {
+        key: 'low' as const,
+        label: 'Мало на складе',
+        count: products.filter((product) => {
+          const left = getLeft(product);
+          return left > 0 && left <= Number(product.min_stock_level);
+        }).length,
+      },
+      {
+        key: 'out' as const,
+        label: 'Нет в наличии',
+        count: products.filter((product) =>
+          nextAddQuantity(Number(product.stock_quantity), cartBaseByProduct.get(product.id) ?? 0) <= 0,
+        ).length,
+      },
+    ];
+  }, [cartBaseByProduct, products]);
+  const visibleProducts = useMemo(() => {
+    const minPrice = parseCatalogPrice(minPriceFilter);
+    const maxPrice = parseCatalogPrice(maxPriceFilter);
+
+    return products.filter((product) => {
+      const price = Number(product.sell_price);
+      const inCartBase = cartBaseByProduct.get(product.id) ?? 0;
+      const left = remainingStock(Number(product.stock_quantity), inCartBase);
+      const canAdd = nextAddQuantity(Number(product.stock_quantity), inCartBase) > 0;
+
+      if (stockFilter === 'available' && !canAdd) return false;
+      if (stockFilter === 'low' && !(left > 0 && left <= Number(product.min_stock_level))) return false;
+      if (stockFilter === 'out' && canAdd) return false;
+      if (minPrice !== null && price < minPrice) return false;
+      if (maxPrice !== null && price > maxPrice) return false;
+
+      return true;
+    });
+  }, [cartBaseByProduct, maxPriceFilter, minPriceFilter, parseCatalogPrice, products, stockFilter]);
+  const activeCatalogFilterCount =
+    (stockFilter !== 'all' ? 1 : 0) + (minPriceFilter.trim() ? 1 : 0) + (maxPriceFilter.trim() ? 1 : 0);
+  const resetCatalogFilters = useCallback(() => {
+    setStockFilter('all');
+    setMinPriceFilter('');
+    setMaxPriceFilter('');
+  }, []);
   // Max sellable quantity for a line in its own unit, given other lines of the
   // same product already claim some of the shared stock.
   const maxSoldForItem = useCallback(
@@ -258,6 +333,10 @@ export default function POS() {
     () => calculateCashPayment(cashReceived, finalTotal),
     [cashReceived, finalTotal],
   );
+  const creditInitialPayment = useMemo(
+    () => calculateCreditInitialPayment(creditPaidAmount, finalTotal),
+    [creditPaidAmount, finalTotal],
+  );
   const openPaymentModal = useCallback(() => {
     setCashReceived(formatEditableAmount(finalTotal));
     setShowPaymentModal(true);
@@ -280,6 +359,8 @@ export default function POS() {
     setQuickCustomerPhone('');
     setQuickCustomerDescription('');
     setCashReceived('');
+    setCreditPaidAmount('');
+    setCreditPaymentMethod('cash');
     setTotalEdit(null);
     setPriceEdits({});
     setQtyEdits({});
@@ -331,6 +412,8 @@ export default function POS() {
     setQuickCustomerPhone('');
     setQuickCustomerDescription('');
     setCashReceived('');
+    setCreditPaidAmount('');
+    setCreditPaymentMethod('cash');
     setActiveOverallDiscount(0);
     setTotalEdit(null);
     setPriceEdits({});
@@ -394,6 +477,11 @@ export default function POS() {
       return;
     }
 
+    if (paymentMethod === 'credit' && !creditInitialPayment.isValid) {
+      toast.error('Первый платеж не может быть больше суммы продажи');
+      return;
+    }
+
     setLoading(true);
 
     const saleItems = items.map((item) => {
@@ -415,6 +503,12 @@ export default function POS() {
       payment_method: paymentMethod,
       discount_amount: Math.max(0, items.reduce((sum, item) => sum + Math.max(0, item.discount || 0), 0) + overallDiscount),
       ...(isCreditSale ? { customer_id: selectedCustomer!.id } : {}),
+      ...(isCreditSale && creditInitialPayment.amount > 0
+        ? {
+            paid_amount: creditInitialPayment.amount,
+            initial_payment_method: creditPaymentMethod,
+          }
+        : {}),
     };
 
     if (paymentMethod === 'card' && cardType) {
@@ -461,7 +555,7 @@ export default function POS() {
     } finally {
       setLoading(false);
     }
-  }, [items, hasOverStock, paymentMethod, cardType, cashPayment.isSufficient, selectedCustomer, isServerReachable, overallDiscount, resetCheckout, queryClient]);
+  }, [items, hasOverStock, paymentMethod, cardType, cashPayment.isSufficient, selectedCustomer, creditInitialPayment, creditPaymentMethod, isServerReachable, overallDiscount, resetCheckout, queryClient]);
 
   useEffect(() => {
     hotkeyManager.register({
@@ -839,8 +933,8 @@ export default function POS() {
         {/* Catalog */}
         <main className="flex min-w-0 flex-1 flex-col">
           {/* Search + barcode */}
-          <div className="mb-3 flex items-center gap-2">
-            <div className="relative flex-1">
+          <div className="mb-3 flex flex-wrap items-center gap-2 sm:flex-nowrap">
+            <div className="relative min-w-[220px] flex-1">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
@@ -861,6 +955,69 @@ export default function POS() {
                 className="h-11 w-full rounded-2xl border border-gray-200 bg-white pl-10 pr-3 font-mono text-sm shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-800"
               />
             </form>
+            <FilterMenu activeCount={activeCatalogFilterCount} onReset={resetCatalogFilters}>
+              <div className="space-y-4">
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    Наличие
+                  </p>
+                  <div className="grid gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-900">
+                    {stockFilterOptions.map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        aria-label={option.label}
+                        data-filter-close
+                        onClick={() => setStockFilter(option.key)}
+                        className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                          stockFilter === option.key
+                            ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                        }`}
+                      >
+                        <span>{option.label}</span>
+                        <span aria-hidden="true" className="text-xs tabular-nums text-gray-400">
+                          {option.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                      Цена от
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      aria-label="Цена от"
+                      value={minPriceFilter}
+                      onChange={(event) => setMinPriceFilter(event.target.value)}
+                      className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                      Цена до
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      aria-label="Цена до"
+                      value={maxPriceFilter}
+                      onChange={(event) => setMaxPriceFilter(event.target.value)}
+                      className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                    />
+                  </label>
+                </div>
+
+                <p className="text-xs tabular-nums text-gray-400">
+                  Показано: {visibleProducts.length} из {products.length}
+                </p>
+              </div>
+            </FilterMenu>
           </div>
 
           {/* Category chips */}
@@ -903,7 +1060,7 @@ export default function POS() {
                       <div className="h-3 w-1/2 rounded bg-gray-200 dark:bg-gray-700" />
                     </div>
                   ))
-                : products.map((product) => {
+                : visibleProducts.map((product) => {
                     const stock = Number(product.stock_quantity);
                     const inCartBase = cartBaseByProduct.get(product.id) ?? 0;
                     const left = remainingStock(stock, inCartBase);
@@ -951,7 +1108,7 @@ export default function POS() {
                     );
                   })}
             </div>
-            {!productsLoading && products.length === 0 && (
+            {!productsLoading && visibleProducts.length === 0 && (
               <div className="py-16 text-center text-sm text-gray-400">Товары не найдены</div>
             )}
           </div>
@@ -1049,7 +1206,11 @@ export default function POS() {
                     onClick={() => {
                       setPaymentMethod(id);
                       if (id !== 'card') setCardType(null);
-                      if (id !== 'credit') setSelectedCustomer(null);
+                      if (id !== 'credit') {
+                        setSelectedCustomer(null);
+                        setCreditPaidAmount('');
+                        setCreditPaymentMethod('cash');
+                      }
                       if (id === 'cash') setCashReceived(formatEditableAmount(finalTotal));
                     }}
                     className={`relative flex min-h-[44px] flex-col items-center justify-center rounded-xl border-2 p-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-4 ${
@@ -1199,12 +1360,71 @@ export default function POS() {
                 >
                   {creatingCustomer ? 'Создание...' : 'Создать клиента'}
                 </button>
+
+                <div className="mt-4 border-t border-amber-200 pt-4 dark:border-amber-900/40">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Оплачено сейчас
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={creditPaidAmount}
+                      onChange={(event) => setCreditPaidAmount(event.target.value)}
+                      className={`mt-1 h-11 w-full rounded-xl border bg-white px-3 text-right text-lg font-extrabold tabular-nums text-gray-900 outline-none transition focus:ring-2 dark:bg-gray-950 dark:text-white ${
+                        creditInitialPayment.exceedsTotal
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-100 dark:border-red-700 dark:focus:ring-red-900/30'
+                          : 'border-amber-200 focus:border-amber-500 focus:ring-amber-100 dark:border-gray-700 dark:focus:ring-amber-900/30'
+                      }`}
+                    />
+                  </label>
+
+                  <div className="mt-3">
+                    <p className="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">Способ первого платежа</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {CREDIT_INITIAL_PAYMENT_METHODS.map(({ id, label, Icon }) => {
+                        const selected = creditPaymentMethod === id;
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            aria-label={`Первый платеж: ${label}`}
+                            aria-pressed={selected}
+                            onClick={() => setCreditPaymentMethod(id)}
+                            className={`relative flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${
+                              selected
+                                ? 'border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-100'
+                                : 'border-gray-200 text-gray-600 hover:border-amber-300 dark:border-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            <Icon className="h-4 w-4" />
+                            <span>{label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div
+                    className={`mt-3 flex items-center justify-between rounded-xl px-3 py-2 text-sm font-bold ${
+                      creditInitialPayment.exceedsTotal
+                        ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+                        : 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200'
+                    }`}
+                  >
+                    <span>Останется долг</span>
+                    <span className="text-lg tabular-nums">{formatCurrency(creditInitialPayment.remaining)}</span>
+                  </div>
+                  {creditInitialPayment.exceedsTotal && (
+                    <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-300">
+                      Первый платеж не может быть больше суммы продажи
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
             <button
               onClick={completeSale}
-              disabled={loading || hasOverStock || (paymentMethod === 'cash' && !cashPayment.isSufficient) || (paymentMethod === 'credit' && !selectedCustomer)}
+              disabled={loading || hasOverStock || (paymentMethod === 'cash' && !cashPayment.isSufficient) || (paymentMethod === 'credit' && (!selectedCustomer || !creditInitialPayment.isValid))}
               className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3 text-base font-bold text-white transition-all hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-400 sm:py-4 sm:text-xl"
             >
               {loading ? (

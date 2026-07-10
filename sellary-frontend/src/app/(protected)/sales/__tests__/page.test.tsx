@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useSaleSearchSuggestions, useSales } from '@/hooks/useQueries';
+import { useSaleSearchSuggestions, useInfiniteSales } from '@/hooks/useQueries';
 import SalesHistory from '../page';
 import { customersApi } from '@/lib/api';
 
@@ -26,8 +26,19 @@ const sale = {
   items: [],
 };
 
+const cardSale = {
+  ...sale,
+  id: 43,
+  customer_id: undefined,
+  customer_name: undefined,
+  payment_method: 'card' as const,
+  card_type: 'alif' as const,
+  total_amount: '55.00',
+  created_at: '2026-07-03T10:00:00Z',
+};
+
 vi.mock('@/hooks/useQueries', () => ({
-  useSales: vi.fn(),
+  useInfiniteSales: vi.fn(),
   useSaleSearchSuggestions: vi.fn(),
 }));
 
@@ -58,6 +69,18 @@ vi.mock('@/components/transactions/AnnulmentDialog', () => ({
   default: () => null,
 }));
 
+const infiniteResult = (overrides: Record<string, unknown> = {}) => ({
+  sales: [sale, cardSale],
+  total: 2,
+  isLoading: false,
+  isFetching: false,
+  isFetchingNextPage: false,
+  hasMore: false,
+  loadMore: vi.fn(),
+  refetch: vi.fn(),
+  ...overrides,
+});
+
 const renderPage = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -72,12 +95,7 @@ const renderPage = () => {
 describe('Sales history smart search', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useSales).mockReturnValue({
-      data: [sale],
-      isLoading: false,
-      isFetching: false,
-      refetch: vi.fn(),
-    } as any);
+    vi.mocked(useInfiniteSales).mockReturnValue(infiniteResult() as any);
     vi.mocked(useSaleSearchSuggestions).mockReturnValue({
       data: [],
       isLoading: false,
@@ -92,9 +110,8 @@ describe('Sales history smart search', () => {
 
     await waitFor(
       () =>
-        expect(useSales).toHaveBeenLastCalledWith(
+        expect(useInfiniteSales).toHaveBeenLastCalledWith(
           expect.objectContaining({ limit: 200, search: 'колаа' }),
-          expect.any(Object),
         ),
       { timeout: 1500 },
     );
@@ -107,9 +124,8 @@ describe('Sales history smart search', () => {
     await user.click(screen.getByRole('button', { name: 'Возвраты' }));
 
     await waitFor(() =>
-      expect(useSales).toHaveBeenLastCalledWith(
+      expect(useInfiniteSales).toHaveBeenLastCalledWith(
         expect.objectContaining({ limit: 200, status_group: 'returns' }),
-        expect.any(Object),
       ),
     );
   });
@@ -127,31 +143,83 @@ describe('Sales history smart search', () => {
 
     await waitFor(
       () =>
-        expect(useSales).toHaveBeenLastCalledWith(
+        expect(useInfiniteSales).toHaveBeenLastCalledWith(
           expect.objectContaining({ search: 'Кола' }),
-          expect.any(Object),
         ),
       { timeout: 1500 },
     );
   });
 
+  it('combines date range params with a local payment method filter', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(screen.queryByLabelText('Дата от')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Фильтры' }));
+
+    fireEvent.change(screen.getByLabelText('Дата от'), {
+      target: { value: '2026-07-01' },
+    });
+    fireEvent.change(screen.getByLabelText('Дата до'), {
+      target: { value: '2026-07-31' },
+    });
+
+    await waitFor(() =>
+      expect(useInfiniteSales).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          limit: 200,
+          start_date: '2026-07-01T00:00:00',
+          end_date: '2026-07-31T23:59:59',
+        }),
+      ),
+    );
+
+    await user.selectOptions(screen.getByLabelText('Способ оплаты'), 'card');
+
+    expect(screen.getAllByText('#43').length).toBeGreaterThan(0);
+    expect(screen.queryByText('#42')).not.toBeInTheDocument();
+  });
+
+  it('loads the next page of older receipts on demand', async () => {
+    const loadMore = vi.fn();
+    vi.mocked(useInfiniteSales).mockReturnValue(
+      infiniteResult({ total: 5, hasMore: true, loadMore }) as any,
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    const loadMoreButton = screen.getByRole('button', { name: /Показать ещё/ });
+    await user.click(loadMoreButton);
+
+    expect(loadMore).toHaveBeenCalled();
+  });
+
+  it('hides the load-more control when the whole history is loaded', () => {
+    vi.mocked(useInfiniteSales).mockReturnValue(
+      infiniteResult({ total: 2, hasMore: false }) as any,
+    );
+    renderPage();
+
+    expect(screen.queryByRole('button', { name: /Показать ещё/ })).not.toBeInTheDocument();
+  });
+
   it('shows credit debt status and accepts a debt payment from sale details', async () => {
     const user = userEvent.setup();
-    vi.mocked(useSales).mockReturnValue({
-      data: [
-        {
-          ...sale,
-          payment_method: 'credit',
-          payment_status: 'unpaid',
-          credit_amount: '33.00',
-          credit_paid_amount: '5.00',
-          credit_remaining_amount: '28.00',
-        },
-      ],
-      isLoading: false,
-      isFetching: false,
-      refetch: vi.fn(),
-    } as any);
+    vi.mocked(useInfiniteSales).mockReturnValue(
+      infiniteResult({
+        sales: [
+          {
+            ...sale,
+            payment_method: 'credit',
+            payment_status: 'unpaid',
+            credit_amount: '33.00',
+            credit_paid_amount: '5.00',
+            credit_remaining_amount: '28.00',
+          },
+        ],
+        total: 1,
+      }) as any,
+    );
     vi.mocked(customersApi.recordPayment).mockResolvedValue({
       data: { customer_id: 3, balance: '18.00', entries: [] },
     } as never);

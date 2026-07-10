@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, keepPreviousData, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
 import { reportsApi, productsApi, salesApi, suppliersApi, purchaseOrdersApi, customersApi } from '@/lib/api';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { useAuthStore } from '@/lib/store';
@@ -68,6 +68,62 @@ export function useSales(params?: any, options?: Partial<UseQueryOptions<Sale[]>
         ...options,
         enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
     });
+}
+
+interface SalesPage {
+    items: Sale[];
+    total: number;
+}
+
+/**
+ * Paginated sales history.
+ *
+ * The list endpoint caps each response at 200 rows, so a shop with more than
+ * that would lose its oldest receipts from the view. This hook walks the whole
+ * history page-by-page (skip/limit) and reads the tenant-wide match count from
+ * the `X-Total-Count` header, so every receipt stays reachable via "load more".
+ */
+export function useInfiniteSales(params?: any) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    const { limit, ...filters } = params || {};
+    const pageSize: number = limit ?? 50;
+
+    const query = useInfiniteQuery<SalesPage>({
+        queryKey: queryKeys.sales(companyId, params),
+        queryFn: async ({ pageParam }) => {
+            const response = await salesApi.getAll({ ...filters, skip: pageParam, limit: pageSize });
+            const header = response.headers?.['x-total-count'];
+            const total = header !== undefined ? Number(header) : Number.NaN;
+            return { items: (response.data as Sale[]) ?? [], total };
+        },
+        initialPageParam: 0,
+        getNextPageParam: (lastPage, allPages) => {
+            const loaded = allPages.reduce((sum, page) => sum + page.items.length, 0);
+            if (!Number.isNaN(lastPage.total)) {
+                return loaded < lastPage.total ? loaded : undefined;
+            }
+            // No total header: keep paging while the last page came back full.
+            return lastPage.items.length === pageSize ? loaded : undefined;
+        },
+        placeholderData: keepPreviousData,
+        enabled: isServerReachable && companyId !== null,
+    });
+
+    const pages = query.data?.pages ?? [];
+    const sales = pages.flatMap((page) => page.items);
+    const lastTotal = pages.length ? pages[pages.length - 1].total : Number.NaN;
+
+    return {
+        sales,
+        total: Number.isNaN(lastTotal) ? undefined : lastTotal,
+        isLoading: query.isLoading,
+        isFetching: query.isFetching,
+        isFetchingNextPage: query.isFetchingNextPage,
+        hasMore: Boolean(query.hasNextPage),
+        loadMore: query.fetchNextPage,
+        refetch: query.refetch,
+    };
 }
 
 export function useSaleSearchSuggestions(query: string, limit = 8) {
