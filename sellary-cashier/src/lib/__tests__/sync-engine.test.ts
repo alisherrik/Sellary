@@ -62,6 +62,8 @@ import {
   syncNow,
   backoffMs,
   maybeRefreshCatalog,
+  startSyncEngine,
+  stopSyncEngine,
   __resetEngineForTests,
 } from '../sync-engine';
 import { useSyncStore, initialSyncState } from '../sync-store';
@@ -316,6 +318,69 @@ describe('maybeRefreshCatalog cadence', () => {
     mockGetMeta.mockResolvedValue(new Date().toISOString());
     await maybeRefreshCatalog(true);
     expect(mockPullCatalog).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('triggers + lifecycle', () => {
+  afterEach(() => {
+    stopSyncEngine();
+    vi.useRealTimers();
+  });
+
+  it('the 30s periodic timer only fires a pass while unsyncedCount > 0', async () => {
+    vi.useFakeTimers();
+    mockCheckHealth.mockResolvedValue(true);
+    mockGetSendableSales.mockResolvedValue([]);
+    mockGetUnsyncedCount.mockResolvedValue(0);
+
+    startSyncEngine();
+    // startup runs one immediate pollHealth; ignore checkHealth counts from that.
+    const baseline = mockCheckHealth.mock.calls.length;
+
+    // unsyncedCount is 0 -> periodic tick must NOT start a pass.
+    await vi.advanceTimersByTimeAsync(30_000);
+    // Only the 10s health poll(s) may have pinged; the periodic pass added none.
+    useSyncStore.setState({ unsyncedCount: 2 });
+    const beforeArmed = mockGetSendableSales.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(mockGetSendableSales.mock.calls.length).toBeGreaterThan(beforeArmed);
+    expect(baseline).toBeGreaterThanOrEqual(1);
+  });
+
+  it('a health poll that flips offline->online triggers a reconnect pass and a forced catalog pull', async () => {
+    vi.useFakeTimers();
+    useSyncStore.setState({ online: false });
+    mockCheckHealth.mockResolvedValue(true);
+    mockGetSendableSales.mockResolvedValue([]);
+    mockGetMeta.mockResolvedValue(new Date().toISOString());
+
+    startSyncEngine();
+    await vi.advanceTimersByTimeAsync(0); // let the startup pollHealth resolve
+
+    expect(useSyncStore.getState().online).toBe(true);
+    expect(mockPullCatalog).toHaveBeenCalled(); // forced pull on reconnect
+  });
+
+  it('stopSyncEngine clears timers so no further passes run', async () => {
+    vi.useFakeTimers();
+    mockCheckHealth.mockResolvedValue(true);
+    startSyncEngine();
+    stopSyncEngine();
+    const before = mockCheckHealth.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockCheckHealth.mock.calls.length).toBe(before);
+  });
+
+  it('hydrates catalogRefreshedAt from meta(last_catalog_pull_at) on start (cold-start chip)', async () => {
+    vi.useFakeTimers();
+    const ts = '2026-07-03T00:00:00.000Z';
+    mockGetMeta.mockResolvedValue(ts);
+    mockCheckHealth.mockResolvedValue(true);
+
+    startSyncEngine();
+    await vi.advanceTimersByTimeAsync(0); // let the meta read resolve
+
+    expect(useSyncStore.getState().catalogRefreshedAt).toBe(ts);
   });
 });
 

@@ -39,6 +39,8 @@ const BACKOFF_CAP_MS = 5 * 60_000;
 const BACKOFF_JITTER = 0.2;
 const HEALTH_TIMEOUT_MS = 4_000;
 const CATALOG_REFRESH_INTERVAL_MS = 15 * 60_000;
+const PERIODIC_INTERVAL_MS = 30_000;
+const HEALTH_INTERVAL_MS = 10_000;
 
 export function backoffMs(retryCount: number, rand: () => number = Math.random): number {
   const exp = Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * Math.pow(2, retryCount));
@@ -236,6 +238,95 @@ async function runPass(reason: SyncReason, force = false): Promise<SyncPassResul
   return { synced, permanentFailed, transientFailed, skipped: false };
 }
 
+// --- triggers + lifecycle ---
+let periodicTimer: ReturnType<typeof setInterval> | null = null;
+let healthTimer: ReturnType<typeof setInterval> | null = null;
+let focusUnlisten: (() => void) | null = null;
+let engineStarted = false;
+
+async function pollHealth(): Promise<void> {
+  const wasOnline = useSyncStore.getState().online;
+  const online = await healthPing();
+  useSyncStore.getState().setOnline(online);
+  if (!wasOnline && online) {
+    void requestSync('reconnect');
+    void maybeRefreshCatalog(true).catch(() => undefined);
+  }
+}
+
+function onOsOnline(): void {
+  void pollHealth(); // OS hint only; the health ping is authoritative.
+}
+function onOsOffline(): void {
+  useSyncStore.getState().setOnline(false);
+}
+function onVisibility(): void {
+  if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+    void pollHealth().then(() => void requestSync('focus'));
+  }
+}
+
+async function installFocusListener(): Promise<void> {
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    focusUnlisten = await getCurrentWindow().onFocusChanged(
+      ({ payload: focused }: { payload: boolean }) => {
+        if (focused) void pollHealth().then(() => void requestSync('focus'));
+      },
+    );
+  } catch {
+    // Not running inside Tauri (browser dev / vitest); window + visibility events cover focus.
+  }
+}
+
+export function startSyncEngine(): void {
+  if (engineStarted) return;
+  engineStarted = true;
+  periodicTimer = setInterval(() => {
+    if (useSyncStore.getState().unsyncedCount > 0) void requestSync('periodic');
+  }, PERIODIC_INTERVAL_MS);
+  healthTimer = setInterval(() => void pollHealth(), HEALTH_INTERVAL_MS);
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', onOsOnline);
+    window.addEventListener('offline', onOsOffline);
+    window.addEventListener('visibilitychange', onVisibility);
+  }
+  void installFocusListener();
+  void refreshCounts();
+  // Contract §5: hydrate the stale-catalog chip after a cold start (e.g. a week offline) from
+  // persisted meta, so pos-ui reads it from the store without forcing a fresh in-session pull.
+  void getMeta('last_catalog_pull_at').then((last) => {
+    if (last) useSyncStore.getState().patch({ catalogRefreshedAt: last });
+  });
+  void pollHealth();
+}
+
+export function stopSyncEngine(): void {
+  if (!engineStarted) return;
+  engineStarted = false;
+  if (periodicTimer) {
+    clearInterval(periodicTimer);
+    periodicTimer = null;
+  }
+  if (healthTimer) {
+    clearInterval(healthTimer);
+    healthTimer = null;
+  }
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('online', onOsOnline);
+    window.removeEventListener('offline', onOsOffline);
+    window.removeEventListener('visibilitychange', onVisibility);
+  }
+  if (focusUnlisten) {
+    focusUnlisten();
+    focusUnlisten = null;
+  }
+}
+
 export function __resetEngineForTests(): void {
   inFlight = null;
   rerunRequested = false;
@@ -243,4 +334,13 @@ export function __resetEngineForTests(): void {
     clearTimeout(retryTimer);
     retryTimer = null;
   }
+  if (periodicTimer) {
+    clearInterval(periodicTimer);
+    periodicTimer = null;
+  }
+  if (healthTimer) {
+    clearInterval(healthTimer);
+    healthTimer = null;
+  }
+  engineStarted = false;
 }
