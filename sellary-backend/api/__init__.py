@@ -11,6 +11,7 @@ from .purchase_orders import router as purchase_orders_router
 from .meta import router as meta_router
 from .owner import router as owner_router
 from .sync import router as sync_router
+from .device_auth import router as device_auth_router
 
 __all__ = [
     "auth_router",
@@ -26,4 +27,5 @@ __all__ = [
     "meta_router",
     "owner_router",
     "sync_router",
+    "device_auth_router",
 ]

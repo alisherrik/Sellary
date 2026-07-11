@@ -22,6 +22,7 @@ from api import (
     meta_router,
     owner_router,
     sync_router,
+    device_auth_router,
 )
 
 
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
     app.include_router(meta_router, prefix=settings.API_V1_STR)
     app.include_router(owner_router, prefix=settings.API_V1_STR)
     app.include_router(sync_router, prefix=settings.API_V1_STR)
+    app.include_router(device_auth_router, prefix=settings.API_V1_STR)
 
     return app
 
