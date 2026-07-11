@@ -113,6 +113,17 @@ export function requestSync(
   return inFlight;
 }
 
+export function syncNow(): Promise<SyncPassResult> {
+  return requestSync('manual');
+}
+
+export async function refreshCatalog(): Promise<{ products: number; categories: number }> {
+  const res = await pullCatalog();
+  useSyncStore.getState().patch({ catalogRefreshedAt: nowIso() });
+  await addSyncEvent('catalog', 'completed', `manual products=${res.products} categories=${res.categories}`);
+  return res;
+}
+
 function scheduleRetry(): void {
   const next = useSyncStore.getState().nextRetryAt;
   if (!next) return;
@@ -232,15 +243,4 @@ export function __resetEngineForTests(): void {
     clearTimeout(retryTimer);
     retryTimer = null;
   }
-}
-
-// --- back-compat public API consumed by sync-store.ts's dynamic import (Task 1 wiring). ---
-// Task 4+ (triggers/lifecycle, store wiring) may broaden these; for now they delegate to
-// the single-flight `requestSync` core added in this task.
-export async function syncNow(): Promise<void> {
-  await requestSync('manual');
-}
-
-export async function refreshCatalog(): Promise<void> {
-  await maybeRefreshCatalog(true);
 }

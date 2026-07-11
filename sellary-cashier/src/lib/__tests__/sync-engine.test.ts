@@ -57,7 +57,7 @@ vi.mock('../db', () => ({
   addSyncEvent: mockAddSyncEvent,
 }));
 
-import { requestSync, backoffMs, __resetEngineForTests } from '../sync-engine';
+import { requestSync, syncNow, backoffMs, __resetEngineForTests } from '../sync-engine';
 import { useSyncStore, initialSyncState } from '../sync-store';
 
 function makeSale(id: number, clientId: string, retry = 0) {
@@ -238,6 +238,51 @@ describe('warning surfacing + force resend', () => {
     await requestSync('manual');
 
     expect(mockGetSendableSales).toHaveBeenCalledWith(expect.any(String), undefined);
+  });
+});
+
+describe('single-flight + coalescing', () => {
+  it('returns the same in-flight promise to concurrent callers', async () => {
+    let resolvePush: (v: unknown) => void = () => {};
+    mockGetSendableSales.mockResolvedValue([makeSale(1, 'a')]);
+    mockPushOnce.mockImplementation(
+      () => new Promise((r) => { resolvePush = r; }),
+    );
+
+    const p1 = requestSync('manual');
+    const p2 = requestSync('post-sale');
+    expect(p2).toBe(p1);
+
+    // runPass reaches pushOnce() only after several intervening awaits (health ping,
+    // recoverSyncingSales, getSendableSales, markSaleSyncing); wait for that call to
+    // actually happen so `resolvePush` is bound to the live promise before we call it
+    // (calling it immediately would resolve the initial no-op stub instead and hang).
+    await vi.waitFor(() => expect(mockPushOnce).toHaveBeenCalled());
+    resolvePush([{ client_sale_id: 'a', status: 'synced', sale_id: 1, warnings: null, error: null }]);
+    await p1;
+    await Promise.resolve();
+  });
+
+  it('coalesces a burst of requests into at most one active pass plus one rerun', async () => {
+    mockGetSendableSales.mockResolvedValue([]); // no push work; passes are cheap
+
+    const first = requestSync('manual');
+    requestSync('post-sale');
+    requestSync('focus');
+    requestSync('periodic');
+    await first;
+    // allow the coalesced rerun to run to completion
+    await new Promise((r) => setTimeout(r, 0));
+
+    // 1 active pass + exactly 1 coalesced rerun = 2 health pings, never 4.
+    expect(mockCheckHealth).toHaveBeenCalledTimes(2);
+  });
+
+  it('syncNow drives a manual pass', async () => {
+    mockGetSendableSales.mockResolvedValue([]);
+    const res = await syncNow();
+    expect(res.skipped).toBe(false);
+    expect(mockCheckHealth).toHaveBeenCalled();
   });
 });
 
