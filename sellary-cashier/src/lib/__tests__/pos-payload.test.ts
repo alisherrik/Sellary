@@ -80,6 +80,68 @@ describe('buildNewSaleInput', () => {
   });
 });
 
+describe('buildNewSaleInput — credit (В долг)', () => {
+  it('emits a credit sale with customer, partial paid amount and initial method', () => {
+    const input = buildNewSaleInput({
+      items: [line()], // 2 × 5000 + 12% tax → total 11200
+      paymentMethod: 'credit',
+      cardType: null,
+      cashReceived: '',
+      cashier: { userId: 3, username: 'kassir' },
+      nowIso: '2026-07-11T10:00:00.000Z',
+      clientSaleId: 'cs-credit-1',
+      idempotencyKey: 'ik-credit-1',
+      customerClientId: 'cust-abc',
+      creditPaidAmount: '4000',
+      creditPaymentMethod: 'card',
+    });
+    expect(input.payment_method).toBe('credit');
+    expect(input.customer_client_id).toBe('cust-abc');
+    expect(input.paid_amount).toBe(4000);
+    expect(input.initial_payment_method).toBe('card');
+    expect(input.change_amount).toBe(0);
+    expect(input.card_type).toBeNull();
+    expect(input.total_amount).toBe(11200);
+  });
+
+  it('omits initial_payment_method when the initial payment is zero', () => {
+    const input = buildNewSaleInput({
+      items: [line()],
+      paymentMethod: 'credit',
+      cardType: null,
+      cashReceived: '',
+      cashier: { userId: 3, username: 'kassir' },
+      nowIso: '2026-07-11T10:00:00.000Z',
+      clientSaleId: 'cs-credit-2',
+      idempotencyKey: 'ik-credit-2',
+      customerClientId: 'cust-abc',
+      creditPaidAmount: '',
+      creditPaymentMethod: 'cash',
+    });
+    expect(input.payment_method).toBe('credit');
+    expect(input.customer_client_id).toBe('cust-abc');
+    expect(input.paid_amount).toBe(0);
+    expect(input.initial_payment_method).toBeNull();
+  });
+
+  it('leaves customer_client_id null and no initial method for non-credit sales', () => {
+    const input = buildNewSaleInput({
+      items: [line()],
+      paymentMethod: 'cash',
+      cardType: null,
+      cashReceived: '12000',
+      cashier: { userId: 1, username: 'k' },
+      nowIso: '2026-07-11T10:00:00.000Z',
+      clientSaleId: 'cs-cash-1',
+      idempotencyKey: 'ik-cash-1',
+    });
+    expect(input.customer_client_id).toBeNull();
+    expect(input.initial_payment_method).toBeNull();
+    expect(input.paid_amount).toBe(12000);
+    expect(input.change_amount).toBe(800);
+  });
+});
+
 describe('newSaleIds', () => {
   it('returns two distinct non-empty ids', () => {
     const { clientSaleId, idempotencyKey } = newSaleIds();
