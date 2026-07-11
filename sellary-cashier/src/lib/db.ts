@@ -171,7 +171,7 @@ export async function updateOutboxStatus(
   }
 }
 
-export async function recoverSyncingSales(error = 'Recovered from interrupted sync'): Promise<number> {
+export async function recoverSyncingOutboxSales(error = 'Recovered from interrupted sync'): Promise<number> {
   const database = await getDb();
   const result = await database.execute(
     `UPDATE outbox_sales
@@ -491,4 +491,139 @@ export async function reconcileLocalState(): Promise<void> {
   for (const r of rows) {
     await applyStockForSale(r.id);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Sync-worker DAOs (spec §2.10, contract §4) — operate on the `sales` table.
+// ---------------------------------------------------------------------------
+
+// Default: pending OR (failed & transient & due). With opts.includePermanent (force/manual
+// resend from History/NeedsAttention), ALSO include failed & permanent (spec/contract §4.2).
+export async function getSendableSales(
+  nowIso: string,
+  opts?: { includePermanent?: boolean }
+): Promise<SaleWithItems[]> {
+  const database = await getDb();
+  const permanentClause = opts?.includePermanent
+    ? " OR (sync_status = 'failed' AND error_kind = 'permanent')"
+    : '';
+  const sales = await database.select<LocalSale[]>(
+    `SELECT * FROM sales
+     WHERE sync_status = 'pending'
+        OR (sync_status = 'failed' AND error_kind = 'transient'
+            AND (next_attempt_at IS NULL OR next_attempt_at <= $1))${permanentClause}
+     ORDER BY created_at_client ASC, id ASC`,
+    [nowIso]
+  );
+  return attachItems(sales);
+}
+
+export async function markSaleSyncing(saleId: number): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    "UPDATE sales SET sync_status = 'syncing', updated_at = datetime('now') WHERE id = $1",
+    [saleId]
+  );
+}
+
+export async function markSaleSynced(saleId: number, serverSaleId: number | null): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE sales
+     SET sync_status = 'synced', server_sale_id = $1, error_kind = NULL,
+         next_attempt_at = NULL, last_error = NULL,
+         synced_at = datetime('now'), updated_at = datetime('now')
+     WHERE id = $2`,
+    [serverSaleId, saleId]
+  );
+}
+
+export async function markTransientFailure(saleIds: number[], nextAttemptAt: string, error: string): Promise<void> {
+  if (saleIds.length === 0) return;
+  const database = await getDb();
+  for (const id of saleIds) {
+    await database.execute(
+      `UPDATE sales
+       SET sync_status = 'failed', error_kind = 'transient', next_attempt_at = $1,
+           last_error = $2, retry_count = retry_count + 1,
+           first_failed_at = COALESCE(first_failed_at, datetime('now')),
+           updated_at = datetime('now')
+       WHERE id = $3`,
+      [nextAttemptAt, error, id]
+    );
+  }
+}
+
+export async function markPermanentFailure(saleId: number, error: string): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE sales
+     SET sync_status = 'failed', error_kind = 'permanent', next_attempt_at = NULL,
+         last_error = $1, retry_count = retry_count + 1,
+         first_failed_at = COALESCE(first_failed_at, datetime('now')),
+         updated_at = datetime('now')
+     WHERE id = $2`,
+    [error, saleId]
+  );
+}
+
+export async function recoverSyncingSales(nowIso: string): Promise<number> {
+  const database = await getDb();
+  const result = await database.execute(
+    `UPDATE sales
+     SET sync_status = 'failed', error_kind = 'transient', next_attempt_at = $1,
+         last_error = COALESCE(last_error, 'Recovered from interrupted sync'),
+         retry_count = retry_count + 1,
+         first_failed_at = COALESCE(first_failed_at, datetime('now')),
+         updated_at = datetime('now')
+     WHERE sync_status = 'syncing'`,
+    [nowIso]
+  );
+  return Number((result as { rowsAffected?: number }).rowsAffected ?? 0);
+}
+
+// Badge + logout gate: pending + syncing + transient-failed. EXCLUDES permanent (spec §4.1, test §14.5).
+export async function getUnsyncedCount(): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ c: number }[]>(
+    `SELECT COUNT(*) AS c FROM sales
+     WHERE sync_status IN ('pending','syncing')
+        OR (sync_status = 'failed' AND error_kind = 'transient')`
+  );
+  return rows[0]?.c ?? 0;
+}
+
+// Needs-attention = permanent failures the operator has NOT yet acknowledged (contract §4.3).
+// Acknowledged permanent rows drop from the count but are kept; they never block logout.
+export async function getNeedsAttentionCount(): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ c: number }[]>(
+    "SELECT COUNT(*) AS c FROM sales WHERE sync_status = 'failed' AND error_kind = 'permanent' AND acknowledged = 0"
+  );
+  return rows[0]?.c ?? 0;
+}
+
+// Dismiss a permanent-failed sale from the needs-attention count without deleting the row.
+export async function acknowledgeSale(saleId: number): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    "UPDATE sales SET acknowledged = 1, updated_at = datetime('now') WHERE id = $1",
+    [saleId]
+  );
+}
+
+// Stock reconcile: Σ base qty over ALL non-synced sales (pending+syncing+failed incl. permanent),
+// because server_stock does NOT include these (spec §5.2).
+export async function getUnsyncedBaseQtyByProduct(): Promise<Map<number, number>> {
+  const database = await getDb();
+  const rows = await database.select<{ product_id: number; qty: number }[]>(
+    `SELECT si.product_id AS product_id, SUM(si.quantity) AS qty
+     FROM sale_items si
+     JOIN sales s ON s.id = si.sale_id
+     WHERE s.sync_status != 'synced'
+     GROUP BY si.product_id`
+  );
+  const map = new Map<number, number>();
+  for (const r of rows) map.set(r.product_id, r.qty);
+  return map;
 }

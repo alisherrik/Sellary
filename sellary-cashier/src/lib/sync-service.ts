@@ -2,7 +2,7 @@ import {
   getPendingSales,
   updateOutboxStatus,
   addSyncEvent,
-  recoverSyncingSales,
+  recoverSyncingOutboxSales,
   markOutboxSalesFailed,
 } from './db';
 import { pushSales, checkHealth } from './api';
@@ -28,7 +28,7 @@ export async function syncPendingSales(): Promise<{ synced: number; failed: numb
       return { synced: 0, failed: 0 };
     }
 
-    await recoverSyncingSales();
+    await recoverSyncingOutboxSales();
 
     const pending = await getPendingSales();
 

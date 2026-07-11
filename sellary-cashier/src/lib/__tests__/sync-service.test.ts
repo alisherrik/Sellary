@@ -22,7 +22,7 @@ vi.mock('../db', () => ({
   getPendingSales: mockGetPendingSales,
   updateOutboxStatus: mockUpdateOutboxStatus,
   addSyncEvent: mockAddSyncEvent,
-  recoverSyncingSales: mockRecoverSyncingSales,
+  recoverSyncingOutboxSales: mockRecoverSyncingSales,
   markOutboxSalesFailed: mockMarkOutboxSalesFailed,
 }));
 
