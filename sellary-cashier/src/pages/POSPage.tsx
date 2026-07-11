@@ -311,6 +311,9 @@ export function POSPage() {
           <button onClick={() => syncNow()} className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             Синхронизация
           </button>
+          <button onClick={() => navigate('/customers')} className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+            Клиенты
+          </button>
           <button onClick={() => navigate('/history')} className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             История
           </button>
