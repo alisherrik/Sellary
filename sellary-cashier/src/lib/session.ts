@@ -34,6 +34,7 @@ export interface SessionMetadata {
 
 let store: Store | null = null;
 let strongholdStore: StrongholdStore | null = null;
+let strongholdInstance: Stronghold | null = null;
 
 async function getStore(): Promise<Store> {
   if (!store) {
@@ -54,6 +55,7 @@ async function getStrongholdStore(): Promise<StrongholdStore | null> {
     } catch {
       client = await sh.createClient(STRONGHOLD_CLIENT);
     }
+    strongholdInstance = sh;
     strongholdStore = client.getStore();
     await sh.save();
     return strongholdStore;
@@ -62,6 +64,20 @@ async function getStrongholdStore(): Promise<StrongholdStore | null> {
       'Stronghold unavailable; falling back to app store token persistence'
     );
     return null;
+  }
+}
+
+/**
+ * Flush the in-memory Stronghold vault to its snapshot file. MUST be called
+ * after every insert/remove — otherwise the write lives only in memory for the
+ * current run and is lost on the next app launch (device token / access token
+ * disappear, forcing a full re-login instead of PIN unlock).
+ */
+async function persistStronghold(): Promise<void> {
+  try {
+    await strongholdInstance?.save();
+  } catch (e) {
+    console.warn('Failed to persist Stronghold snapshot', e);
   }
 }
 
@@ -96,6 +112,7 @@ export async function saveCashierSession(session: PersistedCashierSession): Prom
   if (st) {
     await st.remove(STRONGHOLD_TOKEN_KEY).catch(() => {});
     await st.insert(STRONGHOLD_TOKEN_KEY, tokenBytes);
+    await persistStronghold();
   } else {
     const encodedToken = btoa(session.accessToken);
     const s = await getStore();
@@ -166,6 +183,7 @@ export async function clearCashierSession(): Promise<void> {
   const st = await getStrongholdStore();
   if (st) {
     await st.remove(STRONGHOLD_TOKEN_KEY).catch(() => {});
+    await persistStronghold();
   }
 
   const s = await getStore();
@@ -190,6 +208,7 @@ export async function saveDeviceCredential(
   if (st) {
     await st.remove(STRONGHOLD_DEVICE_TOKEN_KEY).catch(() => {});
     await st.insert(STRONGHOLD_DEVICE_TOKEN_KEY, tokenBytes);
+    await persistStronghold();
   } else {
     const s = await getStore();
     await s.set(DEVICE_TOKEN_FALLBACK_KEY, btoa(deviceToken));
@@ -239,6 +258,7 @@ export async function clearDeviceCredential(): Promise<void> {
   const st = await getStrongholdStore();
   if (st) {
     await st.remove(STRONGHOLD_DEVICE_TOKEN_KEY).catch(() => {});
+    await persistStronghold();
   }
   const s = await getStore();
   await s.delete(DEVICE_TOKEN_FALLBACK_KEY).catch(() => {});
