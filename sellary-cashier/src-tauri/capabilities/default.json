@@ -11,6 +11,8 @@
     "sql:allow-select",
     "sql:allow-execute",
     "store:default",
-    "stronghold:default"
+    "stronghold:default",
+    "updater:default",
+    "process:default"
   ]
 }

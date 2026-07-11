@@ -10,11 +10,13 @@ import { PinUnlockPage } from "./pages/PinUnlockPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { CustomersPage } from "./pages/CustomersPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { UpdateBanner } from "./components/UpdateBanner";
 
 function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" />
+      <UpdateBanner />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/cashier" element={<CashierShell />} />
