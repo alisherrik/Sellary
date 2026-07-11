@@ -1,229 +1,232 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getProducts, getProductByBarcode, addToOutbox, getPendingSales, decrementLocalStock } from '../lib/db';
-import type { LocalProduct } from '../lib/db';
+import toast from 'react-hot-toast';
+import {
+  getProducts, getCategories, getProductByBarcode, insertSale,
+} from '../lib/db';
+import type { LocalProduct, LocalCategory } from '../lib/db';
 import { useAuthStore } from '../lib/auth-store';
-import { syncPendingSales } from '../lib/sync-service';
-import { checkHealth } from '../lib/api';
+import { useSyncStore } from '../lib/sync-store';
+import { requestSync } from '../lib/sync-engine';
+import { useCartStore } from '../lib/cart-store';
+import { cartLineKey } from '../lib/posUnits';
+import { isOverStock } from '../lib/posStock';
+import { calculatePosPricing } from '../lib/posPricing';
+import {
+  buildNewSaleInput, newSaleIds, type CashierCardType, type CashierPaymentMethod,
+} from '../lib/pos-payload';
+import { evaluateLogout } from '../lib/logout-guard';
+import { SearchBar } from './pos/SearchBar';
+import { CategoryChips } from './pos/CategoryChips';
+import { ProductGrid } from './pos/ProductGrid';
+import { CartPanel } from './pos/CartPanel';
+import { PaymentModal } from './pos/PaymentModal';
 
-interface CartItem {
-  product: LocalProduct;
-  quantity: number;
-}
-
-type PaymentMethod = 'CASH' | 'CARD' | 'MOBILE';
-type CardType = 'ALIF' | 'ESKHATA' | 'DC';
+const STALE_CATALOG_DAYS = 3;
 
 export function POSPage() {
   const navigate = useNavigate();
-  const { logout, username, companyName } = useAuthStore();
+  const { logout, username, companyName, userId } = useAuthStore();
+  const {
+    online, unsyncedCount, needsAttentionCount, catalogRefreshedAt, syncNow,
+  } = useSyncStore();
 
-  const [search, setSearch] = useState('');
+  const {
+    items, addItem, updateQuantity, removeItem, setDiscount, clearCart, getSubtotal, getTax,
+  } = useCartStore();
+
   const [products, setProducts] = useState<LocalProduct[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
-  const [cardType, setCardType] = useState<CardType>('ALIF');
+  const [categories, setCategories] = useState<LocalCategory[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [barcode, setBarcode] = useState('');
+  const [showPayment, setShowPayment] = useState(false);
+  const [method, setMethod] = useState<CashierPaymentMethod>('cash');
+  const [cardType, setCardType] = useState<CashierCardType | null>(null);
   const [cashReceived, setCashReceived] = useState('');
-  const [pendingCount, setPendingCount] = useState(0);
-  const [syncing, setSyncing] = useState(false);
-  const [online, setOnline] = useState(false);
-  const [syncMessage, setSyncMessage] = useState('');
-  const searchRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState(false);
+  const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
+  const [confirmLogout, setConfirmLogout] = useState<string | null>(null);
+  const barcodeRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    searchRef.current?.focus();
+  const reloadProducts = useCallback(async () => {
+    const list = await getProducts();
+    setProducts(list);
   }, []);
 
   useEffect(() => {
-    checkHealth().then(setOnline);
-    const interval = setInterval(() => checkHealth().then(setOnline), 5000);
-    return () => clearInterval(interval);
+    (async () => {
+      try {
+        const [p, c] = await Promise.all([getProducts(), getCategories()]);
+        setProducts(p);
+        setCategories(c);
+      } finally {
+        setLoadingCatalog(false);
+      }
+    })();
   }, []);
 
-  useEffect(() => {
-    loadPendingCount();
-  }, []);
-
-  const loadPendingCount = async () => {
-    const pending = await getPendingSales();
-    setPendingCount(pending.filter((s) => s.status !== 'synced').length);
-  };
-
-  const handleSearch = useCallback(async (query: string) => {
-    setSearch(query);
-    if (query.length >= 2) {
-      const results = await getProducts(query);
-      setProducts(results.slice(0, 20));
-    } else if (query.length === 0) {
-      setProducts([]);
+  // Base-unit demand per product across all cart lines (units share stock).
+  const cartBaseByProduct = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const line of items) {
+      const base = line.quantity * (line.unit.factor ?? 1);
+      map.set(line.product.id, (map.get(line.product.id) ?? 0) + base);
     }
-  }, []);
+    return map;
+  }, [items]);
 
-  const handleKeyDown = async (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && search.trim()) {
-      e.preventDefault();
-      const product = await getProductByBarcode(search.trim());
-      if (product) {
-        addToCart(product);
-        setSearch('');
-        setProducts([]);
-      } else {
-        const results = await getProducts(search.trim());
-        if (results.length === 1) {
-          addToCart(results[0]);
-          setSearch('');
-          setProducts([]);
-        }
+  const visibleProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return products.filter((p) => {
+      if (selectedCategory !== null && p.category_id !== selectedCategory) return false;
+      if (q && !(p.name.toLowerCase().includes(q) || (p.barcode ?? '').toLowerCase().includes(q))) {
+        return false;
+      }
+      return true;
+    });
+  }, [products, search, selectedCategory]);
+
+  const subtotal = getSubtotal();
+  const tax = getTax();
+  const itemDiscounts = items.reduce((sum, line) => sum + Math.max(0, line.discount || 0), 0);
+  const { finalTotal } = calculatePosPricing({ subtotal, tax, itemDiscounts, overallDiscount: 0 });
+
+  const oversoldKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const line of items) {
+      const base = cartBaseByProduct.get(line.product.id) ?? 0;
+      if (isOverStock(Number(line.product.stock_quantity), base)) {
+        set.add(cartLineKey(line.product.id, line.unit.id));
       }
     }
-  };
+    return set;
+  }, [items, cartBaseByProduct]);
 
-  const addToCart = (product: LocalProduct) => {
-    setCart((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) {
-        return prev.map((i) =>
-          i.product.id === product.id
-            ? { ...i, quantity: i.quantity + 1 }
-            : i
-        );
-      }
-      return [...prev, { product, quantity: 1 }];
+  // `catalogRefreshedAt` comes from sync-store, which sync-engine's init hydrates
+  // from meta('last_catalog_pull_at') — so this is accurate after a cold start too.
+  const staleDays = useMemo(() => {
+    if (!catalogRefreshedAt) return null;
+    const days = Math.floor((Date.now() - new Date(catalogRefreshedAt).getTime()) / 86400000);
+    return days > STALE_CATALOG_DAYS ? days : null;
+  }, [catalogRefreshedAt]);
+
+  const handleAdd = useCallback((product: LocalProduct) => {
+    addItem(product, undefined, 1);
+  }, [addItem]);
+
+  const handleBarcodeSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = barcode.trim();
+    if (!code) return;
+    const product = await getProductByBarcode(code);
+    if (product) {
+      handleAdd(product);
+      setBarcode('');
+    } else {
+      toast.error('Товар не найден');
+    }
+    barcodeRef.current?.focus();
+  }, [barcode, handleAdd]);
+
+  const onPriceEditChange = useCallback((key: string, value: string) => {
+    setPriceEdits((prev) => ({ ...prev, [key]: value }));
+  }, []);
+  const onPriceEditCommit = useCallback((key: string, discount: number) => {
+    setDiscount(key, discount);
+    setPriceEdits((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
     });
-  };
+  }, [setDiscount]);
 
-  const removeFromCart = (productId: number) => {
-    setCart((prev) => prev.filter((i) => i.product.id !== productId));
-  };
+  const openPayment = useCallback(() => {
+    if (items.length === 0) return;
+    setCashReceived(String(Math.ceil(finalTotal)));
+    setMethod('cash');
+    setCardType(null);
+    setShowPayment(true);
+  }, [items.length, finalTotal]);
 
-  const updateQuantity = (productId: number, delta: number) => {
-    setCart((prev) => {
-      const existing = prev.find((i) => i.product.id === productId);
-      if (!existing) return prev;
-      const newQty = existing.quantity + delta;
-      if (newQty <= 0) {
-        return prev.filter((i) => i.product.id !== productId);
-      }
-      return prev.map((i) =>
-        i.product.id === productId ? { ...i, quantity: newQty } : i
-      );
+  // Optimistic completion (§7.3): all local & synchronous, then non-awaited sync.
+  const handleComplete = useCallback(async () => {
+    if (items.length === 0 || loading) return;
+    setLoading(true);
+    const { clientSaleId, idempotencyKey } = newSaleIds();
+    const input = buildNewSaleInput({
+      items,
+      paymentMethod: method,
+      cardType,
+      cashReceived,
+      cashier: { userId, username },
+      nowIso: new Date().toISOString(),
+      clientSaleId,
+      idempotencyKey,
     });
-  };
+    const oversold = oversoldKeys.size > 0;
+    try {
+      await insertSale(input);        // atomic local row + base-unit stock decrement
+      clearCart();
+      setShowPayment(false);
+      setCashReceived('');
+      setPriceEdits({});
+      setLoading(false);
+      toast.success('Продажа завершена');
+      if (oversold) toast('Продажа с перерасходом склада', { icon: '⚠️' });
+      barcodeRef.current?.focus();
+      void reloadProducts();          // show decremented stock immediately
+      void requestSync('post-sale');  // fire-and-forget — never awaited on the pay path
+    } catch (err) {
+      setLoading(false);
+      toast.error('Не удалось сохранить продажу');
+      console.error('insertSale failed', err);
+    }
+  }, [items, loading, method, cardType, cashReceived, userId, username, oversoldKeys, clearCart, reloadProducts]);
 
-  const totalAmount = cart.reduce(
-    (sum, item) => sum + item.product.sell_price * item.quantity,
-    0
-  );
-
-  const generateId = () => {
-    const ts = Date.now().toString(36);
-    const rand = Math.random().toString(36).substring(2, 10);
-    return `${ts}-${rand}`;
-  };
-
-  const handleCompleteSale = async () => {
-    if (cart.length === 0) return;
-
-    const clientSaleId = generateId();
-    const idempotencyKey = generateId();
-    const now = new Date().toISOString();
-
-    const salePayload = {
-      client_sale_id: clientSaleId,
-      idempotency_key: idempotencyKey,
-      created_at_client: now,
-      payment_method: paymentMethod,
-      card_type: paymentMethod === 'CARD' ? cardType : null,
-      discount_amount: 0,
-      paid_amount: paymentMethod === 'CASH' ? (parseFloat(cashReceived) || totalAmount) : totalAmount,
-      change_amount: paymentMethod === 'CASH'
-        ? Math.max(0, (parseFloat(cashReceived) || 0) - totalAmount)
-        : 0,
-      items: cart.map((item) => ({
-        product_id: item.product.id,
-        quantity: item.quantity,
-        sell_price: item.product.sell_price,
-      })),
+  // Keyboard: F2 → barcode; Enter → open/confirm; Esc → close.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F2') { e.preventDefault(); barcodeRef.current?.focus(); return; }
+      if (e.key === 'Escape') { if (showPayment) setShowPayment(false); return; }
+      if (e.key === 'Enter') {
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+        if (showPayment) handleComplete();
+        else if (items.length > 0) openPayment();
+      }
     };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showPayment, items.length, handleComplete, openPayment]);
 
-    await addToOutbox({
-      client_sale_id: clientSaleId,
-      idempotency_key: idempotencyKey,
-      status: 'pending',
-      request_json: JSON.stringify(salePayload),
-      response_json: null,
-      last_error: null,
-      created_at_client: now,
-      synced_at: null,
-    });
-
-    setCart([]);
-    setCashReceived('');
-    setSearch('');
-    setProducts([]);
-    searchRef.current?.focus();
-
-    setSyncing(true);
-    setSyncMessage('');
-    try {
-      const result = await syncPendingSales();
-      if (result.synced > 0) {
-        try {
-          await decrementLocalStock(
-            cart.map((item) => ({
-              product_id: item.product.id,
-              quantity: item.quantity,
-            }))
-          );
-        } catch (error) {
-          console.warn('Sale synced but local stock update failed', error);
-        }
-        setSyncMessage('Продажа синхронизирована ✓');
-      } else if (result.failed > 0) {
-        setSyncMessage('Ошибка синхронизации');
-      } else {
-        setSyncMessage('Сохранено локально (офлайн)');
-      }
-    } catch {
-      setSyncMessage('Сохранено локально (нет связи)');
-    } finally {
-      setSyncing(false);
-      loadPendingCount();
-      setTimeout(() => setSyncMessage(''), 3000);
+  const handleLogout = useCallback(async () => {
+    const decision = evaluateLogout(unsyncedCount, needsAttentionCount);
+    if (decision.action === 'blocked') {
+      toast.error(decision.message);
+      void syncNow();
+      return;
     }
-  };
-
-  const handleManualSync = async () => {
-    if (syncing) return;
-    setSyncing(true);
-    setSyncMessage('');
-    try {
-      const result = await syncPendingSales();
-      if (result.synced > 0) {
-        setSyncMessage(`Синхронизировано: ${result.synced} продаж`);
-      } else if (result.failed > 0) {
-        setSyncMessage(`Ошибок: ${result.failed}`);
-      } else {
-        setSyncMessage('Нет продаж для синхронизации');
-      }
-      loadPendingCount();
-    } catch (e: unknown) {
-      setSyncMessage(e instanceof Error ? e.message : 'Ошибка синхронизации');
-    } finally {
-      setSyncing(false);
+    if (decision.action === 'confirm') {
+      setConfirmLogout(decision.message);
+      return;
     }
-  };
-
-  const handleLogout = async () => {
     await logout();
     navigate('/login', { replace: true });
-  };
+  }, [unsyncedCount, needsAttentionCount, syncNow, logout, navigate]);
+
+  const doLogout = useCallback(async () => {
+    setConfirmLogout(null);
+    await logout();
+    navigate('/login', { replace: true });
+  }, [logout, navigate]);
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <header className="bg-white border-b px-4 py-2 flex items-center justify-between shrink-0">
+    <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-900">
+      <header className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-800">
         <div>
-          <h1 className="text-sm font-bold">{companyName || 'Sellary Cashier'}</h1>
+          <h1 className="text-sm font-bold text-gray-900 dark:text-white">{companyName || 'Sellary Kassa'}</h1>
           <p className="text-xs text-gray-400">{username}</p>
         </div>
         <div className="flex items-center gap-3">
@@ -231,209 +234,113 @@ export function POSPage() {
             <span className={`inline-block h-2 w-2 rounded-full ${online ? 'bg-green-500' : 'bg-red-500'}`} />
             <span className="text-xs text-gray-500">{online ? 'Online' : 'Offline'}</span>
           </div>
-          <button
-            onClick={handleManualSync}
-            disabled={syncing}
-            className="text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
-          >
-            {syncing ? 'Sync...' : `Sync${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
+          {unsyncedCount > 0 && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+              Не отправлено: {unsyncedCount}
+            </span>
+          )}
+          {staleDays !== null && (
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">
+              Каталог обновлён {staleDays} дн. назад
+            </span>
+          )}
+          <button onClick={() => syncNow()} className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+            Синхронизация
           </button>
-          <button onClick={() => navigate('/settings')} className="text-xs text-gray-500">
-            Settings
+          <button onClick={() => navigate('/history')} className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+            История
           </button>
-          <button onClick={handleLogout} className="text-xs text-red-500">
-            Exit
+          <button onClick={() => navigate('/settings')} className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+            Настройки
+          </button>
+          <button onClick={handleLogout} className="text-xs font-medium text-red-500 hover:text-red-600">
+            Выход
           </button>
         </div>
       </header>
 
-      {syncMessage && (
-        <div className={`px-4 py-1.5 text-center text-sm ${
-          syncMessage.includes('✓') || syncMessage.includes('синхронизировано')
-            ? 'bg-green-50 text-green-700'
-            : syncMessage.includes('локально') || syncMessage.includes('связи')
-              ? 'bg-amber-50 text-amber-700'
-              : 'bg-red-50 text-red-600'
-        }`}>
-          {syncMessage}
+      {!online && (
+        <div className="bg-amber-50 px-4 py-1.5 text-center text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+          Оффлайн — продажи сохраняются локально
         </div>
       )}
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="w-1/2 flex flex-col border-r">
-          <div className="p-3">
-            <input
-              ref={searchRef}
-              type="text"
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Поиск по названию или штрихкоду..."
-              className="w-full rounded border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <div className="flex min-h-0 flex-1 gap-4 p-4">
+        <main className="flex min-w-0 flex-1 flex-col">
+          <SearchBar
+            search={search}
+            onSearch={setSearch}
+            barcode={barcode}
+            onBarcode={setBarcode}
+            onBarcodeSubmit={handleBarcodeSubmit}
+            barcodeRef={barcodeRef}
+          />
+          <CategoryChips categories={categories} selected={selectedCategory} onSelect={setSelectedCategory} />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ProductGrid
+              products={visibleProducts}
+              loading={loadingCatalog}
+              cartBaseByProduct={cartBaseByProduct}
+              onAdd={handleAdd}
             />
           </div>
+        </main>
 
-          <div className="flex-1 overflow-auto px-3 pb-3">
-            <div className="space-y-1">
-              {products.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => addToCart(p)}
-                  className="w-full text-left px-3 py-2 rounded border border-gray-100 hover:bg-blue-50 hover:border-blue-200 transition-colors"
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <span className="text-sm font-medium">{p.name}</span>
-                      {p.barcode && (
-                        <span className="text-xs text-gray-400 ml-2">{p.barcode}</span>
-                      )}
-                    </div>
-                    <span className="text-sm font-bold text-blue-600">
-                      {p.sell_price.toLocaleString()} сум
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    Остаток: {p.stock_quantity} {p.uom}
-                  </div>
-                </button>
-              ))}
-              {search.length >= 2 && products.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-4">Ничего не найдено</p>
-              )}
-              {search.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-8">
-                  Введите название или штрихкод товара
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="w-1/2 flex flex-col">
-          <div className="flex-1 overflow-auto p-3">
-            {cart.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">Корзина пуста</p>
-            ) : (
-              <div className="space-y-2">
-                {cart.map((item) => (
-                  <div key={item.product.id} className="flex items-center justify-between bg-white rounded border p-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{item.product.name}</div>
-                      <div className="text-xs text-gray-400">
-                        {item.product.sell_price.toLocaleString()} x {item.quantity}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 ml-2">
-                      <button
-                        onClick={() => updateQuantity(item.product.id, -1)}
-                        className="w-7 h-7 rounded border text-sm hover:bg-gray-50"
-                      >
-                        -
-                      </button>
-                      <span className="text-sm font-medium w-6 text-center">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.product.id, 1)}
-                        className="w-7 h-7 rounded border text-sm hover:bg-gray-50"
-                      >
-                        +
-                      </button>
-                      <button
-                        onClick={() => removeFromCart(item.product.id)}
-                        className="w-7 h-7 rounded border text-sm text-red-500 hover:bg-red-50 ml-1"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="border-t bg-white p-3 shrink-0">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-gray-500">Итого:</span>
-              <span className="text-lg font-bold">{totalAmount.toLocaleString()} сум</span>
-            </div>
-
-            {cart.length > 0 && (
-              <>
-                <div className="flex gap-1 mb-2">
-                  {(['CASH', 'CARD', 'MOBILE'] as PaymentMethod[]).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setPaymentMethod(m)}
-                      className={`flex-1 py-1.5 text-xs rounded border ${
-                        paymentMethod === m
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      {m === 'CASH' ? 'Наличные' : m === 'CARD' ? 'Карта' : 'Мобильный'}
-                    </button>
-                  ))}
-                </div>
-
-                {paymentMethod === 'CARD' && (
-                  <div className="flex gap-1 mb-2">
-                    {(['ALIF', 'ESKHATA', 'DC'] as CardType[]).map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => setCardType(c)}
-                        className={`flex-1 py-1 text-xs rounded border ${
-                          cardType === c
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        {c === 'ALIF' ? 'Alif' : c === 'ESKHATA' ? 'Eskhata' : 'DC'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {paymentMethod === 'CASH' && (
-                  <div className="mb-2">
-                    <div className="flex gap-1 mb-1">
-                      {[totalAmount, totalAmount + 1000, totalAmount + 5000, totalAmount + 10000].map((amount) => (
-                        <button
-                          key={amount}
-                          onClick={() => setCashReceived(Math.ceil(amount).toString())}
-                          className="flex-1 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50"
-                        >
-                          {Math.ceil(amount).toLocaleString()}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        value={cashReceived}
-                        onChange={(e) => setCashReceived(e.target.value)}
-                        placeholder="Получено"
-                        className="flex-1 rounded border px-2 py-1.5 text-sm"
-                      />
-                      {cashReceived && parseFloat(cashReceived) >= totalAmount && (
-                        <span className="text-sm text-green-600 font-medium">
-                          Сдача: {(parseFloat(cashReceived) - totalAmount).toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  onClick={handleCompleteSale}
-                  disabled={syncing || (paymentMethod === 'CASH' && !cashReceived)}
-                  className="w-full py-3 rounded bg-green-600 text-white font-bold text-lg disabled:opacity-50 hover:bg-green-700"
-                >
-                  {syncing ? 'Сохранение...' : `Продажа (${totalAmount.toLocaleString()} сум)`}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+        <aside className="hidden w-[420px] shrink-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 lg:block">
+          <CartPanel
+            items={items}
+            subtotal={subtotal}
+            tax={tax}
+            finalTotal={finalTotal}
+            oversoldKeys={oversoldKeys}
+            priceEdits={priceEdits}
+            onPriceEditChange={onPriceEditChange}
+            onPriceEditCommit={onPriceEditCommit}
+            onQuantity={updateQuantity}
+            onRemove={removeItem}
+            onPay={openPayment}
+          />
+        </aside>
       </div>
+
+      <PaymentModal
+        open={showPayment}
+        total={finalTotal}
+        method={method}
+        onMethod={setMethod}
+        cardType={cardType}
+        onCardType={setCardType}
+        cashReceived={cashReceived}
+        onCashReceived={setCashReceived}
+        loading={loading}
+        onConfirm={handleComplete}
+        onClose={() => setShowPayment(false)}
+      />
+
+      {confirmLogout && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmLogout(null)} />
+          <div className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl dark:bg-gray-800">
+            <p className="mb-4 text-sm font-medium text-gray-900 dark:text-gray-100">{confirmLogout}</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmLogout(null)}
+                className="h-11 flex-1 rounded-2xl border border-gray-200 font-bold text-gray-600 dark:border-gray-600 dark:text-gray-300"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={doLogout}
+                className="h-11 flex-1 rounded-2xl bg-red-600 font-bold text-white hover:bg-red-700"
+              >
+                Выйти
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

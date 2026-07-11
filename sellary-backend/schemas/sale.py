@@ -117,6 +117,8 @@ class Sale(BaseModel):
     voided_by_user_id: Optional[int] = None
     void_reason: Optional[str] = None
     reversal_operation_id: Optional[int] = None
+    # C3: present only for sales that originated on an offline cashier device.
+    client_sale_id: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -239,6 +239,49 @@ export async function pushSales(sales: SyncSale[]): Promise<SyncSalesResponse> {
   });
 }
 
+export interface DeviceRegisterResponse {
+  device_id: string;
+  device_token: string;
+  name: string | null;
+  expires_at: string;
+}
+
+export interface DeviceRefreshResponse {
+  access_token: string;
+  token_type: string;
+  expires_at: string; // Contract §4.7: device-token expiry mirror (NOT device_token_expires_at)
+}
+
+export async function registerDevice(
+  name: string,
+  deviceId?: string
+): Promise<DeviceRegisterResponse> {
+  const id = deviceId ?? crypto.randomUUID();
+  return apiFetch<DeviceRegisterResponse>('/api/auth/devices/register', {
+    method: 'POST',
+    body: JSON.stringify({ name, device_id: id }),
+  });
+}
+
+export async function refreshDevice(
+  deviceId: string,
+  deviceToken: string
+): Promise<DeviceRefreshResponse> {
+  const base = (await getApiBaseUrl()).replace(/\/$/, '');
+  const response = await fetch(`${base}/api/auth/devices/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device_id: deviceId, device_token: deviceToken }),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new ApiError(formatApiError(data, response.status), response.status, data);
+  }
+  const parsed = data as DeviceRefreshResponse;
+  setAccessToken(parsed.access_token);
+  return parsed;
+}
+
 function formatApiError(data: unknown, status: number): string {
   if (typeof data === 'object' && data !== null) {
     const detail = (data as { detail?: unknown; message?: unknown }).detail;

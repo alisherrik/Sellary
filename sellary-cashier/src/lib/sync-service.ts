@@ -1,104 +1,44 @@
-import {
-  getPendingSales,
-  updateOutboxStatus,
-  addSyncEvent,
-  recoverSyncingSales,
-  markOutboxSalesFailed,
-} from './db';
-import { pushSales, checkHealth } from './api';
-import type { SyncSale } from './api';
-import { getErrorMessage } from './error';
+import { fetchBootstrap, pushSales } from './api';
+import type { SyncSale, SyncSaleResult } from './api';
+import { upsertProducts, upsertCategories, setMeta } from './db';
+import type { SaleWithItems } from './db';
 
-let isSyncing = false;
+/**
+ * Build the SyncSale payload deterministically from structured columns and push it.
+ * Pure + mutex-free: the engine owns the single-flight lock and all state writes.
+ */
+export async function pushOnce(sendable: SaleWithItems[]): Promise<SyncSaleResult[]> {
+  const payload: SyncSale[] = sendable.map((s) => ({
+    client_sale_id: s.client_sale_id,
+    idempotency_key: s.idempotency_key,
+    created_at_client: s.created_at_client,
+    payment_method: s.payment_method,
+    card_type: s.card_type ?? null,
+    discount_amount: s.discount_amount ?? 0,
+    paid_amount: s.paid_amount ?? 0,
+    change_amount: s.change_amount ?? 0,
+    notes: s.notes ?? null,
+    items: s.items.map((it) => ({
+      product_id: it.product_id,
+      quantity: it.quantity, // base units
+      sell_price: it.unit_price,
+    })),
+  }));
+  const res = await pushSales(payload);
+  return res.results;
+}
 
-export async function syncPendingSales(): Promise<{ synced: number; failed: number }> {
-  if (isSyncing) {
-    return { synced: 0, failed: 0 };
-  }
-
-  isSyncing = true;
-  let synced = 0;
-  let failed = 0;
-  let sendableIds: number[] = [];
-
-  try {
-    const isOnline = await checkHealth();
-    if (!isOnline) {
-      await addSyncEvent('sync', 'skipped', 'server unreachable');
-      return { synced: 0, failed: 0 };
-    }
-
-    await recoverSyncingSales();
-
-    const pending = await getPendingSales();
-
-    const sendable = pending.filter((s) => s.status === 'pending' || s.status === 'failed');
-    if (sendable.length === 0) {
-      await addSyncEvent('sync', 'skipped', 'no sendable pending sales');
-      return { synced: 0, failed: 0 };
-    }
-
-    const salesToSync: SyncSale[] = sendable.map((s) => {
-      const payload = JSON.parse(s.request_json);
-      return {
-        client_sale_id: payload.client_sale_id,
-        idempotency_key: payload.idempotency_key,
-        created_at_client: payload.created_at_client,
-        payment_method: payload.payment_method,
-        card_type: payload.card_type || null,
-        discount_amount: payload.discount_amount || 0,
-        paid_amount: payload.paid_amount || 0,
-        change_amount: payload.change_amount || 0,
-        notes: payload.notes || null,
-        items: payload.items,
-      };
-    });
-
-    sendableIds = sendable.map((s) => s.id);
-
-    for (const sale of sendable) {
-      await updateOutboxStatus(sale.id, 'syncing');
-    }
-
-    const result = await pushSales(salesToSync);
-
-    for (const saleResult of result.results) {
-      const localSale = sendable.find(
-        (s) => s.client_sale_id === saleResult.client_sale_id
-      );
-      if (!localSale) continue;
-
-      if (saleResult.status === 'synced' || saleResult.status === 'duplicate') {
-        await updateOutboxStatus(
-          localSale.id,
-          'synced',
-          JSON.stringify(saleResult)
-        );
-        synced++;
-      } else {
-        await updateOutboxStatus(
-          localSale.id,
-          'failed',
-          undefined,
-          saleResult.error || 'Unknown error'
-        );
-        failed++;
-      }
-    }
-
-    await addSyncEvent('sync', 'completed', `synced=${synced} failed=${failed}`);
-  } catch (e: unknown) {
-    const msg = getErrorMessage(e, 'Sync error');
-    failed = sendableIds.length;
-    await markOutboxSalesFailed(sendableIds, msg).catch((error) => {
-      console.warn('Failed to mark outbox sales as failed after sync error', error);
-    });
-    await addSyncEvent('sync', 'error', msg).catch((error) => {
-      console.warn('Failed to write sync error event', error);
-    });
-  } finally {
-    isSyncing = false;
-  }
-
-  return { synced, failed };
+/**
+ * Full-refresh catalog pull (spec §5.2). Per contract §4.1, stock reconciliation
+ *   local_stock(p) = server_stock(p) - Σ base_qty(p) over sales sync_status ∈ {pending,syncing,failed}
+ * lives ENTIRELY inside `upsertProducts` (the sole subtractor). pullCatalog MUST forward the
+ * RAW server snapshot — pre-subtracting here would double-count (local = server − 2×Σunsynced),
+ * halving offline stock on every reconnect.
+ */
+export async function pullCatalog(): Promise<{ products: number; categories: number }> {
+  const bootstrap = await fetchBootstrap();
+  await upsertCategories(bootstrap.categories);
+  await upsertProducts(bootstrap.products); // RAW products — upsertProducts subtracts unsynced qty
+  await setMeta('last_catalog_pull_at', bootstrap.server_time);
+  return { products: bootstrap.products.length, categories: bootstrap.categories.length };
 }

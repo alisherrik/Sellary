@@ -363,6 +363,7 @@ class SaleService:
             voided_by_user_id=sale.voided_by_user_id,
             void_reason=sale.void_reason,
             reversal_operation_id=sale.reversal_operation_id,
+            client_sale_id=getattr(sale, "client_sale_id", None),
             items=[
                 {
                     "id": item.id,

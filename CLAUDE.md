@@ -85,8 +85,8 @@ The cashier app is a local-first POS. It keeps a local SQLite catalog and an **o
 
 - **Backend port is 8001**, not 8000. Older docs / `restart_app.ps1` mentioning 8000 are stale.
 - **Backend tests must run from `sellary-backend/` with the venv active** — `core/database.py` connects at import. Test isolation uses **transaction rollback**, so in tests use `session.flush()`, not `session.commit()`.
-- **Alembic migrations (`alembic/versions/*.py`) and all `.env` files are gitignored.** Do not commit generated migrations; copy config from the `.env.example` files.
-- **Stock overselling is intentionally allowed** in `services/sale_service.py` (`Allow overselling for demo purposes`) — a known production risk, not a bug to "fix" silently.
+- **Alembic migrations (`alembic/versions/*.py`) are tracked (committed); all `.env` files are gitignored.** Commit generated migrations; copy config from the `.env.example` files.
+- **Online `POST /api/sales` rejects oversell** — the FIFO ledger in `services/inventory_ledger_service.py` cannot back negative stock (`consume_fifo` raises `Insufficient stock`). Only the offline **sync path** (`services/sync_service.py`, `allow_oversell=True`) tolerates oversell, recording it as a historical fact with a `SyncWarning`.
 - **Duplicate frontend layers exist:** `src/api.ts` vs `src/lib/api.ts`, and `src/store/` vs `src/lib/store.ts`. Confirm which is canonical before editing. `src/App.tsx.bak` is dead.
 - **Removed scope:** the restaurant module and the PWA/offline-web-sync path were deleted from the codebase. Offline is now handled exclusively by the Tauri cashier — don't reintroduce the old patterns.
 - **Mixed languages by design:** code and docstrings in English, UI strings in Russian, some docs in Uzbek/English. Don't translate existing content without an explicit request.

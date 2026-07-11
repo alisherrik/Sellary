@@ -1,5 +1,7 @@
 import { Store } from '@tauri-apps/plugin-store';
 import { Stronghold, Client, Store as StrongholdStore } from '@tauri-apps/plugin-stronghold';
+import { invoke } from '@tauri-apps/api/core';
+import { getDeviceAuth, setPinHash } from './db';
 
 const SESSION_STORE_FILE = 'session.json';
 const SESSION_META_KEY = 'cashier_session_meta';
@@ -7,6 +9,9 @@ const STRONGHOLD_CLIENT = 'sellary-cashier';
 const STRONGHOLD_SNAPSHOT = 'sellary-stronghold.snapshot';
 const STRONGHOLD_PASSWORD = 'sellary-mvp-key-2026-v1';
 const STRONGHOLD_TOKEN_KEY = 'access_token';
+const STRONGHOLD_DEVICE_TOKEN_KEY = 'device_token';
+const DEVICE_TOKEN_FALLBACK_KEY = 'cashier_device_token_encoded';
+const DEVICE_TOKEN_EXPIRES_KEY = 'cashier_device_token_expires_at';
 
 export interface PersistedCashierSession {
   accessToken: string;
@@ -170,3 +175,90 @@ export async function clearCashierSession(): Promise<void> {
 }
 
 export const sessionTestInternals = { decodeJwtExp };
+
+export interface DeviceCredential {
+  deviceToken: string;
+  expiresAt: string;
+}
+
+export async function saveDeviceCredential(
+  deviceToken: string,
+  expiresAt: string
+): Promise<void> {
+  const tokenBytes = Array.from(new TextEncoder().encode(deviceToken));
+  const st = await getStrongholdStore();
+  if (st) {
+    await st.remove(STRONGHOLD_DEVICE_TOKEN_KEY).catch(() => {});
+    await st.insert(STRONGHOLD_DEVICE_TOKEN_KEY, tokenBytes);
+  } else {
+    const s = await getStore();
+    await s.set(DEVICE_TOKEN_FALLBACK_KEY, btoa(deviceToken));
+    await s.save();
+  }
+  const s = await getStore();
+  await s.set(DEVICE_TOKEN_EXPIRES_KEY, expiresAt);
+  await s.save();
+}
+
+export async function loadDeviceCredential(): Promise<DeviceCredential | null> {
+  let deviceToken: string | null = null;
+
+  const st = await getStrongholdStore();
+  if (st) {
+    try {
+      const raw = await st.get(STRONGHOLD_DEVICE_TOKEN_KEY);
+      if (raw && raw.length > 0) {
+        deviceToken = new TextDecoder().decode(new Uint8Array(raw));
+      }
+    } catch {
+      console.warn('Failed to read device token from Stronghold');
+    }
+  } else {
+    const s = await getStore();
+    const enc = (await s.get<string>(DEVICE_TOKEN_FALLBACK_KEY)) ?? null;
+    if (enc) {
+      try {
+        deviceToken = atob(enc);
+      } catch {
+        deviceToken = null;
+      }
+    }
+  }
+
+  if (!deviceToken) {
+    return null;
+  }
+
+  const s = await getStore();
+  const expiresAt =
+    (await s.get<string>(DEVICE_TOKEN_EXPIRES_KEY)) ?? new Date(0).toISOString();
+  return { deviceToken, expiresAt };
+}
+
+export async function clearDeviceCredential(): Promise<void> {
+  const st = await getStrongholdStore();
+  if (st) {
+    await st.remove(STRONGHOLD_DEVICE_TOKEN_KEY).catch(() => {});
+  }
+  const s = await getStore();
+  await s.delete(DEVICE_TOKEN_FALLBACK_KEY).catch(() => {});
+  await s.delete(DEVICE_TOKEN_EXPIRES_KEY).catch(() => {});
+  await s.save();
+}
+
+export async function savePin(pin: string): Promise<void> {
+  const phc = await invoke<string>('pin_hash', { pin });
+  await setPinHash(phc);
+}
+
+export async function verifyPin(pin: string): Promise<boolean> {
+  const auth = await getDeviceAuth();
+  if (!auth || !auth.pin_hash) {
+    return false;
+  }
+  return invoke<boolean>('pin_verify', { pin, phc: auth.pin_hash });
+}
+
+export async function clearPin(): Promise<void> {
+  await setPinHash('');
+}

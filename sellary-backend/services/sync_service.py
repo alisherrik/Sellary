@@ -25,6 +25,7 @@ from schemas.sync import (
     SyncSaleResult,
     SyncSalesRequest,
     SyncSalesResponse,
+    SyncWarning,
 )
 from services.inventory_ledger_service import InventoryLedgerService
 
@@ -264,6 +265,7 @@ class SyncService:
 
         sale = Sale(
             company_id=company.id,
+            client_sale_id=sale_create.client_sale_id,
             customer_id=None,
             cashier_id=user.id,
             subtotal=subtotal,
@@ -277,14 +279,8 @@ class SyncService:
             created_at=sale_create.created_at_client,
         )
 
-        # Persist the sale and consume each line through the FIFO ledger inside
-        # a savepoint so a partially-allocated, unallocatable sale rolls back
-        # cleanly without aborting the rest of the batch. The ledger raises
-        # ValueError ("Insufficient stock for product '<name>'") on oversell and
-        # writes the single negative inventory log per line. Note: overselling
-        # is rejected regardless of SYNC_ALLOW_OVERSELL — exact FIFO accounting
-        # cannot back negative stock, so the flag no longer overrides this.
         ledger = InventoryLedgerService(self.db, company.id)
+        warnings: list[SyncWarning] = []
         try:
             with self.db.begin_nested():
                 created_sale = self.sale_repo.create(sale, items)
@@ -300,6 +296,10 @@ class SyncService:
                         reason=f"Sale #{created_sale.id}",
                         reference_type="sale",
                         reference_id=created_sale.id,
+                        # Offline sales are immutable historical facts: record
+                        # them even when they exceed available stock. Online
+                        # POST /api/sales keeps the default (allow_oversell=False).
+                        allow_oversell=True,
                     )
                     item.cost_total_at_sale = consumption.value.quantize(
                         Decimal("0.01")
@@ -307,7 +307,20 @@ class SyncService:
                     item.unit_cost_at_sale = (
                         consumption.value / item.quantity
                     ).quantize(Decimal("0.01"))
+                    if consumption.shortfall_quantity > 0:
+                        warnings.append(
+                            SyncWarning(
+                                type="oversell",
+                                product_id=product.id,
+                                product_name=product.name,
+                                requested=item.quantity,
+                                available=consumption.available_before,
+                                new_balance=product.stock_quantity,
+                            )
+                        )
         except ValueError as exc:
+            # Genuinely bad rows only (e.g. negative total). Oversell no longer
+            # raises because allow_oversell=True above.
             return SyncSaleResult(
                 client_sale_id=sale_create.client_sale_id,
                 status="failed",
@@ -320,4 +333,5 @@ class SyncService:
             client_sale_id=sale_create.client_sale_id,
             status="synced",
             sale_id=created_sale.id,
+            warnings=warnings or None,
         )
