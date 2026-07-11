@@ -734,3 +734,96 @@ export async function getHistoryAggregates(
     hourly,
   };
 }
+
+export interface DeviceAuth {
+  id: number;
+  device_id: string;
+  device_token_expires_at: string | null;
+  pin_hash: string | null;
+  pin_set_at: string | null;
+  failed_pin_attempts: number;
+  locked_until: string | null;
+  user_id: number | null;
+  username: string | null;
+  company_id: number | null;
+  company_name: string | null;
+  user_role: string | null;
+  last_online_auth_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeviceIdentityInput {
+  user_id: number;
+  username: string;
+  company_id: number;
+  company_name: string;
+  user_role: string;
+  device_token_expires_at: string | null;
+  last_online_auth_at: string;
+}
+
+export async function getDeviceAuth(): Promise<DeviceAuth | null> {
+  const database = await getDb();
+  const rows = await database.select<DeviceAuth[]>('SELECT * FROM device_auth WHERE id = 1');
+  return rows[0] || null;
+}
+
+export async function ensureDeviceAuth(deviceId: string): Promise<DeviceAuth> {
+  const database = await getDb();
+  const existing = await getDeviceAuth();
+  if (existing) return existing;
+  await database.execute(
+    'INSERT INTO device_auth (id, device_id) VALUES (1, $1)',
+    [deviceId]
+  );
+  const created = await getDeviceAuth();
+  if (!created) throw new Error('Failed to create device_auth row');
+  return created;
+}
+
+export async function setPinHash(hash: string): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE device_auth
+     SET pin_hash = $1, pin_set_at = datetime('now'),
+         failed_pin_attempts = 0, locked_until = NULL,
+         updated_at = datetime('now')
+     WHERE id = 1`,
+    [hash]
+  );
+}
+
+export async function bindDeviceIdentity(i: DeviceIdentityInput): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE device_auth
+     SET user_id = $1, username = $2, company_id = $3, company_name = $4,
+         user_role = $5, device_token_expires_at = $6, last_online_auth_at = $7,
+         updated_at = datetime('now')
+     WHERE id = 1`,
+    [i.user_id, i.username, i.company_id, i.company_name, i.user_role,
+     i.device_token_expires_at, i.last_online_auth_at]
+  );
+}
+
+export async function recordPinFailure(lockUntil?: string | null): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE device_auth
+     SET failed_pin_attempts = failed_pin_attempts + 1,
+         locked_until = $1,
+         updated_at = datetime('now')
+     WHERE id = 1`,
+    [lockUntil ?? null]
+  );
+}
+
+export async function resetPinFailures(): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE device_auth
+     SET failed_pin_attempts = 0, locked_until = NULL, updated_at = datetime('now')
+     WHERE id = 1`
+  );
+}
