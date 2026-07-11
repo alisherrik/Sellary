@@ -31,6 +31,9 @@ export default function PurchaseOrderDetailPage() {
   const [voidPreview, setVoidPreview] = useState<VoidPreview | null>(null);
   const [showVoidDialog, setShowVoidDialog] = useState(false);
   const [voidLoading, setVoidLoading] = useState(false);
+  const [itemVoidPreview, setItemVoidPreview] = useState<VoidPreview | null>(null);
+  const [voidItemId, setVoidItemId] = useState<number | null>(null);
+  const [itemVoidLoading, setItemVoidLoading] = useState(false);
   const isAdmin = useAuthStore((state) => state.currentCompany?.role === 'admin');
 
   if (!validId) return <DetailError message="Некорректный номер закупки." />;
@@ -105,6 +108,31 @@ export default function PurchaseOrderDetailPage() {
       setShowVoidDialog(false);
       await queryClient.invalidateQueries({ queryKey: ['products'] });
     }, 'Закупка аннулирована, склад пересчитан');
+  };
+
+  const openItemVoidDialog = async (itemId: number) => {
+    setItemVoidPreview(null);
+    setVoidItemId(itemId);
+    setItemVoidLoading(true);
+    try {
+      const response = await purchaseOrdersApi.previewVoidItem(order.id, itemId);
+      setItemVoidPreview(response.data);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Не удалось проверить аннулирование');
+      setVoidItemId(null);
+    } finally {
+      setItemVoidLoading(false);
+    }
+  };
+
+  const confirmItemVoid = async (reason: string) => {
+    if (voidItemId == null) return;
+    const itemId = voidItemId;
+    await runAction(async () => {
+      await purchaseOrdersApi.voidItem(order.id, itemId, reason);
+      setVoidItemId(null);
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+    }, 'Позиция аннулирована, склад пересчитан');
   };
 
   return (
@@ -233,30 +261,68 @@ export default function PurchaseOrderDetailPage() {
                   <th className="px-4 py-3 text-right">Осталось</th>
                   <th className="px-4 py-3 text-right">Цена</th>
                   <th className="px-4 py-3 text-right">Сумма</th>
+                  {isAdmin && <th className="px-4 py-3 text-right">Действия</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {order.items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-4 py-4">
-                      <p className="font-semibold text-gray-900">
-                        {item.product?.name ?? `Товар #${item.product_id}`}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {[item.product?.barcode, item.product?.uom].filter(Boolean).join(' · ')}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4 text-right tabular-nums">{item.quantity_ordered}</td>
-                    <td className="px-4 py-4 text-right tabular-nums">{item.quantity_received}</td>
-                    <td className="px-4 py-4 text-right font-semibold tabular-nums">
-                      {getRemainingQuantity(item)}
-                    </td>
-                    <td className="px-4 py-4 text-right tabular-nums">{formatCurrency(item.unit_cost)}</td>
-                    <td className="px-4 py-4 text-right font-semibold tabular-nums">
-                      {formatCurrency(item.subtotal)}
-                    </td>
-                  </tr>
-                ))}
+                {order.items.map((item) => {
+                  const canVoidItem =
+                    isAdmin &&
+                    !item.is_voided &&
+                    Number(item.quantity_received) > 0 &&
+                    ['partially_received', 'received'].includes(order.status);
+                  return (
+                    <tr key={item.id} className={item.is_voided ? 'bg-gray-50 text-gray-400' : undefined}>
+                      <td className="px-4 py-4">
+                        <p
+                          className={`font-semibold ${
+                            item.is_voided ? 'text-gray-400 line-through' : 'text-gray-900'
+                          }`}
+                        >
+                          {item.product?.name ?? `Товар #${item.product_id}`}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {[item.product?.barcode, item.product?.uom].filter(Boolean).join(' · ')}
+                        </p>
+                        {item.is_voided && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                              Аннулирован
+                            </span>
+                            {item.void_reason && (
+                              <p className="mt-1 text-xs text-gray-500">Причина: {item.void_reason}</p>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right tabular-nums">{item.quantity_ordered}</td>
+                      <td className="px-4 py-4 text-right tabular-nums">{item.quantity_received}</td>
+                      <td className="px-4 py-4 text-right font-semibold tabular-nums">
+                        {getRemainingQuantity(item)}
+                      </td>
+                      <td className="px-4 py-4 text-right tabular-nums">{formatCurrency(item.unit_cost)}</td>
+                      <td className="px-4 py-4 text-right font-semibold tabular-nums">
+                        {formatCurrency(item.subtotal)}
+                      </td>
+                      {isAdmin && (
+                        <td className="px-4 py-4 text-right">
+                          {canVoidItem ? (
+                            <button
+                              type="button"
+                              disabled={isActing || itemVoidLoading}
+                              onClick={() => void openItemVoidDialog(item.id)}
+                              className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              Аннулировать позицию
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -327,6 +393,16 @@ export default function PurchaseOrderDetailPage() {
         submitting={isActing}
         onClose={() => setShowVoidDialog(false)}
         onConfirm={(reason) => void confirmVoid(reason)}
+      />
+
+      <AnnulmentDialog
+        open={voidItemId != null}
+        title="Аннулировать позицию"
+        preview={itemVoidPreview}
+        loading={itemVoidLoading}
+        submitting={isActing}
+        onClose={() => setVoidItemId(null)}
+        onConfirm={(reason) => void confirmItemVoid(reason)}
       />
     </div>
   );

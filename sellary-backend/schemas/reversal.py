@@ -34,6 +34,9 @@ class ReversalBlocker(BaseModel):
 
     blocker_type: Literal["sale", "inventory_adjustment", "legacy_history"]
     reference_id: Optional[int]
+    # For a "sale" blocker: the exact dependent sale item, when identifiable, so
+    # the UI can deep-link to the specific line an admin must reverse first.
+    sale_item_id: Optional[int] = None
     product_id: int
     product_name: str
     quantity: Decimal

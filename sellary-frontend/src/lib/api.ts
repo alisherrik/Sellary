@@ -316,6 +316,14 @@ export const purchaseOrdersApi = {
       headers: { 'Idempotency-Key': key },
     });
   },
+  previewVoidItem: (id: number, itemId: number) =>
+    api.get<VoidPreview>(`/purchase-orders/${id}/items/${itemId}/void-preview`),
+  voidItem: (id: number, itemId: number, reason: string, idempotencyKey?: string) => {
+    const key = idempotencyKey || generateIdempotencyKey();
+    return api.post<VoidResult>(`/purchase-orders/${id}/items/${itemId}/void`, { reason }, {
+      headers: { 'Idempotency-Key': key },
+    });
+  },
 };
 
 export const metaApi = {

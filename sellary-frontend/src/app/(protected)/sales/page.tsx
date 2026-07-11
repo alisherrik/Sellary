@@ -94,6 +94,7 @@ export default function SalesHistory() {
   const [returnQuantities, setReturnQuantities] = useState<ReturnQuantity[]>([]);
   const [refundMethod, setRefundMethod] = useState('');
   const [returnNotes, setReturnNotes] = useState('');
+  const [annulMode, setAnnulMode] = useState(false);
   const [voidPreview, setVoidPreview] = useState<VoidPreview | null>(null);
   const [showVoidDialog, setShowVoidDialog] = useState(false);
   const [voidLoading, setVoidLoading] = useState(false);
@@ -198,12 +199,13 @@ export default function SalesHistory() {
   }, [visibleSales]);
 
   const returnMutation = useMutation({
-    mutationFn: async (data: { saleId: number; payload: any; idempotencyKey: string }) =>
+    mutationFn: async (data: { saleId: number; payload: any; idempotencyKey: string; annul?: boolean }) =>
       salesApi.processReturn(data.saleId, data.payload, data.idempotencyKey),
-    onSuccess: () => {
-      toast.success('Возврат успешно оформлен');
+    onSuccess: (_data, variables) => {
+      toast.success(variables.annul ? 'Позиция аннулирована' : 'Возврат успешно оформлен');
       setShowReturnModal(false);
       queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       setShowDetail(false);
     },
     onError: (error: any) => {
@@ -225,8 +227,39 @@ export default function SalesHistory() {
     }
   };
 
+  const loadRefundMethods = async () => {
+    try {
+      const res = await metaApi.getSaleReturnOptions();
+      setRefundMethods(res.data.refund_methods);
+      setRefundMethod(res.data.refund_methods[0] || 'cash');
+    } catch {
+      setRefundMethods(['cash', 'card', 'mobile']);
+      setRefundMethod('cash');
+    }
+  };
+
+  const itemOutstanding = (item: any) =>
+    item.quantity_returnable !== undefined
+      ? Number(item.quantity_returnable)
+      : Number(item.quantity) - Number(item.quantity_returned || 0);
+
+  const handleOpenAnnulItem = async (sale: Sale, item: any) => {
+    // Line-level annulment reuses the return flow: preselect ONLY this line,
+    // fix the quantity to its full outstanding amount, and require a reason.
+    const maxQty = itemOutstanding(item);
+    if (maxQty <= 0) return;
+    setSelectedSale(sale);
+    setAnnulMode(true);
+    setReturnNotes('');
+    setReturnQuantities([{ saleItemId: item.id, quantity: maxQty, maxQuantity: maxQty }]);
+    await loadRefundMethods();
+    setShowDetail(false);
+    setShowReturnModal(true);
+  };
+
   const handleOpenReturnModal = async (sale: Sale) => {
     setSelectedSale(sale);
+    setAnnulMode(false);
     setReturnNotes('');
     setReturnQuantities(
       sale.items
@@ -268,9 +301,11 @@ export default function SalesHistory() {
   };
 
   const hasSelectedItems = returnQuantities.some((rq) => rq.quantity > 0);
+  // In annulment mode a reason is required; a plain return leaves notes optional.
+  const canSubmitReturn = hasSelectedItems && (!annulMode || returnNotes.trim().length >= 3);
 
   const handleSubmitReturn = () => {
-    if (!selectedSale || !hasSelectedItems) {
+    if (!selectedSale || !canSubmitReturn) {
       return;
     }
 
@@ -281,15 +316,22 @@ export default function SalesHistory() {
         quantity: rq.quantity,
       }));
 
+    // Annulment stores the reason in the return notes with an explicit
+    // line-correction marker so the operation is distinguishable in history.
+    const notes = annulMode
+      ? `[Аннулирование позиции] ${returnNotes.trim()}`
+      : returnNotes || undefined;
+
     const idempotencyKey = generateIdempotencyKey();
     returnMutation.mutate({
       saleId: selectedSale.id,
       payload: {
         items: itemsToReturn,
         refund_method: refundMethod,
-        notes: returnNotes || undefined,
+        notes,
       },
       idempotencyKey,
+      annul: annulMode,
     });
   };
 
@@ -735,20 +777,52 @@ export default function SalesHistory() {
               <div>
                 <p className="mb-2 text-[13px] font-semibold text-gray-900 dark:text-white">Товары · {selectedSale.items.length}</p>
                 <div className="space-y-2">
-                  {selectedSale.items.map((item: any) => (
-                    <div key={item.id} className="flex items-center justify-between gap-2 text-[13px]">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-gray-800 dark:text-gray-100">{item.product_name}</p>
-                        <p className="text-[11px] text-gray-400">
-                          {item.quantity} {item.uom} × {formatCurrency(item.unit_price)}
-                          {item.quantity_returned > 0 && (
-                            <span className="ml-1 text-orange-600">({item.quantity_returned} возв.)</span>
+                  {selectedSale.items.map((item: any) => {
+                    const outstanding = itemOutstanding(item);
+                    const fullyAnnulled =
+                      item.transaction_type === 'sale' &&
+                      Number(item.quantity_returned || 0) >= Number(item.quantity) &&
+                      Number(item.quantity) > 0;
+                    const canAnnulItem =
+                      isAdmin &&
+                      item.transaction_type === 'sale' &&
+                      outstanding > 0 &&
+                      ['completed', 'partially_returned'].includes(selectedSale.status);
+                    return (
+                      <div key={item.id} className="flex items-center justify-between gap-2 text-[13px]">
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`truncate ${
+                              fullyAnnulled ? 'text-gray-400 line-through' : 'text-gray-800 dark:text-gray-100'
+                            }`}
+                          >
+                            {item.product_name}
+                          </p>
+                          <p className="text-[11px] text-gray-400">
+                            {item.quantity} {item.uom} × {formatCurrency(item.unit_price)}
+                            {item.quantity_returned > 0 && (
+                              <span className="ml-1 text-orange-600">({item.quantity_returned} возв.)</span>
+                            )}
+                          </p>
+                          {fullyAnnulled && (
+                            <span className="mt-1 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                              Аннулирован
+                            </span>
                           )}
-                        </p>
+                          {canAnnulItem && (
+                            <button
+                              type="button"
+                              onClick={() => void handleOpenAnnulItem(selectedSale, item)}
+                              className="mt-1 rounded-md border border-red-200 px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50"
+                            >
+                              Аннулировать позицию
+                            </button>
+                          )}
+                        </div>
+                        <span className="shrink-0 font-medium tabular-nums text-gray-900 dark:text-white">{formatCurrency(item.total)}</span>
                       </div>
-                      <span className="shrink-0 font-medium tabular-nums text-gray-900 dark:text-white">{formatCurrency(item.total)}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -866,16 +940,20 @@ export default function SalesHistory() {
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
           <div className="max-h-[90vh] w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-slate-800 sm:max-w-2xl sm:rounded-2xl">
             <div className="border-b border-slate-200 bg-gradient-to-r from-orange-500 to-red-500 px-4 py-3 dark:border-slate-700 sm:px-6 sm:py-4">
-              <h2 className="text-base font-bold text-white sm:text-xl">Возврат #{selectedSale.id}</h2>
+              <h2 className="text-base font-bold text-white sm:text-xl">
+                {annulMode ? 'Аннулировать позицию' : `Возврат #${selectedSale.id}`}
+              </h2>
               <p className="text-[10px] text-white/80 sm:text-sm">
-                Доступно: {formatCurrency((selectedSale as any).remaining_refundable_amount || '0')}
+                {annulMode
+                  ? `Продажа #${selectedSale.id} · позиция будет возвращена полностью`
+                  : `Доступно: ${formatCurrency((selectedSale as any).remaining_refundable_amount || '0')}`}
               </p>
             </div>
 
             <div className="max-h-[60vh] overflow-y-auto p-4 sm:p-6">
               <div className="mb-4 space-y-2 sm:mb-6 sm:space-y-3">
                 <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 sm:text-base">
-                  Товары для возврата
+                  {annulMode ? 'Позиция для аннулирования' : 'Товары для возврата'}
                 </h3>
                 {returnQuantities.length === 0 ? (
                   <p className="py-4 text-center text-sm text-slate-500">Нет товаров для возврата</p>
@@ -897,32 +975,38 @@ export default function SalesHistory() {
                           </p>
                           <p className="text-[10px] text-slate-500 sm:text-sm">Доступно: {rq.maxQuantity}</p>
                         </div>
-                        <div className="flex flex-shrink-0 items-center gap-1 sm:gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleQuantityChange(rq.saleItemId, rq.quantity - 1)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-200 text-sm font-bold hover:bg-slate-300 dark:bg-slate-600 sm:h-8 sm:w-8"
-                            disabled={rq.quantity <= 0}
-                          >
-                            -
-                          </button>
-                          <input
-                            type="number"
-                            min={0}
-                            max={rq.maxQuantity}
-                            value={rq.quantity}
-                            onChange={(e) => handleQuantityChange(rq.saleItemId, parseInt(e.target.value) || 0)}
-                            className="w-10 rounded-lg border border-slate-300 bg-white py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 sm:w-16"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleQuantityChange(rq.saleItemId, rq.quantity + 1)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-200 text-sm font-bold hover:bg-slate-300 dark:bg-slate-600 sm:h-8 sm:w-8"
-                            disabled={rq.quantity >= rq.maxQuantity}
-                          >
-                            +
-                          </button>
-                        </div>
+                        {annulMode ? (
+                          <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+                            {rq.quantity} шт.
+                          </span>
+                        ) : (
+                          <div className="flex flex-shrink-0 items-center gap-1 sm:gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleQuantityChange(rq.saleItemId, rq.quantity - 1)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-200 text-sm font-bold hover:bg-slate-300 dark:bg-slate-600 sm:h-8 sm:w-8"
+                              disabled={rq.quantity <= 0}
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min={0}
+                              max={rq.maxQuantity}
+                              value={rq.quantity}
+                              onChange={(e) => handleQuantityChange(rq.saleItemId, parseInt(e.target.value) || 0)}
+                              className="w-10 rounded-lg border border-slate-300 bg-white py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 sm:w-16"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleQuantityChange(rq.saleItemId, rq.quantity + 1)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-200 text-sm font-bold hover:bg-slate-300 dark:bg-slate-600 sm:h-8 sm:w-8"
+                              disabled={rq.quantity >= rq.maxQuantity}
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })
@@ -948,13 +1032,14 @@ export default function SalesHistory() {
 
               <div>
                 <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300 sm:text-sm">
-                  Примечание
+                  {annulMode ? 'Причина аннулирования' : 'Примечание'}
                 </label>
                 <textarea
                   value={returnNotes}
                   onChange={(e) => setReturnNotes(e.target.value)}
-                  placeholder="Причина возврата..."
+                  placeholder={annulMode ? 'Например: ошибочно пробитая позиция' : 'Причина возврата...'}
                   rows={2}
+                  maxLength={500}
                   className="w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 sm:px-4 sm:py-2.5 sm:text-base"
                 />
               </div>
@@ -970,10 +1055,14 @@ export default function SalesHistory() {
               </button>
               <button
                 onClick={handleSubmitReturn}
-                disabled={returnMutation.isPending || !hasSelectedItems}
+                disabled={returnMutation.isPending || !canSubmitReturn}
                 className="order-1 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-semibold text-white hover:from-orange-600 hover:to-red-600 disabled:opacity-50 sm:order-2 sm:px-6 sm:text-base"
               >
-                {returnMutation.isPending ? 'Обработка...' : 'Подтвердить возврат'}
+                {returnMutation.isPending
+                  ? 'Обработка...'
+                  : annulMode
+                    ? 'Подтвердить аннулирование'
+                    : 'Подтвердить возврат'}
               </button>
             </div>
           </div>

@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from core.state_machine import StateTransitionError, validate_sale_transition
 from models.inventory_layer import InventoryAllocation
 from models.purchase_order import PurchaseOrderStatus
-from models.purchase_receipt import PurchaseReceipt
+from models.purchase_receipt import PurchaseReceipt, PurchaseReceiptItem
 from models.reversal_operation import ReversalOperation
 from models.sale import Sale, SaleStatus
 from repositories.product_repository import ProductRepository
@@ -308,6 +308,31 @@ class TransactionReversalService:
             return VoidPreview(can_void=False, is_legacy=True, impacts=[], blockers=[blocker])
 
         receipt_items = [item for receipt in receipts for item in receipt.items]
+        impacts, blockers = self._layer_impacts_and_blockers(receipt_items)
+
+        allowed_status = po.status in (
+            PurchaseOrderStatus.PARTIALLY_RECEIVED,
+            PurchaseOrderStatus.RECEIVED,
+        )
+        return VoidPreview(
+            can_void=allowed_status and not blockers and bool(receipt_items),
+            is_legacy=False,
+            impacts=impacts,
+            blockers=blockers,
+        )
+
+    def _layer_impacts_and_blockers(
+        self, receipt_items: List[PurchaseReceiptItem]
+    ) -> tuple[List[InventoryImpact], List[ReversalBlocker]]:
+        """Project the stock/value impact and detect blockers for a set of
+        receipt items' inventory layers.
+
+        Shared by whole-purchase and single-line previews so both compute the
+        same impacts and the same blocker vocabulary. Internal write-offs
+        (product delete/recreate) are auto-released by the void and net against
+        the layer removal; active sale or manual-adjustment allocations are hard
+        blockers. Sale blockers carry the exact ``sale_item_id`` when known.
+        """
         impacts: List[InventoryImpact] = []
         blockers: List[ReversalBlocker] = []
         for item in receipt_items:
@@ -338,6 +363,7 @@ class TransactionReversalService:
                         ReversalBlocker(
                             blocker_type="sale",
                             reference_id=sale_item.sale_id,
+                            sale_item_id=sale_item.id,
                             product_id=product.id,
                             product_name=product.name,
                             quantity=remaining,
@@ -371,16 +397,221 @@ class TransactionReversalService:
                     resulting_stock=Decimal(product.stock_quantity) + net_quantity,
                 )
             )
+        return impacts, blockers
 
+    # ------------------------------------------------------------------
+    # Purchase line (item-scoped) annulment
+    # ------------------------------------------------------------------
+    def _active_receipt_items_for_po_item(
+        self, item_id: int
+    ) -> List[PurchaseReceiptItem]:
+        """Receipt items for a single PO line whose parent receipt is not
+        reversed — the traceable receipt layers created for that line."""
+        return (
+            self.db.query(PurchaseReceiptItem)
+            .join(
+                PurchaseReceipt,
+                PurchaseReceiptItem.purchase_receipt_id == PurchaseReceipt.id,
+            )
+            .filter(
+                PurchaseReceipt.company_id == self.company_id,
+                PurchaseReceipt.reversed_at.is_(None),
+                PurchaseReceiptItem.purchase_order_item_id == item_id,
+            )
+            .order_by(PurchaseReceiptItem.id)
+            .all()
+        )
+
+    def preview_purchase_item(
+        self, po_id: int, item_id: int, for_update: bool = False
+    ) -> VoidPreview:
+        """Preview annulling ONE received purchase line, inspecting only the
+        unreversed receipt-item layers linked to that line.
+
+        Returns ``can_void=False`` for an already-voided or unreceived line. A
+        received line whose receipt layers are missing/all-reversed is treated as
+        legacy history and blocked. Otherwise the same stock/value impact and
+        blocker vocabulary as the whole-purchase preview apply, scoped to this
+        line's layers only.
+        """
+        po = (
+            self.po_repo.get_by_id_for_update(self.company_id, po_id)
+            if for_update
+            else self.po_repo.get_by_id(self.company_id, po_id)
+        )
+        if not po:
+            raise ValueError(f"Purchase order with id {po_id} not found")
+
+        item = next((i for i in po.items if i.id == item_id), None)
+        if item is None:
+            raise ValueError(f"Purchase order item with id {item_id} not found")
+
+        if item.voided_at is not None:
+            return VoidPreview(can_void=False, is_legacy=False, impacts=[], blockers=[])
+
+        received_quantity = Decimal(item.quantity_received or 0)
+        if received_quantity <= 0:
+            # Nothing was received for this line — there is no stock to reverse.
+            return VoidPreview(can_void=False, is_legacy=False, impacts=[], blockers=[])
+
+        receipt_items = self._active_receipt_items_for_po_item(item_id)
+        active_layer_items = [
+            ri
+            for ri in receipt_items
+            if ri.inventory_layer is not None and ri.inventory_layer.reversed_at is None
+        ]
+        if not active_layer_items:
+            # Received but no traceable, unreversed layer — a pre-ledger line.
+            blocker = ReversalBlocker(
+                blocker_type="legacy_history",
+                reference_id=item.id,
+                product_id=item.product_id,
+                product_name=item.product.name,
+                quantity=received_quantity,
+                created_at=po.created_at,
+                message="История этой позиции создана до включения точного учёта партий.",
+            )
+            return VoidPreview(can_void=False, is_legacy=True, impacts=[], blockers=[blocker])
+
+        impacts, blockers = self._layer_impacts_and_blockers(active_layer_items)
         allowed_status = po.status in (
             PurchaseOrderStatus.PARTIALLY_RECEIVED,
             PurchaseOrderStatus.RECEIVED,
         )
         return VoidPreview(
-            can_void=allowed_status and not blockers and bool(receipt_items),
+            can_void=allowed_status and not blockers,
             is_legacy=False,
             impacts=impacts,
             blockers=blockers,
+        )
+
+    def void_purchase_item(
+        self, po_id: int, item_id: int, reason: str, user_id: int
+    ) -> VoidResult:
+        """Annul ONE received purchase line, reversing only its receipt layers.
+
+        Locks the purchase, the target line, its receipt items, inventory
+        layers, active allocations and affected products. Rejects an
+        already-annulled or unreceived line; raises ``ReversalBlocked`` while any
+        of the line's stock is still allocated to a sale or manual adjustment.
+        On success it releases internal write-offs, reverses each unconsumed
+        layer, records one ``purchase_item_void`` operation, marks the line
+        annulled, and recomputes the purchase net total/status from the
+        remaining active lines — all in the same transaction. Sibling lines and
+        their layers are untouched.
+        """
+        po = self.po_repo.get_by_id_for_update(self.company_id, po_id)
+        if not po:
+            raise ValueError(f"Purchase order with id {po_id} not found")
+
+        locked_items = self.po_repo.get_po_items_for_update(po_id)
+        item = next((i for i in locked_items if i.id == item_id), None)
+        if item is None:
+            raise ValueError(f"Purchase order item with id {item_id} not found")
+        if item.voided_at is not None:
+            raise ReversalConflict("Позиция закупки уже аннулирована.")
+
+        preview = self.preview_purchase_item(po_id, item_id, for_update=False)
+        if preview.blockers:
+            raise ReversalBlocked(preview.blockers)
+        if not preview.can_void:
+            raise ReversalConflict(
+                "Позицию закупки нельзя аннулировать в текущем состоянии."
+            )
+
+        receipt_items = self._active_receipt_items_for_po_item(item_id)
+
+        # Deterministically lock the affected layers, their allocations and
+        # products so a concurrent sale/void cannot move the same stock twice.
+        layer_ids = sorted(
+            ri.inventory_layer.id
+            for ri in receipt_items
+            if ri.inventory_layer is not None
+        )
+        locked_layers = {lid: self.ledger.repo.get_layer(lid) for lid in layer_ids}
+        self.ledger.repo.active_allocations_for_layers(layer_ids)
+        product_ids = sorted({ri.product_id for ri in receipt_items})
+        locked_products = self.product_repo.get_multiple_for_update(
+            self.company_id, product_ids
+        )
+        product_map = {product.id: product for product in locked_products}
+
+        operation = self._create_operation(
+            entity_type="purchase_order_item",
+            entity_id=item.id,
+            operation_type="purchase_item_void",
+            reason=reason,
+            user_id=user_id,
+            impacts=preview.impacts,
+        )
+
+        for ri in receipt_items:
+            layer = locked_layers.get(
+                ri.inventory_layer.id if ri.inventory_layer else None
+            )
+            if layer is None or layer.reversed_at is not None:
+                continue
+            product = product_map[ri.product_id]
+            # Release any internal write-off (product delete/recreate) that
+            # consumed this layer first, then reverse the now-unconsumed layer.
+            # Sale/manual allocations are never released here — the preview
+            # blocks the void while those exist.
+            self.ledger.release_internal_writeoffs(
+                layer=layer,
+                product=product,
+                user_id=user_id,
+                reason=f"Аннулирование позиции закупки #{po.id}: возврат списания",
+                reference_type="po_item_void",
+                reference_id=po.id,
+                reversal_operation_id=operation.id,
+            )
+            self.ledger.reverse_unconsumed_layer(
+                layer=layer,
+                product=product,
+                user_id=user_id,
+                reason=f"Аннулирование позиции закупки #{po.id}: {reason}",
+                reference_type="po_item_void",
+                reference_id=po.id,
+                reversal_operation_id=operation.id,
+            )
+
+        now = datetime.now(timezone.utc)
+        item.voided_at = now
+        item.voided_by_user_id = user_id
+        item.void_reason = reason
+        item.reversal_operation_id = operation.id
+        self._recompute_po_after_item_void(po, locked_items)
+        self.db.flush()
+        return VoidResult(
+            operation_id=operation.id,
+            entity_type="purchase_order",
+            entity_id=po.id,
+            status=po.status.value,
+            voided_at=now,
+        )
+
+    @staticmethod
+    def _recompute_po_after_item_void(po, items) -> None:
+        """Recompute the purchase net total and lifecycle status from the
+        remaining active (non-voided) lines. All lines voided → CANCELLED;
+        otherwise RECEIVED when every active line is fully received, else
+        PARTIALLY_RECEIVED. Voided lines keep their original figures for audit."""
+        active = [i for i in items if i.voided_at is None]
+        if not active:
+            po.status = PurchaseOrderStatus.CANCELLED
+            po.total_amount = Decimal("0.00")
+            return
+        po.total_amount = sum(
+            (Decimal(i.subtotal or 0) for i in active), Decimal("0.00")
+        )
+        all_received = all(
+            Decimal(i.quantity_received or 0) >= Decimal(i.quantity_ordered)
+            for i in active
+        )
+        po.status = (
+            PurchaseOrderStatus.RECEIVED
+            if all_received
+            else PurchaseOrderStatus.PARTIALLY_RECEIVED
         )
 
     def void_purchase(self, po_id: int, reason: str, user_id: int) -> VoidResult:

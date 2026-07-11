@@ -356,6 +356,11 @@ export interface PurchaseOrderItem {
     barcode?: string | null;
     uom?: string;
   };
+  is_voided?: boolean;
+  voided_at?: string | null;
+  voided_by_user_id?: number | null;
+  void_reason?: string | null;
+  reversal_operation_id?: number | null;
 }
 
 export interface PurchaseOrder {
@@ -390,6 +395,7 @@ export interface InventoryImpact {
 export interface ReversalBlocker {
   blocker_type: 'sale' | 'inventory_adjustment' | 'legacy_history';
   reference_id?: number | null;
+  sale_item_id?: number | null;
   product_id: number;
   product_name: string;
   quantity: number;
