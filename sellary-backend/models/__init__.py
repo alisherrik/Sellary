@@ -17,6 +17,7 @@ from .idempotency_key import IdempotencyKey
 from .reversal_operation import ReversalOperation
 from .purchase_receipt import PurchaseReceipt, PurchaseReceiptItem
 from .inventory_layer import InventoryLayer, InventoryAllocation
+from .cashier_device import CashierDevice
 
 __all__ = [
     "Company",
@@ -43,4 +44,5 @@ __all__ = [
     "PurchaseReceiptItem",
     "InventoryLayer",
     "InventoryAllocation",
+    "CashierDevice",
 ]

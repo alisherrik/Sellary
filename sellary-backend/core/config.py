@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     # a warning is emitted at startup when it is left enabled.
     SYNC_ALLOW_OVERSELL: bool = True
 
+    # Cashier device auth: opaque device_token lifetime, sliding-renewed on every
+    # /api/auth/devices/refresh. Additive default; the minted access_token is the
+    # unchanged 24h ACCESS_TOKEN_EXPIRE_MINUTES JWT.
+    DEVICE_TOKEN_EXPIRE_DAYS: int = 180
+
     def model_post_init(self, __context) -> None:
         if self.BACKEND_CORS_ORIGINS_RAW:
             self.BACKEND_CORS_ORIGINS = _parse_cors_origins(self.BACKEND_CORS_ORIGINS_RAW)
