@@ -12,6 +12,8 @@ import {
   setMeta,
   addSyncEvent,
   getDeviceAuth,
+  recordPinFailure,
+  resetPinFailures,
 } from './db';
 import { setStoreValue } from './storage';
 import { getErrorMessage } from './error';
@@ -21,6 +23,7 @@ import {
   clearCashierSession,
   getTokenExpiresAt,
   loadDeviceCredential,
+  verifyPin,
 } from './session';
 
 interface AuthState {
@@ -49,7 +52,20 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+const MAX_PIN_ATTEMPTS = 5;
+const LOCK_BASE_SECONDS = 30;
+const LOCK_CAP_SECONDS = 15 * 60;
+
+function computeLockUntil(attempts: number): string | null {
+  if (attempts < MAX_PIN_ATTEMPTS) {
+    return null;
+  }
+  const over = attempts - MAX_PIN_ATTEMPTS;
+  const seconds = Math.min(LOCK_CAP_SECONDS, LOCK_BASE_SECONDS * 2 ** over);
+  return new Date(Date.now() + seconds * 1000).toISOString();
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isBootstrapping: false,
   companyId: null,
@@ -65,13 +81,45 @@ export const useAuthStore = create<AuthState>((set) => ({
   needsReauth: false,
 
   // Temporary stubs to satisfy the AuthState interface added in Task 5.
-  // Real implementations land in Task 6 (unlockWithPin), Task 7
-  // (ensureFreshAccessToken), and Task 8 (completePinSetup).
+  // Real implementations land in Task 7 (ensureFreshAccessToken) and
+  // Task 8 (completePinSetup).
   completePinSetup: async () => {
     throw new Error('completePinSetup is not implemented yet (see Task 8)');
   },
-  unlockWithPin: async () => {
-    throw new Error('unlockWithPin is not implemented yet (see Task 6)');
+  unlockWithPin: async (pin) => {
+    const auth = await getDeviceAuth();
+    if (!auth) {
+      return false;
+    }
+    if (auth.locked_until && Date.parse(auth.locked_until) > Date.now()) {
+      set({ isLocked: true, lockedUntil: auth.locked_until });
+      return false;
+    }
+
+    const ok = await verifyPin(pin);
+    if (!ok) {
+      const attempts = (auth.failed_pin_attempts ?? 0) + 1;
+      const lockUntil = computeLockUntil(attempts);
+      await recordPinFailure(lockUntil);
+      set({ isLocked: !!lockUntil, lockedUntil: lockUntil });
+      return false;
+    }
+
+    await resetPinFailures();
+    set({
+      isAuthenticated: true,
+      isLocked: false,
+      lockedUntil: null,
+      needsReauth: false,
+      companyId: auth.company_id,
+      companyName: auth.company_name,
+      userId: auth.user_id,
+      username: auth.username,
+      userRole: auth.user_role,
+    });
+    // Non-blocking: try to freshen the sync credential if online / near-expiry.
+    void get().ensureFreshAccessToken();
+    return true;
   },
   ensureFreshAccessToken: async () => {},
 

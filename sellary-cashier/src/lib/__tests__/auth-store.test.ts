@@ -316,3 +316,67 @@ describe('useAuthStore', () => {
     });
   });
 });
+
+describe('unlockWithPin', () => {
+  it('authenticates on a correct PIN and resets failure counters', async () => {
+    mockGetDeviceAuth.mockResolvedValue({
+      device_id: 'dev-1', pin_hash: '$argon2id$x', locked_until: null,
+      failed_pin_attempts: 2, user_id: 1, username: 'c',
+      company_id: 10, company_name: 'T', user_role: 'cashier',
+    });
+    mockVerifyPin.mockResolvedValue(true);
+    mockLoadDeviceCredential.mockResolvedValue(null); // no bg refresh path
+
+    const ok = await useAuthStore.getState().unlockWithPin('1234');
+
+    expect(ok).toBe(true);
+    expect(mockResetPinFailures).toHaveBeenCalled();
+    const state = useAuthStore.getState();
+    expect(state.isAuthenticated).toBe(true);
+    expect(state.isLocked).toBe(false);
+    expect(state.companyId).toBe(10);
+  });
+
+  it('records a failure without locking below the threshold', async () => {
+    mockGetDeviceAuth.mockResolvedValue({
+      device_id: 'dev-1', pin_hash: '$argon2id$x', locked_until: null,
+      failed_pin_attempts: 1,
+    });
+    mockVerifyPin.mockResolvedValue(false);
+
+    const ok = await useAuthStore.getState().unlockWithPin('0000');
+
+    expect(ok).toBe(false);
+    expect(mockRecordPinFailure).toHaveBeenCalledWith(null);
+    expect(useAuthStore.getState().isLocked).toBe(false);
+  });
+
+  it('locks after the 5th consecutive failure', async () => {
+    mockGetDeviceAuth.mockResolvedValue({
+      device_id: 'dev-1', pin_hash: '$argon2id$x', locked_until: null,
+      failed_pin_attempts: 4, // this failure makes 5
+    });
+    mockVerifyPin.mockResolvedValue(false);
+
+    const ok = await useAuthStore.getState().unlockWithPin('0000');
+
+    expect(ok).toBe(false);
+    const [lockArg] = mockRecordPinFailure.mock.calls[0];
+    expect(typeof lockArg).toBe('string');
+    expect(Date.parse(lockArg)).toBeGreaterThan(Date.now());
+    expect(useAuthStore.getState().isLocked).toBe(true);
+  });
+
+  it('refuses while an unexpired lockout is active', async () => {
+    const future = new Date(Date.now() + 60_000).toISOString();
+    mockGetDeviceAuth.mockResolvedValue({
+      device_id: 'dev-1', pin_hash: '$argon2id$x', locked_until: future,
+    });
+
+    const ok = await useAuthStore.getState().unlockWithPin('1234');
+
+    expect(ok).toBe(false);
+    expect(mockVerifyPin).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isLocked).toBe(true);
+  });
+});
