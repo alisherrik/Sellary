@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from core.config import settings  # noqa: F401
 from core.idempotency import IdempotencyConflictError, IdempotencyService
 from models.company import Company
+from models.customer import Customer
 from models.product import Product
 from models.sale import CardType, PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
@@ -20,6 +21,7 @@ from repositories.sale_repository import SaleRepository
 from schemas.category import Category as CategorySchema
 from schemas.sync import (
     SyncBootstrapResponse,
+    SyncCustomerItem,
     SyncProductItem,
     SyncSaleCreate,
     SyncSaleResult,
@@ -27,6 +29,7 @@ from schemas.sync import (
     SyncSalesResponse,
     SyncWarning,
 )
+from services.customer_ledger_service import CustomerLedgerService
 from services.inventory_ledger_service import InventoryLedgerService
 
 
@@ -57,6 +60,16 @@ class SyncService:
             .all()
         )
 
+        active_customers = (
+            self.db.query(Customer)
+            .filter(
+                Customer.company_id == company.id,
+                Customer.is_active == True,  # noqa: E712
+            )
+            .all()
+        )
+        ledger = CustomerLedgerService(self.db, company.id)
+
         return SyncBootstrapResponse(
             company_id=company.id,
             company_name=company.name,
@@ -81,6 +94,20 @@ class SyncService:
             ],
             categories=[
                 CategorySchema.model_validate(c) for c in categories
+            ],
+            customers=[
+                SyncCustomerItem(
+                    id=c.id,
+                    client_customer_id=c.client_customer_id,
+                    name=c.name,
+                    phone=c.phone,
+                    email=c.email,
+                    address=c.address,
+                    description=c.description,
+                    balance=ledger.get_customer_balance(c.id),
+                    is_active=c.is_active,
+                )
+                for c in active_customers
             ],
         )
 

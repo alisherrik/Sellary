@@ -41,6 +41,7 @@ class SyncBootstrapResponse(BaseModel):
     server_time: datetime
     products: list[SyncProductItem]
     categories: list[Category]
+    customers: list[SyncCustomerItem] = []
 
 
 class SyncSaleItemCreate(BaseModel):
