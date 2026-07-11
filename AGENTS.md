@@ -96,9 +96,9 @@ Next.js App Router with route groups: `(protected)/` for authenticated pages, `l
 - Backend tests MUST run from within `sellary-backend/` with the virtual environment activated. DB connection is opened at import time via `core/database.py`.
 - Test DB isolation uses **transaction rollback** — use `session.flush()` not `session.commit()` in tests.
 - The codebase has **mixed languages**: code/docstrings in English, UI in Russian, some docs in Uzbek and English. Do not change the language of existing content without explicit instruction.
-- **Stock overselling** `Allow overselling for demo purposes` exists in `sale_service.py`. This is a known risk for production.
+- **Online `POST /api/sales` rejects oversell** — the FIFO ledger (`services/inventory_ledger_service.py`, `consume_fifo`) raises `Insufficient stock`. Only the offline **sync path** (`services/sync_service.py`, `allow_oversell=True`) tolerates oversell, recording it as a historical fact with a `SyncWarning`.
 - `.env` files are gitignored. Copy from `.env.example` files.
-- Alembic migration files (`alembic/versions/*.py`) are gitignored — do not commit generated migrations.
+- Alembic migration files (`alembic/versions/*.py`) are **tracked (committed)** — commit generated migrations.
 - Frontend duplicate layers exist: `src/api.ts` vs `src/lib/api.ts`, `src/store/` vs `src/lib/store.ts`. Be careful about which is canonical when editing.
 
 ## Key reference files
