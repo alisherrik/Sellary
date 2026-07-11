@@ -57,7 +57,13 @@ vi.mock('../db', () => ({
   addSyncEvent: mockAddSyncEvent,
 }));
 
-import { requestSync, syncNow, backoffMs, __resetEngineForTests } from '../sync-engine';
+import {
+  requestSync,
+  syncNow,
+  backoffMs,
+  maybeRefreshCatalog,
+  __resetEngineForTests,
+} from '../sync-engine';
 import { useSyncStore, initialSyncState } from '../sync-store';
 
 function makeSale(id: number, clientId: string, retry = 0) {
@@ -283,6 +289,33 @@ describe('single-flight + coalescing', () => {
     const res = await syncNow();
     expect(res.skipped).toBe(false);
     expect(mockCheckHealth).toHaveBeenCalled();
+  });
+});
+
+describe('maybeRefreshCatalog cadence', () => {
+  it('skips the pull when the catalog was refreshed within the interval', async () => {
+    mockGetMeta.mockResolvedValue(new Date().toISOString());
+    await maybeRefreshCatalog();
+    expect(mockPullCatalog).not.toHaveBeenCalled();
+  });
+
+  it('pulls when the catalog is stale (older than the interval)', async () => {
+    mockGetMeta.mockResolvedValue(new Date(Date.now() - 20 * 60_000).toISOString());
+    await maybeRefreshCatalog();
+    expect(mockPullCatalog).toHaveBeenCalledTimes(1);
+    expect(useSyncStore.getState().catalogRefreshedAt).not.toBeNull();
+  });
+
+  it('pulls when there is no prior pull timestamp', async () => {
+    mockGetMeta.mockResolvedValue(null);
+    await maybeRefreshCatalog();
+    expect(mockPullCatalog).toHaveBeenCalledTimes(1);
+  });
+
+  it('force pulls regardless of freshness', async () => {
+    mockGetMeta.mockResolvedValue(new Date().toISOString());
+    await maybeRefreshCatalog(true);
+    expect(mockPullCatalog).toHaveBeenCalledTimes(1);
   });
 });
 
