@@ -9,6 +9,7 @@ const {
   mockUpsertCategories,
   mockSetMeta,
   mockReconcileCustomerBalances,
+  mockUpsertServerCustomers,
 } = vi.hoisted(() => ({
   mockPushSales: vi.fn(),
   mockFetchBootstrap: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockUpsertCategories: vi.fn(),
   mockSetMeta: vi.fn(),
   mockReconcileCustomerBalances: vi.fn(),
+  mockUpsertServerCustomers: vi.fn(),
 }));
 
 vi.mock('../api', () => ({
@@ -34,6 +36,7 @@ vi.mock('../db', () => ({
   upsertCategories: mockUpsertCategories,
   setMeta: mockSetMeta,
   reconcileCustomerBalances: mockReconcileCustomerBalances,
+  upsertServerCustomers: mockUpsertServerCustomers,
 }));
 
 import { pushOnce, pullCatalog, pushCustomersOnce, pushPaymentsOnce } from '../sync-service';
@@ -105,6 +108,7 @@ beforeEach(() => {
   mockUpsertCategories.mockResolvedValue(undefined);
   mockSetMeta.mockResolvedValue(undefined);
   mockReconcileCustomerBalances.mockResolvedValue(undefined);
+  mockUpsertServerCustomers.mockResolvedValue(undefined);
 });
 
 describe('pushOnce', () => {
@@ -236,5 +240,25 @@ describe('pullCatalog reconciles customers (raw server balances)', () => {
     const forwarded = mockReconcileCustomerBalances.mock.calls[0][0];
     expect(forwarded[0].balance).toBe(120); // RAW server balance, not pre-subtracted
     expect(res.customers).toBe(1);
+  });
+
+  it('upserts server-origin customers BEFORE reconciling balances, so new web-created customers populate the local list', async () => {
+    const bootstrapCustomer = {
+      id: 2, client_customer_id: null, name: 'Web Client', phone: null, email: null,
+      address: null, description: null, balance: 0, is_active: true,
+    };
+    mockFetchBootstrap.mockResolvedValue({
+      server_time: '2026-07-10T01:00:00.000Z',
+      products: [],
+      categories: [],
+      customers: [bootstrapCustomer],
+    });
+
+    await pullCatalog();
+
+    expect(mockUpsertServerCustomers).toHaveBeenCalledWith([bootstrapCustomer]);
+    expect(mockUpsertServerCustomers.mock.invocationCallOrder[0]).toBeLessThan(
+      mockReconcileCustomerBalances.mock.invocationCallOrder[0],
+    );
   });
 });

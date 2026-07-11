@@ -7,7 +7,7 @@ import type {
   SyncPayment,
   SyncPaymentResult,
 } from './api';
-import { upsertProducts, upsertCategories, setMeta, reconcileCustomerBalances } from './db';
+import { upsertProducts, upsertCategories, setMeta, reconcileCustomerBalances, upsertServerCustomers } from './db';
 import type { SaleWithItems, LocalCustomer, LocalCustomerPayment } from './db';
 
 /**
@@ -81,12 +81,17 @@ export async function pushPaymentsOnce(sendable: LocalCustomerPayment[]): Promis
  *
  * Debt balances follow the same rule (spec §4): reconcileCustomerBalances writes the RAW
  * server balance; the local unsynced credit/payment delta is applied at read time only.
+ *
+ * upsertServerCustomers runs FIRST so newly server/web-created customers (no local row yet)
+ * are inserted into the local list; reconcileCustomerBalances then writes the RAW balance for
+ * every customer (both just-inserted and pre-existing local rows).
  */
 export async function pullCatalog(): Promise<{ products: number; categories: number; customers: number }> {
   const bootstrap = await fetchBootstrap();
   await upsertCategories(bootstrap.categories);
   await upsertProducts(bootstrap.products); // RAW products — upsertProducts subtracts unsynced qty
   const customers = bootstrap.customers ?? [];
+  await upsertServerCustomers(customers); // insert new server-origin customers into the local list
   await reconcileCustomerBalances(customers); // RAW balances — read-time derivation subtracts
   await setMeta('last_catalog_pull_at', bootstrap.server_time);
   return { products: bootstrap.products.length, categories: bootstrap.categories.length, customers: customers.length };
