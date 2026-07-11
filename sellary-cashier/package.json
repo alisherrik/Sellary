@@ -16,6 +16,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@heroicons/react": "^2.2.0",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-sql": "^2.4.0",
