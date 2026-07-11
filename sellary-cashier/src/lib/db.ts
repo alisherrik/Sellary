@@ -56,6 +56,7 @@ export async function getProductByBarcode(barcode: string): Promise<LocalProduct
 
 export async function upsertProducts(products: LocalProduct[]): Promise<void> {
   const database = await getDb();
+  // 1. Upsert authoritative server stock (resets local to server value → recompute is idempotent).
   for (const p of products) {
     await database.execute(
       `INSERT INTO products (id, barcode, name, uom, category_id, sell_price, tax_percent, stock_quantity, is_active, updated_at)
@@ -71,6 +72,16 @@ export async function upsertProducts(products: LocalProduct[]): Promise<void> {
          is_active = excluded.is_active,
          updated_at = excluded.updated_at`,
       [p.id, p.barcode, p.name, p.uom, p.category_id, p.sell_price, p.tax_percent, p.stock_quantity, p.is_active ? 1 : 0, p.updated_at]
+    );
+  }
+  // 2. Re-subtract not-yet-synced base qty so local = server − Σ unsynced (spec §5.2).
+  const pulled = new Set(products.map((p) => p.id));
+  const unsynced = await getUnsyncedBaseQtyByProduct();
+  for (const [productId, qty] of unsynced) {
+    if (!pulled.has(productId)) continue; // only reconcile products present in this snapshot
+    await database.execute(
+      'UPDATE products SET stock_quantity = stock_quantity - $1 WHERE id = $2',
+      [qty, productId]
     );
   }
 }
