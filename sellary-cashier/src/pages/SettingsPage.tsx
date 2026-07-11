@@ -4,7 +4,9 @@ import { useAuthStore } from '../lib/auth-store';
 import { getApiBaseUrl, setApiBaseUrl, checkHealth } from '../lib/api';
 import { useSyncStore } from '../lib/sync-store';
 import { NeedsAttentionList } from '../components/history/NeedsAttentionList';
-import { checkForUpdate, applyUpdate } from '../lib/updater';
+import { applyUpdate } from '../lib/updater';
+import { check } from '@tauri-apps/plugin-updater';
+import { getVersion } from '@tauri-apps/api/app';
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -19,6 +21,7 @@ export function SettingsPage() {
   const [message, setMessage] = useState('');
   const [refreshingCatalog, setRefreshingCatalog] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [appVersion, setAppVersion] = useState('');
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -30,6 +33,7 @@ export function SettingsPage() {
       setUrlLoaded(true);
     });
     checkHealth().then(setOnline);
+    getVersion().then(setAppVersion).catch(() => {});
   }, [isAuthenticated, navigate]);
 
   const handleSaveUrl = async () => {
@@ -70,15 +74,15 @@ export function SettingsPage() {
     setCheckingUpdate(true);
     setMessage('');
     try {
-      const update = await checkForUpdate();
+      const update = await check();
       if (!update) {
-        setMessage('У вас последняя версия.');
+        setMessage(`Обновлений нет. Текущая версия: ${appVersion || '—'}.`);
         return;
       }
-      setMessage(`Обновление ${update.version} — установка…`);
+      setMessage(`Найдено обновление ${update.version} — установка…`);
       await applyUpdate(update); // downloads, installs, then relaunches
     } catch (e: unknown) {
-      setMessage(e instanceof Error ? e.message : 'Ошибка обновления');
+      setMessage(`Проверка не удалась: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setCheckingUpdate(false);
     }
@@ -177,6 +181,7 @@ export function SettingsPage() {
 
         <div className="bg-white rounded-lg border p-4 mt-4">
           <h2 className="text-sm font-medium mb-2">Обновление приложения</h2>
+          <p className="text-xs text-gray-400 mb-1">Текущая версия: {appVersion || '—'}</p>
           <p className="text-xs text-gray-400 mb-2">
             Проверить наличие новой версии и установить её.
           </p>
