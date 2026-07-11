@@ -107,5 +107,5 @@ These are NOT resolved by the contract above — they need a human call before o
 
 ## 7. Verification gates carried from the plans
 - Backend: `python -m compileall …` (CI) + full pytest incl. the online-strictness regression; the Alembic upgrade/downgrade round-trip is a **manual** pre-merge gate (needs Postgres). The single migration `c3d4e5f6a7b8` chains off `b2c3d4e5f6a7`; **bump `railway.toml` + `sellary-backend/railway.json` pins in the same commit** (CI cannot catch a missed pin).
-- Cashier: `npm test` (vitest); data-model uses an in-memory `better-sqlite3` fake behind `@tauri-apps/plugin-sql` to exercise real SQL; the Rust argon2 command build is a manual `npm run tauri:dev` gate on `windows-latest`.
+- Cashier: `npm test` (vitest); data-model uses an in-memory `node:sqlite` fake behind `@tauri-apps/plugin-sql` to exercise real SQL; the Rust argon2 command build is a manual `npm run tauri:dev` gate on `windows-latest`.
 - Stale docs fixed with this work: CLAUDE.md "migrations are gitignored" (they are **tracked**) and "online overselling allowed" (online now **rejects**; only sync tolerates); AGENTS.md may repeat the latter — follow-up.

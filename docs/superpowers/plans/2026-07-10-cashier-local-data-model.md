@@ -40,7 +40,7 @@
 - `sellary-cashier/src/lib/db.ts` — new types + full DAO surface (spec §2.10); reconciling `upsertProducts`; rename legacy `recoverSyncingSales` → `recoverSyncingOutboxSales`.
 - `sellary-cashier/src/lib/sync-service.ts` — update the single `recoverSyncingSales` call to `recoverSyncingOutboxSales` (mechanical rename only).
 - `sellary-cashier/src/lib/__tests__/sync-service.test.ts` — mock key rename `recoverSyncingSales` → `recoverSyncingOutboxSales`.
-- `sellary-cashier/package.json` — add `better-sqlite3` + `@types/better-sqlite3` devDependencies.
+- (no dependency change) — the test harness uses the built-in `node:sqlite` module (Node ≥ 22); `better-sqlite3` is intentionally avoided (no native build toolchain on the target machine).
 
 ---
 
@@ -53,15 +53,11 @@
 - Modify: `sellary-cashier/src-tauri/src/lib.rs:15-23`
 - Create: `sellary-cashier/src/lib/__tests__/db-migration.test.ts`
 
-- [ ] **Add the test-only SQLite engine.** Run from `sellary-cashier/`:
-  ```
-  npm install -D better-sqlite3@^11.8.0 @types/better-sqlite3@^7.6.11
-  ```
-  Confirm `package.json` `devDependencies` now lists both. (This engine is test-only; production still uses `@tauri-apps/plugin-sql`.)
+- [ ] **Test SQLite engine = built-in `node:sqlite` (NO install).** Node ≥ 22 ships `node:sqlite` (`DatabaseSync`); this machine runs Node 26, verified working. **Do NOT install `better-sqlite3`** — it requires a native MSVC/Windows-SDK build that is unavailable on the target machine. No `package.json` change. (Test-only; production still uses `@tauri-apps/plugin-sql`.)
 
 - [ ] **Write the fake-DB harness** `sellary-cashier/src/lib/__tests__/helpers/fakeDb.ts`. It applies `001_init.sql` + `002_local_first.sql` into an in-memory better-sqlite3 DB and exposes the exact `execute`/`select` surface `db.ts` calls, converting `$N` placeholders to positional `?`:
   ```ts
-  import BetterSqlite3 from 'better-sqlite3';
+  import { DatabaseSync } from 'node:sqlite';
   import fs from 'node:fs';
   import path from 'node:path';
   import { fileURLToPath } from 'node:url';
@@ -87,12 +83,12 @@
   }
 
   export class FakeDatabase {
-    constructor(private raw: BetterSqlite3.Database) {}
+    constructor(private raw: DatabaseSync) {}
 
     async execute(sql: string, params: unknown[] = []) {
       const { sql: s, args } = toPositional(sql, params);
       const info = this.raw.prepare(s).run(...args);
-      return { lastInsertId: Number(info.lastInsertRowid), rowsAffected: info.changes };
+      return { lastInsertId: Number(info.lastInsertRowid), rowsAffected: Number(info.changes) };
     }
 
     async select<T>(sql: string, params: unknown[] = []): Promise<T> {
@@ -114,7 +110,7 @@
   }
 
   export function createTestDb(): FakeDatabase {
-    const raw = new BetterSqlite3(':memory:');
+    const raw = new DatabaseSync(':memory:');
     const sql001 = fs.readFileSync(path.join(migrationsDir, '001_init.sql'), 'utf8');
     const sql002 = fs.readFileSync(path.join(migrationsDir, '002_local_first.sql'), 'utf8');
     raw.exec(sql001);
@@ -311,8 +307,7 @@
 
 - [ ] **Commit:**
   ```
-  git add sellary-cashier/package.json sellary-cashier/package-lock.json \
-          sellary-cashier/src/lib/__tests__/helpers/fakeDb.ts \
+  git add sellary-cashier/src/lib/__tests__/helpers/fakeDb.ts \
           sellary-cashier/src-tauri/migrations/002_local_first.sql \
           sellary-cashier/src-tauri/src/lib.rs \
           sellary-cashier/src/lib/__tests__/db-migration.test.ts
