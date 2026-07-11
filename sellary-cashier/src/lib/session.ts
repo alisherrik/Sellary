@@ -1,6 +1,7 @@
 import { Store } from '@tauri-apps/plugin-store';
 import { Stronghold, Client, Store as StrongholdStore } from '@tauri-apps/plugin-stronghold';
 import { invoke } from '@tauri-apps/api/core';
+import { appDataDir } from '@tauri-apps/api/path';
 import { getDeviceAuth, setPinHash } from './db';
 
 const SESSION_STORE_FILE = 'session.json';
@@ -43,12 +44,28 @@ async function getStore(): Promise<Store> {
   return store;
 }
 
+/**
+ * Absolute path for the Stronghold snapshot. It MUST be absolute: the plugin
+ * resolves a relative path against the process CWD, and a packaged desktop app's
+ * CWD is unstable across launches (and changes after an updater relaunch). A
+ * relative path therefore writes/reads the snapshot from inconsistent locations,
+ * so the device token silently fails to persist and the app drops back to the
+ * full-login screen instead of the PIN gate. See the official plugin docs, which
+ * always build the vault path from appDataDir().
+ */
+async function strongholdSnapshotPath(): Promise<string> {
+  const dir = await appDataDir();
+  const sep = dir.endsWith('/') || dir.endsWith('\\') ? '' : '/';
+  return `${dir}${sep}${STRONGHOLD_SNAPSHOT}`;
+}
+
 async function getStrongholdStore(): Promise<StrongholdStore | null> {
   if (strongholdStore) {
     return strongholdStore;
   }
   try {
-    const sh = await Stronghold.load(STRONGHOLD_SNAPSHOT, STRONGHOLD_PASSWORD);
+    const snapshotPath = await strongholdSnapshotPath();
+    const sh = await Stronghold.load(snapshotPath, STRONGHOLD_PASSWORD);
     let client: Client;
     try {
       client = await sh.loadClient(STRONGHOLD_CLIENT);
@@ -209,12 +226,15 @@ export async function saveDeviceCredential(
     await st.remove(STRONGHOLD_DEVICE_TOKEN_KEY).catch(() => {});
     await st.insert(STRONGHOLD_DEVICE_TOKEN_KEY, tokenBytes);
     await persistStronghold();
-  } else {
-    const s = await getStore();
-    await s.set(DEVICE_TOKEN_FALLBACK_KEY, btoa(deviceToken));
-    await s.save();
   }
+  // ALWAYS mirror the device token into the plugin-store, even when Stronghold is
+  // available. The device token is the linchpin that keeps the app on the PIN
+  // gate after a restart (restoreSession → hasDevice), so it must survive even if
+  // the Stronghold snapshot is ever lost or unreadable. The token is device-
+  // scoped + short-lived and the app-data dir is OS-user-protected, so this
+  // mirror is an acceptable reliability tradeoff (§ device-credential resilience).
   const s = await getStore();
+  await s.set(DEVICE_TOKEN_FALLBACK_KEY, btoa(deviceToken));
   await s.set(DEVICE_TOKEN_EXPIRES_KEY, expiresAt);
   await s.save();
 }
@@ -232,7 +252,13 @@ export async function loadDeviceCredential(): Promise<DeviceCredential | null> {
     } catch {
       console.warn('Failed to read device token from Stronghold');
     }
-  } else {
+  }
+
+  // Fall back to the plugin-store mirror when Stronghold is unavailable OR came
+  // back empty (e.g. a lost/fresh snapshot from the pre-v0.2.3 relative-path bug).
+  // This is what lets already-broken installs recover the device token and land
+  // on the PIN gate instead of the login screen.
+  if (!deviceToken) {
     const s = await getStore();
     const enc = (await s.get<string>(DEVICE_TOKEN_FALLBACK_KEY)) ?? null;
     if (enc) {

@@ -7,6 +7,9 @@ const { mockInvoke, mockGetDeviceAuth, mockSetPinHash } = vi.hoisted(() => ({
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }));
+vi.mock('@tauri-apps/api/path', () => ({
+  appDataDir: vi.fn().mockResolvedValue('/mock/appdata'),
+}));
 vi.mock('../db', () => ({
   getDeviceAuth: mockGetDeviceAuth,
   setPinHash: mockSetPinHash,

@@ -51,6 +51,7 @@ interface AuthState {
   isLocked: boolean;
   lockedUntil: string | null;
   needsReauth: boolean;
+  restoreDiag: string | null;
 
   completePinSetup: (pin: string) => Promise<void>;
   unlockWithPin: (pin: string) => Promise<boolean>;
@@ -101,6 +102,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLocked: false,
   lockedUntil: null,
   needsReauth: false,
+  restoreDiag: null,
 
   completePinSetup: async (pin) => {
     set({ isBootstrapping: true });
@@ -291,7 +293,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const cred = await loadDeviceCredential();
       const hasDevice = !!(auth && auth.device_id && cred);
       const hasPin = !!(auth && auth.pin_hash);
-      set({ hasDevice, hasPin });
+      // Startup diagnostic surfaced on the login screen: tells us which of the
+      // three restore inputs survived a restart (dev = SQLite device_id,
+      // tok = device token from Stronghold/mirror, pin = SQLite pin_hash), so a
+      // residual persistence failure is observable instead of a guess.
+      const restoreDiag = `dev=${auth?.device_id ? 1 : 0} tok=${cred ? 1 : 0} pin=${auth?.pin_hash ? 1 : 0}`;
+      set({ hasDevice, hasPin, restoreDiag });
 
       if (!hasDevice || !hasPin || !auth) {
         return false;

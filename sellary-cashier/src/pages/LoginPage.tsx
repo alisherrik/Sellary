@@ -7,7 +7,7 @@ import { getErrorMessage } from '../lib/error';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { loginUser, selectAndBootstrap, isBootstrapping } = useAuthStore();
+  const { loginUser, selectAndBootstrap, isBootstrapping, restoreDiag } = useAuthStore();
 
   const [apiUrl, setApiUrlState] = useState('');
   const [apiUrlLoaded, setApiUrlLoaded] = useState(false);
@@ -142,6 +142,12 @@ export function LoginPage() {
         >
           {loading ? 'Logging in...' : 'Login'}
         </button>
+
+        {restoreDiag && (
+          <p className="mt-3 text-center text-[10px] text-gray-300">
+            diag: {restoreDiag}
+          </p>
+        )}
       </form>
     </div>
   );
