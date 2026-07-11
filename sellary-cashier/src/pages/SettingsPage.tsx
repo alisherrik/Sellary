@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../lib/auth-store';
 import { getApiBaseUrl, setApiBaseUrl, checkHealth } from '../lib/api';
 import { useSyncStore } from '../lib/sync-store';
+import { NeedsAttentionList } from '../components/history/NeedsAttentionList';
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -75,12 +76,17 @@ export function SettingsPage() {
       <div className="max-w-md mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold">Settings</h1>
-          <button
-            onClick={() => navigate('/cashier', { replace: true })}
-            className="text-sm text-blue-600"
-          >
-            Back to POS
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate('/history')} className="text-sm text-blue-600">
+              История продаж
+            </button>
+            <button
+              onClick={() => navigate('/cashier', { replace: true })}
+              className="text-sm text-blue-600"
+            >
+              Back to POS
+            </button>
+          </div>
         </div>
 
         {message && (
@@ -147,6 +153,14 @@ export function SettingsPage() {
           >
             {refreshingCatalog ? 'Refreshing' : 'Refresh Catalog'}
           </button>
+        </div>
+
+        <div className="bg-white rounded-lg border p-4 mt-4 dark:bg-gray-800 dark:border-gray-700">
+          <h2 className="text-sm font-medium mb-2">Требует внимания</h2>
+          <p className="text-xs text-gray-400 mb-3">
+            Продажи, которые сервер отклонил. Отправьте повторно или отметьте решёнными. Удаление недоступно.
+          </p>
+          <NeedsAttentionList />
         </div>
       </div>
     </div>
