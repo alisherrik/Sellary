@@ -14,12 +14,20 @@ pub fn run() {
             tauri_plugin_sql::Builder::default()
                 .add_migrations(
                     "sqlite:sellary_cashier.db",
-                    vec![Migration {
-                        version: 1,
-                        description: "initial schema",
-                        sql: include_str!("../migrations/001_init.sql"),
-                        kind: MigrationKind::Up,
-                    }],
+                    vec![
+                        Migration {
+                            version: 1,
+                            description: "initial schema",
+                            sql: include_str!("../migrations/001_init.sql"),
+                            kind: MigrationKind::Up,
+                        },
+                        Migration {
+                            version: 2,
+                            description: "local-first sales, history, device auth",
+                            sql: include_str!("../migrations/002_local_first.sql"),
+                            kind: MigrationKind::Up,
+                        },
+                    ],
                 )
                 .build(),
         )
