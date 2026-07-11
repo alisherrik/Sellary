@@ -265,6 +265,7 @@ class SyncService:
 
         sale = Sale(
             company_id=company.id,
+            client_sale_id=sale_create.client_sale_id,
             customer_id=None,
             cashier_id=user.id,
             subtotal=subtotal,

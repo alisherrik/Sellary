@@ -1,5 +1,5 @@
 from decimal import Decimal
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Enum as SQLEnum, Index, Text
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Enum as SQLEnum, Index, Text, text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.database import Base
@@ -78,6 +78,9 @@ class Sale(Base):
     void_reason = Column(Text)
     reversal_operation_id = Column(Integer, ForeignKey("reversal_operations.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    # C3: local-origin id from the offline cashier. NULL for online sales; a
+    # partial unique index (below) dedupes per company without constraining NULLs.
+    client_sale_id = Column(String(64), nullable=True, index=True)
 
     company = relationship("Company", back_populates="sales")
     customer = relationship("Customer", back_populates="sales")
@@ -90,3 +93,14 @@ class Sale(Base):
         foreign_keys=[voided_by_user_id],
     )
     reversal_operation = relationship("ReversalOperation")
+
+    __table_args__ = (
+        Index(
+            "uq_sales_company_client_sale_id",
+            "company_id",
+            "client_sale_id",
+            unique=True,
+            sqlite_where=text("client_sale_id IS NOT NULL"),
+            postgresql_where=text("client_sale_id IS NOT NULL"),
+        ),
+    )
