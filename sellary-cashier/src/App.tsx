@@ -25,7 +25,7 @@ function App() {
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/cashier" replace />} />
       </Routes>
     </BrowserRouter>
   );
