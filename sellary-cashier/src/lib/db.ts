@@ -1,4 +1,7 @@
 import Database from '@tauri-apps/plugin-sql';
+// Type-only import of the api-owned push-result type (contract C-7). SyncPaymentResult is added
+// to api.ts by Task 8 (out of scope here) — do not import it before it exists, or tsc breaks.
+import type { SyncCustomerResult } from './api';
 
 let db: Database | null = null;
 
@@ -1271,5 +1274,112 @@ export async function reconcileCustomerBalances(serverCustomers: ServerCustomerI
        WHERE client_customer_id = $2`,
       [sc.balance, serverClientId(sc)]
     );
+  }
+}
+
+// Default: pending OR (failed & transient & due). includePermanent adds failed & permanent
+// (force resend). Mirrors getSendableSales (§4.2).
+export async function getSendableCustomers(
+  nowIso: string,
+  opts?: { includePermanent?: boolean }
+): Promise<LocalCustomer[]> {
+  const database = await getDb();
+  const permanentClause = opts?.includePermanent
+    ? " OR (sync_status = 'failed' AND error_kind = 'permanent')"
+    : '';
+  return database.select<LocalCustomer[]>(
+    `SELECT * FROM customers
+     WHERE sync_status = 'pending'
+        OR (sync_status = 'failed' AND error_kind = 'transient'
+            AND (next_attempt_at IS NULL OR next_attempt_at <= $1))${permanentClause}
+     ORDER BY created_at_client ASC, client_customer_id ASC`,
+    [nowIso]
+  );
+}
+
+export async function markCustomerSyncing(clientCustomerId: string): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    "UPDATE customers SET sync_status = 'syncing', updated_at = datetime('now') WHERE client_customer_id = $1",
+    [clientCustomerId]
+  );
+}
+
+export async function markCustomerSynced(clientCustomerId: string, serverId: number | null): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE customers
+     SET sync_status = 'synced', server_id = $1, error_kind = NULL,
+         next_attempt_at = NULL, last_error = NULL,
+         synced_at = datetime('now'), updated_at = datetime('now')
+     WHERE client_customer_id = $2`,
+    [serverId, clientCustomerId]
+  );
+}
+
+export async function markCustomerTransientFailure(
+  clientCustomerIds: string[], nextAttemptAt: string, error: string
+): Promise<void> {
+  if (clientCustomerIds.length === 0) return;
+  const database = await getDb();
+  for (const id of clientCustomerIds) {
+    await database.execute(
+      `UPDATE customers
+       SET sync_status = 'failed', error_kind = 'transient', next_attempt_at = $1,
+           last_error = $2, retry_count = retry_count + 1,
+           first_failed_at = COALESCE(first_failed_at, datetime('now')),
+           updated_at = datetime('now')
+       WHERE client_customer_id = $3`,
+      [nextAttemptAt, error, id]
+    );
+  }
+}
+
+export async function markCustomerPermanentFailure(clientCustomerId: string, error: string): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE customers
+     SET sync_status = 'failed', error_kind = 'permanent', next_attempt_at = NULL,
+         last_error = $1, retry_count = retry_count + 1,
+         first_failed_at = COALESCE(first_failed_at, datetime('now')),
+         updated_at = datetime('now')
+     WHERE client_customer_id = $2`,
+    [error, clientCustomerId]
+  );
+}
+
+export async function recoverSyncingCustomers(nowIso: string): Promise<number> {
+  const database = await getDb();
+  const result = await database.execute(
+    `UPDATE customers
+     SET sync_status = 'failed', error_kind = 'transient', next_attempt_at = $1,
+         last_error = COALESCE(last_error, 'Recovered from interrupted sync'),
+         retry_count = retry_count + 1,
+         first_failed_at = COALESCE(first_failed_at, datetime('now')),
+         updated_at = datetime('now')
+     WHERE sync_status = 'syncing'`,
+    [nowIso]
+  );
+  return Number((result as { rowsAffected?: number }).rowsAffected ?? 0);
+}
+
+export async function getUnsyncedCustomerCount(): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ c: number }[]>(
+    `SELECT COUNT(*) AS c FROM customers
+     WHERE sync_status IN ('pending','syncing')
+        OR (sync_status = 'failed' AND error_kind = 'transient')`
+  );
+  return rows[0]?.c ?? 0;
+}
+
+// Apply {client_customer_id → server_id} from a push result: set server_id + mark synced for
+// synced/duplicate ONLY (contract C-6). failed rows are left untouched — the credit-sync engine
+// classifies them and calls markCustomer{Transient,Permanent}Failure itself.
+export async function applyCustomerIdMap(results: SyncCustomerResult[]): Promise<void> {
+  for (const r of results) {
+    if ((r.status === 'synced' || r.status === 'duplicate') && r.server_id != null) {
+      await markCustomerSynced(r.client_customer_id, r.server_id);
+    }
   }
 }

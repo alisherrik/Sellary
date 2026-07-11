@@ -228,6 +228,15 @@ export interface SyncSalesResponse {
   results: SyncSaleResult[];
 }
 
+// Owned by api.ts per contract C-7 (mirrors SyncSaleResult). Consumed by db.ts's
+// applyCustomerIdMap; credit-sync will construct these from the sync/customers response.
+export interface SyncCustomerResult {
+  client_customer_id: string;
+  status: 'synced' | 'duplicate' | 'failed';
+  server_id?: number | null;
+  error?: string | null;
+}
+
 export async function fetchBootstrap(): Promise<SyncBootstrapResponse> {
   return apiFetch('/api/sync/bootstrap');
 }
