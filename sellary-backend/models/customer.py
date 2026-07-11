@@ -1,4 +1,14 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Boolean,
+    ForeignKey,
+    UniqueConstraint,
+    Index,
+    text,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.database import Base
@@ -8,6 +18,14 @@ class Customer(Base):
     __tablename__ = "customers"
     __table_args__ = (
         UniqueConstraint("company_id", "phone", name="uq_customers_company_phone"),
+        Index(
+            "uq_customers_company_client_customer_id",
+            "company_id",
+            "client_customer_id",
+            unique=True,
+            sqlite_where=text("client_customer_id IS NOT NULL"),
+            postgresql_where=text("client_customer_id IS NOT NULL"),
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -19,6 +37,9 @@ class Customer(Base):
     description = Column(String(500))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # C1: local-origin id from the offline cashier. NULL for web-created rows; a
+    # partial unique index (above) dedupes per company without constraining NULLs.
+    client_customer_id = Column(String(64), nullable=True, index=True)
 
     company = relationship("Company", back_populates="customers")
     sales = relationship("Sale", back_populates="customer")
