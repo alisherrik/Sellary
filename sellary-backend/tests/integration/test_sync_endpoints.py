@@ -31,6 +31,37 @@ class TestBootstrapEndpoint:
         assert len(data["products"]) >= 1
         assert len(data["categories"]) >= 1
 
+    def test_bootstrap_server_time_is_recent_utc(
+        self, client, db_session, default_company, admin_user, test_product, test_category
+    ):
+        from datetime import datetime, timezone
+
+        headers = create_auth_headers(
+            admin_user.username, admin_user.id,
+            default_company.id, admin_user.role,
+        )
+        before = datetime.now(timezone.utc)
+        response = client.get("/api/sync/bootstrap", headers=headers)
+        after = datetime.now(timezone.utc)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # C0: server_time must be present, parseable, and ~now (clock-skew source).
+        raw = data["server_time"]
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        assert (before - parsed).total_seconds() <= 60
+        assert (parsed - after).total_seconds() <= 60
+
+        # Existing bootstrap contract stays intact (additive-only change).
+        for key in (
+            "company_id", "company_name", "user_id",
+            "user_username", "user_role", "products", "categories",
+        ):
+            assert key in data
+
     def test_bootstrap_requires_auth(self, client):
         response = client.get("/api/sync/bootstrap")
         assert response.status_code == 401
