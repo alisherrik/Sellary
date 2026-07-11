@@ -1215,3 +1215,61 @@ export async function getCustomersWithLocalBalance(): Promise<CustomerWithBalanc
      ORDER BY c.name ASC`
   );
 }
+
+// Shape of a customer row shipped by GET /api/sync/bootstrap (spec C3). balance = server-derived
+// debt at pull time; client_customer_id is null for server/web-origin customers (synthesize srv:<id>).
+export interface ServerCustomerItem {
+  id: number;
+  client_customer_id: string | null;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  description: string | null;
+  balance: number;
+  is_active: boolean;
+}
+
+function serverClientId(item: ServerCustomerItem): string {
+  return item.client_customer_id ?? `srv:${item.id}`;
+}
+
+export async function upsertServerCustomers(items: ServerCustomerItem[]): Promise<void> {
+  const database = await getDb();
+  for (const it of items) {
+    const clientId = serverClientId(it);
+    await database.execute(
+      `INSERT INTO customers
+         (client_customer_id, server_id, name, phone, email, address, description,
+          balance, is_active, sync_status, retry_count, created_at_client, synced_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'synced', 0, datetime('now'), datetime('now'))
+       ON CONFLICT(client_customer_id) DO UPDATE SET
+         server_id   = excluded.server_id,
+         name        = excluded.name,
+         phone       = excluded.phone,
+         email       = excluded.email,
+         address     = excluded.address,
+         description = excluded.description,
+         balance     = excluded.balance,
+         is_active   = excluded.is_active,
+         sync_status = 'synced',
+         synced_at   = datetime('now'),
+         updated_at  = datetime('now')`,
+      [clientId, it.id, it.name, it.phone, it.email, it.address, it.description,
+       it.balance, it.is_active ? 1 : 0]
+    );
+  }
+}
+
+// Raw server-balance overwrite only (§4 step 4). Derivation stays at read time (§2.4),
+// so replaying the same server balances never double-counts.
+export async function reconcileCustomerBalances(serverCustomers: ServerCustomerItem[]): Promise<void> {
+  const database = await getDb();
+  for (const sc of serverCustomers) {
+    await database.execute(
+      `UPDATE customers SET balance = $1, updated_at = datetime('now')
+       WHERE client_customer_id = $2`,
+      [sc.balance, serverClientId(sc)]
+    );
+  }
+}
