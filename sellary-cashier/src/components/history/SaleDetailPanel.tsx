@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { XMarkIcon, PrinterIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
-import { getSaleWithItems } from '../../lib/db';
+import { getSaleWithItems, getCustomerByClientId } from '../../lib/db';
 import type { SaleWithItems } from '../../lib/db';
 import { requestSync } from '../../lib/sync-engine';
 import { formatCurrency } from '../../lib/format';
@@ -10,6 +10,7 @@ import { PaymentChip } from './PaymentChip';
 export function SaleDetailPanel({ saleId, onClose }: { saleId: number | null; onClose: () => void }) {
   const [sale, setSale] = useState<SaleWithItems | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [customerName, setCustomerName] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -25,6 +26,20 @@ export function SaleDetailPanel({ saleId, onClose }: { saleId: number | null; on
       cancelled = true;
     };
   }, [saleId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!sale || sale.payment_method !== 'credit' || !sale.customer_client_id) {
+      setCustomerName(null);
+      return;
+    }
+    getCustomerByClientId(sale.customer_client_id).then((c) => {
+      if (!cancelled) setCustomerName(c?.name ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sale]);
 
   if (saleId == null) return null;
 
@@ -89,6 +104,31 @@ export function SaleDetailPanel({ saleId, onClose }: { saleId: number | null; on
               </>
             )}
           </div>
+
+          {/* Credit/debt summary (derived locally) */}
+          {sale.payment_method === 'credit' && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-900/20">
+              <p className="text-[13px] font-semibold text-amber-700 dark:text-amber-300">Продажа в долг</p>
+              {customerName && (
+                <div className="mt-1 flex justify-between text-[13px] text-amber-700 dark:text-amber-300">
+                  <span>Клиент</span>
+                  <span className="font-medium">{customerName}</span>
+                </div>
+              )}
+              <div className="mt-1 flex justify-between text-[13px] text-amber-700 dark:text-amber-300">
+                <span>Сумма</span>
+                <span className="tabular-nums">{formatCurrency(sale.total_amount)}</span>
+              </div>
+              <div className="mt-1 flex justify-between text-[13px] text-amber-700 dark:text-amber-300">
+                <span>Оплачено</span>
+                <span className="tabular-nums">{formatCurrency(sale.paid_amount)}</span>
+              </div>
+              <div className="mt-1 flex justify-between text-[13px] font-bold text-red-600">
+                <span>Осталось</span>
+                <span className="tabular-nums">{formatCurrency(sale.total_amount - sale.paid_amount)}</span>
+              </div>
+            </div>
+          )}
 
           {/* Sync-state box */}
           {sale.sync_status === 'synced' ? (
