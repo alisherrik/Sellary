@@ -638,3 +638,99 @@ export async function getUnsyncedBaseQtyByProduct(): Promise<Map<number, number>
   for (const r of rows) map.set(r.product_id, r.qty);
   return map;
 }
+
+// ---------------------------------------------------------------------------
+// Sales-History DAOs (spec §2.10, §8.1) — operate on `sales` joined with `sale_items`.
+// ---------------------------------------------------------------------------
+
+export interface HistoryFilter {
+  search?: string;
+  paymentMethod?: string;                                     // falsy OR 'all' ⇒ NO filter
+  syncFilter?: 'all' | 'synced' | 'unsynced' | 'attention';
+  dateFrom?: string;                                          // ISO inclusive (NOT startDate)
+  dateTo?: string;                                            // ISO inclusive (NOT endDate)
+  limit?: number;
+  offset?: number;
+}
+
+// Builds the shared WHERE clause + ordered $N params for both list and aggregates.
+function buildHistoryWhere(opts: HistoryFilter): { whereSql: string; params: unknown[] } {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (opts.search) {
+    const q = `%${opts.search}%`;
+    params.push(q); const p1 = params.length;
+    params.push(q); const p2 = params.length;
+    where.push(`(s.client_sale_id LIKE $${p1} OR CAST(s.receipt_no AS TEXT) LIKE $${p2})`);
+  }
+  if (opts.paymentMethod && opts.paymentMethod !== 'all') {   // falsy OR 'all' ⇒ no payment filter
+    params.push(opts.paymentMethod);
+    where.push(`s.payment_method = $${params.length}`);
+  }
+  if (opts.dateFrom) {
+    params.push(opts.dateFrom);
+    where.push(`s.created_at_client >= $${params.length}`);
+  }
+  if (opts.dateTo) {
+    params.push(opts.dateTo);
+    where.push(`s.created_at_client <= $${params.length}`);
+  }
+  if (opts.syncFilter && opts.syncFilter !== 'all') {
+    if (opts.syncFilter === 'synced') where.push(`s.sync_status = 'synced'`);
+    else if (opts.syncFilter === 'unsynced')
+      where.push(`(s.sync_status IN ('pending','syncing') OR (s.sync_status = 'failed' AND s.error_kind = 'transient'))`);
+    else if (opts.syncFilter === 'attention')
+      where.push(`(s.sync_status = 'failed' AND s.error_kind = 'permanent')`);
+  }
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  return { whereSql, params };
+}
+
+export async function getSalesHistory(opts: HistoryFilter = {}): Promise<LocalSale[]> {
+  const database = await getDb();
+  const { whereSql, params } = buildHistoryWhere(opts);
+  const limit = opts.limit ?? 50;
+  const offset = opts.offset ?? 0;
+  params.push(limit); const lp = params.length;
+  params.push(offset); const op = params.length;
+  return database.select<LocalSale[]>(
+    `SELECT s.* FROM sales s ${whereSql}
+     ORDER BY s.created_at_client DESC, s.id DESC
+     LIMIT $${lp} OFFSET $${op}`,
+    params
+  );
+}
+
+export async function getHistoryAggregates(
+  opts: HistoryFilter = {}
+): Promise<{ turnover: number; count: number; unsynced: number; hourly: number[] }> {
+  const database = await getDb();
+  const { whereSql, params } = buildHistoryWhere(opts);
+  const totals = await database.select<{ turnover: number; count: number; unsynced: number }[]>(
+    `SELECT COALESCE(SUM(s.total_amount), 0) AS turnover,
+            COUNT(*) AS count,
+            COALESCE(SUM(CASE
+              WHEN s.sync_status IN ('pending','syncing')
+                   OR (s.sync_status = 'failed' AND s.error_kind = 'transient')
+              THEN 1 ELSE 0 END), 0) AS unsynced
+     FROM sales s ${whereSql}`,
+    params
+  );
+  const hourlyRows = await database.select<{ h: number; turnover: number }[]>(
+    `SELECT CAST(strftime('%H', s.created_at_client) AS INTEGER) AS h,
+            COALESCE(SUM(s.total_amount), 0) AS turnover
+     FROM sales s ${whereSql}
+     GROUP BY h`,
+    params
+  );
+  const hourly = new Array(24).fill(0);
+  for (const r of hourlyRows) {
+    if (r.h >= 0 && r.h < 24) hourly[r.h] = r.turnover;
+  }
+  return {
+    turnover: totals[0]?.turnover ?? 0,
+    count: totals[0]?.count ?? 0,
+    unsynced: totals[0]?.unsynced ?? 0,
+    hourly,
+  };
+}
