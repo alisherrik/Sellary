@@ -1,6 +1,8 @@
 use sha2::{Sha256, Digest};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod pin;
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -37,7 +39,7 @@ pub fn run() {
             hasher.update(password.as_bytes());
             hasher.finalize().to_vec()
         }).build())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![greet, pin::pin_hash, pin::pin_verify])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
