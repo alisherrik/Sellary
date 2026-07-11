@@ -827,3 +827,121 @@ export async function resetPinFailures(): Promise<void> {
      WHERE id = 1`
   );
 }
+
+// ---------------------------------------------------------------------------
+// One-time outbox_sales → sales backfill (spec §2.8) — guarded by meta.outbox_migrated_v2.
+// ---------------------------------------------------------------------------
+
+interface LegacyOutboxRow {
+  client_sale_id: string;
+  idempotency_key: string;
+  status: string;
+  request_json: string;
+  response_json: string | null;
+  last_error: string | null;
+  created_at_client: string;
+  synced_at: string | null;
+  retry_count: number;
+}
+
+interface LegacyPayload {
+  payment_method?: string;
+  card_type?: string | null;
+  discount_amount?: number;
+  paid_amount?: number;
+  change_amount?: number;
+  notes?: string | null;
+  items?: Array<{ product_id: number; quantity: number; sell_price: number }>;
+}
+
+// One-time idempotent backfill of legacy outbox_sales into the structured sales/sale_items
+// model, then a reconcile to recover offline decrements the old code lost (spec §2.8).
+// Guarded by meta.outbox_migrated_v2. outbox_sales is left fully intact.
+export async function migrateOutboxToSalesOnce(): Promise<void> {
+  const database = await getDb();
+  if ((await getMeta('outbox_migrated_v2')) === '1') return;
+
+  const legacy = await database.select<LegacyOutboxRow[]>(
+    'SELECT * FROM outbox_sales ORDER BY id ASC'
+  );
+
+  for (const row of legacy) {
+    try {
+      const payload = JSON.parse(row.request_json) as LegacyPayload;
+
+      // Map legacy status → new (syncing → failed+transient).
+      let syncStatus: SyncStatus = 'pending';
+      let errorKind: ErrorKind | null = null;
+      let stockApplied = 0;
+      if (row.status === 'synced') { syncStatus = 'synced'; stockApplied = 1; }
+      else if (row.status === 'failed') { syncStatus = 'failed'; errorKind = 'transient'; }
+      else if (row.status === 'syncing') { syncStatus = 'failed'; errorKind = 'transient'; }
+      else { syncStatus = 'pending'; }
+
+      const legacyItems = payload.items ?? [];
+      const items: NewSaleItemInput[] = legacyItems.map((it, idx) => ({
+        product_id: it.product_id,
+        product_name: '',                 // legacy payload has no snapshot name
+        barcode: null,
+        uom: 'pcs',
+        quantity: it.quantity,            // BASE units (factor 1 in Phase 1)
+        unit_price: it.sell_price,
+        tax_percent: 0,
+        line_subtotal: it.quantity * it.sell_price,
+        line_total: it.quantity * it.sell_price,
+        sort_order: idx,
+      }));
+
+      const subtotal = items.reduce((sum, it) => sum + it.line_subtotal, 0);
+      const discount = payload.discount_amount ?? 0;
+      const total = subtotal - discount;
+
+      // best-effort server_sale_id for already-synced legacy rows
+      let serverSaleId: number | null = null;
+      if (row.response_json) {
+        try {
+          const resp = JSON.parse(row.response_json) as { sale_id?: number | null };
+          serverSaleId = resp.sale_id ?? null;
+        } catch { serverSaleId = null; }
+      }
+
+      const raw: RawSaleRow = {
+        client_sale_id: row.client_sale_id,
+        idempotency_key: row.idempotency_key,
+        server_sale_id: serverSaleId,
+        subtotal,
+        discount_amount: discount,
+        tax_amount: 0,
+        total_amount: total,
+        paid_amount: payload.paid_amount ?? 0,
+        change_amount: payload.change_amount ?? 0,
+        payment_method: (payload.payment_method ?? 'cash').toLowerCase(),
+        card_type: payload.card_type ? payload.card_type.toLowerCase() : null,
+        notes: payload.notes ?? null,
+        cashier_user_id: null,
+        cashier_username: null,
+        sync_status: syncStatus,
+        error_kind: errorKind,
+        next_attempt_at: null,
+        first_failed_at: null,
+        last_error: row.last_error,
+        retry_count: row.retry_count,
+        synced_at: row.synced_at,
+        created_at_client: row.created_at_client,
+      };
+
+      // decrementNow=false: reconcile below decrements every stock_applied=0 row exactly once.
+      await insertSaleRaw(raw, items, stockApplied, false);
+    } catch (err) {
+      await addSyncEvent(
+        'backfill',
+        'error',
+        `Skipped malformed outbox row ${row.client_sale_id}: ${String(err)}`
+      ).catch(() => undefined);
+    }
+  }
+
+  // Recover the offline decrements the old sync-on-success code never applied (spec §2.8).
+  await reconcileLocalState();
+  await setMeta('outbox_migrated_v2', '1');
+}
