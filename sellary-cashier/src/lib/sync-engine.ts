@@ -247,10 +247,14 @@ let engineStarted = false;
 async function pollHealth(): Promise<void> {
   const wasOnline = useSyncStore.getState().online;
   const online = await healthPing();
+  if (!engineStarted) return; // stopSyncEngine ran while this poll was in flight; no-op.
   useSyncStore.getState().setOnline(online);
   if (!wasOnline && online) {
-    void requestSync('reconnect');
-    void maybeRefreshCatalog(true).catch(() => undefined);
+    // Awaited (not fire-and-forget) so callers that sequence work after a poll — notably the
+    // startup hydration in startSyncEngine — observe the reconnect pass and forced catalog pull
+    // as fully settled, instead of racing them.
+    await requestSync('reconnect');
+    await maybeRefreshCatalog(true).catch(() => undefined);
   }
 }
 
@@ -262,7 +266,9 @@ function onOsOffline(): void {
 }
 function onVisibility(): void {
   if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-    void pollHealth().then(() => void requestSync('focus'));
+    void pollHealth().then(() => {
+      if (engineStarted) void requestSync('focus');
+    });
   }
 }
 
@@ -271,7 +277,11 @@ async function installFocusListener(): Promise<void> {
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
     focusUnlisten = await getCurrentWindow().onFocusChanged(
       ({ payload: focused }: { payload: boolean }) => {
-        if (focused) void pollHealth().then(() => void requestSync('focus'));
+        if (focused) {
+          void pollHealth().then(() => {
+            if (engineStarted) void requestSync('focus');
+          });
+        }
       },
     );
   } catch {
@@ -295,10 +305,16 @@ export function startSyncEngine(): void {
   void refreshCounts();
   // Contract §5: hydrate the stale-catalog chip after a cold start (e.g. a week offline) from
   // persisted meta, so pos-ui reads it from the store without forcing a fresh in-session pull.
-  void getMeta('last_catalog_pull_at').then((last) => {
-    if (last) useSyncStore.getState().patch({ catalogRefreshedAt: last });
-  });
-  void pollHealth();
+  // Sequenced to run AFTER the startup health poll (and the reconnect pass/forced catalog pull
+  // it may trigger) has fully settled, so the persisted "last real pull" timestamp is always the
+  // final write — it is never clobbered by an in-flight cold-start reconnect that hasn't pulled
+  // yet, and it correctly overrides a reconnect pull that already ran.
+  void pollHealth().then(() =>
+    getMeta('last_catalog_pull_at').then((last) => {
+      if (!engineStarted) return; // stopSyncEngine ran while this was in flight; no-op.
+      if (last) useSyncStore.getState().patch({ catalogRefreshedAt: last });
+    }),
+  );
 }
 
 export function stopSyncEngine(): void {
