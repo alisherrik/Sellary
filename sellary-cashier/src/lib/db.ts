@@ -1178,3 +1178,40 @@ export async function getCustomerLedgerLocal(clientCustomerId: string): Promise<
   entries.sort((a, b) => (a.created_at_client < b.created_at_client ? 1 : -1));
   return entries;
 }
+
+// Read-time debt derivation (§2.4). "Unsynced" = sync_status != 'synced' (pending/syncing/failed,
+// incl. permanent), mirroring the stock reconcile: server value + local-unsynced delta.
+const LOCAL_BALANCE_EXPR = `
+  c.balance
+  + COALESCE((SELECT SUM(s.total_amount - s.paid_amount) FROM sales s
+       WHERE s.customer_client_id = c.client_customer_id
+         AND s.payment_method = 'credit'
+         AND s.sync_status != 'synced'), 0)
+  - COALESCE((SELECT SUM(p.amount) FROM customer_payments p
+       WHERE p.customer_client_id = c.client_customer_id
+         AND p.sync_status != 'synced'), 0)`;
+
+export async function getCustomerLocalBalance(clientCustomerId: string): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ local_balance: number }[]>(
+    `SELECT (${LOCAL_BALANCE_EXPR}) AS local_balance
+     FROM customers c WHERE c.client_customer_id = $1`,
+    [clientCustomerId]
+  );
+  return rows[0]?.local_balance ?? 0;
+}
+
+// Argument-less (contract C-1): returns EVERY active customer with its derived local_balance,
+// ordered by name. The UI applies search + debt tabs (Все / Есть долг / Нет долга) client-side
+// over this array — no server-style filter/pagination params here.
+export async function getCustomersWithLocalBalance(): Promise<CustomerWithBalance[]> {
+  const database = await getDb();
+  return database.select<CustomerWithBalance[]>(
+    `SELECT c.client_customer_id, c.server_id, c.name, c.phone, c.email, c.address,
+            c.description, c.is_active, c.sync_status, c.error_kind,
+            (${LOCAL_BALANCE_EXPR}) AS local_balance
+     FROM customers c
+     WHERE c.is_active = 1
+     ORDER BY c.name ASC`
+  );
+}
