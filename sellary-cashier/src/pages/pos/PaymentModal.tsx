@@ -2,8 +2,9 @@ import {
   BanknotesIcon, CreditCardIcon, DevicePhoneMobileIcon, DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../lib/format';
-import { calculateCashPayment } from '../../lib/posPricing';
+import { calculateCashPayment, calculateCreditInitialPayment } from '../../lib/posPricing';
 import type { CashierCardType, CashierPaymentMethod } from '../../lib/pos-payload';
+import { CreditPanel, type CreditPanelProps } from './CreditPanel';
 
 const CARD_TYPES: { id: CashierCardType; label: string }[] = [
   { id: 'alif', label: 'Alif' },
@@ -17,6 +18,9 @@ const METHODS: { id: CashierPaymentMethod; label: string; Icon: typeof Banknotes
   { id: 'mobile', label: 'Мобильный', Icon: DevicePhoneMobileIcon },
 ];
 
+// The credit bundle is CreditPanelProps minus `total` (PaymentModal owns the total).
+export type CreditModalState = Omit<CreditPanelProps, 'total'>;
+
 interface PaymentModalProps {
   open: boolean;
   total: number;
@@ -29,20 +33,23 @@ interface PaymentModalProps {
   loading: boolean;
   onConfirm: () => void;
   onClose: () => void;
+  credit: CreditModalState;
 }
 
 export function PaymentModal(props: PaymentModalProps) {
   const {
     open, total, method, onMethod, cardType, onCardType,
-    cashReceived, onCashReceived, loading, onConfirm, onClose,
+    cashReceived, onCashReceived, loading, onConfirm, onClose, credit,
   } = props;
   if (!open) return null;
 
   const cash = calculateCashPayment(cashReceived, total);
+  const creditCalc = calculateCreditInitialPayment(credit.paidAmount, total);
   const canConfirm =
     !loading &&
     (method !== 'cash' || cash.isSufficient) &&
-    (method !== 'card' || cardType !== null);
+    (method !== 'card' || cardType !== null) &&
+    (method !== 'credit' || (credit.selectedCustomerId !== null && creditCalc.isValid));
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
@@ -72,11 +79,14 @@ export function PaymentModal(props: PaymentModalProps) {
           ))}
           <button
             type="button"
-            disabled
-            title="Для продажи в долг нужен интернет"
-            className="flex cursor-not-allowed items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 py-3 text-sm font-bold text-amber-600 opacity-70 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+            onClick={() => onMethod('credit')}
+            className={`flex items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-bold ${
+              method === 'credit'
+                ? 'border-amber-600 bg-amber-600 text-white'
+                : 'border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
+            }`}
           >
-            <DocumentTextIcon className="h-5 w-5" /> В долг · internet kerak
+            <DocumentTextIcon className="h-5 w-5" /> В долг
           </button>
         </div>
 
@@ -116,6 +126,8 @@ export function PaymentModal(props: PaymentModalProps) {
             )}
           </div>
         )}
+
+        {method === 'credit' && <CreditPanel total={total} {...credit} />}
 
         <div className="flex gap-2">
           <button
