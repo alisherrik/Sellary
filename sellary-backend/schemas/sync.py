@@ -20,6 +20,18 @@ class SyncProductItem(BaseModel):
     updated_at: datetime
 
 
+class SyncCustomerItem(BaseModel):
+    id: int
+    client_customer_id: Optional[str] = None
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    description: Optional[str] = None
+    balance: Decimal = Decimal("0.00")
+    is_active: bool
+
+
 class SyncBootstrapResponse(BaseModel):
     company_id: int
     company_name: str
@@ -73,3 +85,58 @@ class SyncSaleResult(BaseModel):
 
 class SyncSalesResponse(BaseModel):
     results: list[SyncSaleResult]
+
+
+class SyncCustomerCreate(BaseModel):
+    client_customer_id: str
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    description: Optional[str] = None
+
+
+class SyncCustomersRequest(BaseModel):
+    customers: list[SyncCustomerCreate]
+
+
+class SyncCustomerResult(BaseModel):
+    client_customer_id: str
+    status: str
+    server_id: Optional[int] = None
+    error: Optional[str] = None
+
+
+class SyncCustomersResponse(BaseModel):
+    results: list[SyncCustomerResult]
+
+
+class SyncPaymentWarning(BaseModel):
+    type: str
+    requested: Decimal
+    applied: Decimal
+
+
+class SyncPaymentCreate(BaseModel):
+    client_payment_id: str
+    idempotency_key: str
+    client_customer_id: str
+    amount: Decimal = Field(..., gt=0, decimal_places=2)
+    payment_method: str
+    description: Optional[str] = None
+
+
+class SyncPaymentsRequest(BaseModel):
+    payments: list[SyncPaymentCreate]
+
+
+class SyncPaymentResult(BaseModel):
+    client_payment_id: str
+    status: str
+    applied_amount: Decimal = Decimal("0.00")
+    warnings: Optional[list[SyncPaymentWarning]] = None
+    error: Optional[str] = None
+
+
+class SyncPaymentsResponse(BaseModel):
+    results: list[SyncPaymentResult]
