@@ -2,17 +2,17 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../lib/auth-store';
 import { getApiBaseUrl, setApiBaseUrl, checkHealth } from '../lib/api';
-import { getPendingSales } from '../lib/db';
-import { syncPendingSales } from '../lib/sync-service';
+import { useSyncStore } from '../lib/sync-store';
 
 export function SettingsPage() {
   const navigate = useNavigate();
   const { username, companyName, userRole, logout, isAuthenticated, refreshCatalog } = useAuthStore();
+  const unsyncedCount = useSyncStore((s) => s.unsyncedCount);
+  const syncNow = useSyncStore((s) => s.syncNow);
 
   const [apiUrl, setApiUrlState] = useState('');
   const [urlLoaded, setUrlLoaded] = useState(false);
   const [online, setOnline] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState('');
   const [refreshingCatalog, setRefreshingCatalog] = useState(false);
@@ -27,9 +27,6 @@ export function SettingsPage() {
       setUrlLoaded(true);
     });
     checkHealth().then(setOnline);
-    getPendingSales().then((sales) => {
-      setPendingCount(sales.filter((s) => s.status !== 'synced').length);
-    });
   }, [isAuthenticated, navigate]);
 
   const handleSaveUrl = async () => {
@@ -44,10 +41,8 @@ export function SettingsPage() {
     setSyncing(true);
     setMessage('');
     try {
-      const result = await syncPendingSales();
-      setMessage(`Синхронизировано: ${result.synced}, ошибок: ${result.failed}`);
-      const pending = await getPendingSales();
-      setPendingCount(pending.filter((s) => s.status !== 'synced').length);
+      await syncNow();
+      setMessage('Синхронизация запущена.');
     } catch (e: unknown) {
       setMessage(e instanceof Error ? e.message : 'Ошибка');
     } finally {
@@ -136,7 +131,7 @@ export function SettingsPage() {
         <div className="bg-white rounded-lg border p-4">
           <h2 className="text-sm font-medium mb-2">Sync</h2>
           <p className="text-sm text-gray-400 mb-2">
-            Pending sales: {pendingCount}
+            Не отправлено: {unsyncedCount}
           </p>
           <button
             onClick={handleSync}

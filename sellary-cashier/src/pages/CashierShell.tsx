@@ -5,6 +5,7 @@ import { POSPage } from './POSPage';
 import { PinUnlockPage } from './PinUnlockPage';
 import { NeedsReauthBanner } from '../components/NeedsReauthBanner';
 import { OfflineFirstRunScreen } from '../components/OfflineFirstRunScreen';
+import { startSyncEngine, stopSyncEngine } from '../lib/sync-engine';
 
 type Gate = 'checking' | 'pos' | 'pin' | 'offline-first-run';
 
@@ -38,6 +39,12 @@ export function CashierShell() {
     check();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    startSyncEngine();
+    return () => stopSyncEngine();
+  }, [isAuthenticated]);
 
   if (isAuthenticated) {
     return (
