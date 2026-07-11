@@ -129,6 +129,80 @@ def void_purchase_order(
         raise HTTPException(status_code=status_code, detail=str(exc))
 
 
+@router.get(
+    "/{po_id}/items/{item_id}/void-preview",
+    response_model=VoidPreview,
+)
+def preview_purchase_item_void(
+    po_id: int,
+    item_id: int,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_admin),
+):
+    try:
+        return TransactionReversalService(db, auth.company_id).preview_purchase_item(
+            po_id, item_id
+        )
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+
+
+@router.post(
+    "/{po_id}/items/{item_id}/void",
+    response_model=VoidResult,
+)
+def void_purchase_item(
+    po_id: int,
+    item_id: int,
+    payload: VoidRequest,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_admin),
+    idempotency_key: str = Depends(require_idempotency_key),
+):
+    endpoint = f"/api/purchase-orders/{po_id}/items/{item_id}/void"
+    request_body = payload.model_dump()
+    idempotency = IdempotencyService(db)
+    try:
+        cached = idempotency.get_cached_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+        )
+        if cached:
+            return VoidResult(**cached[0])
+    except IdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+
+    try:
+        result = TransactionReversalService(db, auth.company_id).void_purchase_item(
+            po_id, item_id, payload.reason, auth.user.id
+        )
+        idempotency.store_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+            response_body=result,
+            status_code=200,
+        )
+        db.commit()
+        return result
+    except ReversalBlocked as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.to_response())
+    except (ReversalConflict, IdempotencyConflictError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.message)
+    except ValueError as exc:
+        db.rollback()
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+
+
 @router.post("", response_model=PurchaseOrderResponse, status_code=201)
 def create_purchase_order(
     po_create: PurchaseOrderCreate,

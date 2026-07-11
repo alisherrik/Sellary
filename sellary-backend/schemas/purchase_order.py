@@ -29,6 +29,11 @@ class PurchaseOrderItemResponse(PurchaseOrderItemBase):
     quantity_received: Decimal
     subtotal: Decimal
     product: Optional[dict] = None
+    is_voided: bool = False
+    voided_at: Optional[datetime] = None
+    voided_by_user_id: Optional[int] = None
+    void_reason: Optional[str] = None
+    reversal_operation_id: Optional[int] = None
 
     class Config:
         from_attributes = True

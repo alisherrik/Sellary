@@ -4,8 +4,8 @@ from pathlib import Path
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-NEW_REV = "d4e5f6a7b8c9"
-LIVE_HEAD = "c3d4e5f6a7b8"
+NEW_REV = "e5f6a7b8c9d0"
+LIVE_HEAD = "d4e5f6a7b8c9"
 DEAD_HEAD = "20260319_0001"
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]

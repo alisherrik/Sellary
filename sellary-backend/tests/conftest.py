@@ -501,6 +501,86 @@ def partially_received_po(
 
 
 @pytest.fixture
+def multi_line_received_po(
+    db_session: Session,
+    default_company: Company,
+    test_supplier: Supplier,
+    test_category: Category,
+    admin_user: User,
+) -> PurchaseOrder:
+    """A RECEIVED purchase order with TWO fully-received lines on two products.
+
+    Built through the real create + receive flow so receipts, receipt items,
+    FIFO layers, the product balances and inventory logs stay consistent. Used
+    to prove that annulling one line leaves the sibling line and its inventory
+    untouched.
+    """
+    import uuid
+
+    from schemas.purchase_order import (
+        PurchaseOrderCreate,
+        PurchaseOrderItemCreate,
+        ReceiveItemsRequest,
+    )
+    from services.purchase_order_service import PurchaseOrderService
+
+    products = []
+    for idx in range(2):
+        product = Product(
+            company_id=default_company.id,
+            name=f"Multi PO Product {idx}",
+            barcode=f"MULTIPO{idx}{uuid.uuid4().hex[:6]}",
+            category_id=test_category.id,
+            cost_price=Decimal("0.00"),
+            sell_price=Decimal("25.00"),
+            tax_percent=Decimal("0.00"),
+            stock_quantity=Decimal("0"),
+            inventory_value=Decimal("0.0000"),
+            min_stock_level=Decimal("0"),
+            is_active=True,
+        )
+        db_session.add(product)
+        products.append(product)
+    db_session.flush()
+
+    service = PurchaseOrderService(db_session, default_company.id)
+    created = service.create(
+        PurchaseOrderCreate(
+            supplier_id=test_supplier.id,
+            items=[
+                PurchaseOrderItemCreate(
+                    product_id=products[0].id,
+                    quantity_ordered=Decimal("6"),
+                    unit_cost=Decimal("5.00"),
+                ),
+                PurchaseOrderItemCreate(
+                    product_id=products[1].id,
+                    quantity_ordered=Decimal("10"),
+                    unit_cost=Decimal("3.00"),
+                ),
+            ],
+        )
+    )
+    po = db_session.get(PurchaseOrder, created.id)
+    po.status = PurchaseOrderStatus.SENT
+    db_session.flush()
+
+    service.receive_items(
+        po.id,
+        ReceiveItemsRequest(
+            items=[
+                {"item_id": po.items[0].id, "quantity_to_receive": "6"},
+                {"item_id": po.items[1].id, "quantity_to_receive": "10"},
+            ]
+        ),
+        admin_user.id,
+    )
+    db_session.flush()
+    db_session.refresh(po)
+    return po
+
+
+@pytest.fixture
 def test_customer(db_session: Session, default_company: Company) -> Customer:
     import uuid
 

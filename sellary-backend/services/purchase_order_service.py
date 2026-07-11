@@ -361,6 +361,11 @@ class PurchaseOrderService:
                     quantity_received=item.quantity_received,
                     unit_cost=item.unit_cost,
                     subtotal=item.subtotal,
+                    is_voided=item.voided_at is not None,
+                    voided_at=item.voided_at,
+                    voided_by_user_id=item.voided_by_user_id,
+                    void_reason=item.void_reason,
+                    reversal_operation_id=item.reversal_operation_id,
                     product=(
                         {
                             "id": item.product.id,
