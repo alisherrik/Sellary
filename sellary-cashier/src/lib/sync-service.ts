@@ -42,15 +42,3 @@ export async function pullCatalog(): Promise<{ products: number; categories: num
   await setMeta('last_catalog_pull_at', bootstrap.server_time);
   return { products: bootstrap.products.length, categories: bootstrap.categories.length };
 }
-
-/**
- * @deprecated Temporary compile-green shim ONLY. `syncPendingSales` and its module-level
- * `isSyncing` mutex were deleted per this task (sync-engine Plan, Task 2) — the engine
- * (sync-engine.ts) is the sole mutex owner going forward. POSPage.tsx / SettingsPage.tsx still
- * call this pending their real rewiring: SettingsPage → sync-engine Task 7 (store `syncNow`),
- * POSPage → the separate pos-ui plan (`requestSync('post-sale')`). No-op until then; delete this
- * export once both call sites are migrated.
- */
-export async function syncPendingSales(): Promise<{ synced: number; failed: number }> {
-  return { synced: 0, failed: 0 };
-}
