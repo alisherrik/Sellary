@@ -4,6 +4,8 @@ import {
   selectCompany,
   setAccessToken as setApiToken,
   fetchBootstrap,
+  refreshDevice,
+  ApiError,
 } from './api';
 import type { LoginTokenResponse } from './api';
 import {
@@ -23,6 +25,7 @@ import {
   clearCashierSession,
   getTokenExpiresAt,
   loadDeviceCredential,
+  saveDeviceCredential,
   verifyPin,
 } from './session';
 
@@ -63,6 +66,17 @@ function computeLockUntil(attempts: number): string | null {
   const over = attempts - MAX_PIN_ATTEMPTS;
   const seconds = Math.min(LOCK_CAP_SECONDS, LOCK_BASE_SECONDS * 2 ** over);
   return new Date(Date.now() + seconds * 1000).toISOString();
+}
+
+const REFRESH_WINDOW_MS = 12 * 60 * 60 * 1000; // refresh within 12h of expiry
+
+let refreshInFlight: Promise<void> | null = null;
+
+function needsTokenRefresh(expiresAt: string | undefined | null): boolean {
+  if (!expiresAt) return true;
+  const exp = Date.parse(expiresAt);
+  if (Number.isNaN(exp)) return true;
+  return exp - Date.now() <= REFRESH_WINDOW_MS;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -121,7 +135,48 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     void get().ensureFreshAccessToken();
     return true;
   },
-  ensureFreshAccessToken: async () => {},
+  ensureFreshAccessToken: async () => {
+    if (refreshInFlight) {
+      return refreshInFlight;
+    }
+    refreshInFlight = (async () => {
+      try {
+        const cred = await loadDeviceCredential();
+        if (!cred) {
+          return;
+        }
+        const session = await loadCashierSession();
+        if (!needsTokenRefresh(session?.expiresAt)) {
+          return;
+        }
+        const auth = await getDeviceAuth();
+        if (!auth?.device_id) {
+          return;
+        }
+        const res = await refreshDevice(auth.device_id, cred.deviceToken);
+        setApiToken(res.access_token);
+        await saveCashierSession({
+          accessToken: res.access_token,
+          expiresAt: getTokenExpiresAt(res.access_token),
+          companyId: auth.company_id ?? 0,
+          companyName: auth.company_name ?? '',
+          userId: auth.user_id ?? 0,
+          username: auth.username ?? '',
+          userRole: auth.user_role ?? '',
+        });
+        await saveDeviceCredential(cred.deviceToken, res.expires_at);
+        set({ needsReauth: false });
+      } catch (e: unknown) {
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+          set({ needsReauth: true });
+        }
+        // network / other errors: stay offline silently, app keeps working
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+    return refreshInFlight;
+  },
 
   loginUser: async (username, password) => {
     return login(username, password);

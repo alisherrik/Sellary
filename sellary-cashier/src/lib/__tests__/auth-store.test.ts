@@ -380,3 +380,83 @@ describe('unlockWithPin', () => {
     expect(useAuthStore.getState().isLocked).toBe(true);
   });
 });
+
+describe('ensureFreshAccessToken', () => {
+  it('refreshes when the token is near expiry and stores the new credential', async () => {
+    mockLoadDeviceCredential.mockResolvedValue({
+      deviceToken: 'secret', expiresAt: '2027-01-01T00:00:00Z',
+    });
+    mockLoadCashierSession.mockResolvedValue({
+      accessToken: 'old', expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      companyId: 10, companyName: 'T', userId: 1, username: 'c', userRole: 'cashier',
+    });
+    mockGetDeviceAuth.mockResolvedValue({
+      device_id: 'dev-1', company_id: 10, company_name: 'T',
+      user_id: 1, username: 'c', user_role: 'cashier',
+    });
+    mockRefreshDevice.mockResolvedValue({
+      access_token: 'fresh', token_type: 'bearer',
+      expires_at: '2027-06-01T00:00:00Z',
+    });
+
+    await useAuthStore.getState().ensureFreshAccessToken();
+
+    expect(mockRefreshDevice).toHaveBeenCalledWith('dev-1', 'secret');
+    expect(mockSetAccessToken).toHaveBeenCalledWith('fresh');
+    expect(mockSaveDeviceCredential).toHaveBeenCalledWith('secret', '2027-06-01T00:00:00Z');
+    expect(useAuthStore.getState().needsReauth).toBe(false);
+  });
+
+  it('skips the network when the token is comfortably fresh', async () => {
+    mockLoadDeviceCredential.mockResolvedValue({ deviceToken: 's', expiresAt: 'x' });
+    mockLoadCashierSession.mockResolvedValue({
+      accessToken: 'ok', expiresAt: new Date(Date.now() + 48 * 3600_000).toISOString(),
+      companyId: 10, companyName: 'T', userId: 1, username: 'c', userRole: 'cashier',
+    });
+
+    await useAuthStore.getState().ensureFreshAccessToken();
+
+    expect(mockRefreshDevice).not.toHaveBeenCalled();
+  });
+
+  it('sets needsReauth on a 401/403 but does not throw', async () => {
+    mockLoadDeviceCredential.mockResolvedValue({ deviceToken: 's', expiresAt: 'x' });
+    mockLoadCashierSession.mockResolvedValue(null); // no token → needs refresh
+    mockGetDeviceAuth.mockResolvedValue({ device_id: 'dev-1' });
+    const { ApiError } = await import('../api');
+    mockRefreshDevice.mockRejectedValue(new ApiError('revoked', 403));
+
+    await expect(useAuthStore.getState().ensureFreshAccessToken()).resolves.toBeUndefined();
+    expect(useAuthStore.getState().needsReauth).toBe(true);
+  });
+
+  it('stays silent (no needsReauth) on a network error', async () => {
+    mockLoadDeviceCredential.mockResolvedValue({ deviceToken: 's', expiresAt: 'x' });
+    mockLoadCashierSession.mockResolvedValue(null);
+    mockGetDeviceAuth.mockResolvedValue({ device_id: 'dev-1' });
+    mockRefreshDevice.mockRejectedValue(new Error('Network failure'));
+
+    await useAuthStore.getState().ensureFreshAccessToken();
+
+    expect(useAuthStore.getState().needsReauth).toBe(false);
+  });
+
+  it('is single-flight (concurrent calls collapse to one refresh)', async () => {
+    mockLoadDeviceCredential.mockResolvedValue({ deviceToken: 's', expiresAt: 'x' });
+    mockLoadCashierSession.mockResolvedValue(null);
+    mockGetDeviceAuth.mockResolvedValue({ device_id: 'dev-1' });
+    mockRefreshDevice.mockImplementation(
+      () => new Promise((r) => setTimeout(() => r({
+        access_token: 'fresh', token_type: 'bearer',
+        expires_at: '2027-06-01T00:00:00Z',
+      }), 30))
+    );
+
+    await Promise.all([
+      useAuthStore.getState().ensureFreshAccessToken(),
+      useAuthStore.getState().ensureFreshAccessToken(),
+    ]);
+
+    expect(mockRefreshDevice).toHaveBeenCalledTimes(1);
+  });
+});
