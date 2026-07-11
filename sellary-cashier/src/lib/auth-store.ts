@@ -6,15 +6,21 @@ import {
   fetchBootstrap,
 } from './api';
 import type { LoginTokenResponse } from './api';
-import { upsertProducts, upsertCategories, setMeta, addSyncEvent } from './db';
+import {
+  upsertProducts,
+  upsertCategories,
+  setMeta,
+  addSyncEvent,
+  getDeviceAuth,
+} from './db';
 import { setStoreValue } from './storage';
 import { getErrorMessage } from './error';
 import {
   saveCashierSession,
   loadCashierSession,
   clearCashierSession,
-  isSessionExpired,
   getTokenExpiresAt,
+  loadDeviceCredential,
 } from './session';
 
 interface AuthState {
@@ -25,6 +31,16 @@ interface AuthState {
   userId: number | null;
   username: string | null;
   userRole: string | null;
+
+  hasDevice: boolean;
+  hasPin: boolean;
+  isLocked: boolean;
+  lockedUntil: string | null;
+  needsReauth: boolean;
+
+  completePinSetup: (pin: string) => Promise<void>;
+  unlockWithPin: (pin: string) => Promise<boolean>;
+  ensureFreshAccessToken: () => Promise<void>;
 
   loginUser: (username: string, password: string) => Promise<LoginTokenResponse>;
   selectAndBootstrap: (loginToken: string, companyId: number) => Promise<void>;
@@ -41,6 +57,23 @@ export const useAuthStore = create<AuthState>((set) => ({
   userId: null,
   username: null,
   userRole: null,
+
+  hasDevice: false,
+  hasPin: false,
+  isLocked: false,
+  lockedUntil: null,
+  needsReauth: false,
+
+  // Temporary stubs to satisfy the AuthState interface added in Task 5.
+  // Real implementations land in Task 6 (unlockWithPin), Task 7
+  // (ensureFreshAccessToken), and Task 8 (completePinSetup).
+  completePinSetup: async () => {
+    throw new Error('completePinSetup is not implemented yet (see Task 8)');
+  },
+  unlockWithPin: async () => {
+    throw new Error('unlockWithPin is not implemented yet (see Task 6)');
+  },
+  ensureFreshAccessToken: async () => {},
 
   loginUser: async (username, password) => {
     return login(username, password);
@@ -115,23 +148,40 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   restoreSession: async () => {
     try {
+      const auth = await getDeviceAuth();
+      const cred = await loadDeviceCredential();
+      const hasDevice = !!(auth && auth.device_id && cred);
+      const hasPin = !!(auth && auth.pin_hash);
+      set({ hasDevice, hasPin });
+
+      if (!hasDevice || !hasPin || !auth) {
+        return false;
+      }
+
+      // Load whatever identity/token cache we have; the token MAY be expired —
+      // we still open the app (PIN unlock gates entry). Never clear on expiry.
       const session = await loadCashierSession();
-      if (!session) {
-        return false;
+      if (session) {
+        setApiToken(session.accessToken);
+        set({
+          companyId: session.companyId,
+          companyName: session.companyName,
+          userId: session.userId,
+          username: session.username,
+          userRole: session.userRole,
+        });
+      } else {
+        set({
+          companyId: auth.company_id,
+          companyName: auth.company_name,
+          userId: auth.user_id,
+          username: auth.username,
+          userRole: auth.user_role,
+        });
       }
-      if (isSessionExpired(session)) {
-        await clearCashierSession();
-        return false;
-      }
-      setApiToken(session.accessToken);
-      set({
-        isAuthenticated: true,
-        companyId: session.companyId,
-        companyName: session.companyName,
-        userId: session.userId,
-        username: session.username,
-        userRole: session.userRole,
-      });
+
+      const locked = !!(auth.locked_until && Date.parse(auth.locked_until) > Date.now());
+      set({ isLocked: locked, lockedUntil: locked ? auth.locked_until : null });
       return true;
     } catch (error) {
       console.error('Failed to restore session', error);

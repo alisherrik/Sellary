@@ -4,35 +4,72 @@ const {
   mockLogin,
   mockSelectCompany,
   mockSetAccessToken,
+  mockGetAccessToken,
   mockFetchBootstrap,
+  mockRegisterDevice,
+  mockRefreshDevice,
   mockUpsertProducts,
   mockUpsertCategories,
   mockSetMeta,
   mockAddSyncEvent,
+  mockGetDeviceAuth,
+  mockEnsureDeviceAuth,
+  mockBindDeviceIdentity,
+  mockRecordPinFailure,
+  mockResetPinFailures,
+  mockGetUnsyncedCount,
   mockSetStoreValue,
   mockLoadCashierSession,
   mockSaveCashierSession,
   mockClearCashierSession,
+  mockSaveDeviceCredential,
+  mockLoadDeviceCredential,
+  mockClearDeviceCredential,
+  mockSavePin,
+  mockVerifyPin,
+  mockClearPin,
 } = vi.hoisted(() => ({
   mockLogin: vi.fn(),
   mockSelectCompany: vi.fn(),
   mockSetAccessToken: vi.fn(),
+  mockGetAccessToken: vi.fn(),
   mockFetchBootstrap: vi.fn(),
+  mockRegisterDevice: vi.fn(),
+  mockRefreshDevice: vi.fn(),
   mockUpsertProducts: vi.fn(),
   mockUpsertCategories: vi.fn(),
   mockSetMeta: vi.fn(),
   mockAddSyncEvent: vi.fn(),
+  mockGetDeviceAuth: vi.fn(),
+  mockEnsureDeviceAuth: vi.fn(),
+  mockBindDeviceIdentity: vi.fn(),
+  mockRecordPinFailure: vi.fn(),
+  mockResetPinFailures: vi.fn(),
+  mockGetUnsyncedCount: vi.fn(),
   mockSetStoreValue: vi.fn(),
   mockLoadCashierSession: vi.fn(),
   mockSaveCashierSession: vi.fn(),
   mockClearCashierSession: vi.fn(),
+  mockSaveDeviceCredential: vi.fn(),
+  mockLoadDeviceCredential: vi.fn(),
+  mockClearDeviceCredential: vi.fn(),
+  mockSavePin: vi.fn(),
+  mockVerifyPin: vi.fn(),
+  mockClearPin: vi.fn(),
 }));
 
 vi.mock('../api', () => ({
   login: mockLogin,
   selectCompany: mockSelectCompany,
   setAccessToken: mockSetAccessToken,
+  getAccessToken: mockGetAccessToken,
   fetchBootstrap: mockFetchBootstrap,
+  registerDevice: mockRegisterDevice,
+  refreshDevice: mockRefreshDevice,
+  ApiError: class ApiError extends Error {
+    status: number;
+    constructor(m: string, s: number) { super(m); this.status = s; }
+  },
 }));
 
 vi.mock('../db', () => ({
@@ -40,6 +77,12 @@ vi.mock('../db', () => ({
   upsertCategories: mockUpsertCategories,
   setMeta: mockSetMeta,
   addSyncEvent: mockAddSyncEvent,
+  getDeviceAuth: mockGetDeviceAuth,
+  ensureDeviceAuth: mockEnsureDeviceAuth,
+  bindDeviceIdentity: mockBindDeviceIdentity,
+  recordPinFailure: mockRecordPinFailure,
+  resetPinFailures: mockResetPinFailures,
+  getUnsyncedCount: mockGetUnsyncedCount,
 }));
 
 vi.mock('../storage', () => ({
@@ -52,6 +95,12 @@ vi.mock('../session', () => ({
   clearCashierSession: mockClearCashierSession,
   isSessionExpired: vi.fn(() => false),
   getTokenExpiresAt: vi.fn(() => '2026-06-01T00:00:00Z'),
+  saveDeviceCredential: mockSaveDeviceCredential,
+  loadDeviceCredential: mockLoadDeviceCredential,
+  clearDeviceCredential: mockClearDeviceCredential,
+  savePin: mockSavePin,
+  verifyPin: mockVerifyPin,
+  clearPin: mockClearPin,
 }));
 
 import { useAuthStore } from '../auth-store';
@@ -97,13 +146,10 @@ function makeBootstrap() {
 beforeEach(() => {
   vi.clearAllMocks();
   useAuthStore.setState({
-    isAuthenticated: false,
-    isBootstrapping: false,
-    companyId: null,
-    companyName: null,
-    userId: null,
-    username: null,
-    userRole: null,
+    isAuthenticated: false, isBootstrapping: false,
+    hasDevice: false, hasPin: false, isLocked: false,
+    lockedUntil: null, needsReauth: false,
+    companyId: null, companyName: null, userId: null, username: null, userRole: null,
   });
 });
 
@@ -181,56 +227,66 @@ describe('useAuthStore', () => {
   });
 
   describe('restoreSession', () => {
-    it('restores a valid persisted session', async () => {
+    it('opens (returns true) on an EXPIRED access_token when device + PIN exist', async () => {
+      mockGetDeviceAuth.mockResolvedValue({
+        device_id: 'dev-1', pin_hash: '$argon2id$x', locked_until: null,
+        user_id: 1, username: 'cashier', company_id: 10,
+        company_name: 'Test', user_role: 'cashier',
+      });
+      mockLoadDeviceCredential.mockResolvedValue({
+        deviceToken: 'secret', expiresAt: '2027-01-01T00:00:00Z',
+      });
       mockLoadCashierSession.mockResolvedValue({
-        accessToken: 'token-xyz',
-        expiresAt: '2026-06-01T00:00:00Z',
-        companyId: 10,
-        companyName: 'Test Company',
-        userId: 1,
-        username: 'cashier',
-        userRole: 'cashier',
+        accessToken: 'expired-token', expiresAt: '2020-01-01T00:00:00Z',
+        companyId: 10, companyName: 'Test', userId: 1,
+        username: 'cashier', userRole: 'cashier',
       });
 
       const result = await useAuthStore.getState().restoreSession();
 
       expect(result).toBe(true);
-      expect(mockSetAccessToken).toHaveBeenCalledWith('token-xyz');
       const state = useAuthStore.getState();
-      expect(state.isAuthenticated).toBe(true);
+      expect(state.hasDevice).toBe(true);
+      expect(state.hasPin).toBe(true);
+      expect(state.isAuthenticated).toBe(false); // gated on PIN unlock
+      expect(mockClearCashierSession).not.toHaveBeenCalled(); // never wiped on expiry
+      expect(mockSetAccessToken).toHaveBeenCalledWith('expired-token');
       expect(state.companyId).toBe(10);
-      expect(state.companyName).toBe('Test Company');
-      expect(state.userId).toBe(1);
-      expect(state.username).toBe('cashier');
-      expect(state.userRole).toBe('cashier');
     });
 
-    it('returns false when no persisted session exists', async () => {
+    it('returns false when the device is not provisioned', async () => {
+      mockGetDeviceAuth.mockResolvedValue(null);
+      mockLoadDeviceCredential.mockResolvedValue(null);
+
+      const result = await useAuthStore.getState().restoreSession();
+
+      expect(result).toBe(false);
+      expect(useAuthStore.getState().hasDevice).toBe(false);
+    });
+
+    it('returns false when device exists but PIN was never set', async () => {
+      mockGetDeviceAuth.mockResolvedValue({ device_id: 'dev-1', pin_hash: null });
+      mockLoadDeviceCredential.mockResolvedValue({ deviceToken: 's', expiresAt: 'x' });
+
+      const result = await useAuthStore.getState().restoreSession();
+
+      expect(result).toBe(false);
+      expect(useAuthStore.getState().hasPin).toBe(false);
+    });
+
+    it('reflects an active lockout from device_auth', async () => {
+      const future = new Date(Date.now() + 60_000).toISOString();
+      mockGetDeviceAuth.mockResolvedValue({
+        device_id: 'dev-1', pin_hash: '$argon2id$x', locked_until: future,
+        user_id: 1, username: 'c', company_id: 10, company_name: 'T', user_role: 'cashier',
+      });
+      mockLoadDeviceCredential.mockResolvedValue({ deviceToken: 's', expiresAt: 'x' });
       mockLoadCashierSession.mockResolvedValue(null);
 
-      const result = await useAuthStore.getState().restoreSession();
+      await useAuthStore.getState().restoreSession();
 
-      expect(result).toBe(false);
-      expect(useAuthStore.getState().isAuthenticated).toBe(false);
-    });
-
-    it('clears expired persisted session and returns false', async () => {
-      mockLoadCashierSession.mockResolvedValue({
-        accessToken: 'token-expired',
-        expiresAt: '2020-01-01T00:00:00Z',
-        companyId: 10,
-        companyName: 'Test',
-        userId: 1,
-        username: 'cashier',
-        userRole: 'cashier',
-      });
-      const { isSessionExpired } = await import('../session');
-      vi.mocked(isSessionExpired).mockReturnValue(true);
-
-      const result = await useAuthStore.getState().restoreSession();
-
-      expect(result).toBe(false);
-      expect(mockClearCashierSession).toHaveBeenCalled();
+      expect(useAuthStore.getState().isLocked).toBe(true);
+      expect(useAuthStore.getState().lockedUntil).toBe(future);
     });
   });
 
