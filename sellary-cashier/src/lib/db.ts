@@ -1064,3 +1064,117 @@ export async function getCustomers(filter: CustomerFilter = {}): Promise<LocalCu
     params
   );
 }
+
+// Caller supplies only user-entered fields; db.ts generates client_payment_id + idempotency_key +
+// created_at_client and sets sync_status='pending' (contract C-3).
+export interface NewPaymentInput {
+  customer_client_id: string;   // references customers.client_customer_id
+  amount: number;
+  payment_method: string;       // 'cash'|'card'|'mobile'
+  description?: string | null;
+}
+
+export interface LocalCustomerPayment {
+  client_payment_id: string;
+  idempotency_key: string;
+  customer_client_id: string;
+  amount: number;
+  payment_method: string;
+  description: string | null;
+  applied_amount: number | null;   // server-applied (may be < amount if capped-to-balance)
+  server_customer_id: number | null;
+  sync_status: SyncStatus;
+  error_kind: ErrorKind | null;
+  next_attempt_at: string | null;
+  first_failed_at: string | null;
+  last_error: string | null;
+  retry_count: number;
+  created_at_client: string;
+  synced_at: string | null;
+}
+
+// One ledger row for the customer-detail view (contract C-4). `amount` is SIGNED:
+// credit_sale = +remaining (total − initial paid), payment = −amount. receipt_no is the
+// credit sale's receipt (null for payments); applied_amount is the payment's server-capped
+// amount (null for sales, and null on a payment until it syncs / is capped).
+export interface LocalLedgerEntry {
+  ref_id: string;                    // client_sale_id or client_payment_id
+  kind: 'credit_sale' | 'payment';
+  amount: number;                    // SIGNED (see above)
+  description: string | null;
+  receipt_no: number | null;
+  applied_amount: number | null;
+  created_at_client: string;
+  sync_status: string;
+  error_kind: string | null;
+}
+
+export async function insertCustomerPayment(input: NewPaymentInput): Promise<{ clientPaymentId: string }> {
+  const database = await getDb();
+  const clientPaymentId = crypto.randomUUID();           // db.ts owns the local identity (C-3)
+  const idempotencyKey = crypto.randomUUID();
+  const createdAtClient = new Date().toISOString();
+  await database.execute(
+    `INSERT INTO customer_payments
+       (client_payment_id, idempotency_key, customer_client_id, amount,
+        payment_method, description, sync_status, retry_count, created_at_client)
+     VALUES ($1, $2, $3, $4, $5, $6, 'pending', 0, $7)`,
+    [clientPaymentId, idempotencyKey, input.customer_client_id,
+     input.amount, input.payment_method, input.description ?? null, createdAtClient]
+  );
+  return { clientPaymentId };
+}
+
+export async function getCustomerLedgerLocal(clientCustomerId: string): Promise<LocalLedgerEntry[]> {
+  const database = await getDb();
+  const sales = await database.select<{
+    client_sale_id: string; receipt_no: number | null; total_amount: number; paid_amount: number;
+    notes: string | null; sync_status: string; error_kind: string | null; created_at_client: string;
+  }[]>(
+    `SELECT client_sale_id, receipt_no, total_amount, paid_amount, notes,
+            sync_status, error_kind, created_at_client
+     FROM sales
+     WHERE customer_client_id = $1 AND payment_method = 'credit'`,
+    [clientCustomerId]
+  );
+  const pays = await database.select<{
+    client_payment_id: string; amount: number; description: string | null;
+    applied_amount: number | null; sync_status: string; error_kind: string | null;
+    created_at_client: string;
+  }[]>(
+    `SELECT client_payment_id, amount, description, applied_amount,
+            sync_status, error_kind, created_at_client
+     FROM customer_payments
+     WHERE customer_client_id = $1`,
+    [clientCustomerId]
+  );
+  const entries: LocalLedgerEntry[] = [];
+  for (const s of sales) {
+    entries.push({
+      ref_id: s.client_sale_id,
+      kind: 'credit_sale',
+      amount: s.total_amount - s.paid_amount,   // SIGNED: +remaining
+      description: s.notes,
+      receipt_no: s.receipt_no,
+      applied_amount: null,
+      created_at_client: s.created_at_client,
+      sync_status: s.sync_status,
+      error_kind: s.error_kind,
+    });
+  }
+  for (const p of pays) {
+    entries.push({
+      ref_id: p.client_payment_id,
+      kind: 'payment',
+      amount: -p.amount,                        // SIGNED: −amount
+      description: p.description,
+      receipt_no: null,
+      applied_amount: p.applied_amount,
+      created_at_client: p.created_at_client,
+      sync_status: p.sync_status,
+      error_kind: p.error_kind,
+    });
+  }
+  entries.sort((a, b) => (a.created_at_client < b.created_at_client ? 1 : -1));
+  return entries;
+}
