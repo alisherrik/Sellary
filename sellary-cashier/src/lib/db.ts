@@ -1,7 +1,7 @@
 import Database from '@tauri-apps/plugin-sql';
 // Type-only import of the api-owned push-result type (contract C-7). SyncPaymentResult is added
 // to api.ts by Task 8 (out of scope here) — do not import it before it exists, or tsc breaks.
-import type { SyncCustomerResult } from './api';
+import type { SyncCustomerResult, SyncPaymentResult } from './api';
 
 let db: Database | null = null;
 
@@ -1382,4 +1382,143 @@ export async function applyCustomerIdMap(results: SyncCustomerResult[]): Promise
       await markCustomerSynced(r.client_customer_id, r.server_id);
     }
   }
+}
+
+export async function getSendablePayments(
+  nowIso: string,
+  opts?: { includePermanent?: boolean }
+): Promise<LocalCustomerPayment[]> {
+  const database = await getDb();
+  const permanentClause = opts?.includePermanent
+    ? " OR (sync_status = 'failed' AND error_kind = 'permanent')"
+    : '';
+  return database.select<LocalCustomerPayment[]>(
+    `SELECT * FROM customer_payments
+     WHERE sync_status = 'pending'
+        OR (sync_status = 'failed' AND error_kind = 'transient'
+            AND (next_attempt_at IS NULL OR next_attempt_at <= $1))${permanentClause}
+     ORDER BY created_at_client ASC, client_payment_id ASC`,
+    [nowIso]
+  );
+}
+
+export async function markPaymentSyncing(clientPaymentId: string): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    "UPDATE customer_payments SET sync_status = 'syncing' WHERE client_payment_id = $1",
+    [clientPaymentId]
+  );
+}
+
+export async function markPaymentSynced(
+  clientPaymentId: string, appliedAmount: number | null, serverCustomerId: number | null
+): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE customer_payments
+     SET sync_status = 'synced', applied_amount = $1, server_customer_id = $2,
+         error_kind = NULL, next_attempt_at = NULL, last_error = NULL,
+         synced_at = datetime('now')
+     WHERE client_payment_id = $3`,
+    [appliedAmount, serverCustomerId, clientPaymentId]
+  );
+}
+
+export async function markPaymentTransientFailure(
+  clientPaymentIds: string[], nextAttemptAt: string, error: string
+): Promise<void> {
+  if (clientPaymentIds.length === 0) return;
+  const database = await getDb();
+  for (const id of clientPaymentIds) {
+    await database.execute(
+      `UPDATE customer_payments
+       SET sync_status = 'failed', error_kind = 'transient', next_attempt_at = $1,
+           last_error = $2, retry_count = retry_count + 1,
+           first_failed_at = COALESCE(first_failed_at, datetime('now'))
+       WHERE client_payment_id = $3`,
+      [nextAttemptAt, error, id]
+    );
+  }
+}
+
+export async function markPaymentPermanentFailure(clientPaymentId: string, error: string): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE customer_payments
+     SET sync_status = 'failed', error_kind = 'permanent', next_attempt_at = NULL,
+         last_error = $1, retry_count = retry_count + 1,
+         first_failed_at = COALESCE(first_failed_at, datetime('now'))
+     WHERE client_payment_id = $2`,
+    [error, clientPaymentId]
+  );
+}
+
+export async function recoverSyncingPayments(nowIso: string): Promise<number> {
+  const database = await getDb();
+  const result = await database.execute(
+    `UPDATE customer_payments
+     SET sync_status = 'failed', error_kind = 'transient', next_attempt_at = $1,
+         last_error = COALESCE(last_error, 'Recovered from interrupted sync'),
+         retry_count = retry_count + 1,
+         first_failed_at = COALESCE(first_failed_at, datetime('now'))
+     WHERE sync_status = 'syncing'`,
+    [nowIso]
+  );
+  return Number((result as { rowsAffected?: number }).rowsAffected ?? 0);
+}
+
+export async function getUnsyncedPaymentCount(): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ c: number }[]>(
+    `SELECT COUNT(*) AS c FROM customer_payments
+     WHERE sync_status IN ('pending','syncing')
+        OR (sync_status = 'failed' AND error_kind = 'transient')`
+  );
+  return rows[0]?.c ?? 0;
+}
+
+// Apply push results: record the server-capped applied_amount + mark synced for synced/duplicate
+// ONLY (contract C-6). failed rows are left untouched — the credit-sync engine marks their failure.
+export async function applyPaymentResults(results: SyncPaymentResult[]): Promise<void> {
+  const database = await getDb();
+  for (const r of results) {
+    if (r.status === 'synced' || r.status === 'duplicate') {
+      await database.execute(
+        `UPDATE customer_payments
+         SET sync_status = 'synced', applied_amount = $1,
+             error_kind = NULL, next_attempt_at = NULL, last_error = NULL,
+             synced_at = datetime('now')
+         WHERE client_payment_id = $2`,
+        [r.applied_amount ?? null, r.client_payment_id]
+      );
+    }
+  }
+}
+
+// Combined credit-outbox counts across BOTH tables (contract C-5). credit-sync's refreshCounts
+// folds these into the sync badge (unsynced) and the needs-attention total (permanent).
+export async function getUnsyncedCreditCount(): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ c: number }[]>(
+    `SELECT
+       (SELECT COUNT(*) FROM customers
+          WHERE sync_status IN ('pending','syncing')
+             OR (sync_status = 'failed' AND error_kind = 'transient'))
+     + (SELECT COUNT(*) FROM customer_payments
+          WHERE sync_status IN ('pending','syncing')
+             OR (sync_status = 'failed' AND error_kind = 'transient')) AS c`
+  );
+  return rows[0]?.c ?? 0;
+}
+
+export async function getNeedsAttentionCreditCount(): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ c: number }[]>(
+    `SELECT
+       (SELECT COUNT(*) FROM customers
+          WHERE sync_status = 'failed' AND error_kind = 'permanent')
+     + (SELECT COUNT(*) FROM customer_payments
+          WHERE sync_status = 'failed' AND error_kind = 'permanent') AS c`
+  );
+  return rows[0]?.c ?? 0;
 }

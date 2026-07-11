@@ -237,6 +237,24 @@ export interface SyncCustomerResult {
   error?: string | null;
 }
 
+// Owned by api.ts per contract C-7 (mirrors SyncWarning). Consumed by db.ts's
+// applyPaymentResults; credit-sync will construct these from the sync/payments response.
+export interface SyncPaymentWarning {
+  type: string;
+  requested: number;
+  applied: number;
+}
+
+// Owned by api.ts per contract C-7. Consumed by db.ts's applyPaymentResults; credit-sync will
+// construct these from the sync/payments response.
+export interface SyncPaymentResult {
+  client_payment_id: string;
+  status: 'synced' | 'duplicate' | 'failed';
+  applied_amount?: number | null;
+  warnings?: SyncPaymentWarning[] | null;
+  error?: string | null;
+}
+
 export async function fetchBootstrap(): Promise<SyncBootstrapResponse> {
   return apiFetch('/api/sync/bootstrap');
 }
