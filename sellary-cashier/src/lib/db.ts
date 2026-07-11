@@ -282,6 +282,8 @@ export interface NewSaleInput {
   notes: string | null;
   cashier_user_id: number | null;
   cashier_username: string | null;
+  customer_client_id?: string | null;      // set for credit sales (references customers.client_customer_id)
+  initial_payment_method?: string | null;  // 'cash'|'card'|'mobile' when the initial payment > 0
   created_at_client: string;   // ISO
   items: NewSaleItemInput[];
 }
@@ -303,6 +305,8 @@ export interface LocalSale {
   notes: string | null;
   cashier_user_id: number | null;
   cashier_username: string | null;
+  customer_client_id: string | null;
+  initial_payment_method: string | null;
   sync_status: SyncStatus;
   error_kind: ErrorKind | null;
   next_attempt_at: string | null;
@@ -367,6 +371,8 @@ interface RawSaleRow {
   notes: string | null;
   cashier_user_id: number | null;
   cashier_username: string | null;
+  customer_client_id: string | null;
+  initial_payment_method: string | null;
   sync_status: SyncStatus;
   error_kind: ErrorKind | null;
   next_attempt_at: string | null;
@@ -427,14 +433,16 @@ async function insertSaleRaw(
         discount_amount, tax_amount, total_amount, paid_amount, change_amount,
         payment_method, card_type, notes, cashier_user_id, cashier_username,
         sync_status, error_kind, next_attempt_at, first_failed_at, last_error,
-        retry_count, stock_applied, created_at_client, synced_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
+        retry_count, stock_applied, created_at_client, synced_at,
+        customer_client_id, initial_payment_method)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
     [nextId, raw.client_sale_id, raw.idempotency_key, nextReceipt, raw.server_sale_id,
      raw.subtotal, raw.discount_amount, raw.tax_amount, raw.total_amount, raw.paid_amount,
      raw.change_amount, raw.payment_method, raw.card_type, raw.notes, raw.cashier_user_id,
      raw.cashier_username, raw.sync_status, raw.error_kind, raw.next_attempt_at,
      raw.first_failed_at, raw.last_error, raw.retry_count, stockApplied,
-     raw.created_at_client, raw.synced_at]
+     raw.created_at_client, raw.synced_at,
+     raw.customer_client_id, raw.initial_payment_method]
   );
 
   if (decrementNow && stockApplied === 0) {
@@ -459,6 +467,8 @@ export async function insertSale(input: NewSaleInput): Promise<{ saleId: number;
     notes: input.notes,
     cashier_user_id: input.cashier_user_id,
     cashier_username: input.cashier_username,
+    customer_client_id: input.customer_client_id ?? null,
+    initial_payment_method: input.initial_payment_method ?? null,
     sync_status: 'pending',
     error_kind: null,
     next_attempt_at: null,
@@ -920,6 +930,8 @@ export async function migrateOutboxToSalesOnce(): Promise<void> {
         notes: payload.notes ?? null,
         cashier_user_id: null,
         cashier_username: null,
+        customer_client_id: null,
+        initial_payment_method: null,
         sync_status: syncStatus,
         error_kind: errorKind,
         next_attempt_at: null,
