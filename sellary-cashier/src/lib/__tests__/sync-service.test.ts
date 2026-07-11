@@ -1,209 +1,133 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const {
-  mockGetPendingSales,
-  mockUpdateOutboxStatus,
-  mockAddSyncEvent,
-  mockRecoverSyncingSales,
-  mockMarkOutboxSalesFailed,
   mockPushSales,
-  mockCheckHealth,
+  mockFetchBootstrap,
+  mockUpsertProducts,
+  mockUpsertCategories,
+  mockSetMeta,
 } = vi.hoisted(() => ({
-  mockGetPendingSales: vi.fn(),
-  mockUpdateOutboxStatus: vi.fn(),
-  mockAddSyncEvent: vi.fn(),
-  mockRecoverSyncingSales: vi.fn(),
-  mockMarkOutboxSalesFailed: vi.fn(),
   mockPushSales: vi.fn(),
-  mockCheckHealth: vi.fn(),
-}));
-
-vi.mock('../db', () => ({
-  getPendingSales: mockGetPendingSales,
-  updateOutboxStatus: mockUpdateOutboxStatus,
-  addSyncEvent: mockAddSyncEvent,
-  recoverSyncingOutboxSales: mockRecoverSyncingSales,
-  markOutboxSalesFailed: mockMarkOutboxSalesFailed,
+  mockFetchBootstrap: vi.fn(),
+  mockUpsertProducts: vi.fn(),
+  mockUpsertCategories: vi.fn(),
+  mockSetMeta: vi.fn(),
 }));
 
 vi.mock('../api', () => ({
   pushSales: mockPushSales,
-  checkHealth: mockCheckHealth,
+  fetchBootstrap: mockFetchBootstrap,
 }));
 
-import { syncPendingSales } from '../sync-service';
+// Per contract §4.1, sync-service does NOT import getUnsyncedBaseQtyByProduct —
+// upsertProducts (data-model) is the sole stock subtractor. pullCatalog only forwards raw products.
+vi.mock('../db', () => ({
+  upsertProducts: mockUpsertProducts,
+  upsertCategories: mockUpsertCategories,
+  setMeta: mockSetMeta,
+}));
 
-function makeOutboxSale(overrides: Partial<{
-  id: number;
-  client_sale_id: string;
-  status: string;
-}> = {}) {
+import { pushOnce, pullCatalog } from '../sync-service';
+
+function makeSale(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    id: overrides.id ?? 1,
-    client_sale_id: overrides.client_sale_id ?? 'sale-1',
+    id: 1,
+    client_sale_id: 'sale-1',
     idempotency_key: 'idem-1',
-    status: overrides.status ?? 'pending',
-    request_json: JSON.stringify({
-      client_sale_id: overrides.client_sale_id ?? 'sale-1',
-      idempotency_key: 'idem-1',
-      created_at_client: '2025-01-01T00:00:00.000Z',
-      payment_method: 'cash',
-      card_type: null,
-      discount_amount: 0,
-      paid_amount: 100,
-      change_amount: 0,
-      notes: null,
-      items: [],
-    }),
-    response_json: null,
-    last_error: null,
-    created_at_client: '2025-01-01T00:00:00.000Z',
-    synced_at: null,
+    created_at_client: '2026-07-10T00:00:00.000Z',
+    payment_method: 'cash',
+    card_type: null,
+    discount_amount: 0,
+    paid_amount: 100,
+    change_amount: 0,
+    notes: null,
     retry_count: 0,
+    items: [{ product_id: 7, quantity: 3, unit_price: 50 }],
+    ...overrides,
+  } as never;
+}
+
+function makeServerProduct(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 7,
+    barcode: null,
+    name: 'Cola',
+    uom: 'pcs',
+    category_id: null,
+    sell_price: 50,
+    tax_percent: 0,
+    stock_quantity: 100,
+    is_active: true,
+    updated_at: '2026-07-10T00:00:00.000Z',
+    ...overrides,
   };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockMarkOutboxSalesFailed.mockResolvedValue(undefined);
-  mockRecoverSyncingSales.mockResolvedValue(0);
-  mockAddSyncEvent.mockResolvedValue(undefined);
-  mockUpdateOutboxStatus.mockResolvedValue(undefined);
+  mockUpsertProducts.mockResolvedValue(undefined);
+  mockUpsertCategories.mockResolvedValue(undefined);
+  mockSetMeta.mockResolvedValue(undefined);
 });
 
-describe('syncPendingSales', () => {
-  it('skips when server is unreachable', async () => {
-    mockCheckHealth.mockResolvedValue(false);
-
-    const result = await syncPendingSales();
-
-    expect(result).toEqual({ synced: 0, failed: 0 });
-    expect(mockCheckHealth).toHaveBeenCalled();
-    expect(mockRecoverSyncingSales).not.toHaveBeenCalled();
-    expect(mockGetPendingSales).not.toHaveBeenCalled();
-    expect(mockAddSyncEvent).toHaveBeenCalledWith('sync', 'skipped', 'server unreachable');
-  });
-
-  it('recovers interrupted syncing sales before reading pending sales', async () => {
-    mockCheckHealth.mockResolvedValue(true);
-    mockRecoverSyncingSales.mockResolvedValue(0);
-    mockGetPendingSales.mockResolvedValue([]);
-
-    await syncPendingSales();
-
-    expect(mockRecoverSyncingSales).toHaveBeenCalled();
-    expect(mockGetPendingSales).toHaveBeenCalled();
-    expect(mockAddSyncEvent).toHaveBeenCalledWith('sync', 'skipped', 'no sendable pending sales');
-  });
-
-  it('skips when there are no sendable pending sales', async () => {
-    mockCheckHealth.mockResolvedValue(true);
-    mockRecoverSyncingSales.mockResolvedValue(0);
-    mockGetPendingSales.mockResolvedValue([]);
-
-    const result = await syncPendingSales();
-
-    expect(result).toEqual({ synced: 0, failed: 0 });
-    expect(mockAddSyncEvent).toHaveBeenCalledWith('sync', 'skipped', 'no sendable pending sales');
-  });
-
-  it('marks sendable sales as syncing before push', async () => {
-    const sale = makeOutboxSale({ id: 1, status: 'pending' });
-    mockCheckHealth.mockResolvedValue(true);
-    mockRecoverSyncingSales.mockResolvedValue(0);
-    mockGetPendingSales.mockResolvedValue([sale]);
-    mockPushSales.mockResolvedValue({ results: [{ client_sale_id: 'sale-1', status: 'synced', sale_id: 100, warnings: null, error: null }] });
-
-    await syncPendingSales();
-
-    expect(mockUpdateOutboxStatus).toHaveBeenCalledWith(1, 'syncing');
-  });
-
-  it('does not mark synced-status sales as syncing', async () => {
-    const synced = makeOutboxSale({ id: 1, status: 'synced', client_sale_id: 'done' });
-    const pending = makeOutboxSale({ id: 2, status: 'pending', client_sale_id: 'new' });
-    mockCheckHealth.mockResolvedValue(true);
-    mockRecoverSyncingSales.mockResolvedValue(0);
-    mockGetPendingSales.mockResolvedValue([synced, pending]);
-    mockPushSales.mockResolvedValue({ results: [{ client_sale_id: 'new', status: 'synced', sale_id: 100, warnings: null, error: null }] });
-
-    await syncPendingSales();
-
-    expect(mockUpdateOutboxStatus).toHaveBeenCalledTimes(2);
-    expect(mockUpdateOutboxStatus).toHaveBeenCalledWith(2, 'syncing');
-    expect(mockUpdateOutboxStatus).toHaveBeenCalledWith(2, 'synced', expect.any(String));
-  });
-
-  it('reports synced count for synced and duplicate results', async () => {
-    const sale1 = makeOutboxSale({ id: 1, client_sale_id: 'sale-1', status: 'pending' });
-    const sale2 = makeOutboxSale({ id: 2, client_sale_id: 'sale-2', status: 'failed' });
-    mockCheckHealth.mockResolvedValue(true);
-    mockRecoverSyncingSales.mockResolvedValue(0);
-    mockGetPendingSales.mockResolvedValue([sale1, sale2]);
+describe('pushOnce', () => {
+  it('maps SaleWithItems to the SyncSale payload (unit_price -> sell_price, base quantity)', async () => {
     mockPushSales.mockResolvedValue({
-      results: [
-        { client_sale_id: 'sale-1', status: 'synced', sale_id: 100, warnings: null, error: null },
-        { client_sale_id: 'sale-2', status: 'duplicate', sale_id: null, warnings: null, error: null },
-      ],
+      results: [{ client_sale_id: 'sale-1', status: 'synced', sale_id: 900, warnings: null, error: null }],
     });
 
-    const result = await syncPendingSales();
+    const results = await pushOnce([makeSale()]);
 
-    expect(result.synced).toBe(2);
-    expect(result.failed).toBe(0);
-    expect(mockUpdateOutboxStatus).toHaveBeenCalledWith(1, 'synced', expect.any(String));
-    expect(mockUpdateOutboxStatus).toHaveBeenCalledWith(2, 'synced', expect.any(String));
-  });
-
-  it('reports failed count for error results', async () => {
-    const sale = makeOutboxSale({ id: 1, client_sale_id: 'sale-1', status: 'pending' });
-    mockCheckHealth.mockResolvedValue(true);
-    mockRecoverSyncingSales.mockResolvedValue(0);
-    mockGetPendingSales.mockResolvedValue([sale]);
-    mockPushSales.mockResolvedValue({
-      results: [
-        { client_sale_id: 'sale-1', status: 'failed', sale_id: null, warnings: null, error: 'Server error' },
-      ],
-    });
-
-    const result = await syncPendingSales();
-
-    expect(result.synced).toBe(0);
-    expect(result.failed).toBe(1);
-    expect(mockUpdateOutboxStatus).toHaveBeenCalledWith(1, 'failed', undefined, 'Server error');
-  });
-
-  it('marks sendable rows failed when pushSales throws', async () => {
-    const sale1 = makeOutboxSale({ id: 1, client_sale_id: 'sale-1', status: 'pending' });
-    const sale2 = makeOutboxSale({ id: 2, client_sale_id: 'sale-2', status: 'failed' });
-    mockCheckHealth.mockResolvedValue(true);
-    mockRecoverSyncingSales.mockResolvedValue(0);
-    mockGetPendingSales.mockResolvedValue([sale1, sale2]);
-    mockPushSales.mockRejectedValue(new Error('Network failure'));
-
-    const result = await syncPendingSales();
-
-    expect(mockMarkOutboxSalesFailed).toHaveBeenCalledWith([1, 2], 'Network failure');
-    expect(result.synced).toBe(0);
-    expect(result.failed).toBe(2);
-  });
-
-  it('prevents concurrent sync operations', async () => {
-    const sale = makeOutboxSale();
-    mockCheckHealth.mockResolvedValue(true);
-    mockRecoverSyncingSales.mockResolvedValue(0);
-    mockGetPendingSales.mockResolvedValue([sale]);
-    mockPushSales.mockImplementation(
-      () => new Promise((r) => setTimeout(() => r({ results: [{ client_sale_id: 'sale-1', status: 'synced', sale_id: 100, warnings: null, error: null }] }), 50))
-    );
-
-    const [first, second] = await Promise.all([
-      syncPendingSales(),
-      syncPendingSales(),
-    ]);
-
-    expect(second).toEqual({ synced: 0, failed: 0 });
-    expect(first).toEqual({ synced: 1, failed: 0 });
     expect(mockPushSales).toHaveBeenCalledTimes(1);
+    const payload = mockPushSales.mock.calls[0][0];
+    expect(payload).toEqual([
+      {
+        client_sale_id: 'sale-1',
+        idempotency_key: 'idem-1',
+        created_at_client: '2026-07-10T00:00:00.000Z',
+        payment_method: 'cash',
+        card_type: null,
+        discount_amount: 0,
+        paid_amount: 100,
+        change_amount: 0,
+        notes: null,
+        items: [{ product_id: 7, quantity: 3, sell_price: 50 }],
+      },
+    ]);
+    expect(results).toHaveLength(1);
+    expect(results[0].status).toBe('synced');
+  });
+});
+
+describe('pullCatalog raw pass-through (contract §4.1: upsertProducts is the sole subtractor)', () => {
+  it('forwards the RAW server products to upsertProducts without pre-subtracting unsynced qty', async () => {
+    mockFetchBootstrap.mockResolvedValue({
+      server_time: '2026-07-10T01:00:00.000Z',
+      products: [makeServerProduct({ id: 7, stock_quantity: 100 })],
+      categories: [{ id: 1, name: 'Drinks', is_active: true, updated_at: null }],
+    });
+
+    const res = await pullCatalog();
+
+    expect(mockUpsertCategories).toHaveBeenCalledTimes(1);
+    const upserted = mockUpsertProducts.mock.calls[0][0];
+    // Raw server stock — subtraction happens exactly once, inside upsertProducts.
+    expect(upserted[0].stock_quantity).toBe(100);
+    expect(mockSetMeta).toHaveBeenCalledWith('last_catalog_pull_at', '2026-07-10T01:00:00.000Z');
+    expect(res).toEqual({ products: 1, categories: 1 });
+  });
+
+  it('passes bootstrap.products through by reference/value, unmodified across repeated pulls', async () => {
+    mockFetchBootstrap.mockResolvedValue({
+      server_time: '2026-07-10T01:00:00.000Z',
+      products: [makeServerProduct({ id: 7, stock_quantity: 100 })],
+      categories: [],
+    });
+
+    await pullCatalog();
+    await pullCatalog();
+
+    expect(mockUpsertProducts.mock.calls[0][0][0].stock_quantity).toBe(100);
+    expect(mockUpsertProducts.mock.calls[1][0][0].stock_quantity).toBe(100);
   });
 });
