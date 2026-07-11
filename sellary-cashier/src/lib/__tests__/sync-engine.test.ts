@@ -17,6 +17,22 @@ const {
   mockAddSyncEvent,
   mockToast,
   mockToastSuccess,
+  mockPushCustomersOnce,
+  mockPushPaymentsOnce,
+  mockGetSendableCustomers,
+  mockMarkCustomerSyncing,
+  mockApplyCustomerIdMap,
+  mockMarkCustomerPermanentFailure,
+  mockMarkCustomerTransientFailure,
+  mockRecoverSyncingCustomers,
+  mockGetSendablePayments,
+  mockMarkPaymentSyncing,
+  mockApplyPaymentResults,
+  mockMarkPaymentPermanentFailure,
+  mockMarkPaymentTransientFailure,
+  mockRecoverSyncingPayments,
+  mockGetUnsyncedCreditCount,
+  mockGetNeedsAttentionCreditCount,
 } = vi.hoisted(() => ({
   mockCheckHealth: vi.fn(),
   mockPushOnce: vi.fn(),
@@ -34,10 +50,31 @@ const {
   mockAddSyncEvent: vi.fn(),
   mockToast: vi.fn(),
   mockToastSuccess: vi.fn(),
+  mockPushCustomersOnce: vi.fn(),
+  mockPushPaymentsOnce: vi.fn(),
+  mockGetSendableCustomers: vi.fn(),
+  mockMarkCustomerSyncing: vi.fn(),
+  mockApplyCustomerIdMap: vi.fn(),
+  mockMarkCustomerPermanentFailure: vi.fn(),
+  mockMarkCustomerTransientFailure: vi.fn(),
+  mockRecoverSyncingCustomers: vi.fn(),
+  mockGetSendablePayments: vi.fn(),
+  mockMarkPaymentSyncing: vi.fn(),
+  mockApplyPaymentResults: vi.fn(),
+  mockMarkPaymentPermanentFailure: vi.fn(),
+  mockMarkPaymentTransientFailure: vi.fn(),
+  mockRecoverSyncingPayments: vi.fn(),
+  mockGetUnsyncedCreditCount: vi.fn(),
+  mockGetNeedsAttentionCreditCount: vi.fn(),
 }));
 
 vi.mock('../api', () => ({ checkHealth: mockCheckHealth }));
-vi.mock('../sync-service', () => ({ pushOnce: mockPushOnce, pullCatalog: mockPullCatalog }));
+vi.mock('../sync-service', () => ({
+  pushOnce: mockPushOnce,
+  pullCatalog: mockPullCatalog,
+  pushCustomersOnce: mockPushCustomersOnce,
+  pushPaymentsOnce: mockPushPaymentsOnce,
+}));
 vi.mock('react-hot-toast', () => ({
   __esModule: true,
   default: Object.assign(mockToast, { success: mockToastSuccess }),
@@ -55,6 +92,20 @@ vi.mock('../db', () => ({
   getMeta: mockGetMeta,
   setMeta: mockSetMeta,
   addSyncEvent: mockAddSyncEvent,
+  getSendableCustomers: mockGetSendableCustomers,
+  markCustomerSyncing: mockMarkCustomerSyncing,
+  applyCustomerIdMap: mockApplyCustomerIdMap,
+  markCustomerPermanentFailure: mockMarkCustomerPermanentFailure,
+  markCustomerTransientFailure: mockMarkCustomerTransientFailure,
+  recoverSyncingCustomers: mockRecoverSyncingCustomers,
+  getSendablePayments: mockGetSendablePayments,
+  markPaymentSyncing: mockMarkPaymentSyncing,
+  applyPaymentResults: mockApplyPaymentResults,
+  markPaymentPermanentFailure: mockMarkPaymentPermanentFailure,
+  markPaymentTransientFailure: mockMarkPaymentTransientFailure,
+  recoverSyncingPayments: mockRecoverSyncingPayments,
+  getUnsyncedCreditCount: mockGetUnsyncedCreditCount,
+  getNeedsAttentionCreditCount: mockGetNeedsAttentionCreditCount,
 }));
 
 import {
@@ -85,6 +136,31 @@ function makeSale(id: number, clientId: string, retry = 0) {
   } as never;
 }
 
+function makeCustomer(clientId: string, retry = 0) {
+  return {
+    client_customer_id: clientId,
+    server_id: null,
+    name: 'Иван',
+    phone: '+998901234567',
+    email: null,
+    address: null,
+    description: null,
+    retry_count: retry,
+  } as never;
+}
+
+function makePayment(clientId: string, retry = 0) {
+  return {
+    client_payment_id: clientId,
+    idempotency_key: `idem-${clientId}`,
+    customer_client_id: 'c1',
+    amount: 50,
+    payment_method: 'cash',
+    description: null,
+    retry_count: retry,
+  } as never;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   __resetEngineForTests();
@@ -102,6 +178,22 @@ beforeEach(() => {
   mockMarkSaleSynced.mockResolvedValue(undefined);
   mockMarkTransientFailure.mockResolvedValue(undefined);
   mockMarkPermanentFailure.mockResolvedValue(undefined);
+  mockPushCustomersOnce.mockResolvedValue([]);
+  mockPushPaymentsOnce.mockResolvedValue([]);
+  mockGetSendableCustomers.mockResolvedValue([]);
+  mockMarkCustomerSyncing.mockResolvedValue(undefined);
+  mockApplyCustomerIdMap.mockResolvedValue(undefined);
+  mockMarkCustomerPermanentFailure.mockResolvedValue(undefined);
+  mockMarkCustomerTransientFailure.mockResolvedValue(undefined);
+  mockRecoverSyncingCustomers.mockResolvedValue(0);
+  mockGetSendablePayments.mockResolvedValue([]);
+  mockMarkPaymentSyncing.mockResolvedValue(undefined);
+  mockApplyPaymentResults.mockResolvedValue(undefined);
+  mockMarkPaymentPermanentFailure.mockResolvedValue(undefined);
+  mockMarkPaymentTransientFailure.mockResolvedValue(undefined);
+  mockRecoverSyncingPayments.mockResolvedValue(0);
+  mockGetUnsyncedCreditCount.mockResolvedValue(0);
+  mockGetNeedsAttentionCreditCount.mockResolvedValue(0);
 });
 
 afterEach(() => {
@@ -395,5 +487,121 @@ describe('backoffMs', () => {
   it('caps at 5 minutes (plus jitter headroom) and never goes negative', () => {
     expect(backoffMs(20, () => 1)).toBeLessThanOrEqual(5 * 60_000 * 1.2);
     expect(backoffMs(20, () => 0)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('ordered credit pass', () => {
+  it('pushes customers before sales and payments, applying the id-map before the sales push', async () => {
+    mockGetSendableCustomers.mockResolvedValue([makeCustomer('c1')]);
+    mockPushCustomersOnce.mockResolvedValue([{ client_customer_id: 'c1', status: 'synced', server_id: 55 }]);
+    mockGetSendableSales.mockResolvedValue([makeSale(1, 'a')]);
+    mockPushOnce.mockResolvedValue([{ client_sale_id: 'a', status: 'synced', sale_id: 900, warnings: null, error: null }]);
+    mockGetSendablePayments.mockResolvedValue([makePayment('p1')]);
+    mockPushPaymentsOnce.mockResolvedValue([{ client_payment_id: 'p1', status: 'synced', applied_amount: 50, warnings: null, error: null }]);
+
+    const res = await requestSync('manual');
+
+    // Ordering: customers -> sales -> payments (global invocation order).
+    const custOrder = mockPushCustomersOnce.mock.invocationCallOrder[0];
+    const salesOrder = mockPushOnce.mock.invocationCallOrder[0];
+    const payOrder = mockPushPaymentsOnce.mock.invocationCallOrder[0];
+    expect(custOrder).toBeLessThan(salesOrder);
+    expect(salesOrder).toBeLessThan(payOrder);
+
+    // Id-map applied before the sales push, so credit sales resolve server_id in the same pass.
+    expect(mockApplyCustomerIdMap).toHaveBeenCalledWith([{ client_customer_id: 'c1', status: 'synced', server_id: 55 }]);
+    expect(mockApplyCustomerIdMap.mock.invocationCallOrder[0]).toBeLessThan(salesOrder);
+    expect(mockApplyPaymentResults).toHaveBeenCalledWith([{ client_payment_id: 'p1', status: 'synced', applied_amount: 50, warnings: null, error: null }]);
+    expect(res.synced).toBe(3);
+  });
+
+  it('surfaces payment overpayment warnings as an amber toast and adds them to lastWarningCount', async () => {
+    mockGetSendablePayments.mockResolvedValue([makePayment('p1')]);
+    mockPushPaymentsOnce.mockResolvedValue([
+      { client_payment_id: 'p1', status: 'synced', applied_amount: 30, warnings: [{ type: 'overpayment', requested: 50, applied: 30 }], error: null },
+    ]);
+
+    await requestSync('manual');
+
+    expect(mockApplyPaymentResults).toHaveBeenCalledTimes(1);
+    expect(useSyncStore.getState().lastWarningCount).toBe(1);
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.stringContaining('Оплата превышает долг'),
+      expect.objectContaining({ icon: '⚠️' }),
+    );
+  });
+
+  it('marks a failed (business-error) customer/payment result permanent — apply* is not the marker (contract §C-6)', async () => {
+    mockGetSendableCustomers.mockResolvedValue([makeCustomer('c1')]);
+    mockPushCustomersOnce.mockResolvedValue([
+      { client_customer_id: 'c1', status: 'failed', server_id: null, error: 'duplicate phone' },
+    ]);
+    mockGetSendablePayments.mockResolvedValue([makePayment('p1')]);
+    mockPushPaymentsOnce.mockResolvedValue([
+      { client_payment_id: 'p1', status: 'failed', applied_amount: null, warnings: null, error: 'customer not found' },
+    ]);
+
+    const res = await requestSync('manual');
+
+    // The engine — not applyCustomerIdMap/applyPaymentResults — marks the failed rows permanent.
+    expect(mockMarkCustomerPermanentFailure).toHaveBeenCalledWith('c1', 'duplicate phone');
+    expect(mockMarkPaymentPermanentFailure).toHaveBeenCalledWith('p1', 'customer not found');
+    // apply* still runs (it internally ignores the failed rows), but does no failed marking itself.
+    expect(mockApplyCustomerIdMap).toHaveBeenCalledTimes(1);
+    expect(mockApplyPaymentResults).toHaveBeenCalledTimes(1);
+    expect(res.permanentFailed).toBe(2);
+    expect(res.transientFailed).toBe(0);
+  });
+
+  it('classifies a customer-queue transport throw as transient and skips the sales + payment pushes', async () => {
+    mockGetSendableCustomers.mockResolvedValue([makeCustomer('c1', 0)]);
+    mockPushCustomersOnce.mockRejectedValue(new Error('Network failure'));
+
+    const res = await requestSync('manual');
+
+    expect(mockMarkCustomerTransientFailure).toHaveBeenCalledTimes(1);
+    const [ids, nextAttemptAt, error] = mockMarkCustomerTransientFailure.mock.calls[0];
+    expect(ids).toEqual(['c1']);
+    expect(new Date(nextAttemptAt).getTime()).toBeGreaterThan(Date.now());
+    expect(error).toBe('Network failure');
+    expect(mockPushOnce).not.toHaveBeenCalled();
+    expect(mockPushPaymentsOnce).not.toHaveBeenCalled();
+    expect(res.transientFailed).toBe(1);
+    expect(useSyncStore.getState().engineState).toBe('backing_off');
+    expect(useSyncStore.getState().lastError).toBe('Network failure');
+  });
+
+  it('classifies a payment-queue transport throw as transient with a backoff schedule', async () => {
+    mockGetSendablePayments.mockResolvedValue([makePayment('p1', 2)]);
+    mockPushPaymentsOnce.mockRejectedValue(new Error('Boom'));
+
+    const res = await requestSync('manual');
+
+    expect(mockMarkPaymentTransientFailure).toHaveBeenCalledTimes(1);
+    const [ids, nextAttemptAt, error] = mockMarkPaymentTransientFailure.mock.calls[0];
+    expect(ids).toEqual(['p1']);
+    expect(new Date(nextAttemptAt).getTime()).toBeGreaterThan(Date.now());
+    expect(error).toBe('Boom');
+    expect(res.transientFailed).toBe(1);
+    expect(useSyncStore.getState().engineState).toBe('backing_off');
+  });
+
+  it('force:true requests sendable customers and payments including permanent-failed rows', async () => {
+    await requestSync('manual', { force: true });
+
+    expect(mockGetSendableCustomers).toHaveBeenCalledWith(expect.any(String), { includePermanent: true });
+    expect(mockGetSendablePayments).toHaveBeenCalledWith(expect.any(String), { includePermanent: true });
+  });
+
+  it('unsyncedCount and needsAttentionCount aggregate sales + customers + payments', async () => {
+    mockGetUnsyncedCount.mockResolvedValue(3);
+    mockGetNeedsAttentionCount.mockResolvedValue(1);
+    mockGetUnsyncedCreditCount.mockResolvedValue(4);
+    mockGetNeedsAttentionCreditCount.mockResolvedValue(2);
+
+    await requestSync('manual');
+
+    expect(useSyncStore.getState().unsyncedCount).toBe(7);
+    expect(useSyncStore.getState().needsAttentionCount).toBe(3);
   });
 });
