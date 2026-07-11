@@ -1,5 +1,5 @@
 import { checkHealth } from './api';
-import { pushOnce, pullCatalog } from './sync-service';
+import { pushOnce, pullCatalog, pushCustomersOnce, pushPaymentsOnce } from './sync-service';
 import {
   getSendableSales,
   markSaleSyncing,
@@ -12,7 +12,23 @@ import {
   getMeta,
   setMeta,
   addSyncEvent,
+  getSendableCustomers,
+  markCustomerSyncing,
+  applyCustomerIdMap,
+  markCustomerPermanentFailure,
+  markCustomerTransientFailure,
+  recoverSyncingCustomers,
+  getSendablePayments,
+  markPaymentSyncing,
+  applyPaymentResults,
+  markPaymentPermanentFailure,
+  markPaymentTransientFailure,
+  recoverSyncingPayments,
+  getUnsyncedCreditCount,
+  getNeedsAttentionCreditCount,
 } from './db';
+import type { LocalCustomer, LocalCustomerPayment } from './db';
+import type { SyncCustomerResult, SyncPaymentResult } from './api';
 import { useSyncStore } from './sync-store';
 import { getErrorMessage } from './error';
 import { toast } from 'react-hot-toast';
@@ -66,13 +82,15 @@ async function healthPing(): Promise<boolean> {
 }
 
 async function refreshCounts(): Promise<void> {
-  const [unsynced, needsAttention] = await Promise.all([
+  const [salesUnsynced, salesAttention, creditUnsynced, creditAttention] = await Promise.all([
     getUnsyncedCount(),
     getNeedsAttentionCount(),
+    getUnsyncedCreditCount(),
+    getNeedsAttentionCreditCount(),
   ]);
   useSyncStore.getState().patch({
-    unsyncedCount: unsynced,
-    needsAttentionCount: needsAttention,
+    unsyncedCount: salesUnsynced + creditUnsynced,
+    needsAttentionCount: salesAttention + creditAttention,
   });
 }
 
@@ -85,6 +103,109 @@ export async function maybeRefreshCatalog(force = false): Promise<void> {
   useSyncStore.getState().patch({ catalogRefreshedAt: nowIso() });
   await addSyncEvent('catalog', 'completed', `products=${res.products} categories=${res.categories}`);
 }
+
+// --- generic credit-queue push (customers + payments share the reconcile/backoff shape) ---
+interface CreditQueueOutcome {
+  synced: number;
+  permanentFailed: number;
+  transientFailed: number;
+  warnings: number;
+  transportError: string | null;
+  maxRetry: number;
+}
+
+const EMPTY_QUEUE_OUTCOME: CreditQueueOutcome = {
+  synced: 0,
+  permanentFailed: 0,
+  transientFailed: 0,
+  warnings: 0,
+  transportError: null,
+  maxRetry: 0,
+};
+
+interface CreditQueueOps<TItem, TResult> {
+  getSendable: (nowIso: string, opts?: { includePermanent?: boolean }) => Promise<TItem[]>;
+  clientKey: (item: TItem) => string;
+  retryCount: (item: TItem) => number;
+  markSyncing: (clientKey: string) => Promise<void>;
+  push: (items: TItem[]) => Promise<TResult[]>;
+  apply: (results: TResult[]) => Promise<void>; // synced/duplicate ONLY (contract §C-6)
+  resultKey: (result: TResult) => string;
+  isSynced: (result: TResult) => boolean;
+  warningsOf: (result: TResult) => number;
+  errorOf: (result: TResult) => string;
+  markPermanent: (clientKey: string, error: string) => Promise<void>; // per failed business result
+  markTransient: (clientKeys: string[], nextAttemptAt: string, error: string) => Promise<void>;
+}
+
+// Mirrors the Phase-1 sales worker: mark syncing, push, then the ENGINE reconciles results —
+// apply() writes synced/duplicate rows; failed (business) results are marked permanent here;
+// a transport throw / non-2xx backs off the whole batch (contract §C-6). apply() never marks failed.
+async function runCreditQueue<TItem, TResult>(
+  ops: CreditQueueOps<TItem, TResult>,
+  now: string,
+  force: boolean,
+): Promise<CreditQueueOutcome> {
+  const sendable = await ops.getSendable(now, force ? { includePermanent: true } : undefined);
+  if (sendable.length === 0) return EMPTY_QUEUE_OUTCOME;
+  for (const item of sendable) {
+    await ops.markSyncing(ops.clientKey(item));
+  }
+  try {
+    const results = await ops.push(sendable);
+    await ops.apply(results); // synced/duplicate ONLY — engine owns failed marking below
+    let synced = 0;
+    let permanentFailed = 0;
+    let warnings = 0;
+    for (const r of results) {
+      warnings += ops.warningsOf(r);
+      if (ops.isSynced(r)) {
+        synced++;
+      } else {
+        await ops.markPermanent(ops.resultKey(r), ops.errorOf(r)); // status==='failed' business error
+        permanentFailed++;
+      }
+    }
+    return { synced, permanentFailed, transientFailed: 0, warnings, transportError: null, maxRetry: 0 };
+  } catch (e) {
+    const transportError = getErrorMessage(e, 'Sync error');
+    const keys = sendable.map(ops.clientKey);
+    const maxRetry = sendable.reduce((m, s) => Math.max(m, ops.retryCount(s)), 0);
+    const next = new Date(Date.now() + backoffMs(maxRetry)).toISOString();
+    await ops.markTransient(keys, next, transportError); // transport throw / non-2xx: backoff batch
+    return { synced: 0, permanentFailed: 0, transientFailed: keys.length, warnings: 0, transportError, maxRetry };
+  }
+}
+
+const customerOps: CreditQueueOps<LocalCustomer, SyncCustomerResult> = {
+  getSendable: getSendableCustomers,
+  clientKey: (c) => c.client_customer_id,
+  retryCount: (c) => c.retry_count ?? 0,
+  markSyncing: markCustomerSyncing,
+  push: pushCustomersOnce,
+  apply: applyCustomerIdMap, // synced/duplicate ONLY
+  resultKey: (r) => r.client_customer_id,
+  isSynced: (r) => r.status === 'synced' || r.status === 'duplicate',
+  warningsOf: () => 0, // customers carry no warnings
+  errorOf: (r) => r.error || 'Unknown error',
+  markPermanent: markCustomerPermanentFailure,
+  markTransient: markCustomerTransientFailure,
+};
+
+const paymentOps: CreditQueueOps<LocalCustomerPayment, SyncPaymentResult> = {
+  getSendable: getSendablePayments,
+  clientKey: (p) => p.client_payment_id,
+  retryCount: (p) => p.retry_count ?? 0,
+  markSyncing: markPaymentSyncing,
+  push: pushPaymentsOnce,
+  apply: applyPaymentResults, // synced/duplicate ONLY
+  resultKey: (r) => r.client_payment_id,
+  isSynced: (r) => r.status === 'synced' || r.status === 'duplicate',
+  warningsOf: (r) => r.warnings?.length ?? 0,
+  errorOf: (r) => r.error || 'Unknown error',
+  markPermanent: markPaymentPermanentFailure,
+  markTransient: markPaymentTransientFailure,
+};
 
 // --- single-flight + coalescing (Task 4 wires the public entry point) ---
 let inFlight: Promise<SyncPassResult> | null = null;
@@ -150,53 +271,83 @@ async function runPass(reason: SyncReason, force = false): Promise<SyncPassResul
     return { synced: 0, permanentFailed: 0, transientFailed: 0, skipped: true };
   }
 
-  await recoverSyncingSales(nowIso());
+  const now = nowIso();
+  await recoverSyncingSales(now);
+  await recoverSyncingCustomers(now);
+  await recoverSyncingPayments(now);
 
   let synced = 0;
   let permanentFailed = 0;
   let transientFailed = 0;
-  let warningCount = 0;
+  let oversellWarnings = 0;
+  let overpaymentWarnings = 0;
   let transportError: string | null = null;
+  let maxRetry = 0;
 
-  // force ⇒ also re-send permanent-failed rows (contract §4.2, the History "Повторить" path).
-  const sendable = await getSendableSales(nowIso(), force ? { includePermanent: true } : undefined);
-  if (sendable.length > 0) {
-    for (const s of sendable) {
-      await markSaleSyncing(s.id);
-    }
-    try {
-      const results = await pushOnce(sendable);
-      const idByClientId = new Map(sendable.map((s) => [s.client_sale_id, s.id]));
-      for (const r of results) {
-        const localId = idByClientId.get(r.client_sale_id);
-        if (localId == null) continue;
-        idByClientId.delete(r.client_sale_id);
-        warningCount += r.warnings?.length ?? 0; // oversell positions the server tolerated
-        if (r.status === 'synced' || r.status === 'duplicate') {
-          await markSaleSynced(localId, r.sale_id ?? null);
-          synced++;
-        } else {
-          await markPermanentFailure(localId, r.error || 'Unknown error');
-          permanentFailed++;
-        }
+  // 1) Customers first: applyCustomerIdMap fills customers.server_id so credit sales + payments
+  //    (which reference client_customer_id) resolve server-side in this same pass (spec §4).
+  const cust = await runCreditQueue(customerOps, now, force);
+  synced += cust.synced;
+  permanentFailed += cust.permanentFailed;
+  transientFailed += cust.transientFailed;
+  if (cust.transportError) {
+    transportError = cust.transportError;
+    maxRetry = Math.max(maxRetry, cust.maxRetry);
+  }
+
+  // 2) Sales (cash/card/mobile + credit). Skipped only when the customer push transport-failed:
+  //    the network is down and credit sales could not resolve their customer yet.
+  if (!transportError) {
+    // force ⇒ also re-send permanent-failed rows (contract §4.2, the History "Повторить" path).
+    const sendable = await getSendableSales(now, force ? { includePermanent: true } : undefined);
+    if (sendable.length > 0) {
+      for (const s of sendable) {
+        await markSaleSyncing(s.id);
       }
-      // Any client_sale_id left in idByClientId had no result -> left 'syncing', cleaned next pass.
-    } catch (e) {
-      transportError = getErrorMessage(e, 'Sync error');
-      const ids = sendable.map((s) => s.id);
-      const maxRetry = sendable.reduce((m, s) => Math.max(m, s.retry_count ?? 0), 0);
-      const next = new Date(Date.now() + backoffMs(maxRetry)).toISOString();
-      await markTransientFailure(ids, next, transportError);
-      transientFailed = ids.length;
-      store.patch({
-        lastError: transportError,
-        nextRetryAt: next,
-        hasRepeatedFailures: maxRetry >= REPEATED_FAILURE_THRESHOLD, // spec §4.7 chip
-      });
+      try {
+        const results = await pushOnce(sendable);
+        const idByClientId = new Map(sendable.map((s) => [s.client_sale_id, s.id]));
+        for (const r of results) {
+          const localId = idByClientId.get(r.client_sale_id);
+          if (localId == null) continue;
+          idByClientId.delete(r.client_sale_id);
+          oversellWarnings += r.warnings?.length ?? 0; // oversell positions the server tolerated
+          if (r.status === 'synced' || r.status === 'duplicate') {
+            await markSaleSynced(localId, r.sale_id ?? null);
+            synced++;
+          } else {
+            await markPermanentFailure(localId, r.error || 'Unknown error');
+            permanentFailed++;
+          }
+        }
+        // Any client_sale_id left in idByClientId had no result -> left 'syncing', cleaned next pass.
+      } catch (e) {
+        transportError = getErrorMessage(e, 'Sync error');
+        const ids = sendable.map((s) => s.id);
+        const salesMaxRetry = sendable.reduce((m, s) => Math.max(m, s.retry_count ?? 0), 0);
+        const next = new Date(Date.now() + backoffMs(salesMaxRetry)).toISOString();
+        await markTransientFailure(ids, next, transportError);
+        transientFailed += ids.length;
+        maxRetry = Math.max(maxRetry, salesMaxRetry);
+      }
     }
   }
 
-  // Pull only if the push did not just raise a transport error (server stock now reflects synced sales).
+  // 3) Debt payments last: they also reference customers by client_customer_id, and the server
+  //    caps each to the current balance (overpayment warning surfaced below).
+  if (!transportError) {
+    const pay = await runCreditQueue(paymentOps, now, force);
+    synced += pay.synced;
+    permanentFailed += pay.permanentFailed;
+    transientFailed += pay.transientFailed;
+    overpaymentWarnings += pay.warnings;
+    if (pay.transportError) {
+      transportError = pay.transportError;
+      maxRetry = Math.max(maxRetry, pay.maxRetry);
+    }
+  }
+
+  // 4) Pull catalog + customers only if nothing transport-failed (server now reflects the pushes).
   if (!transportError) {
     try {
       await maybeRefreshCatalog();
@@ -206,13 +357,21 @@ async function runPass(reason: SyncReason, force = false): Promise<SyncPassResul
   }
 
   await refreshCounts();
+
+  const warningCount = oversellWarnings + overpaymentWarnings;
   store.patch({ lastWarningCount: warningCount });
 
-  // Spec §5.4 surfacing: oversell + mixed-batch outcomes get user-visible toasts.
-  if (warningCount > 0) {
-    toast(`Синхронизировано, перерасход: ${warningCount} позиций`, {
+  // Spec §5.4 surfacing: oversell (sales) + overpayment (payments) get user-visible amber toasts.
+  if (oversellWarnings > 0) {
+    toast(`Синхронизировано, перерасход: ${oversellWarnings} позиций`, {
       icon: '⚠️',
-      style: { background: '#f59e0b', color: '#111827' }, // amber
+      style: { background: '#f59e0b', color: '#111827' },
+    });
+  }
+  if (overpaymentWarnings > 0) {
+    toast(`Оплата превышает долг: ${overpaymentWarnings}`, {
+      icon: '⚠️',
+      style: { background: '#f59e0b', color: '#111827' },
     });
   }
   if (synced > 0 && permanentFailed > 0) {
@@ -224,6 +383,12 @@ async function runPass(reason: SyncReason, force = false): Promise<SyncPassResul
     await setMeta('last_sync_at', nowIso());
   }
   if (transientFailed > 0) {
+    const next = new Date(Date.now() + backoffMs(maxRetry)).toISOString();
+    store.patch({
+      lastError: transportError,
+      nextRetryAt: next,
+      hasRepeatedFailures: maxRetry >= REPEATED_FAILURE_THRESHOLD, // spec §4.7 chip
+    });
     store.setEngineState('backing_off');
     scheduleRetry();
   } else {

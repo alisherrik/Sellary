@@ -1,15 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-const { mockGetSaleWithItems, mockGetProductById, mockRequestSync } = vi.hoisted(() => ({
+const { mockGetSaleWithItems, mockGetProductById, mockGetCustomerByClientId, mockRequestSync } = vi.hoisted(() => ({
   mockGetSaleWithItems: vi.fn(),
   mockGetProductById: vi.fn(),
+  mockGetCustomerByClientId: vi.fn(),
   mockRequestSync: vi.fn(),
 }));
 
 vi.mock('../../../lib/db', () => ({
   getSaleWithItems: mockGetSaleWithItems,
   getProductById: mockGetProductById,
+  getCustomerByClientId: mockGetCustomerByClientId,
 }));
 vi.mock('../../../lib/sync-engine', () => ({ requestSync: mockRequestSync }));
 
@@ -60,5 +62,25 @@ describe('SaleDetailPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /Печать чека/ }));
     expect(printSpy).toHaveBeenCalled();
     expect(screen.getByText(/Возвраты и долги доступны в веб-версии/)).toBeInTheDocument();
+  });
+
+  it('shows a credit/debt summary with the customer name for a В долг sale', async () => {
+    mockGetSaleWithItems.mockResolvedValue(
+      saleWithDeletedProduct({
+        payment_method: 'credit',
+        customer_client_id: 'cust-1',
+        total_amount: 100,
+        paid_amount: 30,
+        sync_status: 'synced',
+        error_kind: null,
+        server_sale_id: 700,
+        synced_at: '2026-07-11T10:00:00.000Z',
+      }),
+    );
+    mockGetCustomerByClientId.mockResolvedValue({ name: 'Иван Должник' });
+    render(<SaleDetailPanel saleId={1} onClose={() => {}} />);
+    expect(await screen.findByText('Иван Должник')).toBeInTheDocument();
+    expect(screen.getByText('Продажа в долг')).toBeInTheDocument();
+    expect(screen.getByText('Осталось')).toBeInTheDocument();
   });
 });

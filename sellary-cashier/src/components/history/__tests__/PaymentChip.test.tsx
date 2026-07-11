@@ -15,4 +15,12 @@ describe('PaymentChip', () => {
     render(<PaymentChip method="mobile" />);
     expect(screen.getByText(/Мобильный/)).toBeInTheDocument();
   });
+  it('renders the credit (В долг) variant', () => {
+    render(<PaymentChip method="credit" />);
+    expect(screen.getByText(/В долг/)).toBeInTheDocument();
+  });
+  it('is case-insensitive for credit', () => {
+    render(<PaymentChip method="CREDIT" />);
+    expect(screen.getByText(/В долг/)).toBeInTheDocument();
+  });
 });

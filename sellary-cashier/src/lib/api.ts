@@ -186,6 +186,7 @@ export interface SyncBootstrapResponse {
     is_active: boolean;
     updated_at: string | null;
   }>;
+  customers: SyncBootstrapCustomer[];
 }
 
 export interface SyncSaleItem {
@@ -204,6 +205,8 @@ export interface SyncSale {
   paid_amount: number;
   change_amount: number;
   notes?: string | null;
+  client_customer_id?: string | null;
+  initial_payment_method?: string | null;
   items: SyncSaleItem[];
 }
 
@@ -228,8 +231,79 @@ export interface SyncSalesResponse {
   results: SyncSaleResult[];
 }
 
+export interface SyncCustomer {
+  client_customer_id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  description: string | null;
+}
+
+// Owned by api.ts per contract C-7 (mirrors SyncSaleResult). Consumed by db.ts's
+// applyCustomerIdMap; credit-sync will construct these from the sync/customers response.
+export interface SyncCustomerResult {
+  client_customer_id: string;
+  status: 'synced' | 'duplicate' | 'failed';
+  server_id?: number | null;
+  error?: string | null;
+}
+
+export interface SyncCustomersResponse {
+  results: SyncCustomerResult[];
+}
+
+export interface SyncPayment {
+  client_payment_id: string;
+  idempotency_key: string;
+  client_customer_id: string;
+  amount: number;
+  payment_method: string;
+  description: string | null;
+}
+
+// Owned by api.ts per contract C-7 (mirrors SyncWarning). Consumed by db.ts's
+// applyPaymentResults; credit-sync will construct these from the sync/payments response.
+export interface SyncPaymentWarning {
+  type: string;
+  requested: number;
+  applied: number;
+}
+
+// Owned by api.ts per contract C-7. Consumed by db.ts's applyPaymentResults; credit-sync will
+// construct these from the sync/payments response.
+export interface SyncPaymentResult {
+  client_payment_id: string;
+  status: 'synced' | 'duplicate' | 'failed';
+  applied_amount?: number | null;
+  warnings?: SyncPaymentWarning[] | null;
+  error?: string | null;
+}
+
+export interface SyncPaymentsResponse {
+  results: SyncPaymentResult[];
+}
+
+export interface SyncBootstrapCustomer {
+  id: number;
+  client_customer_id: string | null;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  description: string | null;
+  balance: number;
+  is_active: boolean;
+}
+
 export async function fetchBootstrap(): Promise<SyncBootstrapResponse> {
-  return apiFetch('/api/sync/bootstrap');
+  const res = await apiFetch<SyncBootstrapResponse>('/api/sync/bootstrap');
+  // Contract §C-8: customer balance arrives as a Decimal JSON string; coerce to number so
+  // reconcileCustomerBalances and read-time balance derivation work with real numbers.
+  return {
+    ...res,
+    customers: (res.customers ?? []).map((c) => ({ ...c, balance: Number(c.balance) })),
+  };
 }
 
 export async function pushSales(sales: SyncSale[]): Promise<SyncSalesResponse> {
@@ -237,6 +311,32 @@ export async function pushSales(sales: SyncSale[]): Promise<SyncSalesResponse> {
     method: 'POST',
     body: JSON.stringify({ sales }),
   });
+}
+
+export async function pushCustomers(customers: SyncCustomer[]): Promise<SyncCustomersResponse> {
+  return apiFetch('/api/sync/customers', {
+    method: 'POST',
+    body: JSON.stringify({ customers }),
+  });
+}
+
+export async function pushPayments(payments: SyncPayment[]): Promise<SyncPaymentsResponse> {
+  const res = await apiFetch<SyncPaymentsResponse>('/api/sync/payments', {
+    method: 'POST',
+    body: JSON.stringify({ payments }),
+  });
+  // Contract §C-8: backend serializes Decimal as JSON strings ("30.00"). Coerce the new numeric
+  // fields to real numbers so the engine / local-balance math never do string arithmetic.
+  return {
+    results: res.results.map((r) => ({
+      ...r,
+      applied_amount: r.applied_amount == null ? r.applied_amount : Number(r.applied_amount),
+      warnings:
+        r.warnings == null
+          ? r.warnings
+          : r.warnings.map((w) => ({ ...w, requested: Number(w.requested), applied: Number(w.applied) })),
+    })),
+  };
 }
 
 export interface DeviceRegisterResponse {

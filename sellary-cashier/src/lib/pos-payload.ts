@@ -1,5 +1,5 @@
 import type { NewSaleInput } from './db';
-import { calculateCashPayment, calculatePosPricing } from './posPricing';
+import { calculateCashPayment, calculateCreditInitialPayment, calculatePosPricing } from './posPricing';
 import type { CartLine } from './cart-store';
 
 export interface SaleIdentity {
@@ -7,8 +7,9 @@ export interface SaleIdentity {
   username: string | null;
 }
 
-export type CashierPaymentMethod = 'cash' | 'card' | 'mobile';
+export type CashierPaymentMethod = 'cash' | 'card' | 'mobile' | 'credit';
 export type CashierCardType = 'alif' | 'eskhata' | 'dc';
+export type CashierCreditPaymentMethod = 'cash' | 'card' | 'mobile';
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -24,7 +25,9 @@ export function newSaleIds(): { clientSaleId: string; idempotencyKey: string } {
  * Build the local NewSaleInput from the cart. Money mirrors the cart totals
  * (calculatePosPricing); sale_items carry base-unit snapshots so the receipt is
  * drift-proof and the sync payload stays base-unit (§7.5). payment_method /
- * card_type are canonical lowercase (§7.4).
+ * card_type are canonical lowercase (§7.4). For a credit ('В долг') sale the
+ * customer + initial payment ride along; the server recomputes the remaining
+ * debt authoritatively (spec §5.1).
  */
 export function buildNewSaleInput(params: {
   items: CartLine[];
@@ -35,9 +38,13 @@ export function buildNewSaleInput(params: {
   nowIso: string;
   clientSaleId: string;
   idempotencyKey: string;
+  customerClientId?: string | null;
+  creditPaidAmount?: string;
+  creditPaymentMethod?: CashierCreditPaymentMethod;
 }): NewSaleInput {
   const {
     items, paymentMethod, cardType, cashReceived, cashier, nowIso, clientSaleId, idempotencyKey,
+    customerClientId = null, creditPaidAmount = '', creditPaymentMethod = 'cash',
   } = params;
 
   const saleItems = items.map((line, index) => {
@@ -81,9 +88,25 @@ export function buildNewSaleInput(params: {
     overallDiscount: 0,
   });
 
+  const isCredit = paymentMethod === 'credit';
+  const credit = isCredit ? calculateCreditInitialPayment(creditPaidAmount, finalTotal) : null;
   const cash = calculateCashPayment(cashReceived, finalTotal);
-  const paidAmount = paymentMethod === 'cash' ? cash.received ?? finalTotal : finalTotal;
-  const changeAmount = paymentMethod === 'cash' ? cash.change : 0;
+
+  let paidAmount: number;
+  let changeAmount: number;
+  if (isCredit) {
+    paidAmount = credit!.amount;
+    changeAmount = 0;
+  } else if (paymentMethod === 'cash') {
+    paidAmount = cash.received ?? finalTotal;
+    changeAmount = cash.change;
+  } else {
+    paidAmount = finalTotal;
+    changeAmount = 0;
+  }
+
+  // Initial-payment method is only stored when money actually changed hands (spec §1).
+  const initialPaymentMethod = isCredit && credit!.amount > 0 ? creditPaymentMethod : null;
 
   return {
     client_sale_id: clientSaleId,
@@ -91,6 +114,8 @@ export function buildNewSaleInput(params: {
     created_at_client: nowIso,
     payment_method: paymentMethod,
     card_type: paymentMethod === 'card' ? cardType : null,
+    customer_client_id: isCredit ? customerClientId : null,
+    initial_payment_method: initialPaymentMethod,
     subtotal,
     discount_amount: discountAmount,
     tax_amount: taxAmount,

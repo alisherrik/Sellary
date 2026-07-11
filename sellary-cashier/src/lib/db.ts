@@ -1,4 +1,7 @@
 import Database from '@tauri-apps/plugin-sql';
+// Type-only import of the api-owned push-result type (contract C-7). SyncPaymentResult is added
+// to api.ts by Task 8 (out of scope here) — do not import it before it exists, or tsc breaks.
+import type { SyncCustomerResult, SyncPaymentResult } from './api';
 
 let db: Database | null = null;
 
@@ -282,6 +285,8 @@ export interface NewSaleInput {
   notes: string | null;
   cashier_user_id: number | null;
   cashier_username: string | null;
+  customer_client_id?: string | null;      // set for credit sales (references customers.client_customer_id)
+  initial_payment_method?: string | null;  // 'cash'|'card'|'mobile' when the initial payment > 0
   created_at_client: string;   // ISO
   items: NewSaleItemInput[];
 }
@@ -303,6 +308,8 @@ export interface LocalSale {
   notes: string | null;
   cashier_user_id: number | null;
   cashier_username: string | null;
+  customer_client_id: string | null;
+  initial_payment_method: string | null;
   sync_status: SyncStatus;
   error_kind: ErrorKind | null;
   next_attempt_at: string | null;
@@ -367,6 +374,8 @@ interface RawSaleRow {
   notes: string | null;
   cashier_user_id: number | null;
   cashier_username: string | null;
+  customer_client_id: string | null;
+  initial_payment_method: string | null;
   sync_status: SyncStatus;
   error_kind: ErrorKind | null;
   next_attempt_at: string | null;
@@ -427,14 +436,16 @@ async function insertSaleRaw(
         discount_amount, tax_amount, total_amount, paid_amount, change_amount,
         payment_method, card_type, notes, cashier_user_id, cashier_username,
         sync_status, error_kind, next_attempt_at, first_failed_at, last_error,
-        retry_count, stock_applied, created_at_client, synced_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
+        retry_count, stock_applied, created_at_client, synced_at,
+        customer_client_id, initial_payment_method)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
     [nextId, raw.client_sale_id, raw.idempotency_key, nextReceipt, raw.server_sale_id,
      raw.subtotal, raw.discount_amount, raw.tax_amount, raw.total_amount, raw.paid_amount,
      raw.change_amount, raw.payment_method, raw.card_type, raw.notes, raw.cashier_user_id,
      raw.cashier_username, raw.sync_status, raw.error_kind, raw.next_attempt_at,
      raw.first_failed_at, raw.last_error, raw.retry_count, stockApplied,
-     raw.created_at_client, raw.synced_at]
+     raw.created_at_client, raw.synced_at,
+     raw.customer_client_id, raw.initial_payment_method]
   );
 
   if (decrementNow && stockApplied === 0) {
@@ -459,6 +470,8 @@ export async function insertSale(input: NewSaleInput): Promise<{ saleId: number;
     notes: input.notes,
     cashier_user_id: input.cashier_user_id,
     cashier_username: input.cashier_username,
+    customer_client_id: input.customer_client_id ?? null,
+    initial_payment_method: input.initial_payment_method ?? null,
     sync_status: 'pending',
     error_kind: null,
     next_attempt_at: null,
@@ -920,6 +933,8 @@ export async function migrateOutboxToSalesOnce(): Promise<void> {
         notes: payload.notes ?? null,
         cashier_user_id: null,
         cashier_username: null,
+        customer_client_id: null,
+        initial_payment_method: null,
         sync_status: syncStatus,
         error_kind: errorKind,
         next_attempt_at: null,
@@ -944,4 +959,566 @@ export async function migrateOutboxToSalesOnce(): Promise<void> {
   // Recover the offline decrements the old sync-on-success code never applied (spec §2.8).
   await reconcileLocalState();
   await setMeta('outbox_migrated_v2', '1');
+}
+
+// ---------------------------------------------------------------------------
+// Offline customers + credit (migration 003) — spec §2, §5.4; contract C-1..C-3.
+// Debt balance is DERIVED on read (§2.4): never stored beyond the last server pull.
+// db.ts owns id/timestamp generation for local-origin rows (contract C-2/C-3).
+// ---------------------------------------------------------------------------
+
+// Caller supplies only user-entered fields; db.ts generates client_customer_id +
+// created_at_client and sets sync_status='pending' (contract C-2).
+export interface NewCustomerInput {
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  description?: string | null;
+}
+
+export interface LocalCustomer {
+  client_customer_id: string;
+  server_id: number | null;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  description: string | null;
+  balance: number;              // server-derived debt at last pull (NOT incl. local unsynced)
+  is_active: number;
+  sync_status: SyncStatus;
+  error_kind: ErrorKind | null;
+  next_attempt_at: string | null;
+  first_failed_at: string | null;
+  last_error: string | null;
+  retry_count: number;
+  created_at_client: string;
+  synced_at: string | null;
+  updated_at: string;
+}
+
+// Balance-bearing row returned by getCustomersWithLocalBalance (contract C-1). EXACT field set
+// consumed by every UI plan — do NOT rename or extend it. sync_status/error_kind are plain
+// strings here (widened) so consumers need not import SyncStatus/ErrorKind.
+export type CustomerWithBalance = {
+  client_customer_id: string;
+  server_id: number | null;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  description: string | null;
+  local_balance: number;        // balance + Σ unsynced credit remaining − Σ unsynced payments (§2.4)
+  is_active: number;
+  sync_status: string;
+  error_kind: string | null;
+};
+
+// Filter for getCustomers (the non-balance list). getCustomersWithLocalBalance is argument-less
+// (contract C-1): the UI searches/filters the returned array client-side.
+export interface CustomerFilter {
+  search?: string;              // matches name OR phone
+  limit?: number;
+  offset?: number;
+}
+
+export async function insertCustomer(input: NewCustomerInput): Promise<{ clientCustomerId: string }> {
+  const database = await getDb();
+  const clientCustomerId = crypto.randomUUID();          // db.ts owns the local identity (C-2)
+  const createdAtClient = new Date().toISOString();
+  await database.execute(
+    `INSERT INTO customers
+       (client_customer_id, server_id, name, phone, email, address, description,
+        balance, is_active, sync_status, retry_count, created_at_client)
+     VALUES ($1, NULL, $2, $3, $4, $5, $6, 0, 1, 'pending', 0, $7)`,
+    [clientCustomerId, input.name, input.phone ?? null, input.email ?? null,
+     input.address ?? null, input.description ?? null, createdAtClient]
+  );
+  return { clientCustomerId };
+}
+
+export async function getCustomerByClientId(clientCustomerId: string): Promise<LocalCustomer | null> {
+  const database = await getDb();
+  const rows = await database.select<LocalCustomer[]>(
+    'SELECT * FROM customers WHERE client_customer_id = $1',
+    [clientCustomerId]
+  );
+  return rows[0] || null;
+}
+
+export async function getCustomers(filter: CustomerFilter = {}): Promise<LocalCustomer[]> {
+  const database = await getDb();
+  const where: string[] = ['is_active = 1'];
+  const params: unknown[] = [];
+  if (filter.search) {
+    const q = `%${filter.search}%`;
+    params.push(q); const p1 = params.length;
+    params.push(q); const p2 = params.length;
+    where.push(`(name LIKE $${p1} OR phone LIKE $${p2})`);
+  }
+  const limit = filter.limit ?? 200;
+  const offset = filter.offset ?? 0;
+  params.push(limit); const lp = params.length;
+  params.push(offset); const op = params.length;
+  return database.select<LocalCustomer[]>(
+    `SELECT * FROM customers WHERE ${where.join(' AND ')}
+     ORDER BY name ASC LIMIT $${lp} OFFSET $${op}`,
+    params
+  );
+}
+
+// Caller supplies only user-entered fields; db.ts generates client_payment_id + idempotency_key +
+// created_at_client and sets sync_status='pending' (contract C-3).
+export interface NewPaymentInput {
+  customer_client_id: string;   // references customers.client_customer_id
+  amount: number;
+  payment_method: string;       // 'cash'|'card'|'mobile'
+  description?: string | null;
+}
+
+export interface LocalCustomerPayment {
+  client_payment_id: string;
+  idempotency_key: string;
+  customer_client_id: string;
+  amount: number;
+  payment_method: string;
+  description: string | null;
+  applied_amount: number | null;   // server-applied (may be < amount if capped-to-balance)
+  server_customer_id: number | null;
+  sync_status: SyncStatus;
+  error_kind: ErrorKind | null;
+  next_attempt_at: string | null;
+  first_failed_at: string | null;
+  last_error: string | null;
+  retry_count: number;
+  created_at_client: string;
+  synced_at: string | null;
+}
+
+// One ledger row for the customer-detail view (contract C-4). `amount` is SIGNED:
+// credit_sale = +remaining (total − initial paid), payment = −amount. receipt_no is the
+// credit sale's receipt (null for payments); applied_amount is the payment's server-capped
+// amount (null for sales, and null on a payment until it syncs / is capped).
+export interface LocalLedgerEntry {
+  ref_id: string;                    // client_sale_id or client_payment_id
+  kind: 'credit_sale' | 'payment';
+  amount: number;                    // SIGNED (see above)
+  description: string | null;
+  receipt_no: number | null;
+  applied_amount: number | null;
+  created_at_client: string;
+  sync_status: string;
+  error_kind: string | null;
+}
+
+export async function insertCustomerPayment(input: NewPaymentInput): Promise<{ clientPaymentId: string }> {
+  const database = await getDb();
+  const clientPaymentId = crypto.randomUUID();           // db.ts owns the local identity (C-3)
+  const idempotencyKey = crypto.randomUUID();
+  const createdAtClient = new Date().toISOString();
+  await database.execute(
+    `INSERT INTO customer_payments
+       (client_payment_id, idempotency_key, customer_client_id, amount,
+        payment_method, description, sync_status, retry_count, created_at_client)
+     VALUES ($1, $2, $3, $4, $5, $6, 'pending', 0, $7)`,
+    [clientPaymentId, idempotencyKey, input.customer_client_id,
+     input.amount, input.payment_method, input.description ?? null, createdAtClient]
+  );
+  return { clientPaymentId };
+}
+
+export async function getCustomerLedgerLocal(clientCustomerId: string): Promise<LocalLedgerEntry[]> {
+  const database = await getDb();
+  const sales = await database.select<{
+    client_sale_id: string; receipt_no: number | null; total_amount: number; paid_amount: number;
+    notes: string | null; sync_status: string; error_kind: string | null; created_at_client: string;
+  }[]>(
+    `SELECT client_sale_id, receipt_no, total_amount, paid_amount, notes,
+            sync_status, error_kind, created_at_client
+     FROM sales
+     WHERE customer_client_id = $1 AND payment_method = 'credit'`,
+    [clientCustomerId]
+  );
+  const pays = await database.select<{
+    client_payment_id: string; amount: number; description: string | null;
+    applied_amount: number | null; sync_status: string; error_kind: string | null;
+    created_at_client: string;
+  }[]>(
+    `SELECT client_payment_id, amount, description, applied_amount,
+            sync_status, error_kind, created_at_client
+     FROM customer_payments
+     WHERE customer_client_id = $1`,
+    [clientCustomerId]
+  );
+  const entries: LocalLedgerEntry[] = [];
+  for (const s of sales) {
+    entries.push({
+      ref_id: s.client_sale_id,
+      kind: 'credit_sale',
+      amount: s.total_amount - s.paid_amount,   // SIGNED: +remaining
+      description: s.notes,
+      receipt_no: s.receipt_no,
+      applied_amount: null,
+      created_at_client: s.created_at_client,
+      sync_status: s.sync_status,
+      error_kind: s.error_kind,
+    });
+  }
+  for (const p of pays) {
+    entries.push({
+      ref_id: p.client_payment_id,
+      kind: 'payment',
+      amount: -p.amount,                        // SIGNED: −amount
+      description: p.description,
+      receipt_no: null,
+      applied_amount: p.applied_amount,
+      created_at_client: p.created_at_client,
+      sync_status: p.sync_status,
+      error_kind: p.error_kind,
+    });
+  }
+  entries.sort((a, b) => (a.created_at_client < b.created_at_client ? 1 : -1));
+  return entries;
+}
+
+// Read-time debt derivation (§2.4). "Unsynced" = sync_status != 'synced' (pending/syncing/failed,
+// incl. permanent), mirroring the stock reconcile: server value + local-unsynced delta.
+const LOCAL_BALANCE_EXPR = `
+  c.balance
+  + COALESCE((SELECT SUM(s.total_amount - s.paid_amount) FROM sales s
+       WHERE s.customer_client_id = c.client_customer_id
+         AND s.payment_method = 'credit'
+         AND s.sync_status != 'synced'), 0)
+  - COALESCE((SELECT SUM(p.amount) FROM customer_payments p
+       WHERE p.customer_client_id = c.client_customer_id
+         AND p.sync_status != 'synced'), 0)`;
+
+export async function getCustomerLocalBalance(clientCustomerId: string): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ local_balance: number }[]>(
+    `SELECT (${LOCAL_BALANCE_EXPR}) AS local_balance
+     FROM customers c WHERE c.client_customer_id = $1`,
+    [clientCustomerId]
+  );
+  return rows[0]?.local_balance ?? 0;
+}
+
+// Argument-less (contract C-1): returns EVERY active customer with its derived local_balance,
+// ordered by name. The UI applies search + debt tabs (Все / Есть долг / Нет долга) client-side
+// over this array — no server-style filter/pagination params here.
+export async function getCustomersWithLocalBalance(): Promise<CustomerWithBalance[]> {
+  const database = await getDb();
+  return database.select<CustomerWithBalance[]>(
+    `SELECT c.client_customer_id, c.server_id, c.name, c.phone, c.email, c.address,
+            c.description, c.is_active, c.sync_status, c.error_kind,
+            (${LOCAL_BALANCE_EXPR}) AS local_balance
+     FROM customers c
+     WHERE c.is_active = 1
+     ORDER BY c.name ASC`
+  );
+}
+
+// Shape of a customer row shipped by GET /api/sync/bootstrap (spec C3). balance = server-derived
+// debt at pull time; client_customer_id is null for server/web-origin customers (synthesize srv:<id>).
+export interface ServerCustomerItem {
+  id: number;
+  client_customer_id: string | null;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  description: string | null;
+  balance: number;
+  is_active: boolean;
+}
+
+function serverClientId(item: ServerCustomerItem): string {
+  return item.client_customer_id ?? `srv:${item.id}`;
+}
+
+export async function upsertServerCustomers(items: ServerCustomerItem[]): Promise<void> {
+  const database = await getDb();
+  for (const it of items) {
+    const clientId = serverClientId(it);
+    await database.execute(
+      `INSERT INTO customers
+         (client_customer_id, server_id, name, phone, email, address, description,
+          balance, is_active, sync_status, retry_count, created_at_client, synced_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'synced', 0, datetime('now'), datetime('now'))
+       ON CONFLICT(client_customer_id) DO UPDATE SET
+         server_id   = excluded.server_id,
+         name        = excluded.name,
+         phone       = excluded.phone,
+         email       = excluded.email,
+         address     = excluded.address,
+         description = excluded.description,
+         balance     = excluded.balance,
+         is_active   = excluded.is_active,
+         sync_status = 'synced',
+         synced_at   = datetime('now'),
+         updated_at  = datetime('now')`,
+      [clientId, it.id, it.name, it.phone, it.email, it.address, it.description,
+       it.balance, it.is_active ? 1 : 0]
+    );
+  }
+}
+
+// Raw server-balance overwrite only (§4 step 4). Derivation stays at read time (§2.4),
+// so replaying the same server balances never double-counts.
+export async function reconcileCustomerBalances(serverCustomers: ServerCustomerItem[]): Promise<void> {
+  const database = await getDb();
+  for (const sc of serverCustomers) {
+    await database.execute(
+      `UPDATE customers SET balance = $1, updated_at = datetime('now')
+       WHERE client_customer_id = $2`,
+      [sc.balance, serverClientId(sc)]
+    );
+  }
+}
+
+// Default: pending OR (failed & transient & due). includePermanent adds failed & permanent
+// (force resend). Mirrors getSendableSales (§4.2).
+export async function getSendableCustomers(
+  nowIso: string,
+  opts?: { includePermanent?: boolean }
+): Promise<LocalCustomer[]> {
+  const database = await getDb();
+  const permanentClause = opts?.includePermanent
+    ? " OR (sync_status = 'failed' AND error_kind = 'permanent')"
+    : '';
+  return database.select<LocalCustomer[]>(
+    `SELECT * FROM customers
+     WHERE sync_status = 'pending'
+        OR (sync_status = 'failed' AND error_kind = 'transient'
+            AND (next_attempt_at IS NULL OR next_attempt_at <= $1))${permanentClause}
+     ORDER BY created_at_client ASC, client_customer_id ASC`,
+    [nowIso]
+  );
+}
+
+export async function markCustomerSyncing(clientCustomerId: string): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    "UPDATE customers SET sync_status = 'syncing', updated_at = datetime('now') WHERE client_customer_id = $1",
+    [clientCustomerId]
+  );
+}
+
+export async function markCustomerSynced(clientCustomerId: string, serverId: number | null): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE customers
+     SET sync_status = 'synced', server_id = $1, error_kind = NULL,
+         next_attempt_at = NULL, last_error = NULL,
+         synced_at = datetime('now'), updated_at = datetime('now')
+     WHERE client_customer_id = $2`,
+    [serverId, clientCustomerId]
+  );
+}
+
+export async function markCustomerTransientFailure(
+  clientCustomerIds: string[], nextAttemptAt: string, error: string
+): Promise<void> {
+  if (clientCustomerIds.length === 0) return;
+  const database = await getDb();
+  for (const id of clientCustomerIds) {
+    await database.execute(
+      `UPDATE customers
+       SET sync_status = 'failed', error_kind = 'transient', next_attempt_at = $1,
+           last_error = $2, retry_count = retry_count + 1,
+           first_failed_at = COALESCE(first_failed_at, datetime('now')),
+           updated_at = datetime('now')
+       WHERE client_customer_id = $3`,
+      [nextAttemptAt, error, id]
+    );
+  }
+}
+
+export async function markCustomerPermanentFailure(clientCustomerId: string, error: string): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE customers
+     SET sync_status = 'failed', error_kind = 'permanent', next_attempt_at = NULL,
+         last_error = $1, retry_count = retry_count + 1,
+         first_failed_at = COALESCE(first_failed_at, datetime('now')),
+         updated_at = datetime('now')
+     WHERE client_customer_id = $2`,
+    [error, clientCustomerId]
+  );
+}
+
+export async function recoverSyncingCustomers(nowIso: string): Promise<number> {
+  const database = await getDb();
+  const result = await database.execute(
+    `UPDATE customers
+     SET sync_status = 'failed', error_kind = 'transient', next_attempt_at = $1,
+         last_error = COALESCE(last_error, 'Recovered from interrupted sync'),
+         retry_count = retry_count + 1,
+         first_failed_at = COALESCE(first_failed_at, datetime('now')),
+         updated_at = datetime('now')
+     WHERE sync_status = 'syncing'`,
+    [nowIso]
+  );
+  return Number((result as { rowsAffected?: number }).rowsAffected ?? 0);
+}
+
+export async function getUnsyncedCustomerCount(): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ c: number }[]>(
+    `SELECT COUNT(*) AS c FROM customers
+     WHERE sync_status IN ('pending','syncing')
+        OR (sync_status = 'failed' AND error_kind = 'transient')`
+  );
+  return rows[0]?.c ?? 0;
+}
+
+// Apply {client_customer_id → server_id} from a push result: set server_id + mark synced for
+// synced/duplicate ONLY (contract C-6). failed rows are left untouched — the credit-sync engine
+// classifies them and calls markCustomer{Transient,Permanent}Failure itself.
+export async function applyCustomerIdMap(results: SyncCustomerResult[]): Promise<void> {
+  for (const r of results) {
+    if ((r.status === 'synced' || r.status === 'duplicate') && r.server_id != null) {
+      await markCustomerSynced(r.client_customer_id, r.server_id);
+    }
+  }
+}
+
+export async function getSendablePayments(
+  nowIso: string,
+  opts?: { includePermanent?: boolean }
+): Promise<LocalCustomerPayment[]> {
+  const database = await getDb();
+  const permanentClause = opts?.includePermanent
+    ? " OR (sync_status = 'failed' AND error_kind = 'permanent')"
+    : '';
+  return database.select<LocalCustomerPayment[]>(
+    `SELECT * FROM customer_payments
+     WHERE sync_status = 'pending'
+        OR (sync_status = 'failed' AND error_kind = 'transient'
+            AND (next_attempt_at IS NULL OR next_attempt_at <= $1))${permanentClause}
+     ORDER BY created_at_client ASC, client_payment_id ASC`,
+    [nowIso]
+  );
+}
+
+export async function markPaymentSyncing(clientPaymentId: string): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    "UPDATE customer_payments SET sync_status = 'syncing' WHERE client_payment_id = $1",
+    [clientPaymentId]
+  );
+}
+
+export async function markPaymentSynced(
+  clientPaymentId: string, appliedAmount: number | null, serverCustomerId: number | null
+): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE customer_payments
+     SET sync_status = 'synced', applied_amount = $1, server_customer_id = $2,
+         error_kind = NULL, next_attempt_at = NULL, last_error = NULL,
+         synced_at = datetime('now')
+     WHERE client_payment_id = $3`,
+    [appliedAmount, serverCustomerId, clientPaymentId]
+  );
+}
+
+export async function markPaymentTransientFailure(
+  clientPaymentIds: string[], nextAttemptAt: string, error: string
+): Promise<void> {
+  if (clientPaymentIds.length === 0) return;
+  const database = await getDb();
+  for (const id of clientPaymentIds) {
+    await database.execute(
+      `UPDATE customer_payments
+       SET sync_status = 'failed', error_kind = 'transient', next_attempt_at = $1,
+           last_error = $2, retry_count = retry_count + 1,
+           first_failed_at = COALESCE(first_failed_at, datetime('now'))
+       WHERE client_payment_id = $3`,
+      [nextAttemptAt, error, id]
+    );
+  }
+}
+
+export async function markPaymentPermanentFailure(clientPaymentId: string, error: string): Promise<void> {
+  const database = await getDb();
+  await database.execute(
+    `UPDATE customer_payments
+     SET sync_status = 'failed', error_kind = 'permanent', next_attempt_at = NULL,
+         last_error = $1, retry_count = retry_count + 1,
+         first_failed_at = COALESCE(first_failed_at, datetime('now'))
+     WHERE client_payment_id = $2`,
+    [error, clientPaymentId]
+  );
+}
+
+export async function recoverSyncingPayments(nowIso: string): Promise<number> {
+  const database = await getDb();
+  const result = await database.execute(
+    `UPDATE customer_payments
+     SET sync_status = 'failed', error_kind = 'transient', next_attempt_at = $1,
+         last_error = COALESCE(last_error, 'Recovered from interrupted sync'),
+         retry_count = retry_count + 1,
+         first_failed_at = COALESCE(first_failed_at, datetime('now'))
+     WHERE sync_status = 'syncing'`,
+    [nowIso]
+  );
+  return Number((result as { rowsAffected?: number }).rowsAffected ?? 0);
+}
+
+export async function getUnsyncedPaymentCount(): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ c: number }[]>(
+    `SELECT COUNT(*) AS c FROM customer_payments
+     WHERE sync_status IN ('pending','syncing')
+        OR (sync_status = 'failed' AND error_kind = 'transient')`
+  );
+  return rows[0]?.c ?? 0;
+}
+
+// Apply push results: record the server-capped applied_amount + mark synced for synced/duplicate
+// ONLY (contract C-6). failed rows are left untouched — the credit-sync engine marks their failure.
+export async function applyPaymentResults(results: SyncPaymentResult[]): Promise<void> {
+  const database = await getDb();
+  for (const r of results) {
+    if (r.status === 'synced' || r.status === 'duplicate') {
+      await database.execute(
+        `UPDATE customer_payments
+         SET sync_status = 'synced', applied_amount = $1,
+             error_kind = NULL, next_attempt_at = NULL, last_error = NULL,
+             synced_at = datetime('now')
+         WHERE client_payment_id = $2`,
+        [r.applied_amount ?? null, r.client_payment_id]
+      );
+    }
+  }
+}
+
+// Combined credit-outbox counts across BOTH tables (contract C-5). credit-sync's refreshCounts
+// folds these into the sync badge (unsynced) and the needs-attention total (permanent).
+export async function getUnsyncedCreditCount(): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ c: number }[]>(
+    `SELECT
+       (SELECT COUNT(*) FROM customers
+          WHERE sync_status IN ('pending','syncing')
+             OR (sync_status = 'failed' AND error_kind = 'transient'))
+     + (SELECT COUNT(*) FROM customer_payments
+          WHERE sync_status IN ('pending','syncing')
+             OR (sync_status = 'failed' AND error_kind = 'transient')) AS c`
+  );
+  return rows[0]?.c ?? 0;
+}
+
+export async function getNeedsAttentionCreditCount(): Promise<number> {
+  const database = await getDb();
+  const rows = await database.select<{ c: number }[]>(
+    `SELECT
+       (SELECT COUNT(*) FROM customers
+          WHERE sync_status = 'failed' AND error_kind = 'permanent')
+     + (SELECT COUNT(*) FROM customer_payments
+          WHERE sync_status = 'failed' AND error_kind = 'permanent') AS c`
+  );
+  return rows[0]?.c ?? 0;
 }

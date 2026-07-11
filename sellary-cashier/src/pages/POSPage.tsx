@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   getProducts, getCategories, getProductByBarcode, insertSale,
+  getCustomersWithLocalBalance, insertCustomer,
 } from '../lib/db';
-import type { LocalProduct, LocalCategory } from '../lib/db';
+import type { LocalProduct, LocalCategory, CustomerWithBalance } from '../lib/db';
 import { useAuthStore } from '../lib/auth-store';
 import { useSyncStore } from '../lib/sync-store';
 import { requestSync } from '../lib/sync-engine';
@@ -13,7 +14,8 @@ import { cartLineKey } from '../lib/posUnits';
 import { isOverStock } from '../lib/posStock';
 import { calculatePosPricing } from '../lib/posPricing';
 import {
-  buildNewSaleInput, newSaleIds, type CashierCardType, type CashierPaymentMethod,
+  buildNewSaleInput, newSaleIds,
+  type CashierCardType, type CashierPaymentMethod, type CashierCreditPaymentMethod,
 } from '../lib/pos-payload';
 import { evaluateLogout } from '../lib/logout-guard';
 import { SearchBar } from './pos/SearchBar';
@@ -45,6 +47,15 @@ export function POSPage() {
   const [method, setMethod] = useState<CashierPaymentMethod>('cash');
   const [cardType, setCardType] = useState<CashierCardType | null>(null);
   const [cashReceived, setCashReceived] = useState('');
+  const [creditCustomers, setCreditCustomers] = useState<CustomerWithBalance[]>([]);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [qcName, setQcName] = useState('');
+  const [qcPhone, setQcPhone] = useState('');
+  const [qcDescription, setQcDescription] = useState('');
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [creditPaidAmount, setCreditPaidAmount] = useState('');
+  const [creditPaymentMethod, setCreditPaymentMethod] = useState<CashierCreditPaymentMethod>('cash');
   const [loading, setLoading] = useState(false);
   const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
   const [confirmLogout, setConfirmLogout] = useState<string | null>(null);
@@ -54,6 +65,43 @@ export function POSPage() {
     const list = await getProducts();
     setProducts(list);
   }, []);
+
+  const reloadCustomers = useCallback(async () => {
+    const list = await getCustomersWithLocalBalance();
+    setCreditCustomers(list);
+  }, []);
+
+  useEffect(() => {
+    if (showPayment && method === 'credit') void reloadCustomers();
+  }, [showPayment, method, reloadCustomers]);
+
+  const handleCreateCustomer = useCallback(async () => {
+    const name = qcName.trim();
+    const phone = qcPhone.trim();
+    if (!name || !phone) {
+      toast.error('Укажите ФИО и телефон клиента');
+      return;
+    }
+    setCreatingCustomer(true);
+    try {
+      const { clientCustomerId } = await insertCustomer({
+        name,
+        phone,
+        description: qcDescription.trim() || null,
+      });
+      setQcName('');
+      setQcPhone('');
+      setQcDescription('');
+      await reloadCustomers();
+      setSelectedCustomerId(clientCustomerId);
+      toast.success('Клиент создан');
+    } catch (err) {
+      toast.error('Не удалось создать клиента');
+      console.error('insertCustomer failed', err);
+    } finally {
+      setCreatingCustomer(false);
+    }
+  }, [qcName, qcPhone, qcDescription, reloadCustomers]);
 
   useEffect(() => {
     (async () => {
@@ -147,6 +195,13 @@ export function POSPage() {
     setCashReceived(String(Math.ceil(finalTotal)));
     setMethod('cash');
     setCardType(null);
+    setSelectedCustomerId(null);
+    setCustomerSearch('');
+    setCreditPaidAmount('');
+    setCreditPaymentMethod('cash');
+    setQcName('');
+    setQcPhone('');
+    setQcDescription('');
     setShowPayment(true);
   }, [items.length, finalTotal]);
 
@@ -155,6 +210,11 @@ export function POSPage() {
     if (items.length === 0 || loading) return;
     setLoading(true);
     const { clientSaleId, idempotencyKey } = newSaleIds();
+    if (method === 'credit' && !selectedCustomerId) {
+      setLoading(false);
+      toast.error('Выберите клиента для продажи в долг');
+      return;
+    }
     const input = buildNewSaleInput({
       items,
       paymentMethod: method,
@@ -164,6 +224,9 @@ export function POSPage() {
       nowIso: new Date().toISOString(),
       clientSaleId,
       idempotencyKey,
+      customerClientId: selectedCustomerId,
+      creditPaidAmount,
+      creditPaymentMethod,
     });
     const oversold = oversoldKeys.size > 0;
     try {
@@ -177,13 +240,14 @@ export function POSPage() {
       if (oversold) toast('Продажа с перерасходом склада', { icon: '⚠️' });
       barcodeRef.current?.focus();
       void reloadProducts();          // show decremented stock immediately
+      if (method === 'credit') void reloadCustomers();
       void requestSync('post-sale');  // fire-and-forget — never awaited on the pay path
     } catch (err) {
       setLoading(false);
       toast.error('Не удалось сохранить продажу');
       console.error('insertSale failed', err);
     }
-  }, [items, loading, method, cardType, cashReceived, userId, username, oversoldKeys, clearCart, reloadProducts]);
+  }, [items, loading, method, cardType, cashReceived, userId, username, oversoldKeys, clearCart, reloadProducts, selectedCustomerId, creditPaidAmount, creditPaymentMethod, reloadCustomers]);
 
   // Keyboard: F2 → barcode; Enter → open/confirm; Esc → close.
   useEffect(() => {
@@ -246,6 +310,9 @@ export function POSPage() {
           )}
           <button onClick={() => syncNow()} className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             Синхронизация
+          </button>
+          <button onClick={() => navigate('/customers')} className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+            Клиенты
           </button>
           <button onClick={() => navigate('/history')} className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             История
@@ -315,6 +382,25 @@ export function POSPage() {
         loading={loading}
         onConfirm={handleComplete}
         onClose={() => setShowPayment(false)}
+        credit={{
+          customers: creditCustomers,
+          search: customerSearch,
+          onSearch: setCustomerSearch,
+          selectedCustomerId,
+          onSelect: setSelectedCustomerId,
+          qcName,
+          onQcName: setQcName,
+          qcPhone,
+          onQcPhone: setQcPhone,
+          qcDescription,
+          onQcDescription: setQcDescription,
+          creatingCustomer,
+          onCreateCustomer: handleCreateCustomer,
+          paidAmount: creditPaidAmount,
+          onPaidAmount: setCreditPaidAmount,
+          paymentMethod: creditPaymentMethod,
+          onPaymentMethod: setCreditPaymentMethod,
+        }}
       />
 
       {confirmLogout && (

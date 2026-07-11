@@ -11,6 +11,9 @@ export function PaymentChip({ method, cardType }: { method: string; cardType?: s
   } else if (m === 'mobile') {
     label = '📱 Мобильный';
     cls = 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300';
+  } else if (m === 'credit') {
+    label = '📝 В долг';
+    cls = 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300';
   }
   return <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${cls}`}>{label}</span>;
 }

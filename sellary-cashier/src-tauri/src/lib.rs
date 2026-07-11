@@ -29,6 +29,12 @@ pub fn run() {
                             sql: include_str!("../migrations/002_local_first.sql"),
                             kind: MigrationKind::Up,
                         },
+                        Migration {
+                            version: 3,
+                            description: "offline credit: customers, customer_payments, sales credit columns",
+                            sql: include_str!("../migrations/003_offline_credit.sql"),
+                            kind: MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),

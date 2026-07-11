@@ -54,7 +54,9 @@ export function createTestDb(): FakeDatabase {
   const raw = new DatabaseSync(':memory:');
   const sql001 = fs.readFileSync(path.join(migrationsDir, '001_init.sql'), 'utf8');
   const sql002 = fs.readFileSync(path.join(migrationsDir, '002_local_first.sql'), 'utf8');
+  const sql003 = fs.readFileSync(path.join(migrationsDir, '003_offline_credit.sql'), 'utf8');
   raw.exec(sql001);
   raw.exec(sql002);
+  raw.exec(sql003);
   return new FakeDatabase(raw);
 }
