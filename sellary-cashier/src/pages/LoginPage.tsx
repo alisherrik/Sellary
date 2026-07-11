@@ -47,7 +47,7 @@ export function LoginPage() {
     setError('');
     try {
       await selectAndBootstrap(loginToken, companyId);
-      navigate('/cashier', { replace: true });
+      navigate('/pin-setup', { replace: true });
     } catch (err: unknown) {
       console.error('Company selection failed', err);
       setError(getErrorMessage(err, 'Company selection failed'));
