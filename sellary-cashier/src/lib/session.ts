@@ -1,5 +1,7 @@
 import { Store } from '@tauri-apps/plugin-store';
 import { Stronghold, Client, Store as StrongholdStore } from '@tauri-apps/plugin-stronghold';
+import { invoke } from '@tauri-apps/api/core';
+import { getDeviceAuth, setPinHash } from './db';
 
 const SESSION_STORE_FILE = 'session.json';
 const SESSION_META_KEY = 'cashier_session_meta';
@@ -242,4 +244,21 @@ export async function clearDeviceCredential(): Promise<void> {
   await s.delete(DEVICE_TOKEN_FALLBACK_KEY).catch(() => {});
   await s.delete(DEVICE_TOKEN_EXPIRES_KEY).catch(() => {});
   await s.save();
+}
+
+export async function savePin(pin: string): Promise<void> {
+  const phc = await invoke<string>('pin_hash', { pin });
+  await setPinHash(phc);
+}
+
+export async function verifyPin(pin: string): Promise<boolean> {
+  const auth = await getDeviceAuth();
+  if (!auth || !auth.pin_hash) {
+    return false;
+  }
+  return invoke<boolean>('pin_verify', { pin, phc: auth.pin_hash });
+}
+
+export async function clearPin(): Promise<void> {
+  await setPinHash('');
 }
