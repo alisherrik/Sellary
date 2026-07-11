@@ -60,6 +60,8 @@ class SyncSaleCreate(BaseModel):
     paid_amount: Decimal
     change_amount: Decimal = Decimal("0")
     notes: Optional[str] = None
+    client_customer_id: Optional[str] = None
+    initial_payment_method: Optional[str] = None
     items: list[SyncSaleItemCreate]
 
 

@@ -192,8 +192,16 @@ class SyncService:
             return "Sale must have at least one item"
 
         payment_method_lower = sale_create.payment_method.lower()
-        if payment_method_lower not in ("cash", "card", "mobile"):
+        if payment_method_lower not in ("cash", "card", "mobile", "credit"):
             return f"Invalid payment_method: {sale_create.payment_method}"
+
+        if payment_method_lower == "credit":
+            if not sale_create.client_customer_id:
+                return "client_customer_id is required when payment_method is credit"
+            if sale_create.initial_payment_method:
+                ipm = sale_create.initial_payment_method.lower()
+                if ipm not in ("cash", "card", "mobile"):
+                    return f"Invalid initial_payment_method: {sale_create.initial_payment_method}"
 
         if payment_method_lower == "card" and not sale_create.card_type:
             return "card_type is required when payment_method is card"
@@ -278,8 +286,28 @@ class SyncService:
             "cash": PaymentMethod.CASH,
             "card": PaymentMethod.CARD,
             "mobile": PaymentMethod.MOBILE,
+            "credit": PaymentMethod.CREDIT,
         }
         payment_method = pm_map[sale_create.payment_method.lower()]
+
+        customer_id = None
+        if payment_method == PaymentMethod.CREDIT:
+            customer = (
+                self.db.query(Customer)
+                .filter(
+                    Customer.company_id == company.id,
+                    Customer.client_customer_id == sale_create.client_customer_id,
+                    Customer.is_active == True,  # noqa: E712
+                )
+                .first()
+            )
+            if not customer:
+                return SyncSaleResult(
+                    client_sale_id=sale_create.client_sale_id,
+                    status="failed",
+                    error=f"Customer not synced: {sale_create.client_customer_id}",
+                )
+            customer_id = customer.id
 
         card_type = None
         if sale_create.card_type:
@@ -293,7 +321,7 @@ class SyncService:
         sale = Sale(
             company_id=company.id,
             client_sale_id=sale_create.client_sale_id,
-            customer_id=None,
+            customer_id=customer_id,
             cashier_id=user.id,
             subtotal=subtotal,
             tax_amount=tax_amount,
@@ -345,6 +373,19 @@ class SyncService:
                                 new_balance=product.stock_quantity,
                             )
                         )
+
+                if payment_method == PaymentMethod.CREDIT:
+                    initial_method = (
+                        pm_map[sale_create.initial_payment_method.lower()]
+                        if sale_create.initial_payment_method
+                        else None
+                    )
+                    CustomerLedgerService(self.db, company.id).record_credit_sale(
+                        created_sale,
+                        user.id,
+                        initial_payment_amount=sale_create.paid_amount,
+                        initial_payment_method=initial_method,
+                    )
         except ValueError as exc:
             # Genuinely bad rows only (e.g. negative total). Oversell no longer
             # raises because allow_oversell=True above.
