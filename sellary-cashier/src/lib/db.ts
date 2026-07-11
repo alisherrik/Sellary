@@ -236,3 +236,259 @@ export async function decrementLocalStock(items: LocalStockChange[]): Promise<vo
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Local-first model (migration 002) — spec §2.3–§2.10
+// ---------------------------------------------------------------------------
+
+export type SyncStatus = 'pending' | 'syncing' | 'synced' | 'failed';
+export type ErrorKind = 'transient' | 'permanent';
+
+export interface NewSaleItemInput {
+  product_id: number;
+  product_name: string;
+  barcode: string | null;
+  uom: string;
+  quantity: number;      // BASE units
+  unit_price: number;
+  tax_percent: number;
+  line_subtotal: number;
+  line_total: number;
+  sort_order: number;
+}
+
+export interface NewSaleInput {
+  client_sale_id: string;
+  idempotency_key: string;
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  total_amount: number;
+  paid_amount: number;
+  change_amount: number;
+  payment_method: string;      // canonical lowercase: 'cash'|'card'|'mobile'
+  card_type: string | null;    // 'alif'|'eskhata'|'dc'|null
+  notes: string | null;
+  cashier_user_id: number | null;
+  cashier_username: string | null;
+  created_at_client: string;   // ISO
+  items: NewSaleItemInput[];
+}
+
+export interface LocalSale {
+  id: number;
+  client_sale_id: string;
+  idempotency_key: string;
+  receipt_no: number;
+  server_sale_id: number | null;
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  total_amount: number;
+  paid_amount: number;
+  change_amount: number;
+  payment_method: string;
+  card_type: string | null;
+  notes: string | null;
+  cashier_user_id: number | null;
+  cashier_username: string | null;
+  sync_status: SyncStatus;
+  error_kind: ErrorKind | null;
+  next_attempt_at: string | null;
+  first_failed_at: string | null;
+  last_error: string | null;
+  retry_count: number;
+  stock_applied: number;
+  acknowledged: number;
+  created_at_client: string;
+  synced_at: string | null;
+  updated_at: string;
+}
+
+export interface LocalSaleItem {
+  id: number;
+  sale_id: number;
+  product_id: number;
+  product_name: string;
+  barcode: string | null;
+  uom: string;
+  quantity: number;
+  unit_price: number;
+  tax_percent: number;
+  line_subtotal: number;
+  line_total: number;
+  sort_order: number;
+  product_unit_id: number | null;
+  sold_unit_label: string | null;
+  sold_unit_factor: number | null;
+  sold_quantity: number | null;
+}
+
+export interface SaleWithItems extends LocalSale {
+  items: LocalSaleItem[];
+}
+
+export interface LocalProductUnit {
+  id: number;
+  product_id: number;
+  name: string;
+  factor: number;
+  sell_price: number | null;
+  barcode: string | null;
+  is_active: number;
+  sort_order: number;
+  updated_at: string | null;
+}
+
+// Full sales-row shape used by insertSaleRaw (id + receipt_no are computed).
+interface RawSaleRow {
+  client_sale_id: string;
+  idempotency_key: string;
+  server_sale_id: number | null;
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  total_amount: number;
+  paid_amount: number;
+  change_amount: number;
+  payment_method: string;
+  card_type: string | null;
+  notes: string | null;
+  cashier_user_id: number | null;
+  cashier_username: string | null;
+  sync_status: SyncStatus;
+  error_kind: ErrorKind | null;
+  next_attempt_at: string | null;
+  first_failed_at: string | null;
+  last_error: string | null;
+  retry_count: number;
+  synced_at: string | null;
+  created_at_client: string;
+}
+
+// Internal: decrement base-unit stock for every line of a sale, then flag stock_applied=1.
+async function applyStockForSale(saleId: number): Promise<void> {
+  const database = await getDb();
+  const items = await database.select<{ product_id: number; quantity: number }[]>(
+    'SELECT product_id, quantity FROM sale_items WHERE sale_id = $1',
+    [saleId]
+  );
+  for (const it of items) {
+    await database.execute(
+      'UPDATE products SET stock_quantity = stock_quantity - $1 WHERE id = $2',
+      [it.quantity, it.product_id]
+    );
+  }
+  await database.execute(
+    "UPDATE sales SET stock_applied = 1, updated_at = datetime('now') WHERE id = $1",
+    [saleId]
+  );
+}
+
+// Crash-safe insert: children first (orphan-swept by reconcile), parent last (atomic commit
+// point), then decrement when decrementNow. Reused by insertSale and the backfill.
+async function insertSaleRaw(
+  raw: RawSaleRow,
+  items: NewSaleItemInput[],
+  stockApplied: number,
+  decrementNow: boolean
+): Promise<{ saleId: number; receiptNo: number }> {
+  const database = await getDb();
+  const idRows = await database.select<{ maxId: number | null }[]>('SELECT MAX(id) AS maxId FROM sales');
+  const nextId = (idRows[0]?.maxId ?? 0) + 1;
+  const rcRows = await database.select<{ maxRc: number | null }[]>('SELECT MAX(receipt_no) AS maxRc FROM sales');
+  const nextReceipt = (rcRows[0]?.maxRc ?? 0) + 1;
+
+  for (const it of items) {
+    await database.execute(
+      `INSERT INTO sale_items
+         (sale_id, product_id, product_name, barcode, uom, quantity, unit_price,
+          tax_percent, line_subtotal, line_total, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [nextId, it.product_id, it.product_name, it.barcode, it.uom, it.quantity,
+       it.unit_price, it.tax_percent, it.line_subtotal, it.line_total, it.sort_order]
+    );
+  }
+
+  await database.execute(
+    `INSERT INTO sales
+       (id, client_sale_id, idempotency_key, receipt_no, server_sale_id, subtotal,
+        discount_amount, tax_amount, total_amount, paid_amount, change_amount,
+        payment_method, card_type, notes, cashier_user_id, cashier_username,
+        sync_status, error_kind, next_attempt_at, first_failed_at, last_error,
+        retry_count, stock_applied, created_at_client, synced_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
+    [nextId, raw.client_sale_id, raw.idempotency_key, nextReceipt, raw.server_sale_id,
+     raw.subtotal, raw.discount_amount, raw.tax_amount, raw.total_amount, raw.paid_amount,
+     raw.change_amount, raw.payment_method, raw.card_type, raw.notes, raw.cashier_user_id,
+     raw.cashier_username, raw.sync_status, raw.error_kind, raw.next_attempt_at,
+     raw.first_failed_at, raw.last_error, raw.retry_count, stockApplied,
+     raw.created_at_client, raw.synced_at]
+  );
+
+  if (decrementNow && stockApplied === 0) {
+    await applyStockForSale(nextId);
+  }
+  return { saleId: nextId, receiptNo: nextReceipt };
+}
+
+export async function insertSale(input: NewSaleInput): Promise<{ saleId: number; receiptNo: number }> {
+  const raw: RawSaleRow = {
+    client_sale_id: input.client_sale_id,
+    idempotency_key: input.idempotency_key,
+    server_sale_id: null,
+    subtotal: input.subtotal,
+    discount_amount: input.discount_amount,
+    tax_amount: input.tax_amount,
+    total_amount: input.total_amount,
+    paid_amount: input.paid_amount,
+    change_amount: input.change_amount,
+    payment_method: input.payment_method,
+    card_type: input.card_type,
+    notes: input.notes,
+    cashier_user_id: input.cashier_user_id,
+    cashier_username: input.cashier_username,
+    sync_status: 'pending',
+    error_kind: null,
+    next_attempt_at: null,
+    first_failed_at: null,
+    last_error: null,
+    retry_count: 0,
+    synced_at: null,
+    created_at_client: input.created_at_client,
+  };
+  return insertSaleRaw(raw, input.items, 0, true);
+}
+
+async function attachItems(sales: LocalSale[]): Promise<SaleWithItems[]> {
+  const database = await getDb();
+  const out: SaleWithItems[] = [];
+  for (const s of sales) {
+    const items = await database.select<LocalSaleItem[]>(
+      'SELECT * FROM sale_items WHERE sale_id = $1 ORDER BY sort_order ASC, id ASC',
+      [s.id]
+    );
+    out.push({ ...s, items });
+  }
+  return out;
+}
+
+export async function getSaleWithItems(saleId: number): Promise<SaleWithItems | null> {
+  const database = await getDb();
+  const sales = await database.select<LocalSale[]>('SELECT * FROM sales WHERE id = $1', [saleId]);
+  if (!sales[0]) return null;
+  return (await attachItems(sales))[0];
+}
+
+export async function reconcileLocalState(): Promise<void> {
+  const database = await getDb();
+  // (a) sweep orphan sale_items whose parent sale never committed
+  await database.execute('DELETE FROM sale_items WHERE sale_id NOT IN (SELECT id FROM sales)');
+  // (b) apply stock exactly-once for any sale still flagged not-yet-applied
+  const rows = await database.select<{ id: number }[]>(
+    'SELECT id FROM sales WHERE stock_applied = 0 ORDER BY id ASC'
+  );
+  for (const r of rows) {
+    await applyStockForSale(r.id);
+  }
+}
