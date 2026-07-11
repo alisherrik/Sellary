@@ -126,9 +126,13 @@ class TestSyncSales:
         db_session.refresh(layered_product)
         assert layered_product.inventory_value == Decimal("40.0000")
 
-    def test_synced_sale_rejects_unallocated_oversell(
+    def test_synced_sale_tolerates_unallocated_oversell(
         self, db_session, default_company, cashier_user, layered_product
     ):
+        # C1: offline sales are immutable historical facts — a sync that
+        # oversells (999 requested vs 5 available across two FIFO layers) is
+        # recorded as "synced" with an oversell warning, driving stock
+        # negative instead of being rejected.
         request = self._make_sync_request(
             product_id=layered_product.id,
             quantity=Decimal("999"),
@@ -138,12 +142,26 @@ class TestSyncSales:
         service = SyncService(db_session)
         result = service.sync_sales(default_company, cashier_user, request)
 
-        assert result.results[0].status == "failed"
-        assert "Insufficient stock" in result.results[0].error
+        r = result.results[0]
+        assert r.status == "synced"
+        assert r.error is None
+        assert r.warnings is not None and len(r.warnings) == 1
+        warning = r.warnings[0]
+        assert warning.type == "oversell"
+        assert warning.product_id == layered_product.id
+        assert warning.requested == Decimal("999")
+        assert warning.available == Decimal("5")
+        assert warning.new_balance == Decimal("-994")
 
-    def test_synced_oversell_failed_even_when_flag_enabled(
+        db_session.refresh(layered_product)
+        assert layered_product.stock_quantity == Decimal("-994")
+
+    def test_synced_oversell_synced_regardless_of_flag_enabled(
         self, monkeypatch, db_session, default_company, cashier_user, layered_product
     ):
+        # SYNC_ALLOW_OVERSELL is deprecated and no longer consulted: the sync
+        # path tolerates oversell the same way whether the flag is True or
+        # False.
         monkeypatch.setattr(
             "services.sync_service.settings.SYNC_ALLOW_OVERSELL", True
         )
@@ -156,11 +174,13 @@ class TestSyncSales:
         service = SyncService(db_session)
         result = service.sync_sales(default_company, cashier_user, request)
 
-        assert result.results[0].status == "failed"
-        assert "Insufficient stock" in result.results[0].error
+        r = result.results[0]
+        assert r.status == "synced"
+        assert r.warnings is not None and r.warnings[0].type == "oversell"
         db_session.refresh(layered_product)
-        # Ledger safety preserved: stock untouched.
-        assert layered_product.stock_quantity == Decimal("5")
+        # Ledger tolerates oversell: stock goes negative rather than being
+        # rejected, regardless of the (deprecated) flag value.
+        assert layered_product.stock_quantity == Decimal("-994")
 
     def test_sync_creates_sale(
         self, db_session, default_company, cashier_user, test_product
@@ -237,11 +257,12 @@ class TestSyncSales:
         db_session.refresh(test_product)
         assert test_product.stock_quantity == 100 - 3
 
-    def test_sync_oversell_is_rejected_by_ledger(
+    def test_sync_oversell_is_tolerated_by_ledger(
         self, db_session, default_company, cashier_user, test_product
     ):
-        # Ledger-safe behavior: a synced sale that exceeds available layer
-        # stock can no longer be recorded as an oversold success — it fails.
+        # C1: a synced sale that exceeds available layer stock (200 requested
+        # vs 100 available) is recorded as "synced" with an oversell warning
+        # instead of being rejected — offline sales are immutable facts.
         sale_create = self._make_sale(
             product_id=test_product.id,
             quantity=200,
@@ -255,15 +276,24 @@ class TestSyncSales:
         )
 
         r = result.results[0]
-        assert r.status == "failed"
-        assert "Insufficient stock" in r.error
+        assert r.status == "synced"
+        assert r.error is None
+        assert r.warnings is not None and len(r.warnings) == 1
+        warning = r.warnings[0]
+        assert warning.type == "oversell"
+        assert warning.product_id == test_product.id
+        assert warning.requested == Decimal("200")
+        assert warning.available == Decimal("100")
+        assert warning.new_balance == Decimal("-100")
 
         db_session.refresh(test_product)
-        assert test_product.stock_quantity == 100
+        assert test_product.stock_quantity == Decimal("-100")
 
-    def test_sync_sale_rejects_oversell_when_disabled(
+    def test_sync_sale_tolerates_oversell_when_flag_disabled(
         self, monkeypatch, db_session, default_company, cashier_user, layered_product
     ):
+        # SYNC_ALLOW_OVERSELL is deprecated and no longer consulted by the
+        # sync path: oversell is tolerated even with the flag explicitly off.
         monkeypatch.setattr("services.sync_service.settings.SYNC_ALLOW_OVERSELL", False)
 
         sale_create = self._make_sale(
@@ -282,12 +312,19 @@ class TestSyncSales:
         )
 
         r = result.results[0]
-        assert r.status == "failed"
-        assert "Insufficient stock" in r.error
+        assert r.status == "synced"
+        assert r.error is None
+        assert r.warnings is not None and len(r.warnings) == 1
+        warning = r.warnings[0]
+        assert warning.type == "oversell"
+        assert warning.product_id == layered_product.id
+        assert warning.requested == Decimal("6")
+        assert warning.available == Decimal("5")
+        assert warning.new_balance == Decimal("-1")
         db_session.refresh(layered_product)
-        assert layered_product.stock_quantity == Decimal("5")
+        assert layered_product.stock_quantity == Decimal("-1")
 
-    def test_sync_sale_duplicate_product_oversell_rejected(
+    def test_sync_sale_duplicate_product_oversell_tolerated(
         self, monkeypatch, db_session, default_company, cashier_user, layered_product
     ):
         monkeypatch.setattr("services.sync_service.settings.SYNC_ALLOW_OVERSELL", False)
@@ -321,16 +358,27 @@ class TestSyncSales:
         )
 
         r = result.results[0]
-        assert r.status == "failed"
-        assert "Insufficient stock" in r.error
+        assert r.status == "synced"
+        assert r.error is None
+        # First line (3 units) is fully allocated from FIFO layers with no
+        # shortfall; the second line (3 units, only 2 remain) oversells by 1
+        # and is the only one that produces a warning.
+        assert r.warnings is not None and len(r.warnings) == 1
+        warning = r.warnings[0]
+        assert warning.type == "oversell"
+        assert warning.product_id == layered_product.id
+        assert warning.requested == Decimal("3")
+        assert warning.available == Decimal("2")
+        assert warning.new_balance == Decimal("-1")
         db_session.refresh(layered_product)
-        assert layered_product.stock_quantity == Decimal("5")
+        assert layered_product.stock_quantity == Decimal("-1")
 
-    def test_sync_sale_oversell_failed_even_when_flag_enabled(
+    def test_sync_sale_oversell_tolerated_even_when_flag_enabled(
         self, monkeypatch, db_session, default_company, cashier_user, layered_product
     ):
-        # The SYNC_ALLOW_OVERSELL flag no longer overrides ledger safety:
-        # an oversell fails even when the flag is True.
+        # The SYNC_ALLOW_OVERSELL flag no longer changes ledger behavior:
+        # an oversell is tolerated the same way whether the flag is True or
+        # False.
         monkeypatch.setattr("services.sync_service.settings.SYNC_ALLOW_OVERSELL", True)
 
         sale_create = self._make_sale(
@@ -349,10 +397,17 @@ class TestSyncSales:
         )
 
         r = result.results[0]
-        assert r.status == "failed"
-        assert "Insufficient stock" in r.error
+        assert r.status == "synced"
+        assert r.error is None
+        assert r.warnings is not None and len(r.warnings) == 1
+        warning = r.warnings[0]
+        assert warning.type == "oversell"
+        assert warning.product_id == layered_product.id
+        assert warning.requested == Decimal("6")
+        assert warning.available == Decimal("5")
+        assert warning.new_balance == Decimal("-1")
         db_session.refresh(layered_product)
-        assert layered_product.stock_quantity == Decimal("5")
+        assert layered_product.stock_quantity == Decimal("-1")
 
     def test_sync_missing_product_fails(
         self, db_session, default_company, cashier_user
