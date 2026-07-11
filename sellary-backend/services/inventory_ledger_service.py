@@ -39,6 +39,9 @@ class InventoryConsumption:
 
     allocations: List[InventoryAllocation] = field(default_factory=list)
     value: Decimal = Decimal("0.0000")
+    # Additive (C1): populated only on the oversell-tolerant sync path.
+    shortfall_quantity: Decimal = Decimal("0")
+    available_before: Decimal = Decimal("0")
 
 
 class InventoryLedgerService:
@@ -52,19 +55,25 @@ class InventoryLedgerService:
     # / cost_price are mutated.
     # ------------------------------------------------------------------
     def _apply_balance(
-        self, product: Product, quantity_change: Decimal, value_change: Decimal
+        self,
+        product: Product,
+        quantity_change: Decimal,
+        value_change: Decimal,
+        allow_negative: bool = False,
     ) -> tuple[Decimal, Decimal]:
         """Apply a quantity/value delta to the product, enforcing invariants.
 
         Returns ``(previous_quantity, new_quantity)`` so the caller can write a
-        consistent inventory log.
+        consistent inventory log. ``allow_negative=True`` (sync oversell path
+        only) lets stock go negative; inventory_value is clamped to 0 and
+        cost_price is frozen at its last positive-stock value.
         """
         previous_quantity = Decimal(product.stock_quantity or 0)
         new_quantity = previous_quantity + quantity_change
         new_value = (Decimal(product.inventory_value or 0) + value_change).quantize(MONEY_QUANT)
-        if new_quantity < 0:
+        if new_quantity < 0 and not allow_negative:
             raise ValueError(f"Insufficient stock for product '{product.name}'")
-        if new_value < Decimal("-0.0001"):
+        if new_value < Decimal("-0.0001") and not allow_negative:
             raise ValueError(f"Inventory value cannot become negative for '{product.name}'")
 
         product.stock_quantity = new_quantity
@@ -72,6 +81,7 @@ class InventoryLedgerService:
         if new_quantity > 0:
             product.cost_price = (product.inventory_value / new_quantity).quantize(PRICE_QUANT)
         else:
+            # Zero or negative stock: value is 0 and cost_price is left frozen.
             product.inventory_value = Decimal("0.0000")
         return previous_quantity, new_quantity
 
@@ -140,13 +150,21 @@ class InventoryLedgerService:
         reason: Optional[str],
         reference_type: Optional[str],
         reference_id: Optional[int],
+        allow_oversell: bool = False,
     ) -> InventoryConsumption:
-        """Consume ``quantity`` units FIFO, creating one allocation per layer."""
+        """Consume ``quantity`` units FIFO, creating one allocation per layer.
+
+        Default (``allow_oversell=False``): all-or-nothing — raises ValueError
+        if available layer stock is insufficient. Sync path (``allow_oversell=
+        True``): consumes all available layers at their real FIFO cost, values
+        the shortfall at ``product.cost_price``, drives stock negative, and
+        reports ``shortfall_quantity`` / ``available_before`` for a SyncWarning.
+        """
         quantity = Decimal(quantity)
         layers = self.repo.lock_available_layers(self.company_id, product.id)
 
         available = sum((layer.remaining_quantity for layer in layers), Decimal("0"))
-        if available < quantity:
+        if available < quantity and not allow_oversell:
             raise ValueError(f"Insufficient stock for product '{product.name}'")
 
         allocations: List[InventoryAllocation] = []
@@ -174,9 +192,20 @@ class InventoryLedgerService:
             total_value += take * layer.unit_cost
             remaining_to_consume -= take
 
-        value = total_value.quantize(MONEY_QUANT)
+        shortfall_quantity = quantity - available if available < quantity else Decimal("0")
+        if shortfall_quantity < 0:
+            shortfall_quantity = Decimal("0")
+        shortfall_value = Decimal("0")
+        if shortfall_quantity > 0:
+            shortfall_value = (
+                shortfall_quantity * Decimal(product.cost_price or 0)
+            ).quantize(MONEY_QUANT)
 
-        previous_quantity, new_quantity = self._apply_balance(product, -quantity, -value)
+        value = (total_value + shortfall_value).quantize(MONEY_QUANT)
+
+        previous_quantity, new_quantity = self._apply_balance(
+            product, -quantity, -value, allow_negative=allow_oversell
+        )
 
         self.repo.create_log(
             company_id=self.company_id,
@@ -191,7 +220,12 @@ class InventoryLedgerService:
             reference_id=reference_id,
         )
         self.db.flush()
-        return InventoryConsumption(allocations=allocations, value=value)
+        return InventoryConsumption(
+            allocations=allocations,
+            value=value,
+            shortfall_quantity=shortfall_quantity,
+            available_before=available,
+        )
 
     # ------------------------------------------------------------------
     # Release (void/return) — restore consumed units back into their layers
