@@ -4,6 +4,7 @@ import { useAuthStore } from '../lib/auth-store';
 import { getApiBaseUrl, setApiBaseUrl, checkHealth } from '../lib/api';
 import { useSyncStore } from '../lib/sync-store';
 import { NeedsAttentionList } from '../components/history/NeedsAttentionList';
+import { checkForUpdate, applyUpdate } from '../lib/updater';
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ export function SettingsPage() {
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState('');
   const [refreshingCatalog, setRefreshingCatalog] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -61,6 +63,24 @@ export function SettingsPage() {
       setMessage(e instanceof Error ? e.message : 'Ошибка обновления каталога');
     } finally {
       setRefreshingCatalog(false);
+    }
+  };
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setMessage('');
+    try {
+      const update = await checkForUpdate();
+      if (!update) {
+        setMessage('У вас последняя версия.');
+        return;
+      }
+      setMessage(`Обновление ${update.version} — установка…`);
+      await applyUpdate(update); // downloads, installs, then relaunches
+    } catch (e: unknown) {
+      setMessage(e instanceof Error ? e.message : 'Ошибка обновления');
+    } finally {
+      setCheckingUpdate(false);
     }
   };
 
@@ -152,6 +172,20 @@ export function SettingsPage() {
             className="mt-2 w-full py-1.5 rounded border border-blue-200 text-blue-700 text-sm disabled:opacity-50"
           >
             {refreshingCatalog ? 'Refreshing' : 'Refresh Catalog'}
+          </button>
+        </div>
+
+        <div className="bg-white rounded-lg border p-4 mt-4">
+          <h2 className="text-sm font-medium mb-2">Обновление приложения</h2>
+          <p className="text-xs text-gray-400 mb-2">
+            Проверить наличие новой версии и установить её.
+          </p>
+          <button
+            onClick={handleCheckUpdate}
+            disabled={checkingUpdate}
+            className="w-full py-1.5 rounded border border-blue-200 text-blue-700 text-sm disabled:opacity-50"
+          >
+            {checkingUpdate ? 'Проверка…' : 'Проверить обновление'}
           </button>
         </div>
 

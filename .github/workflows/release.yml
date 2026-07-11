@@ -1,0 +1,61 @@
+name: Release Cashier
+
+# Publishes a signed Windows installer + updater manifest to a GitHub Release.
+# Trigger: push a version tag (e.g. `git tag v0.2.0 && git push origin v0.2.0`)
+# or run manually from the Actions tab.
+#
+# Requires two repo secrets (Settings → Secrets and variables → Actions):
+#   TAURI_SIGNING_PRIVATE_KEY          — contents of the minisign private key file
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — the password chosen when the key was generated
+#
+# Before tagging, bump the version in the SAME value across:
+#   sellary-cashier/package.json, sellary-cashier/src-tauri/tauri.conf.json,
+#   sellary-cashier/src-tauri/Cargo.toml  — and use a matching tag (vX.Y.Z).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build (e.g. v0.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, sign & publish (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: sellary-cashier/package-lock.json
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        working-directory: sellary-cashier
+        run: npm ci
+
+      - name: Build, sign & publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: sellary-cashier
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: "Sellary Cashier __VERSION__"
+          releaseBody: "Автоматический релиз. Приложение обновится само (или через «Проверить обновление» в настройках)."
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
