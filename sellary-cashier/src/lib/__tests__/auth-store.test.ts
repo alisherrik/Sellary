@@ -171,61 +171,6 @@ describe('useAuthStore', () => {
     });
   });
 
-  describe('selectAndBootstrap', () => {
-    it('bootstraps and sets authenticated state on success', async () => {
-      mockSelectCompany.mockResolvedValue(makeTokenResponse());
-      mockFetchBootstrap.mockResolvedValue(makeBootstrap());
-      mockUpsertCategories.mockResolvedValue(undefined);
-      mockUpsertProducts.mockResolvedValue(undefined);
-      mockSetMeta.mockResolvedValue(undefined);
-      mockSetStoreValue.mockResolvedValue(undefined);
-      mockAddSyncEvent.mockResolvedValue(undefined);
-
-      await useAuthStore.getState().selectAndBootstrap('login-token', 10);
-
-      const state = useAuthStore.getState();
-      expect(state.isAuthenticated).toBe(true);
-      expect(state.isBootstrapping).toBe(false);
-      expect(state.companyId).toBe(10);
-      expect(state.companyName).toBe('Test Company');
-      expect(state.userId).toBe(1);
-      expect(state.username).toBe('cashier');
-      expect(state.userRole).toBe('cashier');
-
-      expect(mockSelectCompany).toHaveBeenCalledWith('login-token', 10);
-      expect(mockSetAccessToken).toHaveBeenCalledWith('token-abc');
-      expect(mockFetchBootstrap).toHaveBeenCalled();
-      expect(mockUpsertCategories).toHaveBeenCalledWith([]);
-      expect(mockUpsertProducts).toHaveBeenCalledWith([]);
-      expect(mockSetMeta).toHaveBeenCalledWith('last_bootstrap_time', '2025-01-01T00:00:00Z');
-      expect(mockSetMeta).toHaveBeenCalledWith('last_company_id', '10');
-      expect(mockSetStoreValue).toHaveBeenCalledWith('last_company_id', 10);
-    });
-
-    it('sets isBootstrapping to false and throws on selectCompany failure', async () => {
-      mockSelectCompany.mockRejectedValue(new Error('Invalid token'));
-
-      await expect(
-        useAuthStore.getState().selectAndBootstrap('bad-token', 10)
-      ).rejects.toThrow('select company: Invalid token');
-
-      expect(useAuthStore.getState().isBootstrapping).toBe(false);
-      expect(useAuthStore.getState().isAuthenticated).toBe(false);
-    });
-
-    it('sets isBootstrapping to false and throws on fetchBootstrap failure', async () => {
-      mockSelectCompany.mockResolvedValue(makeTokenResponse());
-      mockFetchBootstrap.mockRejectedValue(new Error('Server error'));
-
-      await expect(
-        useAuthStore.getState().selectAndBootstrap('login-token', 10)
-      ).rejects.toThrow('download bootstrap catalog: Server error');
-
-      expect(useAuthStore.getState().isBootstrapping).toBe(false);
-      expect(useAuthStore.getState().isAuthenticated).toBe(false);
-    });
-  });
-
   describe('restoreSession', () => {
     it('opens (returns true) on an EXPIRED access_token when device + PIN exist', async () => {
       mockGetDeviceAuth.mockResolvedValue({
@@ -290,30 +235,100 @@ describe('useAuthStore', () => {
     });
   });
 
-  describe('logout', () => {
-    it('clears access token and resets auth state', async () => {
-      mockClearCashierSession.mockResolvedValue(undefined);
-      useAuthStore.setState({
-        isAuthenticated: true,
-        companyId: 10,
-        companyName: 'Test',
-        userId: 1,
-        username: 'cashier',
-        userRole: 'cashier',
-      });
+});
 
-      await useAuthStore.getState().logout();
-
-      expect(mockSetAccessToken).toHaveBeenCalledWith(null);
-      expect(mockClearCashierSession).toHaveBeenCalled();
-      const state = useAuthStore.getState();
-      expect(state.isAuthenticated).toBe(false);
-      expect(state.companyId).toBeNull();
-      expect(state.companyName).toBeNull();
-      expect(state.userId).toBeNull();
-      expect(state.username).toBeNull();
-      expect(state.userRole).toBeNull();
+describe('selectAndBootstrap (device provisioning)', () => {
+  it('selects company, registers the device, binds identity, awaits PIN', async () => {
+    mockSelectCompany.mockResolvedValue(makeTokenResponse());
+    mockGetDeviceAuth.mockResolvedValue(null);
+    mockRegisterDevice.mockResolvedValue({
+      device_id: 'dev-1', device_token: 'secret',
+      name: 'Kassa', expires_at: '2027-01-01T00:00:00Z',
     });
+    mockAddSyncEvent.mockResolvedValue(undefined);
+
+    await useAuthStore.getState().selectAndBootstrap('login-token', 10);
+
+    expect(mockSelectCompany).toHaveBeenCalledWith('login-token', 10);
+    expect(mockSetAccessToken).toHaveBeenCalledWith('token-abc');
+    expect(mockRegisterDevice).toHaveBeenCalledWith('Kassa', expect.any(String));
+    expect(mockSaveDeviceCredential).toHaveBeenCalledWith('secret', '2027-01-01T00:00:00Z');
+    expect(mockEnsureDeviceAuth).toHaveBeenCalledWith('dev-1');
+    expect(mockBindDeviceIdentity).toHaveBeenCalledWith({
+      user_id: 1, username: 'cashier', company_id: 10,
+      company_name: 'Test Company', user_role: 'cashier',
+      device_token_expires_at: '2027-01-01T00:00:00Z', // reg.expires_at
+      last_online_auth_at: expect.any(String),
+    });
+    const state = useAuthStore.getState();
+    expect(state.hasDevice).toBe(true);
+    expect(state.hasPin).toBe(false);
+    expect(state.isAuthenticated).toBe(false); // not until PIN + bootstrap
+  });
+
+  it('does not swallow a register failure', async () => {
+    mockSelectCompany.mockResolvedValue(makeTokenResponse());
+    mockGetDeviceAuth.mockResolvedValue(null);
+    mockRegisterDevice.mockRejectedValue(new Error('rate limited'));
+    mockAddSyncEvent.mockResolvedValue(undefined);
+
+    await expect(
+      useAuthStore.getState().selectAndBootstrap('login-token', 10)
+    ).rejects.toThrow('register device: rate limited');
+    expect(useAuthStore.getState().isBootstrapping).toBe(false);
+  });
+});
+
+describe('completePinSetup', () => {
+  it('sets the PIN, pulls the catalog, and authenticates', async () => {
+    mockSavePin.mockResolvedValue(undefined);
+    mockGetAccessToken.mockReturnValue('token-abc');
+    mockFetchBootstrap.mockResolvedValue(makeBootstrap());
+    mockAddSyncEvent.mockResolvedValue(undefined);
+
+    await useAuthStore.getState().completePinSetup('1234');
+
+    expect(mockSavePin).toHaveBeenCalledWith('1234');
+    expect(mockFetchBootstrap).toHaveBeenCalled();
+    expect(mockUpsertProducts).toHaveBeenCalledWith([]);
+    expect(mockSaveCashierSession).toHaveBeenCalled();
+    const state = useAuthStore.getState();
+    expect(state.hasPin).toBe(true);
+    expect(state.isAuthenticated).toBe(true);
+    expect(state.companyId).toBe(10);
+  });
+});
+
+describe('logout', () => {
+  it('hard-blocks while unsynced sales exist', async () => {
+    mockGetUnsyncedCount.mockResolvedValue(3);
+    useAuthStore.setState({ isAuthenticated: true });
+
+    await expect(useAuthStore.getState().logout()).rejects.toThrow(/3/);
+    expect(mockClearDeviceCredential).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+  });
+
+  it('clears device + PIN + session when nothing is unsynced', async () => {
+    mockGetUnsyncedCount.mockResolvedValue(0);
+    mockClearCashierSession.mockResolvedValue(undefined);
+    mockClearDeviceCredential.mockResolvedValue(undefined);
+    mockClearPin.mockResolvedValue(undefined);
+    useAuthStore.setState({
+      isAuthenticated: true, hasDevice: true, hasPin: true, needsReauth: true,
+    });
+
+    await useAuthStore.getState().logout();
+
+    expect(mockSetAccessToken).toHaveBeenCalledWith(null);
+    expect(mockClearCashierSession).toHaveBeenCalled();
+    expect(mockClearDeviceCredential).toHaveBeenCalled();
+    expect(mockClearPin).toHaveBeenCalled();
+    const state = useAuthStore.getState();
+    expect(state.isAuthenticated).toBe(false);
+    expect(state.hasDevice).toBe(false);
+    expect(state.hasPin).toBe(false);
+    expect(state.needsReauth).toBe(false);
   });
 });
 

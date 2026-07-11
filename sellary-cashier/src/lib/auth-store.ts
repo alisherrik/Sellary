@@ -3,7 +3,9 @@ import {
   login,
   selectCompany,
   setAccessToken as setApiToken,
+  getAccessToken,
   fetchBootstrap,
+  registerDevice,
   refreshDevice,
   ApiError,
 } from './api';
@@ -14,8 +16,11 @@ import {
   setMeta,
   addSyncEvent,
   getDeviceAuth,
+  ensureDeviceAuth,
+  bindDeviceIdentity,
   recordPinFailure,
   resetPinFailures,
+  getUnsyncedCount,
 } from './db';
 import { setStoreValue } from './storage';
 import { getErrorMessage } from './error';
@@ -26,7 +31,10 @@ import {
   getTokenExpiresAt,
   loadDeviceCredential,
   saveDeviceCredential,
+  clearDeviceCredential,
+  savePin,
   verifyPin,
+  clearPin,
 } from './session';
 
 interface AuthState {
@@ -94,11 +102,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   lockedUntil: null,
   needsReauth: false,
 
-  // Temporary stubs to satisfy the AuthState interface added in Task 5.
-  // Real implementations land in Task 7 (ensureFreshAccessToken) and
-  // Task 8 (completePinSetup).
-  completePinSetup: async () => {
-    throw new Error('completePinSetup is not implemented yet (see Task 8)');
+  completePinSetup: async (pin) => {
+    set({ isBootstrapping: true });
+    let phase = 'set pin';
+    try {
+      await savePin(pin);
+      set({ hasPin: true });
+
+      phase = 'download bootstrap catalog';
+      const bootstrap = await fetchBootstrap();
+      await upsertCategories(bootstrap.categories);
+      await upsertProducts(bootstrap.products);
+      await setMeta('last_bootstrap_time', bootstrap.server_time);
+      await setMeta('last_company_id', String(bootstrap.company_id));
+      await setStoreValue('last_company_id', bootstrap.company_id);
+
+      const accessToken = getAccessToken();
+      if (accessToken) {
+        await saveCashierSession({
+          accessToken,
+          expiresAt: getTokenExpiresAt(accessToken),
+          companyId: bootstrap.company_id,
+          companyName: bootstrap.company_name,
+          userId: bootstrap.user_id,
+          username: bootstrap.user_username,
+          userRole: bootstrap.user_role,
+        });
+      }
+
+      set({
+        isAuthenticated: true,
+        isBootstrapping: false,
+        companyId: bootstrap.company_id,
+        companyName: bootstrap.company_name,
+        userId: bootstrap.user_id,
+        username: bootstrap.user_username,
+        userRole: bootstrap.user_role,
+      });
+      await addSyncEvent('bootstrap', 'success').catch(() => {});
+    } catch (e: unknown) {
+      set({ isBootstrapping: false });
+      const msg = `${phase}: ${getErrorMessage(e, 'Bootstrap failed')}`;
+      console.error('PIN setup / bootstrap failed', { phase, error: e });
+      await addSyncEvent('bootstrap', 'error', msg).catch(() => {});
+      throw new Error(msg);
+    }
   },
   unlockWithPin: async (pin) => {
     const auth = await getDeviceAuth();
@@ -185,58 +233,46 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   selectAndBootstrap: async (loginToken, companyId) => {
     set({ isBootstrapping: true });
     let phase = 'select company';
-
     try {
-      phase = 'select company';
       const tokenRes = await selectCompany(loginToken, companyId);
       setApiToken(tokenRes.access_token);
 
-      phase = 'download bootstrap catalog';
-      const bootstrap = await fetchBootstrap();
-
-      phase = 'save categories';
-      await upsertCategories(bootstrap.categories);
-
-      phase = 'save products';
-      await upsertProducts(bootstrap.products);
-
-      phase = 'save sync metadata';
-      await setMeta('last_bootstrap_time', bootstrap.server_time);
-      await setMeta('last_company_id', String(bootstrap.company_id));
-
-      phase = 'save selected company';
-      await setStoreValue('last_company_id', bootstrap.company_id);
+      phase = 'register device';
+      const existing = await getDeviceAuth();
+      const deviceId = existing?.device_id ?? crypto.randomUUID();
+      const reg = await registerDevice('Kassa', deviceId);
+      await saveDeviceCredential(reg.device_token, reg.expires_at);
+      await ensureDeviceAuth(reg.device_id);
+      // Contract §4.6: snake_case DeviceIdentityInput, exactly 7 fields.
+      // device_token_expires_at mirrors the register response; last_online_auth_at
+      // is "now" because we just authenticated online.
+      await bindDeviceIdentity({
+        user_id: tokenRes.user.id,
+        username: tokenRes.user.username,
+        company_id: tokenRes.current_company.id,
+        company_name: tokenRes.current_company.name,
+        user_role: tokenRes.current_company.role,
+        device_token_expires_at: reg.expires_at,
+        last_online_auth_at: new Date().toISOString(),
+      });
 
       set({
-        isAuthenticated: true,
         isBootstrapping: false,
-        companyId: bootstrap.company_id,
-        companyName: bootstrap.company_name,
-        userId: bootstrap.user_id,
-        username: bootstrap.user_username,
-        userRole: bootstrap.user_role,
+        hasDevice: true,
+        hasPin: false,
+        companyId: tokenRes.current_company.id,
+        companyName: tokenRes.current_company.name,
+        userId: tokenRes.user.id,
+        username: tokenRes.user.username,
+        userRole: tokenRes.current_company.role,
       });
 
-      await saveCashierSession({
-        accessToken: tokenRes.access_token,
-        expiresAt: getTokenExpiresAt(tokenRes.access_token),
-        companyId: bootstrap.company_id,
-        companyName: bootstrap.company_name,
-        userId: bootstrap.user_id,
-        username: bootstrap.user_username,
-        userRole: bootstrap.user_role,
-      });
-
-      await addSyncEvent('bootstrap', 'success').catch((error) => {
-        console.warn('Failed to write bootstrap success event', error);
-      });
+      await addSyncEvent('device_register', 'success').catch(() => {});
     } catch (e: unknown) {
       set({ isBootstrapping: false });
-      const msg = `${phase}: ${getErrorMessage(e, 'Bootstrap failed')}`;
-      console.error('Company bootstrap failed', { phase, error: e });
-      await addSyncEvent('bootstrap', 'error', msg).catch((error) => {
-        console.warn('Failed to write bootstrap error event', error);
-      });
+      const msg = `${phase}: ${getErrorMessage(e, 'Provisioning failed')}`;
+      console.error('Device provisioning failed', { phase, error: e });
+      await addSyncEvent('device_register', 'error', msg).catch(() => {});
       throw new Error(msg);
     }
   },
@@ -293,12 +329,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    const unsynced = await getUnsyncedCount().catch(() => 0);
+    if (unsynced > 0) {
+      throw new Error(
+        `Есть ${unsynced} неотправленных продаж. Дождитесь синхронизации.`
+      );
+    }
     setApiToken(null);
     await clearCashierSession().catch((error) => {
       console.warn('Failed to clear session', error);
     });
+    await clearDeviceCredential().catch(() => {});
+    await clearPin().catch(() => {});
     set({
       isAuthenticated: false,
+      hasDevice: false,
+      hasPin: false,
+      isLocked: false,
+      lockedUntil: null,
+      needsReauth: false,
       companyId: null,
       companyName: null,
       userId: null,
