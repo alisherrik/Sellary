@@ -957,3 +957,110 @@ export async function migrateOutboxToSalesOnce(): Promise<void> {
   await reconcileLocalState();
   await setMeta('outbox_migrated_v2', '1');
 }
+
+// ---------------------------------------------------------------------------
+// Offline customers + credit (migration 003) — spec §2, §5.4; contract C-1..C-3.
+// Debt balance is DERIVED on read (§2.4): never stored beyond the last server pull.
+// db.ts owns id/timestamp generation for local-origin rows (contract C-2/C-3).
+// ---------------------------------------------------------------------------
+
+// Caller supplies only user-entered fields; db.ts generates client_customer_id +
+// created_at_client and sets sync_status='pending' (contract C-2).
+export interface NewCustomerInput {
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  description?: string | null;
+}
+
+export interface LocalCustomer {
+  client_customer_id: string;
+  server_id: number | null;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  description: string | null;
+  balance: number;              // server-derived debt at last pull (NOT incl. local unsynced)
+  is_active: number;
+  sync_status: SyncStatus;
+  error_kind: ErrorKind | null;
+  next_attempt_at: string | null;
+  first_failed_at: string | null;
+  last_error: string | null;
+  retry_count: number;
+  created_at_client: string;
+  synced_at: string | null;
+  updated_at: string;
+}
+
+// Balance-bearing row returned by getCustomersWithLocalBalance (contract C-1). EXACT field set
+// consumed by every UI plan — do NOT rename or extend it. sync_status/error_kind are plain
+// strings here (widened) so consumers need not import SyncStatus/ErrorKind.
+export type CustomerWithBalance = {
+  client_customer_id: string;
+  server_id: number | null;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  description: string | null;
+  local_balance: number;        // balance + Σ unsynced credit remaining − Σ unsynced payments (§2.4)
+  is_active: number;
+  sync_status: string;
+  error_kind: string | null;
+};
+
+// Filter for getCustomers (the non-balance list). getCustomersWithLocalBalance is argument-less
+// (contract C-1): the UI searches/filters the returned array client-side.
+export interface CustomerFilter {
+  search?: string;              // matches name OR phone
+  limit?: number;
+  offset?: number;
+}
+
+export async function insertCustomer(input: NewCustomerInput): Promise<{ clientCustomerId: string }> {
+  const database = await getDb();
+  const clientCustomerId = crypto.randomUUID();          // db.ts owns the local identity (C-2)
+  const createdAtClient = new Date().toISOString();
+  await database.execute(
+    `INSERT INTO customers
+       (client_customer_id, server_id, name, phone, email, address, description,
+        balance, is_active, sync_status, retry_count, created_at_client)
+     VALUES ($1, NULL, $2, $3, $4, $5, $6, 0, 1, 'pending', 0, $7)`,
+    [clientCustomerId, input.name, input.phone ?? null, input.email ?? null,
+     input.address ?? null, input.description ?? null, createdAtClient]
+  );
+  return { clientCustomerId };
+}
+
+export async function getCustomerByClientId(clientCustomerId: string): Promise<LocalCustomer | null> {
+  const database = await getDb();
+  const rows = await database.select<LocalCustomer[]>(
+    'SELECT * FROM customers WHERE client_customer_id = $1',
+    [clientCustomerId]
+  );
+  return rows[0] || null;
+}
+
+export async function getCustomers(filter: CustomerFilter = {}): Promise<LocalCustomer[]> {
+  const database = await getDb();
+  const where: string[] = ['is_active = 1'];
+  const params: unknown[] = [];
+  if (filter.search) {
+    const q = `%${filter.search}%`;
+    params.push(q); const p1 = params.length;
+    params.push(q); const p2 = params.length;
+    where.push(`(name LIKE $${p1} OR phone LIKE $${p2})`);
+  }
+  const limit = filter.limit ?? 200;
+  const offset = filter.offset ?? 0;
+  params.push(limit); const lp = params.length;
+  params.push(offset); const op = params.length;
+  return database.select<LocalCustomer[]>(
+    `SELECT * FROM customers WHERE ${where.join(' AND ')}
+     ORDER BY name ASC LIMIT $${lp} OFFSET $${op}`,
+    params
+  );
+}
