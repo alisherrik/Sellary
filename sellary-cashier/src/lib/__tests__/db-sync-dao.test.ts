@@ -81,6 +81,25 @@ describe('sync-worker DAOs', () => {
     expect(s?.next_attempt_at).toBe('2025-01-01T10:00:00.000Z');
   });
 
+  it('recoverSyncingSales requeues a false-synced sale with no server id', async () => {
+    const { saleId } = await db.insertSale(input({
+      client_sale_id: 'false-synced',
+      idempotency_key: 'false-synced-key',
+    }));
+    await db.markSaleSynced(saleId, null);
+
+    const n = await db.recoverSyncingSales('2025-01-01T10:00:00.000Z');
+
+    expect(n).toBe(1);
+    const sale = await db.getSaleWithItems(saleId);
+    expect(sale?.sync_status).toBe('failed');
+    expect(sale?.error_kind).toBe('transient');
+    expect(sale?.server_sale_id).toBeNull();
+    expect(sale?.last_error).toBe('Recovered sale missing server id');
+    expect(sale?.next_attempt_at).toBe('2025-01-01T10:00:00.000Z');
+    expect((await db.getSendableSales('2025-01-01T10:00:00.000Z'))[0]?.id).toBe(saleId);
+  });
+
   it('counts: unsynced excludes permanent; needs-attention counts only permanent', async () => {
     const { saleId: t } = await db.insertSale(input({ client_sale_id: 't', idempotency_key: 't' }));
     const { saleId: p } = await db.insertSale(input({ client_sale_id: 'p', idempotency_key: 'p' }));

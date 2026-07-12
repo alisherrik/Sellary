@@ -596,11 +596,16 @@ export async function recoverSyncingSales(nowIso: string): Promise<number> {
   const result = await database.execute(
     `UPDATE sales
      SET sync_status = 'failed', error_kind = 'transient', next_attempt_at = $1,
-         last_error = COALESCE(last_error, 'Recovered from interrupted sync'),
+         last_error = CASE
+           WHEN sync_status = 'synced' THEN 'Recovered sale missing server id'
+           ELSE COALESCE(last_error, 'Recovered from interrupted sync')
+         END,
          retry_count = retry_count + 1,
          first_failed_at = COALESCE(first_failed_at, datetime('now')),
+         synced_at = CASE WHEN sync_status = 'synced' THEN NULL ELSE synced_at END,
          updated_at = datetime('now')
-     WHERE sync_status = 'syncing'`,
+     WHERE sync_status = 'syncing'
+        OR (sync_status = 'synced' AND server_sale_id IS NULL)`,
     [nowIso]
   );
   return Number((result as { rowsAffected?: number }).rowsAffected ?? 0);
