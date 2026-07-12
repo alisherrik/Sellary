@@ -12,6 +12,7 @@ from core.config import settings  # noqa: F401
 from core.idempotency import IdempotencyConflictError, IdempotencyService
 from models.company import Company
 from models.customer import Customer
+from models.idempotency_key import IdempotencyKey
 from models.product import Product
 from models.sale import CardType, PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
@@ -136,11 +137,35 @@ class SyncService:
             )
             if cached:
                 response_body, _ = cached
-                return SyncSaleResult(
-                    client_sale_id=sale_create.client_sale_id,
-                    status="duplicate",
-                    sale_id=response_body.get("sale_id"),
+                cached_sale_id = response_body.get("sale_id")
+                cached_sale = (
+                    self.db.query(Sale)
+                    .filter(
+                        Sale.id == cached_sale_id,
+                        Sale.company_id == company.id,
+                        Sale.client_sale_id == sale_create.client_sale_id,
+                    )
+                    .first()
+                    if cached_sale_id is not None
+                    else None
                 )
+                if cached_sale:
+                    return SyncSaleResult(
+                        client_sale_id=sale_create.client_sale_id,
+                        status="duplicate",
+                        sale_id=cached_sale.id,
+                    )
+
+                # Older servers cached failed sync results with sale_id=null.
+                # Drop that poisoned record so the same offline fact can be
+                # reprocessed after its customer/product dependency is fixed.
+                self.db.query(IdempotencyKey).filter(
+                    IdempotencyKey.key == sale_create.idempotency_key,
+                    IdempotencyKey.company_id == company.id,
+                    IdempotencyKey.user_id == user.id,
+                    IdempotencyKey.endpoint == SYNC_ENDPOINT,
+                ).delete(synchronize_session=False)
+                self.db.flush()
         except IdempotencyConflictError:
             return SyncSaleResult(
                 client_sale_id=sale_create.client_sale_id,
@@ -163,6 +188,12 @@ class SyncService:
                 status="failed",
                 error=str(exc),
             )
+
+        # Failed business results are retryable historical facts, not completed
+        # idempotent operations. Caching one would make the next attempt look
+        # like a successful duplicate even though no server Sale exists.
+        if result.status != "synced" or result.sale_id is None:
+            return result
 
         result_data = {
             "sale_id": result.sale_id,

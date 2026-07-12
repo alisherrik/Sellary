@@ -312,11 +312,15 @@ async function runPass(reason: SyncReason, force = false): Promise<SyncPassResul
           if (localId == null) continue;
           idByClientId.delete(r.client_sale_id);
           oversellWarnings += r.warnings?.length ?? 0; // oversell positions the server tolerated
-          if (r.status === 'synced' || r.status === 'duplicate') {
-            await markSaleSynced(localId, r.sale_id ?? null);
+          const serverConfirmed = r.status === 'synced' || r.status === 'duplicate';
+          if (serverConfirmed && r.sale_id != null) {
+            await markSaleSynced(localId, r.sale_id);
             synced++;
           } else {
-            await markPermanentFailure(localId, r.error || 'Unknown error');
+            const error = serverConfirmed
+              ? 'Server confirmed sale without sale_id'
+              : r.error || 'Unknown error';
+            await markPermanentFailure(localId, error);
             permanentFailed++;
           }
         }

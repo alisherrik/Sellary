@@ -224,7 +224,7 @@ describe('runPass classification', () => {
     mockGetSendableSales.mockResolvedValue([makeSale(1, 'a'), makeSale(2, 'b')]);
     mockPushOnce.mockResolvedValue([
       { client_sale_id: 'a', status: 'synced', sale_id: 900, warnings: null, error: null },
-      { client_sale_id: 'b', status: 'duplicate', sale_id: null, warnings: null, error: null },
+      { client_sale_id: 'b', status: 'duplicate', sale_id: 901, warnings: null, error: null },
     ]);
 
     const res = await requestSync('manual');
@@ -232,10 +232,30 @@ describe('runPass classification', () => {
     expect(mockMarkSaleSyncing).toHaveBeenCalledWith(1);
     expect(mockMarkSaleSyncing).toHaveBeenCalledWith(2);
     expect(mockMarkSaleSynced).toHaveBeenCalledWith(1, 900);
-    expect(mockMarkSaleSynced).toHaveBeenCalledWith(2, null);
+    expect(mockMarkSaleSynced).toHaveBeenCalledWith(2, 901);
     expect(res.synced).toBe(2);
     expect(useSyncStore.getState().engineState).toBe('idle');
   });
+
+  it.each(['synced', 'duplicate'] as const)(
+    'does not accept a %s result without a server sale id',
+    async (status) => {
+      mockGetSendableSales.mockResolvedValue([makeSale(1, 'a')]);
+      mockPushOnce.mockResolvedValue([
+        { client_sale_id: 'a', status, sale_id: null, warnings: null, error: null },
+      ]);
+
+      const res = await requestSync('manual');
+
+      expect(mockMarkSaleSynced).not.toHaveBeenCalled();
+      expect(mockMarkPermanentFailure).toHaveBeenCalledWith(
+        1,
+        'Server confirmed sale without sale_id',
+      );
+      expect(res.synced).toBe(0);
+      expect(res.permanentFailed).toBe(1);
+    },
+  );
 
   it('classifies a per-sale business error as permanent (no retry queue)', async () => {
     mockGetSendableSales.mockResolvedValue([makeSale(1, 'a')]);

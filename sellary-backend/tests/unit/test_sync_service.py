@@ -7,7 +7,10 @@ from decimal import Decimal
 
 from services.sync_service import SyncService
 from models.category import Category as CategoryModel
+from models.customer import Customer
+from models.idempotency_key import IdempotencyKey
 from models.product import Product
+from models.sale import Sale
 from models.user import User
 from schemas.sync import (
     SyncSaleCreate,
@@ -15,6 +18,7 @@ from schemas.sync import (
     SyncSalesRequest,
 )
 from core.security import get_password_hash
+from core.idempotency import IdempotencyService
 
 
 class TestBootstrap:
@@ -256,6 +260,99 @@ class TestSyncSales:
 
         db_session.refresh(test_product)
         assert test_product.stock_quantity == 100 - 3
+
+    def test_failed_sale_does_not_cache_and_can_succeed_after_customer_sync(
+        self, db_session, default_company, cashier_user, test_product
+    ):
+        sale_create = self._make_sale(
+            client_sale_id="offline-credit-retry",
+            idempotency_key="ik-credit-retry-001",
+            product_id=test_product.id,
+            quantity=1,
+            sell_price=test_product.sell_price,
+            payment_method="credit",
+            paid_amount=Decimal("0.00"),
+            client_customer_id="offline-customer-retry",
+        )
+        request = SyncSalesRequest(sales=[sale_create])
+        service = SyncService(db_session)
+
+        failed = service.sync_sales(default_company, cashier_user, request)
+
+        assert failed.results[0].status == "failed"
+        assert "customer not synced" in failed.results[0].error.lower()
+        assert (
+            db_session.query(IdempotencyKey)
+            .filter(IdempotencyKey.key == sale_create.idempotency_key)
+            .count()
+            == 0
+        )
+
+        db_session.add(
+            Customer(
+                company_id=default_company.id,
+                client_customer_id=sale_create.client_customer_id,
+                name="Offline retry customer",
+                phone="+998900001234",
+                is_active=True,
+            )
+        )
+        db_session.flush()
+
+        retried = service.sync_sales(default_company, cashier_user, request)
+
+        assert retried.results[0].status == "synced"
+        assert retried.results[0].sale_id is not None
+        assert (
+            db_session.query(Sale)
+            .filter(
+                Sale.company_id == default_company.id,
+                Sale.client_sale_id == sale_create.client_sale_id,
+            )
+            .count()
+            == 1
+        )
+
+    def test_legacy_null_sale_cache_is_reprocessed(
+        self, db_session, default_company, cashier_user, test_product
+    ):
+        sale_create = self._make_sale(
+            client_sale_id="offline-legacy-null",
+            idempotency_key="ik-legacy-null-001",
+            product_id=test_product.id,
+            quantity=1,
+            sell_price=test_product.sell_price,
+        )
+        IdempotencyService(db_session).store_response(
+            key=sale_create.idempotency_key,
+            company_id=default_company.id,
+            user_id=cashier_user.id,
+            endpoint="/api/sync/sales",
+            request_body=sale_create.model_dump(),
+            response_body={
+                "sale_id": None,
+                "client_sale_id": sale_create.client_sale_id,
+            },
+            status_code=201,
+        )
+
+        result = SyncService(db_session).sync_sales(
+            default_company,
+            cashier_user,
+            SyncSalesRequest(sales=[sale_create]),
+        )
+
+        assert result.results[0].status == "synced"
+        assert result.results[0].sale_id is not None
+        assert (
+            db_session.query(Sale)
+            .filter(
+                Sale.company_id == default_company.id,
+                Sale.client_sale_id == sale_create.client_sale_id,
+            )
+            .count()
+            == 1
+        )
 
     def test_sync_oversell_is_tolerated_by_ledger(
         self, db_session, default_company, cashier_user, test_product
