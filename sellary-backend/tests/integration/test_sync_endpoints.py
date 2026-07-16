@@ -142,6 +142,35 @@ class TestSyncSalesEndpoint:
         assert data["results"][0]["status"] == "synced"
         assert data["results"][0]["sale_id"] is not None
 
+    @pytest.mark.no_auto_shift
+    def test_sync_sales_accepted_without_an_open_shift(
+        self, client, db_session, default_company, cashier_user, test_product
+    ):
+        """The shift gate on POST /api/sales must NOT extend to sync.
+
+        A queued offline sale has to be accepted no matter the till state, or it
+        is silently lost — the exact class of bug the sync-integrity fixes
+        (34917f7, 2ce33bf) were about.
+        """
+        headers = create_auth_headers(
+            cashier_user.username, cashier_user.id,
+            default_company.id, cashier_user.role,
+        )
+        payload = {
+            "sales": [
+                self._sale_payload(
+                    client_sale_id="offline-no-shift",
+                    idempotency_key="ik-no-shift-001",
+                    product_id=test_product.id,
+                )
+            ]
+        }
+
+        response = client.post("/api/sync/sales", json=payload, headers=headers)
+
+        assert response.status_code == 200
+        assert response.json()["results"][0]["status"] == "synced"
+
     def test_sync_sales_idempotency(
         self, client, db_session, default_company, cashier_user, test_product
     ):

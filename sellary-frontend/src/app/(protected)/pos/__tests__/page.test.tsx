@@ -12,6 +12,32 @@ vi.mock('@/lib/api', () => ({
   },
   productsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }), getByBarcode: vi.fn() },
   categoriesApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
+  // A shift is open by default so the checkout gate lets these sale flows run.
+  // The gate itself is covered separately.
+  shiftsApi: {
+    getCurrent: vi.fn().mockResolvedValue({
+      data: {
+        id: 1,
+        shift_number: 1,
+        status: 'open',
+        opened_at: '2026-07-16T08:00:00Z',
+        opened_by_user_id: 1,
+        opening_cash: '0.00',
+        closed_at: null,
+        closed_by_user_id: null,
+        counted_cash: null,
+        expected_cash: null,
+        discrepancy: null,
+        notes: null,
+        totals: {
+          cash_sales: '0.00', card_sales: '0.00', card_by_type: {}, mobile_sales: '0.00',
+          credit_sales: '0.00', debt_payments_by_method: {}, refunds_by_method: {},
+          sales_count: 0, expected_cash: '0.00',
+        },
+      },
+    }),
+    open: vi.fn(),
+  },
 }));
 
 import { render, screen, waitFor } from '@testing-library/react';

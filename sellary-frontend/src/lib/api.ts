@@ -18,6 +18,8 @@ import type {
   ReceivePurchaseOrderPayload,
   SaleSearchSuggestion,
   SalesSummary,
+  CashShift,
+  CashShiftDetail,
   VoidPreview,
   VoidResult,
   Customer,
@@ -253,6 +255,17 @@ export const reportsApi = {
   getDailySales: (params?: any) => api.get('/reports/daily-sales', { params }),
   getProfit: (params?: any) => api.get('/reports/profit', { params }),
   getTopProducts: (params?: any) => api.get('/reports/top-products', { params }),
+};
+
+export const shiftsApi = {
+  // Open shift + live totals, or null. The POS gate reads this.
+  getCurrent: () => api.get<CashShift | null>('/shifts/current'),
+  getAll: (params?: any) => api.get<CashShift[]>('/shifts', { params }),
+  getById: (id: number) => api.get<CashShiftDetail>(`/shifts/${id}`),
+  open: (opening_cash: string) => api.post<CashShift>('/shifts/open', { opening_cash }),
+  close: (id: number, counted_cash: string, notes?: string) =>
+    api.post<CashShift>(`/shifts/${id}/close`, { counted_cash, notes }),
+  snapshot: (id: number) => api.post(`/shifts/${id}/snapshots`),
 };
 
 export const categoriesApi = {

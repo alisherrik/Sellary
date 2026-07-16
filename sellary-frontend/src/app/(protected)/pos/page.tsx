@@ -7,6 +7,7 @@ import { salesApi, productsApi, categoriesApi, customersApi } from '@/lib/api';
 import { formatCurrency, hotkeyManager, printReceipt, registerHotkeys } from '@/lib/utils';
 import FilterMenu from '@/components/filters/FilterMenu';
 import { useProducts } from '@/hooks/useQueries';
+import { ShiftGateBanner, useHasOpenShift } from '@/components/shifts/ShiftGate';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Category, Customer, Product } from '@/lib/types';
@@ -96,6 +97,7 @@ export default function POS() {
   const [lineTotalEdits, setLineTotalEdits] = useState<Record<string, string>>({});
   const [showCartSheet, setShowCartSheet] = useState(false);
   const { isServerReachable } = useServerHealth();
+  const hasOpenShift = useHasOpenShift();
   const queryClient = useQueryClient();
   const { cartPanelWidth, setCartPanelWidth } = useUIStore();
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -549,6 +551,11 @@ export default function POS() {
         toast.error(
           'Недостаточно товара на складе. Количества обновлены — уменьшите количество в корзине или пополните запас через «Закупки».',
         );
+      } else if (error.response?.status === 409 && typeof detail === 'string' && detail.includes('Смена')) {
+        // The shift was closed elsewhere between load and checkout. Refresh the
+        // gate so the banner reappears instead of leaving a dead pay button.
+        queryClient.invalidateQueries({ queryKey: ['currentShift'] });
+        toast.error('Смена не открыта. Откройте смену, чтобы продолжить.');
       } else {
         toast.error(detail || 'Не удалось завершить продажу');
       }
@@ -881,6 +888,7 @@ export default function POS() {
 
       {/* Totals + pay */}
       <div className="border-t border-gray-100 p-4 dark:border-gray-700">
+        <ShiftGateBanner />
         <div className="mb-1 flex justify-between text-[13px] text-gray-500"><span>Подытог</span><span className="tabular-nums">{formatCurrency(subtotal)}</span></div>
         <div className="mb-1 flex justify-between text-[13px] text-gray-500"><span>Налог</span><span className="tabular-nums">{formatCurrency(tax)}</span></div>
         <div className="mb-3 flex items-end justify-between">
@@ -913,9 +921,15 @@ export default function POS() {
           )}
           <button
             type="button"
-            onClick={() => items.length > 0 && !hasOverStock && openPaymentModal()}
-            disabled={items.length === 0 || hasOverStock}
-            title={hasOverStock ? 'Недостаточно товара на складе' : undefined}
+            onClick={() => items.length > 0 && !hasOverStock && hasOpenShift && openPaymentModal()}
+            disabled={items.length === 0 || hasOverStock || !hasOpenShift}
+            title={
+              !hasOpenShift
+                ? 'Откройте смену, чтобы продавать'
+                : hasOverStock
+                  ? 'Недостаточно товара на складе'
+                  : undefined
+            }
             className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl text-[17px] font-extrabold text-white shadow-lg transition-all hover:brightness-105 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}
           >

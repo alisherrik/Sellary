@@ -1,10 +1,11 @@
 import { useQuery, useInfiniteQuery, keepPreviousData, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
-import { reportsApi, productsApi, salesApi, suppliersApi, purchaseOrdersApi, customersApi } from '@/lib/api';
+import { reportsApi, productsApi, salesApi, shiftsApi, suppliersApi, purchaseOrdersApi, customersApi } from '@/lib/api';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { useAuthStore } from '@/lib/store';
 import {
     Product, Sale, SaleSearchSuggestion, SalesSummary, Supplier, PurchaseOrder, Customer,
-    CustomerLedgerResponse, DailySalesReport, ProfitReport, TopProductsReport
+    CustomerLedgerResponse, DailySalesReport, ProfitReport, TopProductsReport,
+    CashShift, CashShiftDetail
 } from '@/lib/types';
 
 const tenantKey = (companyId: number | null) => companyId ?? 'no-company';
@@ -26,10 +27,57 @@ export const queryKeys = {
     purchaseOrder: (companyId: number | null, id: number) => ['purchaseOrder', tenantKey(companyId), id] as const,
     customers: (companyId: number | null, params?: any) => ['customers', tenantKey(companyId), params] as const,
     customerLedger: (companyId: number | null, id: number | null) => ['customerLedger', tenantKey(companyId), id] as const,
+    currentShift: (companyId: number | null) => ['currentShift', tenantKey(companyId)] as const,
+    shifts: (companyId: number | null, params?: any) => ['shifts', tenantKey(companyId), params] as const,
+    shift: (companyId: number | null, id: number) => ['shift', tenantKey(companyId), id] as const,
     dailySales: (companyId: number | null, days: number) => ['dailySales', tenantKey(companyId), days] as const,
     profit: (companyId: number | null, days: number) => ['profit', tenantKey(companyId), days] as const,
     topProducts: (companyId: number | null, days: number, limit: number) => ['topProducts', tenantKey(companyId), days, limit] as const,
 };
+
+// --- Cash shifts ---
+
+/** The company's open shift with live totals, or null. Drives the POS gate. */
+export function useCurrentShift() {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    return useQuery<CashShift | null>({
+        queryKey: queryKeys.currentShift(companyId),
+        queryFn: async () => {
+            const response = await shiftsApi.getCurrent();
+            return response.data;
+        },
+        enabled: isServerReachable && companyId !== null,
+        staleTime: 15 * 1000,
+    });
+}
+
+export function useShifts(params?: any) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    return useQuery<CashShift[]>({
+        queryKey: queryKeys.shifts(companyId, params),
+        queryFn: async () => {
+            const response = await shiftsApi.getAll(params);
+            return response.data;
+        },
+        placeholderData: keepPreviousData,
+        enabled: isServerReachable && companyId !== null,
+    });
+}
+
+export function useShift(id: number) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    return useQuery<CashShiftDetail>({
+        queryKey: queryKeys.shift(companyId, id),
+        queryFn: async () => {
+            const response = await shiftsApi.getById(id);
+            return response.data;
+        },
+        enabled: isServerReachable && companyId !== null && Number.isFinite(id),
+    });
+}
 
 // Dashboard Hook
 export function useDashboard() {
