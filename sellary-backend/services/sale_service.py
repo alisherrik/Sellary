@@ -5,14 +5,21 @@ from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from core.state_machine import validate_sale_transition
-from models.sale import Sale, SaleStatus
+from models.sale import PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
 from repositories.customer_repository import CustomerRepository
 from repositories.inventory_repository import InventoryRepository
 from repositories.product_repository import ProductRepository
 from repositories.sale_repository import SaleRepository
-from schemas.sale import SaleCreate, SaleResponse, SaleSearchSuggestion
+from schemas.sale import (
+    SaleCreate,
+    SaleResponse,
+    SaleSearchSuggestion,
+    SalesHourlyBucket,
+    SalesSummary,
+)
 from services.calculation_service import CalculationService
+from services.company_time import company_tz, to_local
 from services.customer_ledger_service import CustomerLedgerService
 from services.inventory_ledger_service import InventoryLedgerService
 from services.sale_search_service import (
@@ -52,10 +59,8 @@ class SaleService:
         status: Optional[SaleStatus] = None,
         search: Optional[str] = None,
         status_group: Optional[str] = None,
+        payment_method: Optional[PaymentMethod] = None,
     ) -> Tuple[List[SaleResponse], int]:
-        search_terms = None
-        if search and search.strip():
-            search_terms = automatic_terms(search, self._search_candidates())
         sales, total = self.sale_repo.get_all(
             self.company_id,
             skip=skip,
@@ -64,10 +69,67 @@ class SaleService:
             end_date=end_date,
             cashier_id=cashier_id,
             status=status,
-            search_terms=search_terms,
+            search_terms=self._resolve_search_terms(search),
             status_group=status_group,
+            payment_method=payment_method,
         )
         return [self._to_response(sale) for sale in sales], total
+
+    def _resolve_search_terms(self, search: Optional[str]) -> Optional[List[str]]:
+        if search and search.strip():
+            return automatic_terms(search, self._search_candidates())
+        return None
+
+    def get_summary(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        cashier_id: Optional[int] = None,
+        status: Optional[SaleStatus] = None,
+        search: Optional[str] = None,
+        status_group: Optional[str] = None,
+        payment_method: Optional[PaymentMethod] = None,
+    ) -> SalesSummary:
+        """Totals across every matching sale, and the local-hour breakdown.
+
+        The client only ever holds one page, so it cannot add these up itself —
+        that is exactly how the turnover card came to report a fraction of the
+        real number.
+        """
+        filters = dict(
+            start_date=start_date,
+            end_date=end_date,
+            cashier_id=cashier_id,
+            status=status,
+            search_terms=self._resolve_search_terms(search),
+            status_group=status_group,
+            payment_method=payment_method,
+        )
+
+        totals = self.sale_repo.get_summary(self.company_id, **filters)
+        turnover = totals["turnover"]
+        refunds = totals["refunds"]
+        count = totals["count"]
+
+        tz = company_tz(self.db, self.company_id)
+        hourly: dict[int, Decimal] = {}
+        for created_at, amount in self.sale_repo.get_turnover_timestamps(
+            self.company_id, **filters
+        ):
+            local_hour = to_local(created_at, tz).hour
+            hourly[local_hour] = hourly.get(local_hour, Decimal("0.00")) + amount
+
+        return SalesSummary(
+            turnover=turnover,
+            refunds=refunds,
+            net_turnover=turnover - refunds,
+            count=count,
+            average_check=(turnover / count).quantize(Decimal("0.01")) if count else Decimal("0.00"),
+            refund_operations=totals["refund_operations"],
+            hourly=[
+                SalesHourlyBucket(hour=hour, turnover=hourly[hour]) for hour in sorted(hourly)
+            ],
+        )
 
     def _search_candidates(self) -> list[SearchCandidate]:
         dynamic = [

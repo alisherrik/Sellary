@@ -535,7 +535,37 @@ class TestUpdateProduct:
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Updated Name"
-        assert data["sell_price"] == "20.00"
+        # sell_price is numeric(10,4) since f6a7b8c9d0e1, so it serialises with
+        # 4 decimals — the same shape cost_price has carried since a1b2c3d4e5f6.
+        assert Decimal(data["sell_price"]) == Decimal("20.00")
+
+    def test_update_product_accepts_a_four_decimal_price(
+        self, client: TestClient, db_session, admin_headers
+    ):
+        """45 / 24 = 1.8750 — the division the 2-decimal column used to round."""
+        category = Category(name="Precision Category")
+        db_session.add(category)
+        db_session.flush()
+
+        product = Product(
+            name="Wholesale item",
+            barcode="PRECISE1",
+            category_id=category.id,
+            cost_price=Decimal("1.2500"),
+            sell_price=Decimal("2.00"),
+            stock_quantity=100,
+        )
+        db_session.add(product)
+        db_session.commit()
+
+        response = client.put(
+            f"/api/products/{product.id}",
+            headers=admin_headers,
+            json={"sell_price": "1.8750"},
+        )
+
+        assert response.status_code == 200
+        assert Decimal(response.json()["sell_price"]) == Decimal("1.8750")
 
     def test_update_product_as_manager(self, client: TestClient, db_session, manager_headers):
         """Test updating a product as manager."""

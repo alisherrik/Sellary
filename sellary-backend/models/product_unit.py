@@ -37,7 +37,7 @@ class ProductUnit(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
     name = Column(String(20), nullable=False)
     factor = Column(Numeric(12, 4), nullable=False)
-    sell_price = Column(Numeric(10, 2), nullable=False)
+    sell_price = Column(Numeric(10, 4), nullable=False)
     barcode = Column(String(50), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, nullable=False, default=0)

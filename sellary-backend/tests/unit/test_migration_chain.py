@@ -1,14 +1,22 @@
-"""Assert the ONE new migration chains off c3d4e5f6a7b8 and the dead head stays."""
+"""Guard the migration lineage and the Railway pin that applies it.
+
+Railway's preDeployCommand pins an explicit revision instead of `head`, because
+the repo carries a second, dead head (20260319_0001) that `head` would refuse to
+resolve. That pin is easy to forget: add a migration, ship it, and the code
+deploys against a database that never ran it. These tests fail loudly instead.
+"""
+import re
 from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-NEW_REV = "e5f6a7b8c9d0"
-LIVE_HEAD = "d4e5f6a7b8c9"
+# An orphan branch that was never applied to production. Left alone on purpose;
+# it is what forces the explicit pin below.
 DEAD_HEAD = "20260319_0001"
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
+RAILWAY_TOML = BACKEND_DIR.parent / "railway.toml"
 
 
 def _script() -> ScriptDirectory:
@@ -17,18 +25,40 @@ def _script() -> ScriptDirectory:
     return ScriptDirectory.from_config(cfg)
 
 
-def test_new_migration_chains_off_live_head():
-    script = _script()
-    rev = script.get_revision(NEW_REV)
-    assert rev is not None
-    assert rev.down_revision == LIVE_HEAD
+def _live_head() -> str:
+    heads = set(_script().get_heads())
+    live = heads - {DEAD_HEAD}
+    assert len(live) == 1, f"expected exactly one live head, got {sorted(live)}"
+    return live.pop()
 
 
-def test_new_rev_is_a_head_and_dead_head_untouched():
-    script = _script()
-    heads = set(script.get_heads())
-    # Exactly two heads: the new one (main lineage) and the untouched dead head.
-    assert NEW_REV in heads
+def _pinned_revision() -> str:
+    content = RAILWAY_TOML.read_text(encoding="utf-8")
+    match = re.search(r'preDeployCommand\s*=\s*"alembic upgrade (\S+)"', content)
+    assert match, "railway.toml has no `alembic upgrade <rev>` preDeployCommand"
+    return match.group(1)
+
+
+def test_exactly_two_heads_and_dead_head_untouched():
+    heads = set(_script().get_heads())
     assert DEAD_HEAD in heads
-    assert LIVE_HEAD not in heads  # c3d4e5f6a7b8 is now superseded by NEW_REV
-    assert len(heads) == 2
+    assert len(heads) == 2, (
+        f"migration lineage forked: {sorted(heads)}. Every new migration must "
+        f"chain off the live head, not create a third one."
+    )
+
+
+def test_railway_pin_matches_live_head():
+    # If this fails, a migration was added without bumping railway.toml — the
+    # deploy would ship the code and skip the schema change.
+    assert _pinned_revision() == _live_head()
+
+
+def test_live_head_reaches_dead_head_free_lineage():
+    script = _script()
+    live = _live_head()
+    # Walking down from the live head must terminate, i.e. the pin really does
+    # apply a complete chain rather than pointing into a detached branch.
+    revisions = list(script.walk_revisions("base", live))
+    assert revisions, "live head resolves to an empty lineage"
+    assert DEAD_HEAD not in {rev.revision for rev in revisions}

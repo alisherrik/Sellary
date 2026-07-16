@@ -946,3 +946,69 @@ class TestSaleResponse:
         assert response.status_code == 201
         data = response.json()
         assert data["customer_name"] == "John Doe"
+
+
+class TestSalesSummaryEndpoint:
+    """GET /api/sales/summary — totals for the history KPI cards."""
+
+    def _sale(self, db_session, cashier, total, status=SaleStatus.COMPLETED,
+              payment_method=PaymentMethod.CASH):
+        sale = Sale(
+            cashier_id=cashier.id,
+            subtotal=Decimal(total),
+            tax_amount=Decimal("0.00"),
+            total_amount=Decimal(total),
+            payment_method=payment_method,
+            status=status,
+            created_at=datetime(2026, 7, 10, 12, 0),
+        )
+        db_session.add(sale)
+        return sale
+
+    def test_summary_route_is_not_shadowed_by_the_sale_id_route(
+        self, client: TestClient, db_session, cashier_user, cashier_headers
+    ):
+        """/sales/{sale_id} parses an int, so /sales/summary must be declared first.
+
+        Declared the other way round the request 422s on "summary" instead of
+        reaching this handler.
+        """
+        response = client.get("/api/sales/summary", headers=cashier_headers)
+
+        assert response.status_code == 200
+        assert "turnover" in response.json()
+
+    def test_summary_totals_every_matching_sale(
+        self, client: TestClient, db_session, cashier_user, cashier_headers
+    ):
+        for _ in range(3):
+            self._sale(db_session, cashier_user, "20.00")
+        self._sale(db_session, cashier_user, "999.00", status=SaleStatus.CANCELLED)
+        db_session.commit()
+
+        response = client.get("/api/sales/summary", headers=cashier_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert Decimal(data["turnover"]) == Decimal("60.00")
+        assert data["count"] == 3
+        assert Decimal(data["average_check"]) == Decimal("20.00")
+
+    def test_summary_honours_the_same_filters_as_the_list(
+        self, client: TestClient, db_session, cashier_user, cashier_headers
+    ):
+        self._sale(db_session, cashier_user, "20.00", payment_method=PaymentMethod.CASH)
+        self._sale(db_session, cashier_user, "70.00", payment_method=PaymentMethod.CARD)
+        db_session.commit()
+
+        response = client.get(
+            "/api/sales/summary",
+            params={"payment_method": "card"},
+            headers=cashier_headers,
+        )
+
+        assert response.status_code == 200
+        assert Decimal(response.json()["turnover"]) == Decimal("70.00")
+
+    def test_summary_requires_auth(self, client: TestClient):
+        assert client.get("/api/sales/summary").status_code in (401, 403)

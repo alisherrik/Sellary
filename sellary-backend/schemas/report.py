@@ -15,7 +15,13 @@ class DailySalesReport(BaseModel):
     period_start: str
     period_end: str
     data: List[DailySalesData]
+    # Net of refunds — the headline figure, unchanged.
     total_sales: Decimal
+    # Gross and refunds are reported alongside so this page reconciles with the
+    # sales history, which headlines gross turnover. Without them the two
+    # screens show different numbers for the same period with no way to tell why.
+    gross_turnover: Decimal = Decimal("0.00")
+    refunds: Decimal = Decimal("0.00")
     total_profit: Decimal
     sales_count: int
 

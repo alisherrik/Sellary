@@ -3,8 +3,8 @@ import { reportsApi, productsApi, salesApi, suppliersApi, purchaseOrdersApi, cus
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { useAuthStore } from '@/lib/store';
 import {
-    Product, Sale, SaleSearchSuggestion, Supplier, PurchaseOrder, Customer, CustomerLedgerResponse,
-    DailySalesReport, ProfitReport, TopProductsReport
+    Product, Sale, SaleSearchSuggestion, SalesSummary, Supplier, PurchaseOrder, Customer,
+    CustomerLedgerResponse, DailySalesReport, ProfitReport, TopProductsReport
 } from '@/lib/types';
 
 const tenantKey = (companyId: number | null) => companyId ?? 'no-company';
@@ -14,6 +14,11 @@ export const queryKeys = {
     dashboard: (companyId: number | null) => ['dashboard', tenantKey(companyId)] as const,
     products: (companyId: number | null, params?: any) => ['products', tenantKey(companyId), params] as const,
     sales: (companyId: number | null, params?: any) => ['sales', tenantKey(companyId), params] as const,
+    // Nested under 'sales' on purpose: invalidateQueries({queryKey: ['sales']})
+    // after a void or a return must refresh the totals too, or the cards would
+    // keep showing figures for a sale that no longer counts.
+    salesSummary: (companyId: number | null, params?: any) =>
+        ['sales', tenantKey(companyId), 'summary', params] as const,
     saleSearchSuggestions: (companyId: number | null, query: string) =>
         ['saleSearchSuggestions', tenantKey(companyId), query] as const,
     suppliers: (companyId: number | null, params?: any) => ['suppliers', tenantKey(companyId), params] as const,
@@ -124,6 +129,33 @@ export function useInfiniteSales(params?: any) {
         loadMore: query.fetchNextPage,
         refetch: query.refetch,
     };
+}
+
+/**
+ * Turnover / receipts / average-check totals for the sales history.
+ *
+ * Kept separate from useInfiniteSales because the two answer different
+ * questions: that hook returns the page you are looking at, this one returns
+ * the whole filtered history. Summing the former is what made the turnover card
+ * report a fraction of the real number until you clicked "load more" enough
+ * times.
+ */
+export function useSalesSummary(params?: any) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    // skip/limit describe the list's paging and mean nothing to a total; drop
+    // them so paging never re-fetches or re-keys the summary.
+    const { limit, skip, ...filters } = params || {};
+
+    return useQuery<SalesSummary>({
+        queryKey: queryKeys.salesSummary(companyId, filters),
+        queryFn: async () => {
+            const response = await salesApi.getSummary(filters);
+            return response.data;
+        },
+        placeholderData: keepPreviousData,
+        enabled: isServerReachable && companyId !== null,
+    });
 }
 
 export function useSaleSearchSuggestions(query: string, limit = 8) {

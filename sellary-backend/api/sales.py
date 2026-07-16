@@ -13,7 +13,14 @@ from core.idempotency import (
 )
 from core.state_machine import StateTransitionError
 from schemas.reversal import VoidPreview, VoidRequest, VoidResult
-from schemas.sale import SaleCreate, SaleResponse, SaleSearchSuggestion, SaleStatus
+from schemas.sale import (
+    PaymentMethod,
+    SaleCreate,
+    SaleResponse,
+    SaleSearchSuggestion,
+    SalesSummary,
+    SaleStatus,
+)
 from schemas.sale_return import SaleReturnCreate, SaleReturnResponse
 from services.sale_return_service import SaleReturnService
 from services.sale_service import SaleService
@@ -90,6 +97,7 @@ def get_sales(
     status: Optional[SaleStatus] = None,
     search: Optional[str] = Query(None, max_length=100),
     status_group: Optional[Literal["returns"]] = None,
+    payment_method: Optional[PaymentMethod] = None,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(get_auth_context),
 ):
@@ -103,6 +111,7 @@ def get_sales(
         status=status,
         search=search.strip() if search else None,
         status_group=status_group,
+        payment_method=payment_method,
     )
     # Expose the full match count (ignoring skip/limit) so the client can
     # page through the entire history instead of seeing only the first window.
@@ -118,6 +127,38 @@ def get_sale_search_suggestions(
     auth: AuthContext = Depends(get_auth_context),
 ):
     return SaleService(db, auth.company_id).get_search_suggestions(q.strip(), limit)
+
+
+# Must stay above /{sale_id}: that route parses the segment as an int, so a
+# request for /sales/summary would be rejected with a 422 rather than falling
+# through to this handler.
+@router.get("/summary", response_model=SalesSummary)
+def get_sales_summary(
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    cashier_id: Optional[int] = None,
+    status: Optional[SaleStatus] = None,
+    search: Optional[str] = Query(None, max_length=100),
+    status_group: Optional[Literal["returns"]] = None,
+    payment_method: Optional[PaymentMethod] = None,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(get_auth_context),
+):
+    """Totals over the whole filtered history, for the KPI cards.
+
+    Takes the same filters as GET /sales. The client holds one page at a time,
+    so it cannot compute these itself without paging through everything.
+    """
+    service = SaleService(db, auth.company_id)
+    return service.get_summary(
+        start_date=start_date,
+        end_date=end_date,
+        cashier_id=cashier_id,
+        status=status,
+        search=search.strip() if search else None,
+        status_group=status_group,
+        payment_method=payment_method,
+    )
 
 
 @router.get("/{sale_id}", response_model=SaleResponse)

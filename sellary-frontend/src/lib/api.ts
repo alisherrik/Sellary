@@ -17,6 +17,7 @@ import type {
   PurchaseOrderPayload,
   ReceivePurchaseOrderPayload,
   SaleSearchSuggestion,
+  SalesSummary,
   VoidPreview,
   VoidResult,
   Customer,
@@ -209,6 +210,8 @@ export const productsApi = {
 
 export const salesApi = {
   getAll: (params?: any) => api.get('/sales', { params }),
+  // Totals across the whole filtered history. Takes the same filters as getAll.
+  getSummary: (params?: any) => api.get<SalesSummary>('/sales/summary', { params }),
   getSearchSuggestions: (query: string, limit = 8) =>
     api.get<SaleSearchSuggestion[]>('/sales/search-suggestions', {
       params: { q: query, limit },

@@ -78,6 +78,33 @@ describe('buildNewSaleInput', () => {
     expect(item.line_subtotal).toBe(60000);
     expect(item.sort_order).toBe(0);
   });
+
+  it('keeps 4 decimals when a pack price does not divide evenly', () => {
+    // 45.00 for a sack of 24 → 1.8750 per unit. Rounding that to 1.88 was the
+    // reported "the value gets lost": 1.88 × 24 = 45.12, not the 45.00 charged.
+    const input = buildNewSaleInput({
+      items: [
+        line({
+          product: product({ tax_percent: 0 }),
+          unit: { id: 8, label: 'qop', factor: 24, price: 45 },
+          quantity: 1,
+        }),
+      ],
+      paymentMethod: 'cash',
+      cardType: null,
+      cashReceived: '',
+      cashier: { userId: 1, username: 'k' },
+      nowIso: '2026-07-10T10:00:00.000Z',
+      clientSaleId: 'cs-4',
+      idempotencyKey: 'ik-4',
+    });
+    const item = input.items[0];
+
+    expect(item.unit_price).toBe(1.875);
+    // The money the customer actually pays still lands on 2 decimals.
+    expect(item.line_subtotal).toBe(45);
+    expect(input.total_amount).toBe(45);
+  });
 });
 
 describe('buildNewSaleInput — credit (В долг)', () => {

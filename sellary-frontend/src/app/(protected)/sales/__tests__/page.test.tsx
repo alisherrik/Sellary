@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useSaleSearchSuggestions, useInfiniteSales } from '@/hooks/useQueries';
+import { useSaleSearchSuggestions, useInfiniteSales, useSalesSummary } from '@/hooks/useQueries';
 import SalesHistory from '../page';
 import { customersApi } from '@/lib/api';
 
@@ -39,6 +39,7 @@ const cardSale = {
 
 vi.mock('@/hooks/useQueries', () => ({
   useInfiniteSales: vi.fn(),
+  useSalesSummary: vi.fn(),
   useSaleSearchSuggestions: vi.fn(),
 }));
 
@@ -81,6 +82,20 @@ const infiniteResult = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const summaryResult = (overrides: Record<string, unknown> = {}) => ({
+  data: {
+    turnover: '88.00',
+    refunds: '0.00',
+    net_turnover: '88.00',
+    count: 2,
+    average_check: '44.00',
+    refund_operations: 0,
+    hourly: [{ hour: 10, turnover: '88.00' }],
+    ...overrides,
+  },
+  isLoading: false,
+});
+
 const renderPage = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -96,6 +111,7 @@ describe('Sales history smart search', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useInfiniteSales).mockReturnValue(infiniteResult() as any);
+    vi.mocked(useSalesSummary).mockReturnValue(summaryResult() as any);
     vi.mocked(useSaleSearchSuggestions).mockReturnValue({
       data: [],
       isLoading: false,
@@ -150,7 +166,7 @@ describe('Sales history smart search', () => {
     );
   });
 
-  it('combines date range params with a local payment method filter', async () => {
+  it('combines date range params with a server-side payment method filter', async () => {
     const user = userEvent.setup();
     renderPage();
 
@@ -176,8 +192,46 @@ describe('Sales history smart search', () => {
 
     await user.selectOptions(screen.getByLabelText('Способ оплаты'), 'card');
 
-    expect(screen.getAllByText('#43').length).toBeGreaterThan(0);
-    expect(screen.queryByText('#42')).not.toBeInTheDocument();
+    // The payment filter goes to the server rather than narrowing the loaded
+    // page: filtering client-side left the KPI totals describing every payment
+    // method while the list showed one.
+    await waitFor(() =>
+      expect(useInfiniteSales).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          payment_method: 'card',
+          start_date: '2026-07-01T00:00:00',
+          end_date: '2026-07-31T23:59:59',
+        }),
+      ),
+    );
+  });
+
+  it('asks the server for totals over the whole filtered history, not the loaded page', async () => {
+    renderPage();
+
+    // The card must not be a sum of `sales`: the list arrives 200 rows at a
+    // time, so that sum under-reported turnover until "load more" was clicked.
+    expect(useSalesSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 200 }),
+    );
+    expect(screen.getByText('Оборот')).toBeInTheDocument();
+    expect(screen.getAllByText(/88/).length).toBeGreaterThan(0);
+  });
+
+  it('keeps the turnover card steady when another page loads', async () => {
+    const { rerender } = renderPage();
+
+    // One sale on screen, but the summary still describes all of them.
+    vi.mocked(useInfiniteSales).mockReturnValue(
+      infiniteResult({ sales: [sale], hasMore: true }) as any,
+    );
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <SalesHistory />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getAllByText(/88/).length).toBeGreaterThan(0);
   });
 
   it('loads the next page of older receipts on demand', async () => {

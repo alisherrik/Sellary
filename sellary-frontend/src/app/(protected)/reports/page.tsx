@@ -30,6 +30,12 @@ export default function ReportsPage() {
         {
           name: 'Выручка',
           value: formatCurrency(salesData.total_sales),
+          // Net of refunds. The sales history headlines gross, so spell out the
+          // difference here rather than leaving two screens quietly disagreeing.
+          hint:
+            Number(salesData.refunds ?? 0) > 0
+              ? `оборот ${formatCurrency(salesData.gross_turnover)} − возвраты ${formatCurrency(salesData.refunds)}`
+              : undefined,
           icon: ChartBarIcon,
           color: 'bg-blue-500',
         },
@@ -92,6 +98,11 @@ export default function ReportsPage() {
                     <p className="truncate text-sm font-bold text-gray-900 dark:text-white sm:text-2xl">
                       {stat.value}
                     </p>
+                    {stat.hint && (
+                      <p className="truncate text-[10px] text-gray-400" title={stat.hint}>
+                        {stat.hint}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

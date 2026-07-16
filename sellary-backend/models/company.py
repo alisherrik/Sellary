@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
+from core.config import settings
 from core.database import Base
 
 
@@ -12,6 +13,13 @@ class Company(Base):
     name = Column(String(150), nullable=False)
     slug = Column(String(150), unique=True, index=True, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    # IANA name. Reports close the day on this clock, not the server's UTC one.
+    timezone = Column(
+        String(64),
+        nullable=False,
+        default=settings.DEFAULT_TIMEZONE,
+        server_default=text("'Asia/Dushanbe'"),
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     inventory_ledger_started_at = Column(DateTime(timezone=True))

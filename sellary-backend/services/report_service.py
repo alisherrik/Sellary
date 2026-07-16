@@ -1,6 +1,7 @@
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import List
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session
@@ -11,7 +12,7 @@ from models.sale_item import SaleItem
 from models.sale_return import SaleReturn
 from repositories.inventory_repository import InventoryRepository
 from repositories.product_repository import ProductRepository
-from repositories.sale_repository import SaleRepository
+from repositories.sale_repository import NON_CANCELLED_STATUSES, SaleRepository
 from schemas.report import (
     DailySalesData,
     DailySalesReport,
@@ -22,10 +23,8 @@ from schemas.report import (
     TopProductReport,
 )
 from services.calculation_service import CalculationService
+from services.company_time import company_tz, local_day_bounds, to_local
 from services.tenant import resolve_company_id
-
-
-NON_CANCELLED_STATUSES = [SaleStatus.COMPLETED, SaleStatus.PARTIALLY_RETURNED, SaleStatus.RETURNED]
 
 
 class ReportService:
@@ -37,25 +36,18 @@ class ReportService:
         self.inventory_repo = InventoryRepository(db)
         self.calc = CalculationService
 
+    def tz(self) -> ZoneInfo:
+        """The company's business clock. Never the server's."""
+        return company_tz(self.db, self.company_id)
+
+    def local_day_bounds(self, day=None) -> tuple[datetime, datetime]:
+        return local_day_bounds(self.tz(), day)
+
     def _net_revenue_subquery(self):
-        refund_sub = (
-            self.db.query(
-                SaleReturn.sale_id,
-                func.coalesce(func.sum(SaleReturn.total_refund_amount), Decimal("0.00")).label("refund_total"),
-            )
-            .join(Sale, Sale.id == SaleReturn.sale_id)
-            .filter(
-                SaleReturn.company_id == self.company_id,
-                Sale.status.in_(NON_CANCELLED_STATUSES),
-            )
-            .group_by(SaleReturn.sale_id)
-            .subquery()
-        )
-        return refund_sub
+        return self.sale_repo.refund_totals_subquery(self.company_id)
 
     def get_dashboard_widgets(self) -> DashboardWidgets:
-        today_start = datetime.combine(date.today(), datetime.min.time())
-        today_end = datetime.combine(date.today(), datetime.max.time())
+        today_start, today_end = self.local_day_bounds()
 
         refund_sub = self._net_revenue_subquery()
 
@@ -139,13 +131,11 @@ class ReportService:
     def get_daily_sales(self, start_date: datetime, end_date: datetime) -> DailySalesReport:
         refund_sub = self._net_revenue_subquery()
 
-        results = (
+        rows = (
             self.db.query(
-                func.date(Sale.created_at).label("sale_date"),
-                func.count(Sale.id).label("count"),
-                func.sum(
-                    Sale.total_amount - func.coalesce(refund_sub.c.refund_total, Decimal("0.00"))
-                ).label("total"),
+                Sale.created_at,
+                Sale.total_amount.label("gross"),
+                func.coalesce(refund_sub.c.refund_total, Decimal("0.00")).label("refund"),
             )
             .outerjoin(refund_sub, Sale.id == refund_sub.c.sale_id)
             .filter(
@@ -156,19 +146,33 @@ class ReportService:
                     Sale.status.in_(NON_CANCELLED_STATUSES),
                 )
             )
-            .group_by(func.date(Sale.created_at))
-            .order_by(func.date(Sale.created_at))
             .all()
         )
 
+        # Bucketed in Python, not by `func.date(created_at)`: that grouped on
+        # the DB session's UTC day, so a sale at 23:30 UTC (04:30 local, next
+        # day) was reported a day early. Converting a timestamptz to a named
+        # zone in SQL is Postgres-only and would break the SQLite test engine.
+        tz = self.tz()
+        buckets: dict = {}
+        gross_turnover = Decimal("0.00")
+        refunds = Decimal("0.00")
+        for row in rows:
+            local_date = to_local(row.created_at, tz).date()
+            bucket = buckets.setdefault(local_date, {"count": 0, "total": Decimal("0.00")})
+            bucket["count"] += 1
+            bucket["total"] += (row.gross or Decimal("0.00")) - (row.refund or Decimal("0.00"))
+            gross_turnover += row.gross or Decimal("0.00")
+            refunds += row.refund or Decimal("0.00")
+
         data = [
             DailySalesData(
-                date=str(result.sale_date),
-                sales_count=result.count,
-                total_sales=result.total,
+                date=str(local_date),
+                sales_count=bucket["count"],
+                total_sales=bucket["total"],
                 total_profit=Decimal("0.00"),
             )
-            for result in results
+            for local_date, bucket in sorted(buckets.items())
         ]
 
         return DailySalesReport(
@@ -176,6 +180,8 @@ class ReportService:
             period_end=end_date.isoformat(),
             data=data,
             total_sales=sum(result.total_sales for result in data),
+            gross_turnover=gross_turnover,
+            refunds=refunds,
             total_profit=self._calculate_profit(start_date, end_date),
             sales_count=sum(result.sales_count for result in data),
         )

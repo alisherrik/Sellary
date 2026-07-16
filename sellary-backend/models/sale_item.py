@@ -20,7 +20,7 @@ class SaleItem(Base):
     sold_quantity = Column(Numeric(10, 3), nullable=False, default=0)
     sold_unit_label = Column(String(20), nullable=True)
     sold_unit_factor = Column(Numeric(12, 4), nullable=False, default=Decimal("1"))
-    unit_price = Column(Numeric(10, 2), nullable=False)
+    unit_price = Column(Numeric(10, 4), nullable=False)
     tax_percent = Column(Numeric(5, 2), nullable=False, default=Decimal("0.00"))
     tax_amount = Column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
     discount_amount = Column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))

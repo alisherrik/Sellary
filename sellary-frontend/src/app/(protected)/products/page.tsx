@@ -16,7 +16,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useProducts } from '@/hooks/useQueries';
 import { categoriesApi, inventoryApi, productsApi } from '@/lib/api';
 import { Category, Product } from '@/lib/types';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatUnitPrice, toPriceInput } from '@/lib/utils';
 
 type CategoryModalMode = 'create' | 'edit';
 type CategoryModalSource = 'manager' | 'product';
@@ -276,8 +276,10 @@ export default function Products() {
       description: product.description || '',
       category_id: product.category_id?.toString() || '',
       uom: product.uom || 'dona',
-      cost_price: product.cost_price,
-      sell_price: product.sell_price,
+      // Prices are numeric(10,4), so the API sends "20.0000". Trim the padding
+      // or the operator edits a box full of zeros they never typed.
+      cost_price: toPriceInput(product.cost_price),
+      sell_price: toPriceInput(product.sell_price),
       tax_percent: product.tax_percent,
       stock_quantity: product.stock_quantity.toString(),
       min_stock_level: product.min_stock_level.toString(),
@@ -286,7 +288,7 @@ export default function Products() {
       (product.units ?? []).map((unit) => ({
         name: unit.name,
         factor: String(unit.factor),
-        sell_price: String(unit.sell_price),
+        sell_price: toPriceInput(unit.sell_price),
         barcode: unit.barcode ?? '',
       })),
     );
@@ -564,7 +566,7 @@ export default function Products() {
                         <div className="mt-2 flex items-center justify-between gap-3">
                           <div className="flex items-baseline gap-3 text-xs">
                             <span className="font-semibold tabular-nums text-gray-900 dark:text-white">
-                              {formatCurrency(product.sell_price)}
+                              {formatUnitPrice(product.sell_price)}
                             </span>
                             <span className={`tabular-nums ${product.stock_quantity <= product.min_stock_level ? 'font-semibold text-red-600' : 'text-gray-500'}`}>
                               ост: {product.stock_quantity}
@@ -635,7 +637,7 @@ export default function Products() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-right font-medium tabular-nums text-gray-900 dark:text-white">
-                            {formatCurrency(product.sell_price)}
+                            {formatUnitPrice(product.sell_price)}
                           </td>
                           <td className={`px-4 py-3 text-right tabular-nums ${
                             product.stock_quantity === 0
@@ -767,7 +769,7 @@ export default function Products() {
                     type="number"
                     required
                     min="0"
-                    step="0.01"
+                    step="0.0001"
                     value={formData.cost_price}
                     onChange={(e) => setFormData({ ...formData, cost_price: e.target.value })}
                     className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
@@ -779,7 +781,7 @@ export default function Products() {
                     type="number"
                     required
                     min="0"
-                    step="0.01"
+                    step="0.0001"
                     value={formData.sell_price}
                     onChange={(e) => setFormData({ ...formData, sell_price: e.target.value })}
                     className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
@@ -875,7 +877,7 @@ export default function Products() {
                         <input
                           type="number"
                           min="0"
-                          step="0.01"
+                          step="0.0001"
                           placeholder="Цена"
                           value={row.sell_price}
                           onChange={(e) => updateUnitRow(index, 'sell_price', e.target.value)}
