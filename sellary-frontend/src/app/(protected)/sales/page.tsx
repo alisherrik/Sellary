@@ -601,35 +601,41 @@ export default function SalesHistory() {
               <p className="mt-1 text-[11px] tabular-nums text-gray-400">
                 чистая: {formatCurrency(totals.net)}
               </p>
-              {/* Оборот lumps наличные, карта and в долг together, so it can never
-                  match the drawer on its own. Splitting it out lets the cashier
-                  square the till: «Касса» is physical cash — cash sales plus any
-                  долг repaid in cash — and «В долг» is only what is still owed
-                  (кредит минус погашение), so a paid-off debt stops counting. The
-                  three still add back up to Оборот. */}
+              {/* Two distinct views of the same day, deliberately not merged:
+                  1) turnover split by method (Наличные+Карта+В долг === Оборот) —
+                     these are SALES, so none can go negative;
+                  2) «В кассе» — the physical drawer, which is cash sales PLUS долг
+                     collected in cash. It can legitimately exceed Оборот when old
+                     debt is repaid today, which is exactly why the two differ.
+                  Folding погашение into a «в долг остаток» made that line go
+                  negative on a filtered day and Касса overtake Оборот. */}
               <div className="mt-2 space-y-0.5 border-t border-gray-100 pt-2 dark:border-gray-700">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-gray-500 dark:text-gray-400">Касса (наличные)</span>
-                  <span className="font-semibold tabular-nums text-green-600 dark:text-green-400">{formatCurrency(totals.cash + totals.cashDebtPayments)}</span>
+                  <span className="text-gray-500 dark:text-gray-400">Наличные</span>
+                  <span className="tabular-nums text-gray-600 dark:text-gray-300">{formatCurrency(totals.cash)}</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-gray-500 dark:text-gray-400">Карта</span>
                   <span className="tabular-nums text-gray-600 dark:text-gray-300">{formatCurrency(totals.card)}</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-gray-500 dark:text-gray-400">В долг (остаток)</span>
-                  <span className="tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(totals.credit - totals.cashDebtPayments)}</span>
+                  <span className="text-gray-500 dark:text-gray-400">В долг</span>
+                  <span className="tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(totals.credit)}</span>
                 </div>
-                {totals.cashDebtPayments > 0 && (
-                  <div className="flex items-center justify-between text-[11px] text-gray-400">
-                    <span>· из них погашено долга</span>
-                    <span className="tabular-nums">{formatCurrency(totals.cashDebtPayments)}</span>
-                  </div>
-                )}
                 {totals.mobile > 0 && (
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="text-gray-500 dark:text-gray-400">Онлайн</span>
                     <span className="tabular-nums text-gray-600 dark:text-gray-300">{formatCurrency(totals.mobile)}</span>
+                  </div>
+                )}
+                <div className="mt-1 flex items-center justify-between border-t border-gray-100 pt-1 text-[11px] dark:border-gray-700">
+                  <span className="text-gray-500 dark:text-gray-400">В кассе (наличными)</span>
+                  <span className="font-semibold tabular-nums text-green-600 dark:text-green-400">{formatCurrency(totals.cash + totals.cashDebtPayments)}</span>
+                </div>
+                {totals.cashDebtPayments > 0 && (
+                  <div className="flex items-center justify-between text-[11px] text-gray-400">
+                    <span>· в т.ч. оплата долга</span>
+                    <span className="tabular-nums">{formatCurrency(totals.cashDebtPayments)}</span>
                   </div>
                 )}
               </div>
