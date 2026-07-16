@@ -32,7 +32,7 @@ class SaleItemCreate(BaseModel):
     # is None the sale is in the product's base unit (backward compatible).
     product_unit_id: Optional[int] = None
     quantity: Decimal = Field(..., gt=0, decimal_places=3)
-    unit_price: Decimal = Field(..., ge=0, decimal_places=2)
+    unit_price: Decimal = Field(..., ge=0, decimal_places=4)
     tax_percent: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
 
@@ -133,3 +133,25 @@ class SaleSearchSuggestion(BaseModel):
     label: str
     value: str
     score: int = Field(..., ge=0, le=100)
+
+
+class SalesHourlyBucket(BaseModel):
+    hour: int = Field(..., ge=0, le=23)  # local hour on the company's clock
+    turnover: Decimal
+
+
+class SalesSummary(BaseModel):
+    """Totals over every sale matching a filter, not just the requested page.
+
+    Cancelled sales are excluded throughout: they are money that never happened.
+    `turnover` is gross and `refunds` is what came back, so the two reconcile
+    with the reports, which headline `net_turnover`.
+    """
+
+    turnover: Decimal
+    refunds: Decimal
+    net_turnover: Decimal
+    count: int
+    average_check: Decimal
+    refund_operations: int
+    hourly: List[SalesHourlyBucket]

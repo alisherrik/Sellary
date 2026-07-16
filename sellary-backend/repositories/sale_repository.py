@@ -1,7 +1,7 @@
 from decimal import Decimal, InvalidOperation
-from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.orm import Session, joinedload
-from models.sale import Sale, SaleStatus
+from models.sale import PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
 from models.sale_return import SaleReturn
 from models.product import Product
@@ -9,6 +9,12 @@ from models.customer import Customer
 from models.user import User
 from typing import Optional, List, Tuple
 from datetime import datetime
+
+
+# A cancelled sale is money that never happened: it is excluded from every
+# turnover figure. Returned/partially-returned sales stay in — the sale did
+# happen, and the refund is subtracted separately.
+NON_CANCELLED_STATUSES = [SaleStatus.COMPLETED, SaleStatus.PARTIALLY_RETURNED, SaleStatus.RETURNED]
 
 
 class SaleRepository:
@@ -40,22 +46,47 @@ class SaleRepository:
             .all()
         )
 
-    def get_all(
+    def refund_totals_subquery(self, company_id: int):
+        """Per-sale refund totals, for subtracting from gross turnover.
+
+        The single definition of "how much of this sale came back". Both the
+        sales list summary and every report read it, so the two can never drift
+        into disagreeing about the same number.
+        """
+        return (
+            self.db.query(
+                SaleReturn.sale_id,
+                func.coalesce(func.sum(SaleReturn.total_refund_amount), Decimal("0.00")).label(
+                    "refund_total"
+                ),
+            )
+            .join(Sale, Sale.id == SaleReturn.sale_id)
+            .filter(
+                SaleReturn.company_id == company_id,
+                Sale.status.in_(NON_CANCELLED_STATUSES),
+            )
+            .group_by(SaleReturn.sale_id)
+            .subquery()
+        )
+
+    def _apply_filters(
         self,
+        query,
         company_id: int,
-        skip: int = 0,
-        limit: int = 50,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         cashier_id: Optional[int] = None,
         status: Optional[SaleStatus] = None,
         search_terms: Optional[List[str]] = None,
         status_group: Optional[str] = None,
-    ) -> Tuple[List[Sale], int]:
-        query = self.db.query(Sale).options(
-            joinedload(Sale.items),
-            joinedload(Sale.cashier),
-        ).filter(Sale.company_id == company_id)
+        payment_method: Optional[PaymentMethod] = None,
+    ):
+        """Narrow `query` to the sales the caller asked for.
+
+        Shared by get_all and get_summary so the list and its KPI cards can
+        never describe different sets of sales.
+        """
+        query = query.filter(Sale.company_id == company_id)
 
         if start_date:
             query = query.filter(Sale.created_at >= start_date)
@@ -65,6 +96,8 @@ class SaleRepository:
             query = query.filter(Sale.cashier_id == cashier_id)
         if status:
             query = query.filter(Sale.status == status)
+        if payment_method:
+            query = query.filter(Sale.payment_method == payment_method)
         if status_group == "returns":
             query = query.filter(
                 Sale.status.in_([SaleStatus.RETURNED, SaleStatus.PARTIALLY_RETURNED])
@@ -152,12 +185,127 @@ class SaleRepository:
                 conditions.extend(term_conditions)
             query = query.filter(or_(*conditions))
 
+        return query
+
+    def get_all(
+        self,
+        company_id: int,
+        skip: int = 0,
+        limit: int = 50,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        cashier_id: Optional[int] = None,
+        status: Optional[SaleStatus] = None,
+        search_terms: Optional[List[str]] = None,
+        status_group: Optional[str] = None,
+        payment_method: Optional[PaymentMethod] = None,
+    ) -> Tuple[List[Sale], int]:
+        query = self.db.query(Sale).options(
+            joinedload(Sale.items),
+            joinedload(Sale.cashier),
+        )
+        query = self._apply_filters(
+            query,
+            company_id,
+            start_date=start_date,
+            end_date=end_date,
+            cashier_id=cashier_id,
+            status=status,
+            search_terms=search_terms,
+            status_group=status_group,
+            payment_method=payment_method,
+        )
+
         query = query.order_by(Sale.created_at.desc())
 
         total = query.count()
         sales = query.offset(skip).limit(limit).all()
 
         return sales, total
+
+    def get_summary(
+        self,
+        company_id: int,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        cashier_id: Optional[int] = None,
+        status: Optional[SaleStatus] = None,
+        search_terms: Optional[List[str]] = None,
+        status_group: Optional[str] = None,
+        payment_method: Optional[PaymentMethod] = None,
+    ) -> dict:
+        """Totals over EVERY matching sale, not just the current page.
+
+        The client cannot compute these: it holds one page at a time, so summing
+        what it has shows a fraction of the real turnover.
+        """
+        refund_sub = self.refund_totals_subquery(company_id)
+        refund_total = func.coalesce(refund_sub.c.refund_total, Decimal("0.00"))
+
+        query = self.db.query(
+            func.count(Sale.id).label("count"),
+            func.coalesce(func.sum(Sale.total_amount), Decimal("0.00")).label("turnover"),
+            func.coalesce(func.sum(refund_total), Decimal("0.00")).label("refunds"),
+            func.count(case((refund_total > 0, Sale.id))).label("refund_operations"),
+        ).outerjoin(refund_sub, Sale.id == refund_sub.c.sale_id)
+
+        query = self._apply_filters(
+            query,
+            company_id,
+            start_date=start_date,
+            end_date=end_date,
+            cashier_id=cashier_id,
+            status=status,
+            search_terms=search_terms,
+            status_group=status_group,
+            payment_method=payment_method,
+        )
+        # Cancelled sales are listed but never counted as turnover.
+        query = query.filter(Sale.status.in_(NON_CANCELLED_STATUSES))
+
+        row = query.one()
+
+        return {
+            "count": row.count or 0,
+            "turnover": row.turnover or Decimal("0.00"),
+            "refunds": row.refunds or Decimal("0.00"),
+            "refund_operations": row.refund_operations or 0,
+        }
+
+    def get_turnover_timestamps(
+        self,
+        company_id: int,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        cashier_id: Optional[int] = None,
+        status: Optional[SaleStatus] = None,
+        search_terms: Optional[List[str]] = None,
+        status_group: Optional[str] = None,
+        payment_method: Optional[PaymentMethod] = None,
+    ) -> List[Tuple[datetime, Decimal]]:
+        """(created_at, total_amount) for every matching non-cancelled sale.
+
+        Bucketing into local hours/days is done by the caller in Python rather
+        than in SQL: converting a UTC timestamp to a named zone is Postgres-only
+        (`timezone('Asia/Dushanbe', ts)`) and would not run under the SQLite test
+        engine, and a fixed-offset shift would be wrong across a DST boundary.
+        Two columns over a date-bounded window is cheap enough to pay for that.
+        """
+        query = self.db.query(Sale.created_at, Sale.total_amount)
+        query = self._apply_filters(
+            query,
+            company_id,
+            start_date=start_date,
+            end_date=end_date,
+            cashier_id=cashier_id,
+            status=status,
+            search_terms=search_terms,
+            status_group=status_group,
+            payment_method=payment_method,
+        )
+        query = query.filter(Sale.status.in_(NON_CANCELLED_STATUSES))
+
+        return [(row.created_at, row.total_amount or Decimal("0.00")) for row in query.all()]
 
     def get_search_candidates(self, company_id: int) -> list[tuple[str, str, str]]:
         """Return distinct suggestion values that occur in this tenant's sales."""

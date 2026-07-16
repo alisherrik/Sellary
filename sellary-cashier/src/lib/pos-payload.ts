@@ -12,6 +12,12 @@ export type CashierCardType = 'alif' | 'eskhata' | 'dc';
 export type CashierCreditPaymentMethod = 'cash' | 'card' | 'mobile';
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
+/**
+ * Unit prices carry 4 decimals (products.sell_price / sale_items.unit_price are
+ * numeric(10,4)). Rounding one to 2 here is how a 45.00 sack of 24 became a
+ * 1.88 per-unit price instead of 1.8750 — and 1.88 * 24 = 45.12, not 45.00.
+ */
+const round4 = (v: number) => Math.round(v * 10000) / 10000;
 
 /** Fresh unique ids for a new sale (client_sale_id + idempotency_key). */
 export function newSaleIds(): { clientSaleId: string; idempotencyKey: string } {
@@ -50,8 +56,9 @@ export function buildNewSaleInput(params: {
   const saleItems = items.map((line, index) => {
     const factor = line.unit.factor || 1;
     const baseQty = round2(line.quantity * factor);
-    const baseUnitPrice = round2(line.unit.price / factor);
+    const baseUnitPrice = round4(line.unit.price / factor);
     const taxPercent = Number(line.product.tax_percent);
+    // Money stays at 2 decimals — only the per-unit price gained precision.
     const lineSubtotal = round2(baseUnitPrice * baseQty);
     const lineTotal = round2(lineSubtotal * (1 + taxPercent / 100));
     return {

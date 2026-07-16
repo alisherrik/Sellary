@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # Environment detection
     SELLARY_ENV: str = "production"
 
+    # Fallback IANA zone for companies with no timezone set. Reports close the
+    # business day on this clock; the server itself runs UTC.
+    DEFAULT_TIMEZONE: str = "Asia/Dushanbe"
+
     # Bootstrap super admin
     SUPER_ADMIN_USERNAME: str | None = None
     SUPER_ADMIN_EMAIL: str | None = None

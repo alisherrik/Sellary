@@ -3,12 +3,13 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useInfiniteSales, useSaleSearchSuggestions } from '@/hooks/useQueries';
+import { useInfiniteSales, useSalesSummary, useSaleSearchSuggestions } from '@/hooks/useQueries';
 import { salesApi, metaApi } from '@/lib/api';
 import SalesHistory from '../page';
 
 vi.mock('@/hooks/useQueries', () => ({
   useInfiniteSales: vi.fn(),
+  useSalesSummary: vi.fn(),
   useSaleSearchSuggestions: vi.fn(),
 }));
 
@@ -95,6 +96,18 @@ describe('Sales line-level annulment', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useInfiniteSales).mockReturnValue(infiniteResult() as any);
+    vi.mocked(useSalesSummary).mockReturnValue({
+      data: {
+        turnover: '33.00',
+        refunds: '0.00',
+        net_turnover: '33.00',
+        count: 1,
+        average_check: '33.00',
+        refund_operations: 0,
+        hourly: [],
+      },
+      isLoading: false,
+    } as any);
     vi.mocked(useSaleSearchSuggestions).mockReturnValue({ data: [], isLoading: false } as any);
   });
 

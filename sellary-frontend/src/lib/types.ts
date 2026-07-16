@@ -217,6 +217,26 @@ export interface SaleSearchSuggestion {
   score: number;
 }
 
+export interface SalesHourlyBucket {
+  hour: number; // local hour on the company's clock, not the server's
+  turnover: string;
+}
+
+/**
+ * Totals over every sale matching a filter — computed server-side because the
+ * client only holds one page. Cancelled sales are excluded; `turnover` is gross
+ * and `net_turnover` has refunds taken off, which is what the reports headline.
+ */
+export interface SalesSummary {
+  turnover: string;
+  refunds: string;
+  net_turnover: string;
+  count: number;
+  average_check: string;
+  refund_operations: number;
+  hourly: SalesHourlyBucket[];
+}
+
 export interface SaleReturnItem {
   id: number;
   sale_item_id: number;
@@ -443,7 +463,11 @@ export interface DailySalesData {
 }
 
 export interface DailySalesReport {
-  total_sales: number;
+  total_sales: number; // net of refunds
+  // Gross and refunds let this page reconcile with the sales history, which
+  // headlines gross turnover.
+  gross_turnover: string;
+  refunds: string;
   total_profit: number;
   sales_count: number;
   data: DailySalesData[];

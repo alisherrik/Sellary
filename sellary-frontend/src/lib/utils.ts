@@ -21,6 +21,44 @@ export const formatCurrency = (amount: number | string): string => {
   }
 };
 
+/**
+ * Format a per-unit price, which carries up to 4 decimals.
+ *
+ * formatCurrency caps at 2 — correct for money totals, but it would render a
+ * 1.8750 catalogue price as 1.88 and make the extra precision look lost.
+ */
+export const formatUnitPrice = (amount: number | string): string => {
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+  const currencyCode = useSettingsStore.getState().currency;
+  const currency = CURRENCIES[currencyCode];
+
+  try {
+    return new Intl.NumberFormat(currency.locale, {
+      style: 'currency',
+      currency: currency.code,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 4,
+    }).format(num);
+  } catch (e) {
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency',
+      currency: currency.code,
+      maximumFractionDigits: 4,
+    }).format(num);
+  }
+};
+
+/**
+ * Render a stored decimal for a number input: drop trailing zeros so a
+ * numeric(10,4) column's "20.0000" edits as "20", while "1.8750" keeps its
+ * meaningful digits as "1.875".
+ */
+export const toPriceInput = (amount: number | string | null | undefined): string => {
+  if (amount === null || amount === undefined || amount === '') return '';
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+  return Number.isFinite(num) ? String(num) : '';
+};
+
 export const formatDate = (date: string | Date): string => {
   const d = typeof date === 'string' ? new Date(date) : date;
   return new Intl.DateTimeFormat('ru-RU', {

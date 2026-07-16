@@ -11,7 +11,7 @@ class ProductUnitBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=20)
     # Base units per 1 of this unit (1 sack = 5 kg -> 5; a 300 g portion -> 0.3).
     factor: Decimal = Field(..., gt=0, decimal_places=4)
-    sell_price: Decimal = Field(..., ge=0, decimal_places=2)
+    sell_price: Decimal = Field(..., ge=0, decimal_places=4)
     barcode: Optional[str] = Field(None, min_length=1, max_length=50)
     is_active: bool = True
     sort_order: int = 0
@@ -34,9 +34,10 @@ class ProductBase(BaseModel):
     description: Optional[str] = None
     uom: str = Field(default="dona", min_length=1, max_length=20)
     category_id: Optional[int] = None
-    # 4 decimals to carry precise weighted-average cost from wholesale receipts.
+    # 4 decimals to carry precise weighted-average cost from wholesale receipts,
+    # and to let a wholesale total divide cleanly into a per-unit sell price.
     cost_price: Decimal = Field(..., ge=0, decimal_places=4)
-    sell_price: Decimal = Field(..., ge=0, decimal_places=2)
+    sell_price: Decimal = Field(..., ge=0, decimal_places=4)
     tax_percent: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
     stock_quantity: Decimal = Field(default=Decimal("0.000"), ge=0, decimal_places=3)
     min_stock_level: Decimal = Field(default=Decimal("5.000"), ge=0, decimal_places=3)
@@ -54,7 +55,7 @@ class ProductUpdate(BaseModel):
     uom: Optional[str] = Field(None, min_length=1, max_length=20)
     category_id: Optional[int] = None
     cost_price: Optional[Decimal] = Field(None, ge=0, decimal_places=4)
-    sell_price: Optional[Decimal] = Field(None, ge=0, decimal_places=2)
+    sell_price: Optional[Decimal] = Field(None, ge=0, decimal_places=4)
     tax_percent: Optional[Decimal] = Field(None, ge=0, decimal_places=2)
     stock_quantity: Optional[Decimal] = Field(None, ge=0, decimal_places=3)
     min_stock_level: Optional[Decimal] = Field(None, ge=0, decimal_places=3)

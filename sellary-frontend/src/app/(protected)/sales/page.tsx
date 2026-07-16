@@ -16,7 +16,7 @@ import AnnulmentDialog from '@/components/transactions/AnnulmentDialog';
 import { Sale, SaleItem, VoidPreview } from '@/lib/types';
 import { useAuthStore } from '@/lib/store';
 import { useDebounce } from '@/hooks/useDebounce';
-import { useSaleSearchSuggestions, useInfiniteSales } from '@/hooks/useQueries';
+import { useSaleSearchSuggestions, useInfiniteSales, useSalesSummary } from '@/hooks/useQueries';
 import SalesSearch from '@/components/sales/SalesSearch';
 
 interface SaleReturnItem {
@@ -115,11 +115,14 @@ export default function SalesHistory() {
     if (statusFilter === 'completed') params.status = 'completed';
     if (statusFilter === 'cancelled') params.status = 'cancelled';
     if (statusFilter === 'returns') params.status_group = 'returns';
+    // Filtered server-side so the KPI cards reflect the choice: a client-side
+    // filter would only narrow the page in hand, never the totals.
+    if (paymentFilter !== 'all') params.payment_method = paymentFilter;
     if (startDate) params.start_date = `${startDate}T00:00:00`;
     if (endDate) params.end_date = `${endDate}T23:59:59`;
 
     return params;
-  }, [debouncedSearch, statusFilter, startDate, endDate]);
+  }, [debouncedSearch, statusFilter, paymentFilter, startDate, endDate]);
 
   const {
     sales = [],
@@ -134,19 +137,23 @@ export default function SalesHistory() {
   const { data: searchSuggestions = [], isLoading: suggestionsLoading } =
     useSaleSearchSuggestions(debouncedSearch);
   const suggestionsSettled = searchInput.trim() === debouncedSearch.trim();
-  const visibleSales = useMemo(() => {
-    if (paymentFilter === 'all') return sales;
-    return sales.filter((sale) => sale.payment_method === paymentFilter);
-  }, [sales, paymentFilter]);
+  const visibleSales = sales;
 
-  const totals = useMemo(() => {
-    const financialSales = visibleSales.filter((s) => s.status !== 'cancelled');
-    const turnover = financialSales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0);
-    const refunds = financialSales.reduce((sum, s) => sum + Number(s.refunded_amount || 0), 0);
-    const count = financialSales.length;
-    const refundOps = financialSales.filter((s) => Number(s.refunded_amount || 0) > 0).length;
-    return { turnover, refunds, count, avg: count ? turnover / count : 0, refundOps };
-  }, [visibleSales]);
+  // Totals come from the server, over the WHOLE filtered history. Summing the
+  // loaded rows here is what under-reported turnover: the list arrives 200 at a
+  // time behind a manual "load more", so the card described a slice of the day.
+  const { data: summary } = useSalesSummary(salesParams);
+  const totals = useMemo(
+    () => ({
+      turnover: Number(summary?.turnover ?? 0),
+      net: Number(summary?.net_turnover ?? 0),
+      refunds: Number(summary?.refunds ?? 0),
+      count: summary?.count ?? 0,
+      avg: Number(summary?.average_check ?? 0),
+      refundOps: summary?.refund_operations ?? 0,
+    }),
+    [summary],
+  );
 
   const openVoidDialog = async (sale: Sale) => {
     setSelectedSale(sale);
@@ -184,19 +191,21 @@ export default function SalesHistory() {
     }
   };
 
-  // Hourly turnover, computed from the loaded sales — real data, no placeholders.
+  // Hourly turnover over the whole filtered history, bucketed by the server on
+  // the company's clock. Reading the hour off the loaded rows here meant both
+  // the same partial-page problem as the cards above, and the viewer's browser
+  // timezone rather than the shop's.
   const hourly = useMemo(() => {
     const buckets = Array.from({ length: 24 }, () => 0);
-    visibleSales.filter((s) => s.status !== 'cancelled').forEach((s) => {
-      const h = new Date(s.created_at).getHours();
-      buckets[h] += Number(s.total_amount || 0);
+    (summary?.hourly ?? []).forEach((bucket) => {
+      buckets[bucket.hour] = Number(bucket.turnover || 0);
     });
     const start = 8;
     const end = 22;
     const slice = buckets.slice(start, end + 1).map((value, i) => ({ hour: start + i, value }));
     const max = Math.max(1, ...slice.map((b) => b.value));
     return { slice, max };
-  }, [visibleSales]);
+  }, [summary]);
 
   const returnMutation = useMutation({
     mutationFn: async (data: { saleId: number; payload: any; idempotencyKey: string; annul?: boolean }) =>
@@ -582,6 +591,11 @@ export default function SalesHistory() {
             <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
               <p className="text-xs text-gray-500 dark:text-gray-400">Оборот</p>
               <p className="text-xl font-bold tabular-nums text-gray-900 dark:text-white sm:text-2xl">{formatCurrency(totals.turnover)}</p>
+              {/* The reports page headlines net revenue; showing it here too is
+                  what lets an operator reconcile the two screens. */}
+              <p className="mt-1 text-[11px] tabular-nums text-gray-400">
+                чистая: {formatCurrency(totals.net)}
+              </p>
             </div>
             <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
               <p className="text-xs text-gray-500 dark:text-gray-400">Чеков</p>
