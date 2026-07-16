@@ -274,6 +274,14 @@ export interface SalesSummary {
   average_check: string;
   refund_operations: number;
   hourly: SalesHourlyBucket[];
+  // Turnover split by payment method. cash + card + mobile + credit === turnover.
+  cash: string;
+  card: string;
+  mobile: string;
+  credit: string;
+  // Cash collected against в-долг sales in the window. The drawer is
+  // `cash + cash_debt_payments`; the debt still owed is `credit - cash_debt_payments`.
+  cash_debt_payments: string;
 }
 
 export interface SaleReturnItem {

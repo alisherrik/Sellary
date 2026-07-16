@@ -10,6 +10,8 @@ from decimal import Decimal
 import pytest
 
 from core.security import get_password_hash
+from models.customer import Customer
+from models.customer_ledger_entry import CustomerLedgerEntry, CustomerLedgerEntryType
 from models.sale import PaymentMethod, Sale, SaleStatus
 from models.sale_return import SaleReturn
 from models.user import User
@@ -112,6 +114,78 @@ class TestSalesSummary:
         assert service.get_summary(
             payment_method=PaymentMethod.CARD
         ).turnover == Decimal("25.00")
+
+    def test_summary_breaks_turnover_down_by_payment_method(self, db_session, cashier):
+        """The kassa-reconciliation bug: the Оборот card lumped наличные, карта and
+        в долг into one figure, so a cashier could never square the drawer against
+        it. The breakdown must split turnover by method and reconcile to it.
+        """
+        make_sale(db_session, cashier, "100.00", payment_method=PaymentMethod.CASH)
+        make_sale(db_session, cashier, "25.00", payment_method=PaymentMethod.CARD)
+        make_sale(db_session, cashier, "30.00", payment_method=PaymentMethod.CREDIT)
+        # A cancelled cash sale must not inflate the наличные figure.
+        make_sale(
+            db_session, cashier, "40.00",
+            payment_method=PaymentMethod.CASH, status=SaleStatus.CANCELLED,
+        )
+
+        summary = SaleService(db_session).get_summary()
+
+        assert summary.turnover == Decimal("155.00")
+        assert summary.cash == Decimal("100.00")
+        assert summary.card == Decimal("25.00")
+        assert summary.credit == Decimal("30.00")
+        assert summary.mobile == Decimal("0.00")
+        # The parts always add back up to the whole.
+        assert summary.cash + summary.card + summary.mobile + summary.credit == summary.turnover
+
+    def test_cash_debt_repayments_move_from_credit_into_the_till(self, db_session, cashier):
+        """A в долг that gets paid off in cash must stop looking owed.
+
+        The repayment lands in the drawer, so the till figure the client shows
+        (cash + cash_debt_payments) grows and the debt still outstanding
+        (credit − cash_debt_payments) shrinks — while the three buckets keep
+        summing to turnover.
+        """
+        customer = Customer(company_id=None, name="Фируз", phone="900")
+        db_session.add(customer)
+        db_session.flush()
+
+        make_sale(db_session, cashier, "200.00", payment_method=PaymentMethod.CREDIT)
+        # 150 of the 200 debt repaid in cash; amounts are stored negative.
+        db_session.add(
+            CustomerLedgerEntry(
+                company_id=customer.company_id,
+                customer_id=customer.id,
+                entry_type=CustomerLedgerEntryType.PAYMENT.value,
+                amount=Decimal("-150.00"),
+                payment_method="cash",
+                created_by_user_id=cashier.id,
+                created_at=datetime(2026, 7, 10, 13, 0),
+            )
+        )
+        db_session.flush()
+
+        summary = SaleService(db_session).get_summary()
+
+        assert summary.credit == Decimal("200.00")  # turnover component unchanged
+        assert summary.cash_debt_payments == Decimal("150.00")
+        # Derived drawer / outstanding the client renders:
+        till = summary.cash + summary.cash_debt_payments
+        owed = summary.credit - summary.cash_debt_payments
+        assert till == Decimal("150.00")
+        assert owed == Decimal("50.00")
+        # Still reconciles to turnover.
+        assert till + summary.card + summary.mobile + owed == summary.turnover
+
+    def test_payment_breakdown_respects_the_method_filter(self, db_session, cashier):
+        make_sale(db_session, cashier, "100.00", payment_method=PaymentMethod.CASH)
+        make_sale(db_session, cashier, "25.00", payment_method=PaymentMethod.CARD)
+
+        summary = SaleService(db_session).get_summary(payment_method=PaymentMethod.CASH)
+
+        assert summary.cash == Decimal("100.00")
+        assert summary.card == Decimal("0.00")
 
     def test_average_check_ignores_cancelled_sales(self, db_session, cashier):
         make_sale(db_session, cashier, "100.00")

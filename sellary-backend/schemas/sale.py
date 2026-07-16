@@ -155,3 +155,13 @@ class SalesSummary(BaseModel):
     average_check: Decimal
     refund_operations: int
     hourly: List[SalesHourlyBucket]
+    # Turnover split by payment method. cash + card + mobile + credit == turnover.
+    cash: Decimal = Decimal("0.00")
+    card: Decimal = Decimal("0.00")
+    mobile: Decimal = Decimal("0.00")
+    credit: Decimal = Decimal("0.00")
+    # Cash collected against в-долг sales in the same window. It lands in the
+    # drawer, so the till is `cash + cash_debt_payments`, and the debt still owed
+    # is `credit - cash_debt_payments` — which is why a repaid в долг stops
+    # counting as outstanding.
+    cash_debt_payments: Decimal = Decimal("0.00")

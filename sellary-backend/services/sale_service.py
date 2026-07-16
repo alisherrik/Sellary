@@ -110,6 +110,7 @@ class SaleService:
         turnover = totals["turnover"]
         refunds = totals["refunds"]
         count = totals["count"]
+        by_method = totals.get("by_method", {})
 
         tz = company_tz(self.db, self.company_id)
         hourly: dict[int, Decimal] = {}
@@ -129,6 +130,11 @@ class SaleService:
             hourly=[
                 SalesHourlyBucket(hour=hour, turnover=hourly[hour]) for hour in sorted(hourly)
             ],
+            cash=by_method.get("cash", Decimal("0.00")),
+            card=by_method.get("card", Decimal("0.00")),
+            mobile=by_method.get("mobile", Decimal("0.00")),
+            credit=by_method.get("credit", Decimal("0.00")),
+            cash_debt_payments=totals.get("cash_debt_payments", Decimal("0.00")),
         )
 
     def _search_candidates(self) -> list[SearchCandidate]:

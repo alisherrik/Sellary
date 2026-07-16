@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from models.sale import PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
 from models.sale_return import SaleReturn
+from models.customer_ledger_entry import CustomerLedgerEntry, CustomerLedgerEntryType
 from models.product import Product
 from models.customer import Customer
 from models.user import User
@@ -265,11 +266,68 @@ class SaleRepository:
 
         row = query.one()
 
+        # Split the same turnover by payment method so the sales-history card can
+        # show what actually landed in the drawer (наличные) apart from карта and
+        # в долг. Same filters, same non-cancelled set — the parts add back up to
+        # `turnover`, which is what lets a cashier reconcile the till.
+        by_method = {"cash": Decimal("0.00"), "card": Decimal("0.00"),
+                     "mobile": Decimal("0.00"), "credit": Decimal("0.00")}
+        method_query = self.db.query(
+            Sale.payment_method,
+            func.coalesce(func.sum(Sale.total_amount), Decimal("0.00")),
+        )
+        method_query = self._apply_filters(
+            method_query,
+            company_id,
+            start_date=start_date,
+            end_date=end_date,
+            cashier_id=cashier_id,
+            status=status,
+            search_terms=search_terms,
+            status_group=status_group,
+            payment_method=payment_method,
+        )
+        method_query = method_query.filter(
+            Sale.status.in_(NON_CANCELLED_STATUSES)
+        ).group_by(Sale.payment_method)
+        for method, amount in method_query.all():
+            key = method.value if hasattr(method, "value") else str(method or "")
+            if key in by_method:
+                by_method[key] = amount or Decimal("0.00")
+
+        # Cash repaid against в-долг sales physically lands in the drawer, but it
+        # is not a sale, so it never shows up in the turnover split above. Without
+        # it the «Касса» figure understates the till by exactly the debt that was
+        # collected — which is what made a paid-off в долг still look owed. Add it
+        # so the client can show Касса = наличные-продажи + погашение долга и
+        # В долг = кредит − погашение (the two still sum back to turnover).
+        # Payments are matched by their own timestamp only (a repayment is not a
+        # sale, so cashier/status/search sale-filters do not apply); a method
+        # filter for a non-cash method excludes it.
+        cash_debt_payments = Decimal("0.00")
+        if payment_method in (None, PaymentMethod.CASH):
+            pay_query = self.db.query(
+                func.coalesce(func.sum(CustomerLedgerEntry.amount), Decimal("0.00"))
+            ).filter(
+                CustomerLedgerEntry.company_id == company_id,
+                CustomerLedgerEntry.entry_type == CustomerLedgerEntryType.PAYMENT.value,
+                func.lower(func.coalesce(CustomerLedgerEntry.payment_method, "cash")) == "cash",
+            )
+            if start_date:
+                pay_query = pay_query.filter(CustomerLedgerEntry.created_at >= start_date)
+            if end_date:
+                pay_query = pay_query.filter(CustomerLedgerEntry.created_at <= end_date)
+            # Payment amounts are stored negative (money reducing a debt); the
+            # cash brought in is the negation.
+            cash_debt_payments = -(pay_query.scalar() or Decimal("0.00"))
+
         return {
             "count": row.count or 0,
             "turnover": row.turnover or Decimal("0.00"),
             "refunds": row.refunds or Decimal("0.00"),
             "refund_operations": row.refund_operations or 0,
+            "by_method": by_method,
+            "cash_debt_payments": cash_debt_payments,
         }
 
     def get_turnover_timestamps(
