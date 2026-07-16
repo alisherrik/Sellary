@@ -22,6 +22,7 @@ from schemas.sale import (
     SaleStatus,
 )
 from schemas.sale_return import SaleReturnCreate, SaleReturnResponse
+from services.cash_shift_service import CashShiftService
 from services.sale_return_service import SaleReturnService
 from services.sale_service import SaleService
 from services.transaction_reversal_service import (
@@ -63,6 +64,15 @@ def create_sale(
             return SaleResponse(**response_body)
     except IdempotencyConflictError as exc:
         raise HTTPException(status_code=409, detail=exc.message)
+
+    # A cashier must have an open till shift to ring a NEW sale — this is how a
+    # shared account gets split into accountable shifts. Checked after the
+    # idempotency lookup so a retry of a sale that succeeded during an open
+    # shift still replays from cache even if the shift has since closed. The
+    # offline sync path (POST /api/sync/sales) is deliberately NOT gated: a
+    # queued offline sale must never be rejected, or it is lost.
+    if not CashShiftService(db, auth.company_id).has_open_shift():
+        raise HTTPException(status_code=409, detail="Смена не открыта")
 
     service = SaleService(db, auth.company_id)
     try:

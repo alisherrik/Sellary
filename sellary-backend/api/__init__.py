@@ -12,6 +12,7 @@ from .meta import router as meta_router
 from .owner import router as owner_router
 from .sync import router as sync_router
 from .device_auth import router as device_auth_router
+from .cash_shifts import router as cash_shifts_router
 
 __all__ = [
     "auth_router",
@@ -28,4 +29,5 @@ __all__ = [
     "owner_router",
     "sync_router",
     "device_auth_router",
+    "cash_shifts_router",
 ]

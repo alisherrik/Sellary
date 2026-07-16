@@ -18,6 +18,7 @@ from .reversal_operation import ReversalOperation
 from .purchase_receipt import PurchaseReceipt, PurchaseReceiptItem
 from .inventory_layer import InventoryLayer, InventoryAllocation
 from .cashier_device import CashierDevice
+from .cash_shift import CashShift, CashShiftSnapshot, CashShiftStatus
 
 __all__ = [
     "Company",

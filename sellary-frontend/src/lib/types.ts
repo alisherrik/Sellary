@@ -222,6 +222,45 @@ export interface SalesHourlyBucket {
   turnover: string;
 }
 
+export interface ShiftTotals {
+  cash_sales: string;
+  card_sales: string;
+  card_by_type: Record<string, string>; // { dc, eskhata, alif }
+  mobile_sales: string;
+  credit_sales: string;
+  debt_payments_by_method: Record<string, string>;
+  refunds_by_method: Record<string, string>;
+  sales_count: number;
+  expected_cash: string;
+}
+
+export interface CashShiftSnapshot {
+  id: number;
+  taken_at: string;
+  taken_by_user_id: number;
+  totals: ShiftTotals;
+}
+
+export interface CashShift {
+  id: number;
+  shift_number: number;
+  status: 'open' | 'closed';
+  opened_at: string;
+  opened_by_user_id: number;
+  opening_cash: string;
+  closed_at: string | null;
+  closed_by_user_id: number | null;
+  counted_cash: string | null;
+  expected_cash: string | null;
+  discrepancy: string | null; // counted − expected; negative = недостача
+  notes: string | null;
+  totals: ShiftTotals; // live for open, frozen for closed
+}
+
+export interface CashShiftDetail extends CashShift {
+  snapshots: CashShiftSnapshot[];
+}
+
 /**
  * Totals over every sale matching a filter — computed server-side because the
  * client only holds one page. Cancelled sales are excluded; `turnover` is gross

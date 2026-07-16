@@ -5,10 +5,12 @@ import {
   UserGroupIcon,
   TruckIcon,
   ChartBarIcon,
+  BanknotesIcon,
   Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 
 const moreItems = [
+  { label: 'Смена', href: '/shifts', icon: BanknotesIcon },
   { label: 'Клиенты', href: '/customers', icon: UserGroupIcon },
   { label: 'Поставщики', href: '/suppliers', icon: UserGroupIcon },
   { label: 'Закупки', href: '/purchase-orders', icon: TruckIcon },
