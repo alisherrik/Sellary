@@ -204,6 +204,26 @@ class TestSalesSummary:
         assert summary.average_check == Decimal("0.00")
         assert summary.hourly == []
 
+    def test_date_filter_uses_the_company_clock_not_utc(self, db_session, cashier):
+        """The two-screens bug: a sale at 00:30 local fell out of "today".
+
+        19:30 UTC on the 15th is 00:30 on the 16th in Asia/Dushanbe. The history
+        page sends naive wall-clock bounds for "16 Jul"; compared raw against UTC
+        they dropped that sale, so the card disagreed with the dashboard, which
+        buckets on the company clock. The filter must read the same clock.
+        """
+        make_sale(db_session, cashier, "55.99", created_at=datetime(2026, 7, 15, 19, 30))
+        make_sale(db_session, cashier, "10.00", created_at=datetime(2026, 7, 16, 12, 0))
+
+        summary = SaleService(db_session).get_summary(
+            start_date=datetime(2026, 7, 16, 0, 0, 0),
+            end_date=datetime(2026, 7, 16, 23, 59, 59),
+        )
+
+        # Both belong to the local 16th, so both count — not just the noon one.
+        assert summary.count == 2
+        assert summary.turnover == Decimal("65.99")
+
     def test_date_filter_applies_to_the_totals(self, db_session, cashier):
         make_sale(db_session, cashier, "100.00", created_at=datetime(2026, 7, 10, 12, 0))
         make_sale(db_session, cashier, "60.00", created_at=datetime(2026, 7, 1, 12, 0))

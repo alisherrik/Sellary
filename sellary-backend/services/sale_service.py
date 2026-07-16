@@ -19,7 +19,7 @@ from schemas.sale import (
     SalesSummary,
 )
 from services.calculation_service import CalculationService
-from services.company_time import company_tz, to_local
+from services.company_time import UTC, company_tz, to_local
 from services.customer_ledger_service import CustomerLedgerService
 from services.inventory_ledger_service import InventoryLedgerService
 from services.sale_search_service import (
@@ -43,6 +43,22 @@ class SaleService:
         self.ledger = InventoryLedgerService(db, self.company_id)
         self.customer_ledger = CustomerLedgerService(db, self.company_id)
 
+    def _localize_filter(self, dt: Optional[datetime]) -> Optional[datetime]:
+        """Read a naive date-range bound on the company's clock, not UTC.
+
+        The history page sends wall-clock bounds like `2026-07-16T00:00:00` with
+        no zone. Compared raw against `created_at` (stored UTC) they silently mean
+        UTC midnight, so a sale rung at 00:30 local (19:30 UTC the day before)
+        dropped out of "today" and the summary disagreed with the reports, which
+        bucket on the company clock. Interpret the wall time in the company tz and
+        hand the repo the equivalent UTC instant, so both engines compare in
+        absolute time (Postgres session tz is UTC; the SQLite test rows are UTC).
+        """
+        if dt is None or dt.tzinfo is not None:
+            return dt
+        tz = company_tz(self.db, self.company_id)
+        return dt.replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None)
+
     def get_by_id(self, sale_id: int) -> Optional[SaleResponse]:
         sale = self.sale_repo.get_by_id(self.company_id, sale_id)
         if not sale:
@@ -61,6 +77,8 @@ class SaleService:
         status_group: Optional[str] = None,
         payment_method: Optional[PaymentMethod] = None,
     ) -> Tuple[List[SaleResponse], int]:
+        start_date = self._localize_filter(start_date)
+        end_date = self._localize_filter(end_date)
         sales, total = self.sale_repo.get_all(
             self.company_id,
             skip=skip,
@@ -96,6 +114,8 @@ class SaleService:
         that is exactly how the turnover card came to report a fraction of the
         real number.
         """
+        start_date = self._localize_filter(start_date)
+        end_date = self._localize_filter(end_date)
         filters = dict(
             start_date=start_date,
             end_date=end_date,
