@@ -218,6 +218,30 @@ describe('Sales history smart search', () => {
     expect(screen.getAllByText(/88/).length).toBeGreaterThan(0);
   });
 
+  it('renders hourly bars from the server buckets at a visible height', () => {
+    vi.mocked(useSalesSummary).mockReturnValue(
+      summaryResult({
+        hourly: [
+          { hour: 8, turnover: '215.49' },
+          { hour: 21, turnover: '1177.69' },
+        ],
+      }) as any,
+    );
+    const { container } = renderPage();
+
+    const bars = Array.from(container.querySelectorAll<HTMLElement>('[class*="bg-blue-500"]'));
+    const heights = bars.map((b) => parseFloat(b.style.height)).filter((h) => h > 0);
+
+    // The tallest bucket anchors the scale; the smaller one stays proportional.
+    expect(heights).toContain(100);
+    expect(heights.some((h) => h > 0 && h < 100)).toBe(true);
+
+    // Layout is not asserted here — happy-dom does no layout, and this chart's
+    // real failure was CSS: `items-end` on the row collapsed the bar box to 0px
+    // so every height% resolved against nothing. Verified by measurement in a
+    // real browser instead.
+  });
+
   it('keeps the turnover card steady when another page loads', async () => {
     const { rerender } = renderPage();
 

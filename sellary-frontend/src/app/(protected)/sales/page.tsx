@@ -619,7 +619,11 @@ export default function SalesHistory() {
                 <p className="text-[13px] font-semibold text-gray-900 dark:text-white">Оборот по часам</p>
                 <span className="text-[11px] text-gray-400">08:00 – 22:00</span>
               </div>
-              <div className="flex h-20 items-end gap-1">
+              {/* No items-end here: it stops the columns stretching to h-20, so
+                  the flex-1 bar box collapses to 0px and every bar renders as a
+                  percentage of nothing. The columns must fill the row; the bar
+                  box aligns its own bar to the bottom. */}
+              <div className="flex h-20 gap-1">
                 {hourly.slice.map((b) => (
                   <div key={b.hour} className="flex flex-1 flex-col items-center gap-1" title={`${b.hour}:00 — ${formatCurrency(b.value)}`}>
                     <div className="flex w-full flex-1 items-end">
