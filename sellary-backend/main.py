@@ -24,6 +24,7 @@ from api import (
     sync_router,
     device_auth_router,
     cash_shifts_router,
+    company_router,
 )
 
 
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(sync_router, prefix=settings.API_V1_STR)
     app.include_router(device_auth_router, prefix=settings.API_V1_STR)
     app.include_router(cash_shifts_router, prefix=settings.API_V1_STR)
+    app.include_router(company_router, prefix=settings.API_V1_STR)
 
     return app
 
