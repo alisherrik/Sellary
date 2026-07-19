@@ -22,6 +22,7 @@ from .cashier_device import CashierDevice
 from .cash_shift import CashShift, CashShiftSnapshot, CashShiftStatus
 from .order import Order, OrderStatus, FulfillmentType
 from .order_item import OrderItem
+from .merchant_notify_link import MerchantNotifyLink
 
 __all__ = [
     "Company",
@@ -54,4 +55,5 @@ __all__ = [
     "OrderStatus",
     "FulfillmentType",
     "OrderItem",
+    "MerchantNotifyLink",
 ]

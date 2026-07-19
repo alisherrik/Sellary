@@ -15,9 +15,11 @@ Idempotency note (Resolved Decision #5):
     - a reused key with a DIFFERENT cart body returns 409 (not a silent replay);
     - concurrent double-submits are handled safely via DB-level unique flush.
 """
+import dataclasses
+import logging
 from typing import List
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from api.shop_dependencies import get_telegram_shopper
@@ -25,19 +27,67 @@ from core.database import get_db
 from core.idempotency import IdempotencyConflictError, IdempotencyService
 from models.telegram_user import TelegramUser
 from schemas.order import CheckoutRequest, OrderListResponse, OrderResponse
+from services.merchant_notify_service import MerchantNotifyService
 from services.order_service import (
     OrderNotFound,
     OrderService,
 )
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/shop", tags=["shop-orders"])
 
 _ENDPOINT = "/api/shop/orders"
 
 
+@dataclasses.dataclass
+class _NotifyPayload:
+    """Plain data snapshot gathered while the request session is still open.
+
+    Holds everything needed to build and send the Telegram notification without
+    touching the database again — so the deferred background task is DB-free and
+    safe to run after the request session is closed.
+    """
+    company_id: int
+    chat_ids: list
+    message: str
+
+
+def _send_notify(payload: _NotifyPayload) -> None:
+    """Background task: network-only Telegram send, no DB access.
+
+    All data was gathered inline (while the request session was open) and
+    serialised into a plain-data ``_NotifyPayload``.  A failure here is
+    best-effort: swallowed and logged so order placement is never affected.
+    """
+    from core.config import settings
+    from services.telegram_bot_client import TelegramBotClient
+
+    try:
+        bot = TelegramBotClient(
+            bot_token=settings.TELEGRAM_BOT_TOKEN,
+            base_url=settings.TELEGRAM_API_BASE_URL,
+        )
+        for chat_id in payload.chat_ids:
+            try:
+                bot.send_message(chat_id, payload.message)
+            except Exception:
+                _log.warning(
+                    "post-order notify send failed company=%s chat=%s",
+                    payload.company_id,
+                    chat_id,
+                    exc_info=True,
+                )
+    except Exception:
+        _log.exception(
+            "post-order notify send failed company=%s", payload.company_id
+        )
+
+
 @router.post("/orders", response_model=List[OrderResponse], status_code=201)
 def place_orders(
     request: CheckoutRequest,
+    background_tasks: BackgroundTasks,
     idempotency_key: str = Header(
         ...,
         alias="Idempotency-Key",
@@ -111,6 +161,28 @@ def place_orders(
     except Exception:
         db.rollback()
         raise
+
+    # Gather notification payloads INLINE while the request session is still open.
+    # The deferred background task (_send_notify) performs ONLY the Telegram HTTP
+    # call — it never touches the DB — so it is safe even after the session closes.
+    notify_service = MerchantNotifyService(db)
+    for order_resp in created:
+        try:
+            notify_data = notify_service.build_notify_payload(order_resp.id)
+            if notify_data is not None:
+                company_id, chat_ids, message = notify_data
+                background_tasks.add_task(
+                    _send_notify,
+                    _NotifyPayload(
+                        company_id=company_id,
+                        chat_ids=chat_ids,
+                        message=message,
+                    ),
+                )
+        except Exception:
+            _log.exception(
+                "post-order notify gather failed order=%s", order_resp.id
+            )
 
     return created
 

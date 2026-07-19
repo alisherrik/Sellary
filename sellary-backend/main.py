@@ -28,6 +28,7 @@ from api import (
     shop_router,
     shop_orders_router,
     orders_router,
+    telegram_webhook_router,
 )
 
 
@@ -97,6 +98,7 @@ def create_app() -> FastAPI:
     app.include_router(shop_router, prefix=settings.API_V1_STR)
     app.include_router(shop_orders_router, prefix=settings.API_V1_STR)
     app.include_router(orders_router, prefix=settings.API_V1_STR)
+    app.include_router(telegram_webhook_router, prefix=settings.API_V1_STR)
 
     return app
 

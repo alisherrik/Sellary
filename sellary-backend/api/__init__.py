@@ -17,6 +17,7 @@ from .company import router as company_router
 from .shop import router as shop_router
 from .shop_orders import router as shop_orders_router
 from .orders import router as orders_router
+from .telegram_webhook import router as telegram_webhook_router
 
 __all__ = [
     "auth_router",
@@ -38,4 +39,5 @@ __all__ = [
     "shop_router",
     "shop_orders_router",
     "orders_router",
+    "telegram_webhook_router",
 ]
