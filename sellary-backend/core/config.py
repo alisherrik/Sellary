@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     # unchanged 24h ACCESS_TOKEN_EXPIRE_MINUTES JWT.
     DEVICE_TOKEN_EXPIRE_DAYS: int = 180
 
+    # Telegram Mini App marketplace. BOT token is used to verify shopper initData
+    # HMAC-SHA256 signatures. Empty disables the /api/shop identity path (returns
+    # 503). Read from env in production. Max-age rejects replayed/stale initData.
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_AUTH_MAX_AGE_SECONDS: int = 86400  # 24h
+
     def model_post_init(self, __context) -> None:
         if self.BACKEND_CORS_ORIGINS_RAW:
             self.BACKEND_CORS_ORIGINS = _parse_cors_origins(self.BACKEND_CORS_ORIGINS_RAW)

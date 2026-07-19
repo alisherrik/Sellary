@@ -14,6 +14,7 @@ from .sync import router as sync_router
 from .device_auth import router as device_auth_router
 from .cash_shifts import router as cash_shifts_router
 from .company import router as company_router
+from .shop import router as shop_router
 
 __all__ = [
     "auth_router",
@@ -32,4 +33,5 @@ __all__ = [
     "device_auth_router",
     "cash_shifts_router",
     "company_router",
+    "shop_router",
 ]
