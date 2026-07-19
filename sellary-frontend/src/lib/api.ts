@@ -225,10 +225,13 @@ export const productsApi = {
   uploadImage: (id: number, file: File) => {
     const form = new FormData();
     form.append('file', file);
-    // No Content-Type override: axios auto-sets multipart/form-data WITH the
-    // boundary when it detects a FormData body. Setting it manually drops the
-    // boundary and FastAPI rejects the upload.
-    return api.post<Product>(`/products/${id}/image`, form);
+    // The `api` instance sets a default Content-Type: application/json, which
+    // would override the multipart boundary and make FastAPI reject the upload
+    // (422). Setting Content-Type to undefined for THIS request removes that
+    // default so axios/the browser set `multipart/form-data; boundary=...`.
+    return api.post<Product>(`/products/${id}/image`, form, {
+      headers: { 'Content-Type': undefined },
+    });
   },
 };
 

@@ -318,7 +318,16 @@ export default function Products() {
       toast.success('Фото загружено');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Не удалось загрузить фото');
+      // FastAPI 422 returns `detail` as an array of {type,loc,msg,input} objects.
+      // Rendering that object directly crashes React (#31), so coerce to a string.
+      const detail = error.response?.data?.detail;
+      const message =
+        typeof detail === 'string'
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((d: any) => d?.msg).filter(Boolean).join('; ')
+            : '';
+      toast.error(message || 'Не удалось загрузить фото');
     },
   });
 
