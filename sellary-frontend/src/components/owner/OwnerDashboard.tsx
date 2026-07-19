@@ -14,7 +14,15 @@ import {
 import { ownerApi } from '@/lib/api';
 import { useOwnerStore } from '@/lib/owner-store';
 import { useAuthStore } from '@/lib/store';
-import type { ManagedCompany, ManagedMembership, ManagedUser, UserRole } from '@/lib/types';
+import type {
+  ManagedCompany,
+  ManagedMembership,
+  ManagedUser,
+  PlatformSettingsResponse,
+  PlatformSettingsUpdatePayload,
+  UserRole,
+} from '@/lib/types';
+import PlatformSettingsSection from './PlatformSettingsSection';
 
 const roleOptions: UserRole[] = ['admin', 'manager', 'cashier'];
 
@@ -47,6 +55,7 @@ export default function OwnerDashboard() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [companies, setCompanies] = useState<ManagedCompany[]>([]);
   const [memberships, setMemberships] = useState<ManagedMembership[]>([]);
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [userForm, setUserForm] = useState(emptyUserForm);
@@ -60,14 +69,21 @@ export default function OwnerDashboard() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [usersResponse, companiesResponse, membershipsResponse] = await Promise.all([
+      const [
+        usersResponse,
+        companiesResponse,
+        membershipsResponse,
+        platformSettingsResponse,
+      ] = await Promise.all([
         ownerApi.getUsers(),
         ownerApi.getCompanies(),
         ownerApi.getMemberships(),
+        ownerApi.getPlatformSettings(),
       ]);
       setUsers(usersResponse.data);
       setCompanies(companiesResponse.data);
       setMemberships(membershipsResponse.data);
+      setPlatformSettings(platformSettingsResponse.data);
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || error?.message || 'Не удалось загрузить данные владельца.');
     } finally {
@@ -196,6 +212,18 @@ export default function OwnerDashboard() {
     }
   };
 
+  const handleSavePlatformSettings = async (payload: PlatformSettingsUpdatePayload) => {
+    try {
+      const response = await ownerApi.updatePlatformSettings(payload);
+      setPlatformSettings(response.data);
+      toast.success('Настройки платформы сохранены.');
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.detail || error?.message || 'Не удалось сохранить настройки платформы.',
+      );
+    }
+  };
+
   const handleLogout = () => {
     logout();
     router.replace('/owner/login');
@@ -268,6 +296,12 @@ export default function OwnerDashboard() {
               onEditChange={setEditingMembership}
               onSave={handleUpdateMembership}
             />
+            {platformSettings && (
+              <PlatformSettingsSection
+                settings={platformSettings}
+                onSave={handleSavePlatformSettings}
+              />
+            )}
           </>
         )}
       </main>

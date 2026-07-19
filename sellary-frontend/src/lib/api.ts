@@ -32,6 +32,8 @@ import type {
   Order,
   OrderListResponse,
   OrderStatusAdvanceTarget,
+  PlatformSettingsResponse,
+  PlatformSettingsUpdatePayload,
 } from './types';
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
@@ -175,6 +177,10 @@ export const ownerApi = {
   ) => ownerClient.patch<ManagedMembership>(`/owner/memberships/${id}`, data),
   enterCompany: (companyId: number) =>
     ownerClient.post<CompanySession>(`/owner/companies/${companyId}/enter`),
+  getPlatformSettings: () =>
+    ownerClient.get<PlatformSettingsResponse>('/owner/platform-settings'),
+  updatePlatformSettings: (data: PlatformSettingsUpdatePayload) =>
+    ownerClient.put<PlatformSettingsResponse>('/owner/platform-settings', data),
 };
 
 export const adminApi = {
