@@ -41,4 +41,9 @@ describe('MoreSheet', () => {
     await userEvent.click(backdrop!);
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('links to the merchant orders page', () => {
+    render(<MoreSheet isOpen onClose={() => {}} />);
+    expect(screen.getByRole('button', { name: /Заказы/ })).toBeInTheDocument();
+  });
 });
