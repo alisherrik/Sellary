@@ -6,7 +6,7 @@
 watch = ["sellary-backend/**", "Dockerfile", "railway.toml"]
 
 [deploy]
-preDeployCommand = "alembic upgrade f7a8b9c0d1e2"
+preDeployCommand = "alembic upgrade a8b9c0d1e2f3"
 # No startCommand here: with the Dockerfile builder Railway execs startCommand
 # without a shell, so "$PORT" wouldn't expand. The Dockerfile CMD runs through
 # `sh -c` and expands $PORT correctly.
