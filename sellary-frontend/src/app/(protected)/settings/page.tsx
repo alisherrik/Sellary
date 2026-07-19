@@ -6,6 +6,7 @@ import { BanknotesIcon, PrinterIcon, ServerIcon } from '@heroicons/react/24/outl
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 
 import CompanyAdminSection from '@/components/settings/CompanyAdminSection';
+import MarketplaceSettingsSection from '@/components/settings/MarketplaceSettingsSection';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { CURRENCIES, CurrencyCode, useSettingsStore } from '@/store/settingsStore';
 
@@ -230,6 +231,7 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      <MarketplaceSettingsSection />
       <CompanyAdminSection />
     </div>
   );
