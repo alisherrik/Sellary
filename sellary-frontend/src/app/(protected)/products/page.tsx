@@ -118,6 +118,7 @@ export default function Products() {
   const [formData, setFormData] = useState(emptyProductForm);
   const [formUnits, setFormUnits] = useState<UnitRow[]>([]);
   const [categoryFormData, setCategoryFormData] = useState(emptyCategoryForm);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // Debounce so typing in search doesn't fire a network request per keystroke.
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -308,10 +309,31 @@ export default function Products() {
     },
   });
 
+  const uploadImageMutation = useMutation({
+    mutationFn: ({ id, file }: { id: number; file: File }) =>
+      productsApi.uploadImage(id, file),
+    onSuccess: (response) => {
+      setImagePreview((response.data as Product).image_url ?? null);
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Фото загружено');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Не удалось загрузить фото');
+    },
+  });
+
+  const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file || !editingProduct) return;
+    uploadImageMutation.mutate({ id: editingProduct.id, file });
+  };
+
   const handleCreateProduct = () => {
     setEditingProduct(null);
     setFormData(emptyProductForm);
     setFormUnits([]);
+    setImagePreview(null);
     setShowProductModal(true);
   };
 
@@ -339,6 +361,7 @@ export default function Products() {
         barcode: unit.barcode ?? '',
       })),
     );
+    setImagePreview(product.image_url ?? null);
     setShowProductModal(true);
   };
 
@@ -902,6 +925,44 @@ export default function Products() {
                   className="w-full h-16 sm:h-20 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm resize-none"
                 />
               </div>
+
+              {editingProduct && (
+                <div className="mt-3 sm:mt-4 rounded-xl border border-gray-200 dark:border-gray-600 p-3">
+                  <label className="mb-2 block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Фото для маркетплейса
+                  </label>
+                  <div className="flex items-center gap-3">
+                    {imagePreview ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={imagePreview}
+                        alt="Фото товара"
+                        className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-[11px] text-gray-400 dark:bg-gray-700">
+                        Нет фото
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <label className="inline-flex cursor-pointer items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100">
+                        {uploadImageMutation.isPending ? 'Загрузка…' : 'Загрузить фото'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          aria-label="Загрузить фото товара"
+                          disabled={uploadImageMutation.isPending}
+                          onChange={handleImageSelected}
+                          className="hidden"
+                        />
+                      </label>
+                      <p className="mt-1 text-[11px] text-gray-400">
+                        JPG или PNG, до 5&nbsp;МБ. Показывается покупателям в маркетплейсе.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Additional sale units (multi-UOM). Base unit = uom + цена продажи. */}
               <div className="mt-3 sm:mt-4 rounded-xl border border-gray-200 dark:border-gray-600 p-3">
