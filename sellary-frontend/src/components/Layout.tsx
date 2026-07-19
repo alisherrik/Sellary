@@ -20,6 +20,7 @@ import {
   Cog6ToothIcon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
+  InboxArrowDownIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore, useUIStore } from '@/lib/store';
 import { usePrefetchOnHover } from '@/hooks/useQueries';
@@ -33,6 +34,7 @@ const navigation = [
   { name: 'Касса', href: '/pos', icon: ShoppingBagIcon, prefetchKey: null },
   { name: 'Дашборд', href: '/dashboard', icon: HomeIcon, prefetchKey: 'dashboard' },
   { name: 'История продаж', href: '/sales', icon: ArrowUturnLeftIcon, prefetchKey: 'sales' },
+  { name: 'Заказы', href: '/orders', icon: InboxArrowDownIcon, prefetchKey: null },
   { name: 'Смена', href: '/shifts', icon: BanknotesIcon, prefetchKey: null },
   { name: 'Товары', href: '/products', icon: CubeIcon, prefetchKey: 'products' },
   { name: 'Клиенты', href: '/customers', icon: UserGroupIcon, prefetchKey: 'customers' },

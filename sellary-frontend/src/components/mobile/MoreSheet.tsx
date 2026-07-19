@@ -7,6 +7,7 @@ import {
   ChartBarIcon,
   BanknotesIcon,
   Cog6ToothIcon,
+  InboxArrowDownIcon,
 } from '@heroicons/react/24/outline';
 
 const moreItems = [
@@ -14,6 +15,7 @@ const moreItems = [
   { label: 'Клиенты', href: '/customers', icon: UserGroupIcon },
   { label: 'Поставщики', href: '/suppliers', icon: UserGroupIcon },
   { label: 'Закупки', href: '/purchase-orders', icon: TruckIcon },
+  { label: 'Заказы', href: '/orders', icon: InboxArrowDownIcon },
   { label: 'Отчеты', href: '/reports', icon: ChartBarIcon },
   { label: 'Настройки', href: '/settings', icon: Cog6ToothIcon },
 ];

@@ -29,6 +29,9 @@ import type {
   CustomerPaymentResponse,
   MarketplaceSettings,
   MarketplaceSettingsUpdate,
+  Order,
+  OrderListResponse,
+  OrderStatusAdvanceTarget,
 } from './types';
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
@@ -364,6 +367,30 @@ export const companyApi = {
   getMarketplace: () => api.get<MarketplaceSettings>('/company/marketplace'),
   updateMarketplace: (data: MarketplaceSettingsUpdate) =>
     api.patch<MarketplaceSettings>('/company/marketplace', data),
+};
+
+export const ordersApi = {
+  // Merchant order list. `status` is optional; omit for all statuses.
+  list: (params?: { status?: string; skip?: number; limit?: number }) =>
+    api.get<OrderListResponse>('/orders', { params }),
+  getById: (id: number) => api.get<Order>(`/orders/${id}`),
+  // Confirm → creates a Sale + decrements stock. Idempotency-Key guards retries.
+  confirm: (
+    id: number,
+    paymentMethod: 'cash' | 'card' | 'mobile' = 'cash',
+    idempotencyKey?: string,
+  ) => {
+    const key = idempotencyKey || generateIdempotencyKey();
+    return api.post<Order>(
+      `/orders/${id}/confirm`,
+      { payment_method: paymentMethod },
+      { headers: { 'Idempotency-Key': key } },
+    );
+  },
+  advanceStatus: (id: number, status: OrderStatusAdvanceTarget) =>
+    api.post<Order>(`/orders/${id}/status`, { status }),
+  cancel: (id: number, reason?: string) =>
+    api.post<Order>(`/orders/${id}/cancel`, { reason }),
 };
 
 export const generateIdempotencyKey = (): string =>
