@@ -69,6 +69,10 @@ class SaleItemResponse(BaseModel):
     product_id: int
     product_name: str
     uom: str
+    # Every line in a sale's `items` is a sold line. The frontend history view
+    # gates per-line annulment / return on this discriminator, so surface it
+    # explicitly (constant "sale") instead of leaving it undefined.
+    transaction_type: Literal["sale", "return"] = "sale"
     # quantity / quantity_* are in the product's base unit (inventory truth).
     quantity: Decimal
     quantity_returned: Decimal
