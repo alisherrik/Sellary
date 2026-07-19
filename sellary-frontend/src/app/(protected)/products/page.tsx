@@ -63,6 +63,37 @@ const catColor = (id?: number | null) =>
     ? { dot: 'bg-gray-300', badge: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }
     : categoryPalette[id % categoryPalette.length];
 
+function PublishSwitch({
+  published,
+  disabled,
+  onToggle,
+}: {
+  published: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={published}
+      aria-label="Опубликовать в маркетплейсе"
+      disabled={disabled}
+      onClick={onToggle}
+      title={published ? 'Опубликован в маркетплейсе' : 'Не опубликован'}
+      className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+        published ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
+      }`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+          published ? 'translate-x-4' : 'translate-x-0.5'
+        }`}
+      />
+    </button>
+  );
+}
+
 const stockBar = (product: Product) => {
   const ref = Math.max(product.min_stock_level * 5, 1);
   const pct = Math.min(100, Math.max(product.stock_quantity > 0 ? 6 : 0, (product.stock_quantity / ref) * 100));
@@ -87,6 +118,7 @@ export default function Products() {
   const [formData, setFormData] = useState(emptyProductForm);
   const [formUnits, setFormUnits] = useState<UnitRow[]>([]);
   const [categoryFormData, setCategoryFormData] = useState(emptyCategoryForm);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // Debounce so typing in search doesn't fire a network request per keystroke.
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -261,10 +293,47 @@ export default function Products() {
     },
   });
 
+  const publishProductMutation = useMutation({
+    mutationFn: ({ id, is_published }: { id: number; is_published: boolean }) =>
+      productsApi.update(id, { is_published }),
+    onSuccess: (_res, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success(
+        variables.is_published
+          ? 'Товар опубликован в маркетплейсе'
+          : 'Товар снят с публикации',
+      );
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Не удалось изменить публикацию');
+    },
+  });
+
+  const uploadImageMutation = useMutation({
+    mutationFn: ({ id, file }: { id: number; file: File }) =>
+      productsApi.uploadImage(id, file),
+    onSuccess: (response) => {
+      setImagePreview((response.data as Product).image_url ?? null);
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Фото загружено');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Не удалось загрузить фото');
+    },
+  });
+
+  const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file || !editingProduct) return;
+    uploadImageMutation.mutate({ id: editingProduct.id, file });
+  };
+
   const handleCreateProduct = () => {
     setEditingProduct(null);
     setFormData(emptyProductForm);
     setFormUnits([]);
+    setImagePreview(null);
     setShowProductModal(true);
   };
 
@@ -292,6 +361,7 @@ export default function Products() {
         barcode: unit.barcode ?? '',
       })),
     );
+    setImagePreview(product.image_url ?? null);
     setShowProductModal(true);
   };
 
@@ -573,6 +643,16 @@ export default function Products() {
                             </span>
                           </div>
                           <div className="flex gap-1">
+                            <PublishSwitch
+                              published={Boolean(product.is_published)}
+                              disabled={publishProductMutation.isPending}
+                              onToggle={() =>
+                                publishProductMutation.mutate({
+                                  id: product.id,
+                                  is_published: !product.is_published,
+                                })
+                              }
+                            />
                             <button
                               onClick={() => handleEditProduct(product)}
                               className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-700"
@@ -606,6 +686,7 @@ export default function Products() {
                       <th className="px-4 py-3 text-right font-medium">Цена</th>
                       <th className="px-4 py-3 text-right font-medium">Остаток</th>
                       <th className="px-4 py-3 text-left font-medium">Уровень запаса</th>
+                      <th className="px-4 py-3 text-center font-medium">Маркетплейс</th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
@@ -656,6 +737,18 @@ export default function Products() {
                                 <div className={`h-full rounded-full ${bar.color}`} style={{ width: `${bar.pct}%` }} />
                               </div>
                             </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <PublishSwitch
+                              published={Boolean(product.is_published)}
+                              disabled={publishProductMutation.isPending}
+                              onToggle={() =>
+                                publishProductMutation.mutate({
+                                  id: product.id,
+                                  is_published: !product.is_published,
+                                })
+                              }
+                            />
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -832,6 +925,44 @@ export default function Products() {
                   className="w-full h-16 sm:h-20 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm resize-none"
                 />
               </div>
+
+              {editingProduct && (
+                <div className="mt-3 sm:mt-4 rounded-xl border border-gray-200 dark:border-gray-600 p-3">
+                  <label className="mb-2 block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Фото для маркетплейса
+                  </label>
+                  <div className="flex items-center gap-3">
+                    {imagePreview ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={imagePreview}
+                        alt="Фото товара"
+                        className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-[11px] text-gray-400 dark:bg-gray-700">
+                        Нет фото
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <label className="inline-flex cursor-pointer items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100">
+                        {uploadImageMutation.isPending ? 'Загрузка…' : 'Загрузить фото'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          aria-label="Загрузить фото товара"
+                          disabled={uploadImageMutation.isPending}
+                          onChange={handleImageSelected}
+                          className="hidden"
+                        />
+                      </label>
+                      <p className="mt-1 text-[11px] text-gray-400">
+                        JPG или PNG, до 5&nbsp;МБ. Показывается покупателям в маркетплейсе.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Additional sale units (multi-UOM). Base unit = uom + цена продажи. */}
               <div className="mt-3 sm:mt-4 rounded-xl border border-gray-200 dark:border-gray-600 p-3">

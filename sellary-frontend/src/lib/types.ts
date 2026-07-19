@@ -142,10 +142,32 @@ export interface Product {
   stock_quantity: number;
   min_stock_level: number;
   is_active: boolean;
+  is_published?: boolean;
+  image_url?: string | null;
   profit_percent?: string;
   units?: ProductUnit[];
   created_at: string;
   updated_at?: string;
+}
+
+// Company storefront settings for the Telegram marketplace (F1). Read/updated
+// through GET/PATCH /api/company/marketplace; server-side per company, not a
+// device-local setting.
+export interface MarketplaceSettings {
+  is_marketplace_enabled: boolean;
+  logo_url?: string | null;
+  marketplace_description?: string | null;
+  supports_delivery: boolean;
+  supports_pickup: boolean;
+}
+
+// Partial patch for the storefront form — every field optional (PATCH semantics).
+export interface MarketplaceSettingsUpdate {
+  is_marketplace_enabled?: boolean;
+  logo_url?: string | null;
+  marketplace_description?: string | null;
+  supports_delivery?: boolean;
+  supports_pickup?: boolean;
 }
 
 export interface Customer {

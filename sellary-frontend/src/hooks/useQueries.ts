@@ -1,11 +1,11 @@
 import { useQuery, useInfiniteQuery, keepPreviousData, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
-import { reportsApi, productsApi, salesApi, shiftsApi, suppliersApi, purchaseOrdersApi, customersApi } from '@/lib/api';
+import { reportsApi, productsApi, salesApi, shiftsApi, suppliersApi, purchaseOrdersApi, customersApi, companyApi } from '@/lib/api';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { useAuthStore } from '@/lib/store';
 import {
     Product, Sale, SaleSearchSuggestion, SalesSummary, Supplier, PurchaseOrder, Customer,
     CustomerLedgerResponse, DailySalesReport, ProfitReport, TopProductsReport,
-    CashShift, CashShiftDetail
+    CashShift, CashShiftDetail, MarketplaceSettings
 } from '@/lib/types';
 
 const tenantKey = (companyId: number | null) => companyId ?? 'no-company';
@@ -33,6 +33,7 @@ export const queryKeys = {
     dailySales: (companyId: number | null, days: number) => ['dailySales', tenantKey(companyId), days] as const,
     profit: (companyId: number | null, days: number) => ['profit', tenantKey(companyId), days] as const,
     topProducts: (companyId: number | null, days: number, limit: number) => ['topProducts', tenantKey(companyId), days, limit] as const,
+    marketplaceSettings: (companyId: number | null) => ['marketplaceSettings', tenantKey(companyId)] as const,
 };
 
 // --- Cash shifts ---
@@ -350,6 +351,24 @@ export function useTopProducts(days: number, limit: number = 10, options?: Parti
     });
 }
 
+
+// Company storefront settings for the Telegram marketplace. Tenant-gated like
+// every other read here so it never fires while offline or company-less.
+export function useMarketplaceSettings(
+    options?: Partial<UseQueryOptions<MarketplaceSettings>>,
+) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    return useQuery<MarketplaceSettings>({
+        queryKey: queryKeys.marketplaceSettings(companyId),
+        queryFn: async () => {
+            const response = await companyApi.getMarketplace();
+            return response.data;
+        },
+        ...options,
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
+    });
+}
 
 // Prefetch Hook for Navigation
 export function usePrefetchOnHover() {

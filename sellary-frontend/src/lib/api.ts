@@ -13,6 +13,7 @@ import type {
   ManagedUser,
   OwnerLoginResponse,
   OwnerSession,
+  Product,
   PurchaseOrder,
   PurchaseOrderPayload,
   ReceivePurchaseOrderPayload,
@@ -26,6 +27,8 @@ import type {
   CustomerLedgerResponse,
   CustomerPaymentPayload,
   CustomerPaymentResponse,
+  MarketplaceSettings,
+  MarketplaceSettingsUpdate,
 } from './types';
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
@@ -208,6 +211,16 @@ export const productsApi = {
   update: (id: number, data: any) => api.put(`/products/${id}`, data),
   delete: (id: number) => api.delete(`/products/${id}`),
   getLowStock: () => api.get('/products/low-stock'),
+  // Marketplace: upload a product image (multipart). Backend stores it on
+  // Cloudinary and returns the updated product with image_url populated.
+  uploadImage: (id: number, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    // No Content-Type override: axios auto-sets multipart/form-data WITH the
+    // boundary when it detects a FormData body. Setting it manually drops the
+    // boundary and FastAPI rejects the upload.
+    return api.post<Product>(`/products/${id}/image`, form);
+  },
 };
 
 export const salesApi = {
@@ -344,6 +357,13 @@ export const purchaseOrdersApi = {
 
 export const metaApi = {
   getSaleReturnOptions: () => api.get('/meta/sale-return-options'),
+};
+
+export const companyApi = {
+  // Storefront settings for the Telegram marketplace (F1). Company-scoped.
+  getMarketplace: () => api.get<MarketplaceSettings>('/company/marketplace'),
+  updateMarketplace: (data: MarketplaceSettingsUpdate) =>
+    api.patch<MarketplaceSettings>('/company/marketplace', data),
 };
 
 export const generateIdempotencyKey = (): string =>
