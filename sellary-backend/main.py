@@ -26,6 +26,8 @@ from api import (
     cash_shifts_router,
     company_router,
     shop_router,
+    shop_orders_router,
+    orders_router,
 )
 
 
@@ -93,6 +95,8 @@ def create_app() -> FastAPI:
     app.include_router(cash_shifts_router, prefix=settings.API_V1_STR)
     app.include_router(company_router, prefix=settings.API_V1_STR)
     app.include_router(shop_router, prefix=settings.API_V1_STR)
+    app.include_router(shop_orders_router, prefix=settings.API_V1_STR)
+    app.include_router(orders_router, prefix=settings.API_V1_STR)
 
     return app
 

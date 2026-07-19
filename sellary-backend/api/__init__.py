@@ -15,6 +15,8 @@ from .device_auth import router as device_auth_router
 from .cash_shifts import router as cash_shifts_router
 from .company import router as company_router
 from .shop import router as shop_router
+from .shop_orders import router as shop_orders_router
+from .orders import router as orders_router
 
 __all__ = [
     "auth_router",
@@ -34,4 +36,6 @@ __all__ = [
     "cash_shifts_router",
     "company_router",
     "shop_router",
+    "shop_orders_router",
+    "orders_router",
 ]
