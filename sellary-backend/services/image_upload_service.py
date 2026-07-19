@@ -6,6 +6,8 @@ layer turns into a 503, so the rest of the app runs without image hosting.
 """
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 import cloudinary
 from cloudinary import uploader as cloudinary_uploader
 
@@ -16,9 +18,17 @@ class ImageUploadService:
     def __init__(self, cloudinary_url: str) -> None:
         self._url = cloudinary_url or ""
         if self._url:
-            # cloudinary.config() reads CLOUDINARY_URL from the environment, but we
-            # pass it explicitly so the service is not coupled to process env state.
-            cloudinary.config(cloudinary_url=self._url)
+            # cloudinary.config(cloudinary_url=...) does NOT parse the DSN — the SDK
+            # only auto-parses CLOUDINARY_URL from the environment at import time.
+            # Passing it as a kwarg leaves api_key unset ("Must supply api_key" on
+            # upload). Parse the DSN and configure the credentials explicitly.
+            parsed = urlparse(self._url)
+            cloudinary.config(
+                cloud_name=parsed.hostname,
+                api_key=parsed.username,
+                api_secret=parsed.password,
+                secure=True,
+            )
 
     def upload_product_image(self, data: bytes, *, filename: str) -> str:
         if not self._url:

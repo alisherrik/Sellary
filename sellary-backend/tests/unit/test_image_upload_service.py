@@ -40,6 +40,21 @@ def test_unconfigured_url_raises_not_configured():
     assert "not configured" in str(exc.value)
 
 
+def test_configures_cloudinary_from_parsed_dsn(monkeypatch):
+    # Regression: cloudinary.config(cloudinary_url=...) does NOT parse the DSN,
+    # so the credentials must be parsed and passed as explicit fields. Without
+    # this, upload fails with "Must supply api_key".
+    captured = {}
+    monkeypatch.setattr(
+        "services.image_upload_service.cloudinary.config",
+        lambda **kw: captured.update(kw),
+    )
+    ImageUploadService("cloudinary://apikey123:secretABC@mycloud")
+    assert captured["cloud_name"] == "mycloud"
+    assert captured["api_key"] == "apikey123"
+    assert captured["api_secret"] == "secretABC"
+
+
 def test_upload_sdk_error_raises(monkeypatch):
     def boom(data, **kwargs):
         raise RuntimeError("network")
