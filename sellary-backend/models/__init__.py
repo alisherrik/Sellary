@@ -20,6 +20,8 @@ from .purchase_receipt import PurchaseReceipt, PurchaseReceiptItem
 from .inventory_layer import InventoryLayer, InventoryAllocation
 from .cashier_device import CashierDevice
 from .cash_shift import CashShift, CashShiftSnapshot, CashShiftStatus
+from .order import Order, OrderStatus, FulfillmentType
+from .order_item import OrderItem
 
 __all__ = [
     "Company",
@@ -48,4 +50,8 @@ __all__ = [
     "InventoryAllocation",
     "CashierDevice",
     "TelegramUser",
+    "Order",
+    "OrderStatus",
+    "FulfillmentType",
+    "OrderItem",
 ]
