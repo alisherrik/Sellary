@@ -39,6 +39,14 @@ def telegram_webhook(
             payload = parts[1].strip()
             linked = MerchantNotifyService(db).link_from_start_payload(payload, str(msg.chat.id))
             if linked:
-                db.commit()
+                try:
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    logger.warning(
+                        "telegram_webhook: failed to persist merchant notify link — "
+                        "Telegram will retry; upsert is idempotent",
+                        exc_info=True,
+                    )
     # Everything else (and failed/absent payloads): graceful no-op.
     return {"ok": True}

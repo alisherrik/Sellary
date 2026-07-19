@@ -15,6 +15,7 @@ Idempotency note (Resolved Decision #5):
     - a reused key with a DIFFERENT cart body returns 409 (not a silent replay);
     - concurrent double-submits are handled safely via DB-level unique flush.
 """
+import dataclasses
 import logging
 from typing import List
 
@@ -24,7 +25,6 @@ from sqlalchemy.orm import Session
 from api.shop_dependencies import get_telegram_shopper
 from core.database import get_db
 from core.idempotency import IdempotencyConflictError, IdempotencyService
-from models.order import Order
 from models.telegram_user import TelegramUser
 from schemas.order import CheckoutRequest, OrderListResponse, OrderResponse
 from services.merchant_notify_service import MerchantNotifyService
@@ -40,20 +40,48 @@ router = APIRouter(prefix="/shop", tags=["shop-orders"])
 _ENDPOINT = "/api/shop/orders"
 
 
-def _safe_notify(db: Session, order_id: int) -> None:
-    """Best-effort: reload the order and notify the merchant.
+@dataclasses.dataclass
+class _NotifyPayload:
+    """Plain data snapshot gathered while the request session is still open.
 
-    Any failure (DB, Bot API, network) is swallowed — order placement already
-    succeeded and committed. This wrapper is the outer guard; MerchantNotifyService
-    is the inner guard. The request `db` session is passed in (the BackgroundTask
-    runs before the session dependency closes under Starlette ordering).
+    Holds everything needed to build and send the Telegram notification without
+    touching the database again — so the deferred background task is DB-free and
+    safe to run after the request session is closed.
     """
+    company_id: int
+    chat_ids: list
+    message: str
+
+
+def _send_notify(payload: _NotifyPayload) -> None:
+    """Background task: network-only Telegram send, no DB access.
+
+    All data was gathered inline (while the request session was open) and
+    serialised into a plain-data ``_NotifyPayload``.  A failure here is
+    best-effort: swallowed and logged so order placement is never affected.
+    """
+    from core.config import settings
+    from services.telegram_bot_client import TelegramBotClient
+
     try:
-        order = db.get(Order, order_id)
-        if order is not None:
-            MerchantNotifyService(db).notify_new_order(order)
+        bot = TelegramBotClient(
+            bot_token=settings.TELEGRAM_BOT_TOKEN,
+            base_url=settings.TELEGRAM_API_BASE_URL,
+        )
+        for chat_id in payload.chat_ids:
+            try:
+                bot.send_message(chat_id, payload.message)
+            except Exception:
+                _log.warning(
+                    "post-order notify send failed company=%s chat=%s",
+                    payload.company_id,
+                    chat_id,
+                    exc_info=True,
+                )
     except Exception:
-        _log.exception("post-order notify failed order=%s", order_id)
+        _log.exception(
+            "post-order notify send failed company=%s", payload.company_id
+        )
 
 
 @router.post("/orders", response_model=List[OrderResponse], status_code=201)
@@ -134,11 +162,27 @@ def place_orders(
         db.rollback()
         raise
 
-    # Schedule best-effort notifications after the commit (DB rows are durable).
-    # Uses the request session (BackgroundTask runs before the dependency closes).
-    # A failure in _safe_notify must never affect the response.
+    # Gather notification payloads INLINE while the request session is still open.
+    # The deferred background task (_send_notify) performs ONLY the Telegram HTTP
+    # call — it never touches the DB — so it is safe even after the session closes.
+    notify_service = MerchantNotifyService(db)
     for order_resp in created:
-        background_tasks.add_task(_safe_notify, db, order_resp.id)
+        try:
+            notify_data = notify_service.build_notify_payload(order_resp.id)
+            if notify_data is not None:
+                company_id, chat_ids, message = notify_data
+                background_tasks.add_task(
+                    _send_notify,
+                    _NotifyPayload(
+                        company_id=company_id,
+                        chat_ids=chat_ids,
+                        message=message,
+                    ),
+                )
+        except Exception:
+            _log.exception(
+                "post-order notify gather failed order=%s", order_resp.id
+            )
 
     return created
 

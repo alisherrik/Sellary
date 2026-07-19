@@ -5,12 +5,16 @@ Two jobs:
     /start deep-link and upsert a merchant_notify_links row.
   * notify_new_order — best-effort push to every linked chat. NEVER raises:
     a Bot API / network failure must not affect order placement.
+  * build_notify_payload — gather order + chat_ids + message text from the DB
+    while the request session is still open; returns plain data for a DB-free
+    deferred background send (fixes the closed-session bug in production).
 """
 from __future__ import annotations
 import logging
 from sqlalchemy.orm import Session
 
 from core.config import settings
+from models.order import Order
 from repositories.merchant_notify_repository import MerchantNotifyRepository
 from services.merchant_link_token import verify_company_ref
 from services.telegram_bot_client import TelegramBotClient
@@ -45,6 +49,25 @@ class MerchantNotifyService:
             f"{n_items} товаров, {order.total_amount}, {fulfil}, "
             f"{order.contact_name} {order.contact_phone}"
         )
+
+    def build_notify_payload(self, order_id: int):
+        """Gather everything needed for a notification while the session is open.
+
+        Returns ``(company_id, chat_ids, message)`` if there are linked chats,
+        or ``None`` if no chats are linked (nothing to send).  All DB access
+        happens here — the caller schedules a DB-free background send.
+
+        Any exception propagates to the caller (the route) which swallows it
+        best-effort, so order placement is never affected.
+        """
+        order = self.db.get(Order, order_id)
+        if order is None:
+            return None
+        chat_ids = self.repo.list_chat_ids_for_company(order.company_id)
+        if not chat_ids:
+            return None
+        message = self.format_order_message(order)
+        return (order.company_id, chat_ids, message)
 
     def notify_new_order(self, order) -> None:
         try:

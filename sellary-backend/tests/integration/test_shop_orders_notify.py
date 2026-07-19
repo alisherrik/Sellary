@@ -1,8 +1,11 @@
 """Task 8 — wire notification into POST /api/shop/orders (F6).
 
 Verifies:
-  - A notify is triggered per created order (patched so no real Telegram call).
+  - A notify payload is gathered per created order (chat_ids + message),
+    and the deferred send receives the correct data.
   - A notify exception does NOT fail the 201 response.
+  - The deferred background task (_send_notify) is DB-free: it receives a
+    plain _NotifyPayload built while the request session was open (Fix 1).
 
 Reuses the F4 fixture/helper pattern from test_shop_order_endpoints.py.
 """
@@ -11,7 +14,7 @@ import hmac
 import json
 import uuid
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -109,42 +112,90 @@ def idem_headers():
     }
 
 
-# Use the existing `client` fixture from conftest (same db_session)
 def test_placing_order_notifies_linked_merchant(
     client: TestClient, db_session, marketplace_company, checkout_body, idem_headers
 ):
+    """Fix 1 regression test: gather is inline (DB), send is deferred (network-only).
+
+    Patches _send_notify (the deferred background task) and asserts it receives a
+    _NotifyPayload with the correct company_id and a non-empty chat_ids list.
+    The DB gather (build_notify_payload) runs for real on the test session — this
+    proves the inline path works while the session is open.
+    """
     MerchantNotifyRepository(db_session).upsert(marketplace_company.id, "42042")
     db_session.flush()
 
-    sent = []
+    sent_payloads = []
 
-    def fake_send(self, order):
-        sent.append(order.company_id)
+    def fake_send_notify(payload):
+        sent_payloads.append(payload)
 
-    with patch(
-        "services.merchant_notify_service.MerchantNotifyService.notify_new_order", fake_send
-    ):
+    with patch("api.shop_orders._send_notify", fake_send_notify):
         resp = client.post("/api/shop/orders", json=checkout_body, headers=idem_headers)
 
     assert resp.status_code == 201, resp.text
-    assert marketplace_company.id in sent   # notify fired for the affected company
+    assert len(sent_payloads) == 1
+    payload = sent_payloads[0]
+    assert payload.company_id == marketplace_company.id
+    assert "42042" in payload.chat_ids
+    assert payload.message  # non-empty message string
 
 
 def test_notify_failure_does_not_fail_order(
     client: TestClient, db_session, marketplace_company, checkout_body, idem_headers
 ):
+    """Best-effort guarantee: even if the Telegram bot send raises, the order is still 201.
+
+    Patches TelegramBotClient.send_message to raise inside _send_notify — the
+    per-chat try/except inside _send_notify swallows it, so the 201 is returned.
+    """
     MerchantNotifyRepository(db_session).upsert(marketplace_company.id, "42042")
     db_session.flush()
 
-    def boom(self, order):
+    def boom(self, chat_id, text):
         raise RuntimeError("telegram exploded")
 
-    # The production hook wraps notify in try/except AND the service self-guards,
-    # so the order response must still be 201 even if the scheduled task raises.
+    # _send_notify creates its own TelegramBotClient and iterates chats;
+    # patching send_message exercises the inner per-chat swallow guarantee.
+    with patch("services.telegram_bot_client.TelegramBotClient.send_message", boom):
+        resp = client.post("/api/shop/orders", json=checkout_body, headers=idem_headers)
+
+    assert resp.status_code == 201, resp.text
+    assert len(resp.json()) >= 1  # orders were still created & returned
+
+
+def test_no_notify_when_no_links(
+    client: TestClient, db_session, marketplace_company, checkout_body, idem_headers
+):
+    """No background task is scheduled when no chat_ids are linked."""
+    # Do NOT upsert any chat link for this company.
+
+    sent_payloads = []
+
+    def fake_send_notify(payload):
+        sent_payloads.append(payload)
+
+    with patch("api.shop_orders._send_notify", fake_send_notify):
+        resp = client.post("/api/shop/orders", json=checkout_body, headers=idem_headers)
+
+    assert resp.status_code == 201, resp.text
+    assert sent_payloads == []  # no send scheduled when no linked chats
+
+
+def test_notify_gather_failure_does_not_fail_order(
+    client: TestClient, db_session, marketplace_company, checkout_body, idem_headers
+):
+    """Even if build_notify_payload raises, the order response is still 201."""
+    MerchantNotifyRepository(db_session).upsert(marketplace_company.id, "42042")
+    db_session.flush()
+
+    def boom(order_id):
+        raise RuntimeError("DB gather exploded")
+
     with patch(
-        "services.merchant_notify_service.MerchantNotifyService.notify_new_order", boom
+        "services.merchant_notify_service.MerchantNotifyService.build_notify_payload", boom
     ):
         resp = client.post("/api/shop/orders", json=checkout_body, headers=idem_headers)
 
     assert resp.status_code == 201, resp.text
-    assert len(resp.json()) >= 1   # orders were still created & returned
+    assert len(resp.json()) >= 1
