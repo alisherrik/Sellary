@@ -91,6 +91,14 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_AUTH_MAX_AGE_SECONDS: int = 86400  # 24h
 
+    # Telegram bot webhook (F6 new-order notifications). Secret guards
+    # POST /api/telegram/webhook via the X-Telegram-Bot-Api-Secret-Token header.
+    # Empty → the webhook rejects ALL calls (fail-closed) so an unconfigured
+    # deployment cannot be driven by forged updates.
+    TELEGRAM_WEBHOOK_SECRET: str = ""
+    # Bot API base; overridable in tests / for a local mock. No trailing slash.
+    TELEGRAM_API_BASE_URL: str = "https://api.telegram.org"
+
     def model_post_init(self, __context) -> None:
         if self.BACKEND_CORS_ORIGINS_RAW:
             self.BACKEND_CORS_ORIGINS = _parse_cors_origins(self.BACKEND_CORS_ORIGINS_RAW)
