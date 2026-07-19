@@ -15,29 +15,51 @@ Idempotency note (Resolved Decision #5):
     - a reused key with a DIFFERENT cart body returns 409 (not a silent replay);
     - concurrent double-submits are handled safely via DB-level unique flush.
 """
+import logging
 from typing import List
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from api.shop_dependencies import get_telegram_shopper
 from core.database import get_db
 from core.idempotency import IdempotencyConflictError, IdempotencyService
+from models.order import Order
 from models.telegram_user import TelegramUser
 from schemas.order import CheckoutRequest, OrderListResponse, OrderResponse
+from services.merchant_notify_service import MerchantNotifyService
 from services.order_service import (
     OrderNotFound,
     OrderService,
 )
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/shop", tags=["shop-orders"])
 
 _ENDPOINT = "/api/shop/orders"
 
 
+def _safe_notify(db: Session, order_id: int) -> None:
+    """Best-effort: reload the order and notify the merchant.
+
+    Any failure (DB, Bot API, network) is swallowed — order placement already
+    succeeded and committed. This wrapper is the outer guard; MerchantNotifyService
+    is the inner guard. The request `db` session is passed in (the BackgroundTask
+    runs before the session dependency closes under Starlette ordering).
+    """
+    try:
+        order = db.get(Order, order_id)
+        if order is not None:
+            MerchantNotifyService(db).notify_new_order(order)
+    except Exception:
+        _log.exception("post-order notify failed order=%s", order_id)
+
+
 @router.post("/orders", response_model=List[OrderResponse], status_code=201)
 def place_orders(
     request: CheckoutRequest,
+    background_tasks: BackgroundTasks,
     idempotency_key: str = Header(
         ...,
         alias="Idempotency-Key",
@@ -111,6 +133,12 @@ def place_orders(
     except Exception:
         db.rollback()
         raise
+
+    # Schedule best-effort notifications after the commit (DB rows are durable).
+    # Uses the request session (BackgroundTask runs before the dependency closes).
+    # A failure in _safe_notify must never affect the response.
+    for order_resp in created:
+        background_tasks.add_task(_safe_notify, db, order_resp.id)
 
     return created
 
