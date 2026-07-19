@@ -47,6 +47,9 @@ def _shopper_headers(telegram_id=42):
 
 
 def _make_published_product(db, company, stock=10, price="200.00"):
+    # Ensure marketplace is enabled so place_orders() gateway passes.
+    company.is_marketplace_enabled = True
+    db.flush()
     p = Product(
         company_id=company.id,
         name="ShopOrderItem",
@@ -157,6 +160,25 @@ def test_place_order_idempotency_replay(
     assert ids1 == ids2
 
 
+def test_place_order_idempotency_conflict_returns_409(
+    client: TestClient, db_session, default_company
+):
+    """Same Idempotency-Key with a DIFFERENT cart body must return 409, not a silent replay."""
+    p = _make_published_product(db_session, default_company, stock=100)
+    payload_a = _checkout_payload(default_company.id, p.id, qty=1, group_id="grp-conflict-a")
+    payload_b = _checkout_payload(default_company.id, p.id, qty=2, group_id="grp-conflict-b")
+
+    ikey = "conflict-test-key-1234567"
+    headers = {**_shopper_headers(telegram_id=7010), "Idempotency-Key": ikey}
+
+    r1 = client.post("/api/shop/orders", json=payload_a, headers=headers)
+    assert r1.status_code == 201, r1.text
+
+    # Second call with same key but different body → 409
+    r2 = client.post("/api/shop/orders", json=payload_b, headers=headers)
+    assert r2.status_code == 409, r2.text
+
+
 def test_place_order_requires_init_data(client: TestClient, db_session, default_company):
     p = _make_published_product(db_session, default_company)
     payload = _checkout_payload(default_company.id, p.id)
@@ -172,6 +194,9 @@ def test_place_order_requires_init_data(client: TestClient, db_session, default_
 def test_place_order_rejects_unpublished_product(
     client: TestClient, db_session, default_company
 ):
+    # Enable marketplace so the company gate passes and product gate fires.
+    default_company.is_marketplace_enabled = True
+    db_session.flush()
     p = Product(
         company_id=default_company.id,
         name="Hidden",
@@ -191,6 +216,35 @@ def test_place_order_rejects_unpublished_product(
         headers={
             **_shopper_headers(telegram_id=7004),
             "Idempotency-Key": "hidden-prod-test-key-1",
+        },
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_place_order_rejects_marketplace_disabled_company(
+    client: TestClient, db_session, default_company
+):
+    """Fix 2: ordering from a marketplace-disabled company must be rejected (422)."""
+    # default_company.is_marketplace_enabled is False by default — do NOT enable it.
+    p = Product(
+        company_id=default_company.id,
+        name="DisabledShop",
+        cost_price=Decimal("5.00"),
+        sell_price=Decimal("10.00"),
+        stock_quantity=Decimal("5"),
+        is_active=True,
+        is_published=True,
+    )
+    db_session.add(p)
+    db_session.flush()
+
+    payload = _checkout_payload(default_company.id, p.id)
+    resp = client.post(
+        "/api/shop/orders",
+        json=payload,
+        headers={
+            **_shopper_headers(telegram_id=7005),
+            "Idempotency-Key": "disabled-company-key-12345",
         },
     )
     assert resp.status_code == 422, resp.text

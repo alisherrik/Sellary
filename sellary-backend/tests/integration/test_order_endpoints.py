@@ -72,6 +72,9 @@ def _make_published_product(db, company, stock=10, price="100.00"):
 
 def _place_order(db, company, product, tu, qty=2):
     """Place an order directly through the service (bypasses HTTP idempotency)."""
+    # Ensure the company is marketplace-enabled so the service gate passes.
+    company.is_marketplace_enabled = True
+    db.flush()
     svc = OrderService(db)
     req = CheckoutRequest(
         orders=[

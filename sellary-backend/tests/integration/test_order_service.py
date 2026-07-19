@@ -37,8 +37,15 @@ def _make_tu(db, tid=42, name="Ali"):
 
 
 def _make_published_product(db, company, price="100.00", stock=10):
-    """Published product backed by an opening FIFO layer."""
+    """Published product backed by an opening FIFO layer.
+
+    Also ensures company.is_marketplace_enabled is True so that
+    place_orders() doesn't raise the marketplace-gate ValueError.
+    """
     from models.inventory_layer import InventoryLayer
+
+    company.is_marketplace_enabled = True
+    db.flush()
 
     p = Product(
         company_id=company.id,
@@ -132,6 +139,10 @@ def test_order_number_is_sequential(db_session, default_company):
 
 def test_unpublished_product_rejected(db_session, default_company):
     tu = _make_tu(db_session, tid=1003)
+    # Must enable marketplace first so the company gate passes and the
+    # product-level check is what raises.
+    default_company.is_marketplace_enabled = True
+    db_session.flush()
     p = Product(
         company_id=default_company.id,
         name="Hidden",
@@ -146,6 +157,30 @@ def test_unpublished_product_rejected(db_session, default_company):
 
     req = _checkout(default_company.id, p.id)
     with pytest.raises(ValueError, match="not available"):
+        OrderService(db_session).place_orders(req, telegram_user_id=tu.id)
+
+
+def test_marketplace_disabled_company_rejected(db_session, default_company):
+    """Fix 2: a published product in a marketplace-DISABLED company must be rejected."""
+    tu = _make_tu(db_session, tid=1006)
+    # Explicitly disable marketplace (default, but be explicit).
+    default_company.is_marketplace_enabled = False
+    db_session.flush()
+
+    p = Product(
+        company_id=default_company.id,
+        name="DisabledMarketplaceProduct",
+        cost_price=Decimal("10.00"),
+        sell_price=Decimal("20.00"),
+        stock_quantity=Decimal("10"),
+        is_active=True,
+        is_published=True,
+    )
+    db_session.add(p)
+    db_session.flush()
+
+    req = _checkout(default_company.id, p.id, quantity=1)
+    with pytest.raises(ValueError, match="not available on the marketplace"):
         OrderService(db_session).place_orders(req, telegram_user_id=tu.id)
 
 
@@ -230,7 +265,14 @@ def test_confirm_sets_cashier_id_from_manager(db_session, default_company, manag
 
 
 def test_confirm_oversell_raises_and_order_stays_pending(db_session, default_company, manager_user):
-    """Decision #4: oversell → OrderOversellError, order stays pending."""
+    """Decision #4: oversell → OrderOversellError, order stays pending.
+
+    The order must still exist (not None) and remain pending with no sale_id
+    after the failed confirm is rolled back.
+
+    Uses a savepoint so that only the confirm attempt is rolled back while the
+    preceding place_orders flush (which created the order row) survives.
+    """
     tu = _make_tu(db_session, tid=2004)
     # Stock = 2, request = 5
     p = _make_published_product(db_session, default_company, stock=2)
@@ -239,17 +281,22 @@ def test_confirm_oversell_raises_and_order_stays_pending(db_session, default_com
     placed = svc.place_orders(_checkout(default_company.id, p.id, quantity=5), telegram_user_id=tu.id)
     order_id = placed[0].id
 
+    # Use a savepoint so that rolling back the failed confirm does NOT undo the
+    # order placement that happened before this point.
+    sp = db_session.begin_nested()
     with pytest.raises(OrderOversellError):
         OrderService(db_session, default_company.id).confirm(order_id, cashier_id=manager_user.id)
+    sp.rollback()  # roll back only the confirm attempt
 
-    # Order must still be pending (rollback ensured by caller / service).
-    db_session.rollback()
-    # After rollback, reload order
+    # Expire cached state and re-read the order from the DB to confirm it
+    # survived and is still pending with no sale linked.
     db_session.expire_all()
     order = db_session.query(Order).filter(Order.id == order_id).first()
-    # The order was committed in place_orders; after rollback of confirm it stays pending
-    # Note: in test context rollback reverts the confirm attempt
-    assert order is None or order.status == "pending"
+
+    # The order must exist — savepoint rollback must NOT have wiped the placement.
+    assert order is not None, "Order row must survive the rolled-back confirm attempt"
+    assert order.status == "pending", f"Expected pending, got '{order.status}'"
+    assert order.sale_id is None, "sale_id must be None after a rolled-back confirm"
 
 
 def test_confirm_already_confirmed_raises_status_error(db_session, default_company, manager_user):

@@ -20,6 +20,7 @@ from typing import List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
+from models.company import Company
 from models.order import FulfillmentType, Order, OrderStatus
 from models.order_item import OrderItem
 from models.product import Product
@@ -101,6 +102,13 @@ class OrderService:
     ) -> Order:
         company_id = order_create.company_id
         product_repo = ProductRepository(self.db)
+
+        # Gate: the target company must have marketplace enabled.
+        company = self.db.get(Company, company_id)
+        if company is None or not company.is_marketplace_enabled:
+            raise ValueError(
+                f"Company {company_id} is not available on the marketplace"
+            )
 
         items: List[OrderItem] = []
         subtotal = Decimal("0.00")

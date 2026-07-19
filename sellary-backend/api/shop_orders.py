@@ -11,17 +11,18 @@ Idempotency note (Resolved Decision #5):
     endpoint   = "/api/shop/orders"
   This avoids the FK constraint on idempotency_keys.company_id while still
   providing replay safety per (key, company_id, user_id, endpoint).
+  The canonical IdempotencyService is used so that:
+    - a reused key with a DIFFERENT cart body returns 409 (not a silent replay);
+    - concurrent double-submits are handled safely via DB-level unique flush.
 """
-import hashlib
-import json
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from api.shop_dependencies import get_telegram_shopper
 from core.database import get_db
-from models.idempotency_key import IdempotencyKey
+from core.idempotency import IdempotencyConflictError, IdempotencyService
 from models.telegram_user import TelegramUser
 from schemas.order import CheckoutRequest, OrderListResponse, OrderResponse
 from services.order_service import (
@@ -32,54 +33,6 @@ from services.order_service import (
 router = APIRouter(prefix="/shop", tags=["shop-orders"])
 
 _ENDPOINT = "/api/shop/orders"
-
-
-def _check_idempotency(
-    db: Session,
-    key: str,
-    request_body: dict,
-    company_id: int,
-    user_id: int,
-) -> Optional[dict]:
-    """Return the cached response if the key was seen before, else None."""
-    existing = (
-        db.query(IdempotencyKey)
-        .filter(
-            IdempotencyKey.key == key,
-            IdempotencyKey.company_id == company_id,
-            IdempotencyKey.user_id == user_id,
-            IdempotencyKey.endpoint == _ENDPOINT,
-        )
-        .first()
-    )
-    if existing and existing.response_body:
-        return json.loads(existing.response_body)
-    return None
-
-
-def _store_idempotency(
-    db: Session,
-    key: str,
-    request_body: dict,
-    response: list,
-    company_id: int,
-    user_id: int,
-    status_code: int = 201,
-) -> None:
-    request_hash = hashlib.sha256(
-        json.dumps(request_body, sort_keys=True, default=str).encode()
-    ).hexdigest()
-    idem = IdempotencyKey(
-        company_id=company_id,
-        key=key,
-        user_id=user_id,
-        endpoint=_ENDPOINT,
-        request_hash=request_hash,
-        response_body=json.dumps(response, default=str),
-        status_code=status_code,
-    )
-    db.add(idem)
-    db.flush()
 
 
 @router.post("/orders", response_model=List[OrderResponse], status_code=201)
@@ -107,13 +60,26 @@ def place_orders(
     scope_company_id = min(o.company_id for o in request.orders)
     shopper_user_id = shopper.id
 
-    # Check idempotency replay.
     request_dict = request.model_dump(mode="json")
-    cached = _check_idempotency(
-        db, idempotency_key, request_dict, scope_company_id, shopper_user_id
-    )
-    if cached is not None:
-        return cached
+    idempotency_service = IdempotencyService(db)
+
+    # Check idempotency replay using the canonical service.
+    # Raises IdempotencyConflictError (→ 409) if same key was used with a different body.
+    try:
+        cached = idempotency_service.get_cached_response(
+            key=idempotency_key,
+            company_id=scope_company_id,
+            user_id=shopper_user_id,
+            endpoint=_ENDPOINT,
+            request_body=request_dict,
+        )
+        if cached is not None:
+            # The canonical service stores the body as a dict; we wrapped the list
+            # under the "orders" key when storing (see below), so unwrap it here.
+            envelope, _ = cached
+            return envelope["orders"]
+    except IdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
 
     service = OrderService(db)
     try:
@@ -123,12 +89,25 @@ def place_orders(
 
     response_data = [o.model_dump(mode="json") for o in created]
 
-    # Store idempotency record so a retry returns the same response.
+    # Wrap the list in a dict so IdempotencyService (which expects a dict or
+    # Pydantic model) can serialize/deserialize it correctly.
+    response_envelope = {"orders": response_data}
+
+    # Store idempotency record atomically with the order creation.
     try:
-        _store_idempotency(
-            db, idempotency_key, request_dict, response_data, scope_company_id, shopper_user_id
+        idempotency_service.store_response(
+            key=idempotency_key,
+            company_id=scope_company_id,
+            user_id=shopper_user_id,
+            endpoint=_ENDPOINT,
+            request_body=request_dict,
+            response_body=response_envelope,
+            status_code=201,
         )
         db.commit()
+    except IdempotencyConflictError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.message)
     except Exception:
         db.rollback()
         raise
