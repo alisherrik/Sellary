@@ -13,8 +13,8 @@ PRODUCT_IMAGE_FOLDER = "sellary/products"
 
 
 class ImageUploadService:
-    def __init__(self, settings) -> None:
-        self._url = getattr(settings, "CLOUDINARY_URL", "") or ""
+    def __init__(self, cloudinary_url: str) -> None:
+        self._url = cloudinary_url or ""
         if self._url:
             # cloudinary.config() reads CLOUDINARY_URL from the environment, but we
             # pass it explicitly so the service is not coupled to process env state.
