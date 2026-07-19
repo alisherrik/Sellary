@@ -32,8 +32,11 @@ class ImageUploadService:
                 transformation=[{"width": 1600, "height": 1600, "crop": "limit"}],
             )
         except Exception as exc:  # SDK raises various error types
-            raise ValueError("Image upload failed") from exc
+            # Surface the underlying cause (e.g. "Invalid api_key", "Invalid
+            # Signature") so a merchant can fix a wrong CLOUDINARY_URL. Cloudinary
+            # error messages don't echo the api_secret, so this is safe to return.
+            raise ValueError(f"Image upload failed: {exc}") from exc
         secure_url = result.get("secure_url")
         if not secure_url:
-            raise ValueError("Image upload failed")
+            raise ValueError("Image upload failed: no URL returned")
         return secure_url
