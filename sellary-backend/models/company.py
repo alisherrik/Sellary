@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -19,6 +19,18 @@ class Company(Base):
         nullable=False,
         default=settings.DEFAULT_TIMEZONE,
         server_default=text("'Asia/Dushanbe'"),
+    )
+    # Marketplace storefront settings.
+    is_marketplace_enabled = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    logo_url = Column(String(500), nullable=True)
+    marketplace_description = Column(String(500), nullable=True)
+    supports_delivery = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    supports_pickup = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
     )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
