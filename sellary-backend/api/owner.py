@@ -18,9 +18,14 @@ from schemas.admin import (
     OwnerLoginResponse,
     OwnerSession,
 )
+from schemas.platform_settings import (
+    PlatformSettingsResponse,
+    PlatformSettingsUpdate,
+)
 from schemas.user import CompanySession
 from services.admin_management import AdminManagementService
 from services.auth_service import AuthService
+from services.platform_settings_service import PlatformSettingsService
 
 router = APIRouter(prefix="/owner", tags=["owner"])
 
@@ -180,3 +185,30 @@ def enter_company(
     except ValueError as exc:
         status_code = 404 if "not found" in str(exc).lower() else 400
         raise HTTPException(status_code=status_code, detail=str(exc))
+
+
+@router.get("/platform-settings", response_model=PlatformSettingsResponse)
+def get_platform_settings(
+    db: Session = Depends(get_db),
+    owner: OwnerContext = Depends(require_super_admin),
+):
+    """Masked platform secrets (bot token / webhook secret / cloudinary URL).
+
+    Never returns plaintext — only is_set/masked/source per key.
+    """
+    del owner
+    return PlatformSettingsService(db).get_masked()
+
+
+@router.put("/platform-settings", response_model=PlatformSettingsResponse)
+def update_platform_settings(
+    payload: PlatformSettingsUpdate,
+    db: Session = Depends(get_db),
+    owner: OwnerContext = Depends(require_super_admin),
+):
+    """Set platform secrets. Blank/omitted fields preserve the stored value."""
+    del owner
+    service = PlatformSettingsService(db)
+    service.update_from_payload(payload.model_dump())
+    db.commit()
+    return service.get_masked()
