@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # business day on this clock; the server itself runs UTC.
     DEFAULT_TIMEZONE: str = "Asia/Dushanbe"
 
+    # Cloudinary image hosting. Format: cloudinary://<api_key>:<api_secret>@<cloud_name>
+    # Empty disables uploads (endpoints return 503). Read from env in production.
+    CLOUDINARY_URL: str = ""
+
     # Bootstrap super admin
     SUPER_ADMIN_USERNAME: str | None = None
     SUPER_ADMIN_EMAIL: str | None = None

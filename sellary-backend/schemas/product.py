@@ -60,6 +60,8 @@ class ProductUpdate(BaseModel):
     stock_quantity: Optional[Decimal] = Field(None, ge=0, decimal_places=3)
     min_stock_level: Optional[Decimal] = Field(None, ge=0, decimal_places=3)
     is_active: Optional[bool] = None
+    is_published: Optional[bool] = None
+    image_url: Optional[str] = Field(None, max_length=500)
     # When provided, replaces the product's additional sale units (units removed
     # from the list are deactivated, not hard-deleted, to keep sale FKs valid).
     units: Optional[List[ProductUnitCreate]] = None
@@ -75,6 +77,8 @@ class ProductUpdate(BaseModel):
 class Product(ProductBase):
     id: int
     is_active: bool
+    is_published: bool = False
+    image_url: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

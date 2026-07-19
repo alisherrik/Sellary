@@ -35,6 +35,11 @@ class Product(Base):
     sell_price = Column(Numeric(10, 4), nullable=False)
     tax_percent = Column(Numeric(5, 2), default=Decimal("0.00"))
     stock_quantity = Column(Numeric(10, 3), default=0)
+    # Marketplace: opt-in visibility and primary image (Cloudinary secure_url).
+    is_published = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    image_url = Column(String(500), nullable=True)
     inventory_value = Column(
         Numeric(16, 4),
         nullable=False,

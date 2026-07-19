@@ -1,11 +1,13 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from api.dependencies import AuthContext, get_auth_context, require_manager_or_admin
+from core.config import settings
 from core.database import get_db
 from schemas.product import ProductCreate, ProductResponse, ProductUpdate
+from services.image_upload_service import ImageUploadService
 from services.product_service import ProductService
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -132,6 +134,46 @@ def delete_product(
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:
+        db.rollback()
+        raise
+
+
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+@router.post("/{product_id}/image", response_model=ProductResponse)
+async def upload_product_image(
+    product_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_manager_or_admin),
+):
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    data = await file.read()
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=400, detail="Image exceeds 5 MB limit")
+
+    service = ProductService(db, auth.company_id)
+    product = service.get_by_id(product_id)
+    if not product or not product.is_active:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    try:
+        url = ImageUploadService(settings).upload_product_image(
+            data, filename=file.filename or "image"
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        status_code = 503 if "not configured" in detail else 400
+        raise HTTPException(status_code=status_code, detail=detail)
+
+    try:
+        response = service.update(product_id, ProductUpdate(image_url=url))
+        db.commit()
+        return response
     except Exception:
         db.rollback()
         raise
