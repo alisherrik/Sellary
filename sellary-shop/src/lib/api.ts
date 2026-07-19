@@ -14,7 +14,25 @@ export async function shopFetch<T = unknown>(
 
   const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
   if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}`);
+    // Surface the backend's error detail so callers can show a real message.
+    // FastAPI 422 returns `detail` as an array of {type,loc,msg,input}; coerce
+    // it to a string (never let a caller render the raw object).
+    let message = `${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      const detail = body?.detail;
+      if (typeof detail === 'string' && detail) {
+        message = detail;
+      } else if (Array.isArray(detail)) {
+        const joined = detail.map((d) => d?.msg).filter(Boolean).join('; ');
+        if (joined) message = joined;
+      }
+    } catch {
+      // non-JSON body — keep the status fallback
+    }
+    const err = new Error(message) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
   }
   return res.json() as Promise<T>;
 }
