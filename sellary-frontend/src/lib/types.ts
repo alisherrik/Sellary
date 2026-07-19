@@ -552,3 +552,62 @@ export interface ProfitReport {
 export interface TopProductsReport {
   top_products: TopProductItem[];
 }
+
+// --- Marketplace orders (F4/F5) ---
+
+export type OrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'preparing'
+  | 'ready'
+  | 'delivering'
+  | 'completed'
+  | 'cancelled';
+
+export type FulfillmentType = 'delivery' | 'pickup';
+
+export interface OrderItem {
+  id: number;
+  product_id: number | null;
+  product_name: string;
+  unit_price: string;
+  quantity: string;
+  line_total: string;
+}
+
+export interface Order {
+  id: number;
+  company_id: number;
+  order_number: number;
+  status: OrderStatus;
+  fulfillment_type: FulfillmentType;
+  delivery_address: string | null;
+  contact_phone: string;
+  contact_name: string;
+  subtotal: string;
+  total_amount: string;
+  notes: string | null;
+  sale_id: number | null;
+  checkout_group_id: string | null;
+  created_at: string;
+  updated_at: string;
+  items: OrderItem[];
+}
+
+export interface OrderListResponse {
+  items: Order[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+export interface OrderConfirmPayload {
+  payment_method?: 'cash' | 'card' | 'mobile';
+}
+
+export interface OrderCancelPayload {
+  reason?: string;
+}
+
+// Only the statuses the merchant can set via POST /api/orders/{id}/status.
+export type OrderStatusAdvanceTarget = 'preparing' | 'ready' | 'delivering' | 'completed';
