@@ -165,3 +165,48 @@ Total F4: 43 PASS
 - **Confirm→Sale in test context:** `SaleService.create` in the test context (SQLite in-memory) may produce slightly different FIFO behavior than Postgres. All tests pass, including the oversell case.
 - **`advance_status` accepts `cancelled` as a valid target** from `pending` per the state machine dict. The `cancel()` method is the right path, but the state machine doesn't block it via `advance_status`. This matches the design (separation of concerns, not a bug).
 - **Phone share endpoint (`POST /api/shop/me/phone`)** mentioned in the design spec was NOT implemented — it is not listed in the F4 resolved decisions and appears to be F4 scope-out.
+
+---
+
+## Fix Pass (review findings)
+
+**Commit:** `df12658` — `fix(marketplace): reuse IdempotencyService for shop orders + gate on marketplace_enabled + harden oversell test`
+
+### What changed
+
+**Fix 1 — canonical IdempotencyService for POST /api/shop/orders (`api/shop_orders.py`)**
+- Removed private `_check_idempotency` / `_store_idempotency` helpers entirely.
+- Now uses `IdempotencyService.get_cached_response` + `store_response` from `core/idempotency.py`.
+- Same-key + same-body → 201 replay (envelope {"orders": [...]} wraps the list for dict-compatible storage, unwrapped on replay).
+- Same-key + different-body → `IdempotencyConflictError` → HTTP 409.
+- Concurrent double-submits → DB unique-index flush raises `IntegrityError` → caught and re-raised as `IdempotencyConflictError` → HTTP 409.
+- Added `test_place_order_idempotency_conflict_returns_409` in `test_shop_order_endpoints.py`.
+
+**Fix 2 — marketplace_enabled gate (`services/order_service.py`)**
+- Added check in `_create_single_order`: `db.get(Company, company_id).is_marketplace_enabled` must be True, else raise `ValueError("Company N is not available on the marketplace")`.
+- Added `test_marketplace_disabled_company_rejected` in `test_order_service.py` (service level).
+- Added `test_place_order_rejects_marketplace_disabled_company` in `test_shop_order_endpoints.py` (endpoint level, 422).
+- Updated `_make_published_product` / `_place_order` helpers in all three order test files to set `is_marketplace_enabled=True` on the company they order from, so existing tests continue to pass against the new gate.
+
+**Fix 3 — hardened oversell test (`tests/integration/test_order_service.py`)**
+- Replaced `db_session.rollback()` (which erased the order placement too) with `db_session.begin_nested()` / `sp.rollback()` savepoint, so only the failed confirm attempt is rolled back.
+- Post-rollback assertions now check: `order is not None`, `order.status == "pending"`, `order.sale_id is None` — the weak `or order is None` disjunct is gone.
+
+### Commands run
+
+```
+python -m compileall api/shop_orders.py services/order_service.py   # OK
+python -m pytest tests/integration/test_shop_order_endpoints.py tests/integration/test_order_service.py tests/integration/test_order_endpoints.py -v --no-cov   # 39 passed
+python -m pytest tests/unit tests/integration --no-cov -q           # 634 passed, 0 failures
+```
+
+### Results
+
+| Suite | Passed | Failed |
+|---|---|---|
+| Idempotency (shop_order_endpoints) | 10 | 0 |
+| Order service (test_order_service) | 16 | 0 |
+| Order endpoints (test_order_endpoints) | 13 | 0 |
+| Full suite (unit + integration) | 634 | 0 |
+
+No deviations from the fix spec. The only non-obvious detail: `IdempotencyService.store_response` expects a dict or Pydantic model, not a list — the list response is wrapped in `{"orders": [...]}` on store and unwrapped on replay.
