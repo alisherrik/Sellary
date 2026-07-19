@@ -35,7 +35,7 @@ export const queryKeys = {
     topProducts: (companyId: number | null, days: number, limit: number) => ['topProducts', tenantKey(companyId), days, limit] as const,
     marketplaceSettings: (companyId: number | null) => ['marketplaceSettings', tenantKey(companyId)] as const,
     orders: (companyId: number | null, params?: any) => ['orders', tenantKey(companyId), params] as const,
-    order: (companyId: number | null, id: number) => ['order', companyId, id] as const,
+    order: (companyId: number | null, id: number) => ['order', tenantKey(companyId), id] as const,
 };
 
 // --- Cash shifts ---

@@ -40,7 +40,7 @@ function matchesTab(order: Order, tab: TabKey): boolean {
 
 export default function OrdersPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<TabKey>('all');
+  const [activeTab, setActiveTab] = useState<TabKey>('new');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelForm, setShowCancelForm] = useState(false);
@@ -88,10 +88,11 @@ export default function OrdersPage() {
     if (!order) return;
     const key = generateIdempotencyKey();
     runAction(
-      () => ordersApi.confirm(order.id, 'cash', key).then(() => {
-        queryClient.invalidateQueries({ queryKey: ['products'] });
-        queryClient.invalidateQueries({ queryKey: ['sales'] });
-      }),
+      async () => {
+        await ordersApi.confirm(order.id, 'cash', key);
+        await queryClient.invalidateQueries({ queryKey: ['products'] });
+        await queryClient.invalidateQueries({ queryKey: ['sales'] });
+      },
       'Заказ подтверждён',
     );
   };

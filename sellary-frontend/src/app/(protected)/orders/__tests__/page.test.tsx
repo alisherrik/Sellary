@@ -99,6 +99,8 @@ describe('Merchant orders page', () => {
     } as never);
 
     renderPage();
+    // Default tab is "Новые" (pending only); switch to "Все" to see the ready/pickup order.
+    await user.click(await screen.findByRole('tab', { name: /Все/ }));
     await user.click(await screen.findByText(/#43/));
     // No "в доставку" action for pickup.
     expect(screen.queryByRole('button', { name: /доставку/i })).not.toBeInTheDocument();
