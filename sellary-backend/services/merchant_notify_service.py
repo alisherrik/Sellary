@@ -17,6 +17,7 @@ from core.config import settings
 from models.order import Order
 from repositories.merchant_notify_repository import MerchantNotifyRepository
 from services.merchant_link_token import verify_company_ref
+from services.platform_settings_service import PlatformSettingsService
 from services.telegram_bot_client import TelegramBotClient
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class MerchantNotifyService:
         self.db = db
         self.repo = MerchantNotifyRepository(db)
         self._bot = bot_client or TelegramBotClient(
-            bot_token=settings.TELEGRAM_BOT_TOKEN,
+            bot_token=PlatformSettingsService(db).resolve("telegram_bot_token"),
             base_url=settings.TELEGRAM_API_BASE_URL,
         )
 

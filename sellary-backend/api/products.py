@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from api.dependencies import AuthContext, get_auth_context, require_manager_or_admin
-from core.config import settings
 from core.database import get_db
 from schemas.product import ProductCreate, ProductResponse, ProductUpdate
 from services.image_upload_service import ImageUploadService
+from services.platform_settings_service import PlatformSettingsService
 from services.product_service import ProductService
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -161,8 +161,9 @@ async def upload_product_image(
     if not product or not product.is_active:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    cloudinary_url = PlatformSettingsService(db).resolve("cloudinary_url")
     try:
-        url = ImageUploadService(settings).upload_product_image(
+        url = ImageUploadService(cloudinary_url).upload_product_image(
             data, filename=file.filename or "image"
         )
     except ValueError as exc:

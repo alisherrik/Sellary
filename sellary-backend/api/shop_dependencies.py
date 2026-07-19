@@ -5,6 +5,7 @@ from core.config import settings
 from core.database import get_db
 from models.telegram_user import TelegramUser
 from repositories.telegram_user_repository import TelegramUserRepository
+from services.platform_settings_service import PlatformSettingsService
 from services.telegram_auth_service import (
     TelegramAuthError,
     parse_and_verify_init_data,
@@ -23,7 +24,7 @@ def get_telegram_shopper(
     try:
         identity = parse_and_verify_init_data(
             x_telegram_init_data,
-            bot_token=settings.TELEGRAM_BOT_TOKEN,
+            bot_token=PlatformSettingsService(db).resolve("telegram_bot_token"),
             max_age_seconds=settings.TELEGRAM_AUTH_MAX_AGE_SECONDS,
         )
     except TelegramAuthError as exc:

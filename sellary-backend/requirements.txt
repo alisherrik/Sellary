@@ -12,6 +12,7 @@ email-validator>=2.3.0
 python-dotenv>=1.2.2
 rapidfuzz>=3.0.0
 cloudinary>=1.40,<2
+cryptography>=43,<46
 
 # Testing dependencies
 pytest>=9.0.3

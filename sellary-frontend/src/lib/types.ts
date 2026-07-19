@@ -170,6 +170,27 @@ export interface MarketplaceSettingsUpdate {
   supports_pickup?: boolean;
 }
 
+// Platform-global marketplace secrets (F7). Owner-panel only. GET returns masked
+// views only — plaintext is never sent to the browser.
+export interface PlatformSettingView {
+  is_set: boolean;
+  masked: string;
+  source: 'db' | 'env' | 'unset';
+}
+
+export interface PlatformSettingsResponse {
+  telegram_bot_token: PlatformSettingView;
+  telegram_webhook_secret: PlatformSettingView;
+  cloudinary_url: PlatformSettingView;
+}
+
+// PUT payload — every field optional; blank/omitted preserves the stored value.
+export interface PlatformSettingsUpdatePayload {
+  telegram_bot_token?: string;
+  telegram_webhook_secret?: string;
+  cloudinary_url?: string;
+}
+
 export interface Customer {
   id: number;
   name?: string;

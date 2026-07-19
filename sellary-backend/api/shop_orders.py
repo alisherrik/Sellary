@@ -32,6 +32,7 @@ from services.order_service import (
     OrderNotFound,
     OrderService,
 )
+from services.platform_settings_service import PlatformSettingsService
 
 _log = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class _NotifyPayload:
     company_id: int
     chat_ids: list
     message: str
+    bot_token: str
 
 
 def _send_notify(payload: _NotifyPayload) -> None:
@@ -65,7 +67,7 @@ def _send_notify(payload: _NotifyPayload) -> None:
 
     try:
         bot = TelegramBotClient(
-            bot_token=settings.TELEGRAM_BOT_TOKEN,
+            bot_token=payload.bot_token,
             base_url=settings.TELEGRAM_API_BASE_URL,
         )
         for chat_id in payload.chat_ids:
@@ -166,6 +168,7 @@ def place_orders(
     # The deferred background task (_send_notify) performs ONLY the Telegram HTTP
     # call — it never touches the DB — so it is safe even after the session closes.
     notify_service = MerchantNotifyService(db)
+    resolved_bot_token = PlatformSettingsService(db).resolve("telegram_bot_token")
     for order_resp in created:
         try:
             notify_data = notify_service.build_notify_payload(order_resp.id)
@@ -177,6 +180,7 @@ def place_orders(
                         company_id=company_id,
                         chat_ids=chat_ids,
                         message=message,
+                        bot_token=resolved_bot_token,
                     ),
                 )
         except Exception:
