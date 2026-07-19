@@ -1,11 +1,11 @@
 import { useQuery, useInfiniteQuery, keepPreviousData, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
-import { reportsApi, productsApi, salesApi, shiftsApi, suppliersApi, purchaseOrdersApi, customersApi, companyApi } from '@/lib/api';
+import { reportsApi, productsApi, salesApi, shiftsApi, suppliersApi, purchaseOrdersApi, customersApi, companyApi, ordersApi } from '@/lib/api';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { useAuthStore } from '@/lib/store';
 import {
     Product, Sale, SaleSearchSuggestion, SalesSummary, Supplier, PurchaseOrder, Customer,
     CustomerLedgerResponse, DailySalesReport, ProfitReport, TopProductsReport,
-    CashShift, CashShiftDetail, MarketplaceSettings
+    CashShift, CashShiftDetail, MarketplaceSettings, Order, OrderListResponse
 } from '@/lib/types';
 
 const tenantKey = (companyId: number | null) => companyId ?? 'no-company';
@@ -34,6 +34,8 @@ export const queryKeys = {
     profit: (companyId: number | null, days: number) => ['profit', tenantKey(companyId), days] as const,
     topProducts: (companyId: number | null, days: number, limit: number) => ['topProducts', tenantKey(companyId), days, limit] as const,
     marketplaceSettings: (companyId: number | null) => ['marketplaceSettings', tenantKey(companyId)] as const,
+    orders: (companyId: number | null, params?: any) => ['orders', tenantKey(companyId), params] as const,
+    order: (companyId: number | null, id: number) => ['order', companyId, id] as const,
 };
 
 // --- Cash shifts ---
@@ -368,6 +370,41 @@ export function useMarketplaceSettings(
         ...options,
         enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
     });
+}
+
+export function useOrders(
+  params?: { status?: string; skip?: number; limit?: number },
+  options?: Partial<UseQueryOptions<OrderListResponse>>,
+) {
+  const { isServerReachable } = useServerHealth();
+  const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+  return useQuery<OrderListResponse>({
+    queryKey: queryKeys.orders(companyId, params),
+    queryFn: async () => {
+      const response = await ordersApi.list(params);
+      return response.data;
+    },
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
+    ...options,
+    enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
+  });
+}
+
+export function useOrder(id: number, options?: Partial<UseQueryOptions<Order>>) {
+  const { isServerReachable } = useServerHealth();
+  const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+  return useQuery<Order>({
+    queryKey: queryKeys.order(companyId, id),
+    queryFn: async () => {
+      const response = await ordersApi.getById(id);
+      return response.data;
+    },
+    ...options,
+    enabled:
+      isServerReachable && companyId !== null && Number.isFinite(id) && (options?.enabled !== false),
+  });
 }
 
 // Prefetch Hook for Navigation
