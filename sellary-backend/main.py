@@ -24,6 +24,7 @@ from api import (
     sync_router,
     device_auth_router,
     cash_shifts_router,
+    shop_router,
 )
 
 
@@ -69,6 +70,11 @@ def create_app() -> FastAPI:
 
     app.add_middleware(SecurityHeadersMiddleware)
 
+    # NOTE (F2/F3): add the Telegram Mini App host to BACKEND_CORS_ORIGINS_RAW in
+    # production once sellary-shop is deployed, so /api/shop/* is reachable from
+    # the WebView origin. initData auth (header X-Telegram-Init-Data) is the real
+    # security boundary; CORS only governs browser fetch eligibility.
+
     app.include_router(auth_router, prefix=settings.API_V1_STR)
     app.include_router(admin_router, prefix=settings.API_V1_STR)
     app.include_router(products_router, prefix=settings.API_V1_STR)
@@ -84,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(sync_router, prefix=settings.API_V1_STR)
     app.include_router(device_auth_router, prefix=settings.API_V1_STR)
     app.include_router(cash_shifts_router, prefix=settings.API_V1_STR)
+    app.include_router(shop_router, prefix=settings.API_V1_STR)
 
     return app
 
