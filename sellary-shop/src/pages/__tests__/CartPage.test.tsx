@@ -46,11 +46,12 @@ describe('CartPage', () => {
     expect(screen.getByText('Молоко')).toBeInTheDocument();
   });
 
-  it('shows disabled checkout button with items', () => {
+  it('shows enabled checkout link with items', () => {
     getCart().addItem({ id: 1, name: 'Хлеб', sell_price: 5000, company_id: 1 }, 1);
     renderCart();
-    const btn = screen.getByRole('button', { name: /оформить заказ/i });
-    expect(btn).toBeDisabled();
+    const link = screen.getByRole('link', { name: /оформить заказ/i });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('href', '/checkout');
   });
 
   it('removes item when remove button clicked', () => {

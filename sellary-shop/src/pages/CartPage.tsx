@@ -56,13 +56,12 @@ export function CartPage() {
                 <span>Итого:</span>
                 <span className="text-blue-600">{formatPrice(total)}</span>
               </div>
-              <button
-                disabled
-                className="w-full py-4 bg-gray-300 text-gray-500 rounded-xl font-semibold text-lg cursor-not-allowed"
+              <Link
+                to="/checkout"
+                className="block w-full py-4 bg-blue-600 text-white rounded-xl font-semibold text-lg text-center"
               >
-                Оформить заказ (скоро)
-              </button>
-              <p className="text-center text-xs text-gray-400">Оформление заказов будет доступно в следующей версии</p>
+                Оформить заказ
+              </Link>
             </div>
           </>
         )}

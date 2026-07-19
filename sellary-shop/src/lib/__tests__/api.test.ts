@@ -7,7 +7,8 @@ vi.mock('../../telegram/initData', () => ({
   getInitDataString: () => 'auth_date=1&user=%7B%22id%22%3A1%7D&hash=test',
 }));
 
-import { shopFetch, normalizeProduct, normalizeCatalogPage } from '../api';
+import { shopFetch, normalizeProduct, normalizeCatalogPage, placeOrder } from '../api';
+import type { OrderCreatePayload } from '../api';
 
 describe('shopFetch', () => {
   beforeEach(() => {
@@ -90,5 +91,88 @@ describe('normalizeProduct (Fix 1 — string sell_price coercion)', () => {
     expect(norm.items[0].sell_price).toBe(999.5);
     expect(norm.items[1].sell_price).toBe(100);
     norm.items.forEach(p => expect(typeof p.sell_price).toBe('number'));
+  });
+});
+
+describe('placeOrder', () => {
+  const sampleOrder: OrderCreatePayload = {
+    company_id: 1,
+    items: [{ product_id: 10, quantity: 2, unit_price: 5000 }],
+    fulfillment_type: 'pickup',
+    delivery_address: null,
+    contact_phone: '+99290000000',
+    contact_name: 'Тест',
+    notes: null,
+    checkout_group_id: 'abc-123',
+  };
+
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it('POSTs to /api/shop/orders with correct body', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        orders: [{ id: 1, company_id: 1, order_number: 'ORD-001', status: 'pending', total_amount: 10000 }],
+      }),
+    } as Response);
+
+    await placeOrder([sampleOrder]);
+
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/api/shop/orders');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ orders: [sampleOrder] });
+  });
+
+  it('sends an Idempotency-Key header', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orders: [] }),
+    } as Response);
+
+    await placeOrder([sampleOrder]);
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers as HeadersInit);
+    const key = headers.get('Idempotency-Key');
+    expect(key).toBeTruthy();
+    expect(typeof key).toBe('string');
+    expect((key as string).length).toBeGreaterThan(0);
+  });
+
+  it('also sends X-Telegram-Init-Data header', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orders: [] }),
+    } as Response);
+
+    await placeOrder([sampleOrder]);
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers as HeadersInit);
+    expect(headers.get('X-Telegram-Init-Data')).toBeTruthy();
+  });
+
+  it('returns the CheckoutResponse on success', async () => {
+    const expected = { orders: [{ id: 5, company_id: 1, order_number: 'ORD-005', status: 'pending', total_amount: 5000 }] };
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => expected,
+    } as Response);
+
+    const result = await placeOrder([sampleOrder]);
+    expect(result).toEqual(expected);
+  });
+
+  it('throws on non-ok response', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      statusText: 'Conflict',
+    } as Response);
+
+    await expect(placeOrder([sampleOrder])).rejects.toThrow('409');
   });
 });
