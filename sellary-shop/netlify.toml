@@ -1,0 +1,32 @@
+# Netlify config for the Sellary Telegram Mini App (sellary-shop).
+#
+# Deploy as a SEPARATE Netlify site from the Next.js admin panel:
+#   New site → connect this repo → set "Base directory" = sellary-shop
+# Netlify then reads THIS file (paths below are relative to the base dir).
+#
+# The Mini App calls the backend as same-origin `/api/shop/*`; the redirect
+# below proxies those to the Railway backend server-side, so there is no CORS
+# and the `X-Telegram-Init-Data` auth header is forwarded intact. Because of
+# this proxy, leave VITE_API_BASE_URL blank (empty) in the Netlify env.
+
+[build]
+command = "npm run build"
+publish = "dist"
+
+[build.environment]
+NODE_VERSION = "20"
+
+# 1) Proxy API calls to the backend. MUST come before the SPA fallback below —
+#    Netlify applies redirects top-to-bottom, first match wins.
+[[redirects]]
+from = "/api/*"
+to = "https://sellary-production-30ec.up.railway.app/api/:splat"
+status = 200
+force = true
+
+# 2) SPA fallback: every other path serves index.html so react-router handles
+#    client-side routes (product detail, cart) on direct load / refresh.
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
