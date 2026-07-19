@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import type { ShopProduct, ShopSummary, ShopCategory, CatalogPage as CatalogPageType } from '../types';
-import { shopFetch } from '../lib/api';
+import { shopFetch, normalizeCatalogPage } from '../lib/api';
 import { getCart } from '../lib/cart';
 import { ProductCard } from '../components/ProductCard';
 import { FilterBar } from '../components/FilterBar';
@@ -42,7 +43,7 @@ export function CatalogPage() {
     if (selectedCategory !== null) params.set('category', String(selectedCategory));
 
     shopFetch<CatalogPageType>(`/api/shop/catalog?${params}`)
-      .then(page => { setProducts(page.items); setTotal(page.total); setError(null); })
+      .then(page => { const norm = normalizeCatalogPage(page); setProducts(norm.items); setTotal(norm.total); setError(null); })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   }, [search, selectedShop, selectedCategory, skip]);
@@ -60,14 +61,14 @@ export function CatalogPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="sticky top-0 z-10 bg-blue-600 text-white px-4 py-3 flex justify-between items-center shadow">
         <h1 className="font-bold text-lg">Sellary Shop</h1>
-        <a href="/cart" className="relative">
+        <Link to="/cart" className="relative">
           <span className="text-2xl">🛒</span>
           {cartCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
               {cartCount}
             </span>
           )}
-        </a>
+        </Link>
       </header>
       <FilterBar
         shops={shops}

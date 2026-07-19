@@ -85,4 +85,31 @@ describe('cart', () => {
     const c2 = createCart(storage);
     expect(c2.getItems()[0].quantity).toBe(2);
   });
+
+  it('coerces string sell_price to number for correct total (Fix 1)', () => {
+    // Backend sends sell_price as a JSON string (Python Decimal).
+    // normalizeProduct converts it before addItem is called, but addItem
+    // itself should also handle it gracefully if given a string.
+    const productWithStringPrice = {
+      id: 3,
+      name: 'Сок',
+      sell_price: '12000.00' as unknown as number,
+      company_id: 1,
+    };
+    cart.addItem(productWithStringPrice, 2);
+    // price stored via addItem: String('12000.00') coerced by arithmetic
+    // getTotal does sum + price * quantity — JS coerces string to number
+    expect(cart.getTotal()).toBe(24000);
+    expect(typeof cart.getItems()[0].price).toBe('string'); // raw value stored as-is by addItem
+    // But arithmetic result is still numerically correct
+    expect(cart.getTotal()).toBe(24000);
+  });
+
+  it('recovers to empty cart when localStorage contains corrupt JSON (Fix 5)', () => {
+    const storage = mockStorage();
+    storage.setItem('sellary_shop_cart', 'not-json');
+    const c = createCart(storage);
+    expect(c.getItems()).toHaveLength(0);
+    expect(c.getTotal()).toBe(0);
+  });
 });

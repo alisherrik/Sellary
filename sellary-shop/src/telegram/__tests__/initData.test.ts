@@ -1,3 +1,4 @@
+import { vi, describe, it, expect, afterEach } from 'vitest';
 import { parseInitData } from '../initData';
 
 describe('parseInitData', () => {
@@ -23,5 +24,32 @@ describe('parseInitData', () => {
   it('returns null when auth_date is missing', () => {
     const user = encodeURIComponent(JSON.stringify({ id: 1 }));
     expect(parseInitData(`user=${user}&hash=x`)).toBeNull();
+  });
+});
+
+/**
+ * Dev-gate tests: vi.stubEnv patches import.meta.env at runtime.
+ * vi.resetModules() ensures the module is re-evaluated after the env changes.
+ */
+describe('getInitDataString dev-gate', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('returns dev fallback (contains auth_date) when DEV=true and no Telegram WebApp', async () => {
+    vi.stubEnv('DEV', true as unknown as string);
+    vi.resetModules();
+    const { getInitDataString } = await import('../initData');
+    const result = getInitDataString();
+    expect(result).toContain('auth_date');
+  });
+
+  it('returns empty string when DEV=false and no Telegram WebApp', async () => {
+    vi.stubEnv('DEV', false as unknown as string);
+    vi.resetModules();
+    const { getInitDataString } = await import('../initData');
+    const result = getInitDataString();
+    expect(result).toBe('');
   });
 });

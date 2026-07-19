@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import type { CartItem as CartItemType } from '../lib/cart';
 import { getCart } from '../lib/cart';
 import { CartItem } from '../components/CartItem';
@@ -28,7 +29,7 @@ export function CartPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-blue-600 text-white px-4 py-3 flex items-center gap-3">
-        <a href="/" className="text-white">← Каталог</a>
+        <Link to="/" className="text-white">← Каталог</Link>
         <h1 className="font-bold">Корзина</h1>
       </header>
       <main className="flex-1 p-3 space-y-2">
@@ -36,9 +37,9 @@ export function CartPage() {
           <div className="text-center py-16">
             <p className="text-4xl mb-3">🛒</p>
             <p className="text-gray-500">Корзина пуста</p>
-            <a href="/" className="mt-4 inline-block px-6 py-2 bg-blue-600 text-white rounded-xl">
+            <Link to="/" className="mt-4 inline-block px-6 py-2 bg-blue-600 text-white rounded-xl">
               Перейти в каталог
-            </a>
+            </Link>
           </div>
         ) : (
           <>

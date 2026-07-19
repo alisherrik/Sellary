@@ -1,5 +1,10 @@
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { CartPage } from '../CartPage';
+
+function renderCart() {
+  return render(<MemoryRouter><CartPage /></MemoryRouter>);
+}
 
 const { mockStorage } = vi.hoisted(() => {
   const store: Record<string, string> = {};
@@ -31,26 +36,26 @@ describe('CartPage', () => {
   });
 
   it('shows empty state when cart is empty', () => {
-    render(<CartPage />);
+    renderCart();
     expect(screen.getByText(/корзина пуста/i)).toBeInTheDocument();
   });
 
   it('shows items when cart has products', () => {
     getCart().addItem({ id: 1, name: 'Молоко', sell_price: 12000, company_id: 1 }, 2);
-    render(<CartPage />);
+    renderCart();
     expect(screen.getByText('Молоко')).toBeInTheDocument();
   });
 
   it('shows disabled checkout button with items', () => {
     getCart().addItem({ id: 1, name: 'Хлеб', sell_price: 5000, company_id: 1 }, 1);
-    render(<CartPage />);
+    renderCart();
     const btn = screen.getByRole('button', { name: /оформить заказ/i });
     expect(btn).toBeDisabled();
   });
 
   it('removes item when remove button clicked', () => {
     getCart().addItem({ id: 1, name: 'Молоко', sell_price: 12000, company_id: 1 }, 1);
-    render(<CartPage />);
+    renderCart();
     fireEvent.click(screen.getByRole('button', { name: /удалить|×/i }));
     expect(screen.getByText(/корзина пуста/i)).toBeInTheDocument();
   });

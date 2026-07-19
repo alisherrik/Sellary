@@ -43,7 +43,9 @@ export function getInitDataString(): string {
   } catch {
     // not in browser
   }
-  return DEV_INIT_DATA;
+  // Only use the dev fallback in development builds — never in production/staging.
+  if (import.meta.env.DEV) return DEV_INIT_DATA;
+  return '';
 }
 
 export function getInitData(): TelegramInitData | null {

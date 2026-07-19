@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { ShopProduct } from '../types';
-import { shopFetch } from '../lib/api';
+import { shopFetch, normalizeProduct } from '../lib/api';
 import { getCart } from '../lib/cart';
 import { formatPrice } from '../lib/format';
 
@@ -14,7 +15,7 @@ export function ProductDetailPage() {
   useEffect(() => {
     if (!id) return;
     shopFetch<ShopProduct>(`/api/shop/products/${id}`)
-      .then(p => { setProduct(p); setLoading(false); })
+      .then(p => { setProduct(normalizeProduct(p)); setLoading(false); })
       .catch(() => setLoading(false));
   }, [id]);
 
@@ -31,7 +32,7 @@ export function ProductDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-blue-600 text-white px-4 py-3 flex items-center gap-3">
-        <a href="/" className="text-white">← Назад</a>
+        <Link to="/" className="text-white">← Назад</Link>
         <h1 className="font-bold flex-1 truncate">{product.name}</h1>
       </header>
       {product.image_url ? (

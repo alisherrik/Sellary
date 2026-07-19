@@ -1,4 +1,5 @@
 import { getInitDataString } from '../telegram/initData';
+import type { ShopProduct, CatalogPage } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -16,4 +17,13 @@ export async function shopFetch<T = unknown>(
     throw new Error(`${res.status} ${res.statusText}`);
   }
   return res.json() as Promise<T>;
+}
+
+/** Coerce sell_price from string (Python Decimal JSON) to number. */
+export function normalizeProduct(p: ShopProduct): ShopProduct {
+  return { ...p, sell_price: Number(p.sell_price) };
+}
+
+export function normalizeCatalogPage(page: CatalogPage): CatalogPage {
+  return { ...page, items: page.items.map(normalizeProduct) };
 }
