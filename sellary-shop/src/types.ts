@@ -34,3 +34,51 @@ export interface CatalogPage {
   skip: number;
   limit: number;
 }
+
+// ---------------------------------------------------------------------------
+// Orders (shopper-facing history)
+// ---------------------------------------------------------------------------
+
+export type OrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'preparing'
+  | 'ready'
+  | 'delivering'
+  | 'completed'
+  | 'cancelled';
+
+export interface ShopOrderItem {
+  id: number;
+  product_id: number | null;
+  product_name: string;
+  unit_price: number;
+  quantity: number;
+  line_total: number;
+}
+
+export interface ShopOrder {
+  id: number;
+  company_id: number;
+  order_number: number;
+  status: OrderStatus;
+  fulfillment_type: 'delivery' | 'pickup';
+  delivery_address: string | null;
+  contact_phone: string;
+  contact_name: string;
+  subtotal: number;
+  total_amount: number;
+  notes: string | null;
+  sale_id: number | null;
+  checkout_group_id: string | null;
+  created_at: string;
+  updated_at: string;
+  items: ShopOrderItem[];
+}
+
+export interface OrderListPage {
+  items: ShopOrder[];
+  total: number;
+  skip: number;
+  limit: number;
+}

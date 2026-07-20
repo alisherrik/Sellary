@@ -104,8 +104,14 @@ export function CheckoutPage() {
             </div>
           ))}
           <Link
-            to="/"
+            to="/orders"
             className="mt-4 w-full py-3 bg-blue-600 text-white rounded-xl font-semibold text-center block"
+          >
+            Мои заказы
+          </Link>
+          <Link
+            to="/"
+            className="w-full py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold text-center block"
           >
             Вернуться в каталог
           </Link>

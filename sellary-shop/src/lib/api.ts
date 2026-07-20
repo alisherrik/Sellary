@@ -1,5 +1,5 @@
 import { getInitDataString } from '../telegram/initData';
-import type { ShopProduct, CatalogPage } from '../types';
+import type { ShopProduct, CatalogPage, ShopOrder, OrderListPage } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -99,4 +99,35 @@ export function normalizeProduct(p: ShopProduct): ShopProduct {
 
 export function normalizeCatalogPage(page: CatalogPage): CatalogPage {
   return { ...page, items: page.items.map(normalizeProduct) };
+}
+
+// ---------------------------------------------------------------------------
+// Order history (shopper-facing)
+// ---------------------------------------------------------------------------
+
+/** Coerce Decimal-as-string money/quantity fields to numbers. */
+export function normalizeOrder(o: ShopOrder): ShopOrder {
+  return {
+    ...o,
+    subtotal: Number(o.subtotal),
+    total_amount: Number(o.total_amount),
+    items: (o.items ?? []).map((it) => ({
+      ...it,
+      unit_price: Number(it.unit_price),
+      quantity: Number(it.quantity),
+      line_total: Number(it.line_total),
+    })),
+  };
+}
+
+/** GET /api/shop/orders — all orders placed by this shopper. */
+export async function getMyOrders(skip = 0, limit = 20): Promise<OrderListPage> {
+  const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+  const page = await shopFetch<OrderListPage>(`/api/shop/orders?${params}`);
+  return { ...page, items: page.items.map(normalizeOrder) };
+}
+
+/** GET /api/shop/orders/{id} — single order (shopper's own). */
+export async function getMyOrder(id: number): Promise<ShopOrder> {
+  return normalizeOrder(await shopFetch<ShopOrder>(`/api/shop/orders/${id}`));
 }
