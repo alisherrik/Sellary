@@ -11,6 +11,17 @@ class TestPurchasingModuleAccess:
         grant_module(cashier_user, default_company, "purchasing", "user")
         assert client.get("/api/purchase-orders", headers=cashier_headers).status_code == 200
 
+    def test_purchasing_user_can_create_supplier(
+        self, client, cashier_user, default_company, grant_module, cashier_headers
+    ):
+        grant_module(cashier_user, default_company, "purchasing", "user")
+        resp = client.post(
+            "/api/suppliers",
+            headers=cashier_headers,
+            json={"name": "Modtest Supplier", "phone": "+992900000001"},
+        )
+        assert resp.status_code in (200, 201)
+
     def test_purchasing_user_cannot_receive(
         self, client, cashier_user, default_company, grant_module, cashier_headers
     ):
