@@ -4,7 +4,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, require_admin, require_module
+from api.dependencies import AuthContext, require_module
 from core.database import get_db
 from core.idempotency import (
     IdempotencyConflictError,
@@ -188,9 +188,9 @@ def get_sale(
 def preview_sale_void(
     sale_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_admin),
+    auth: AuthContext = Depends(require_module("pos", "manager")),
 ):
-    """Preview the inventory impact of annulling a sale (admin only).
+    """Preview the inventory impact of annulling a sale (pos manager).
 
     Pure dry-run: computes the outstanding quantity/value that would be
     restored without mutating anything. Returns HTTP 404 if the sale does not
@@ -209,10 +209,10 @@ def void_sale(
     sale_id: int,
     payload: VoidRequest,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_admin),
+    auth: AuthContext = Depends(require_module("pos", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
-    """Annul (void) a completed sale (admin only, idempotent).
+    """Annul (void) a completed sale (pos manager, idempotent).
 
     Reverses the sale's effect on the FIFO inventory ledger — restoring only
     the outstanding quantity (sold minus already-returned) — records an

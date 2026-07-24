@@ -3,13 +3,20 @@ import pytest
 from decimal import Decimal
 
 
-@pytest.mark.parametrize("headers_fixture", ["manager_headers", "cashier_headers"])
-def test_sale_void_requires_admin(client, request, test_sale, headers_fixture):
-    headers = {**request.getfixturevalue(headers_fixture), "Idempotency-Key": "sale-void-forbid-01"}
+def test_sale_void_forbidden_for_pos_user(client, test_sale, cashier_headers):
+    headers = {**cashier_headers, "Idempotency-Key": "sale-void-forbid-01"}
     response = client.post(
         f"/api/sales/{test_sale.id}/void", json={"reason": "Тест"}, headers=headers
     )
     assert response.status_code == 403
+
+
+def test_sale_void_allowed_for_manager(client, test_sale, manager_headers):
+    headers = {**manager_headers, "Idempotency-Key": "sale-void-manager-01"}
+    response = client.post(
+        f"/api/sales/{test_sale.id}/void", json={"reason": "Тест менеджера"}, headers=headers
+    )
+    assert response.status_code == 200
 
 
 def test_sale_void_is_idempotent(client, test_sale, admin_headers):
@@ -73,11 +80,13 @@ def test_sale_void_already_voided_conflicts(client, db_session, test_sale, admin
 
 
 class TestVoidPreviewEndpoint:
-    @pytest.mark.parametrize("headers_fixture", ["manager_headers", "cashier_headers"])
-    def test_void_preview_requires_admin(self, client, request, test_sale, headers_fixture):
-        headers = request.getfixturevalue(headers_fixture)
-        response = client.get(f"/api/sales/{test_sale.id}/void-preview", headers=headers)
+    def test_void_preview_forbidden_for_pos_user(self, client, test_sale, cashier_headers):
+        response = client.get(f"/api/sales/{test_sale.id}/void-preview", headers=cashier_headers)
         assert response.status_code == 403
+
+    def test_void_preview_allowed_for_manager(self, client, test_sale, manager_headers):
+        response = client.get(f"/api/sales/{test_sale.id}/void-preview", headers=manager_headers)
+        assert response.status_code == 200
 
     def test_void_preview_returns_impacts(self, client, test_sale, admin_headers):
         response = client.get(f"/api/sales/{test_sale.id}/void-preview", headers=admin_headers)
