@@ -246,3 +246,37 @@ class TestSessionAndRegistration:
         )
 
         assert response.status_code == 403
+
+
+class TestSessionModules:
+    def test_me_returns_modules_for_cashier(self, client, cashier_headers):
+        resp = client.get("/api/auth/me", headers=cashier_headers)
+        assert resp.status_code == 200
+        assert resp.json()["modules"] == {"pos": "user"}
+
+    def test_me_returns_all_manager_for_admin(self, client, admin_headers):
+        resp = client.get("/api/auth/me", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["modules"] == {
+            "pos": "manager",
+            "inventory": "manager",
+            "purchasing": "manager",
+            "shop": "manager",
+            "reports": "manager",
+        }
+
+    def test_select_company_returns_modules(
+        self, client, manager_user, default_company, test_password
+    ):
+        login = client.post(
+            "/api/auth/login",
+            json={"username": manager_user.username, "password": test_password},
+        )
+        assert login.status_code == 200
+        resp = client.post(
+            "/api/auth/select-company",
+            json={"company_id": default_company.id},
+            headers={"Authorization": f"Bearer {login.json()['login_token']}"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["modules"]["inventory"] == "manager"

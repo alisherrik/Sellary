@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from models.company import Company
 from models.company_membership import CompanyMembership
+from models.membership_module_access import MODULES, MembershipModuleAccess
 from repositories.user_repository import UserRepository
 from models.user import User
 from schemas.admin import OwnerLoginResponse, OwnerSession
@@ -172,6 +173,26 @@ class AuthService:
             user=user,
         )
 
+    def _module_map(
+        self, membership: CompanyMembership | None, role: str
+    ) -> dict[str, str]:
+        """Resolve the module->level grant map for a membership.
+
+        Admins bypass module gating entirely and are treated as manager on
+        every module. A missing membership (e.g. super-admin company entry
+        with no real CompanyMembership row) has no grants of its own.
+        """
+        if role == "admin":
+            return {module: "manager" for module in MODULES}
+        if membership is None:
+            return {}
+        rows = (
+            self.db.query(MembershipModuleAccess)
+            .filter(MembershipModuleAccess.membership_id == membership.id)
+            .all()
+        )
+        return {row.module: row.level for row in rows}
+
     def create_company_session(self, user: User, company_id: int) -> CompanySession:
         membership = (
             self.db.query(CompanyMembership)
@@ -218,6 +239,7 @@ class AuthService:
             user=user,
             current_company=current_company,
             companies=companies,
+            modules=self._module_map(membership, membership.role),
         )
 
     def create_super_admin_company_session(self, user: User, company: Company) -> CompanySession:
@@ -247,6 +269,7 @@ class AuthService:
             user=user,
             current_company=current_company,
             companies=[current_company],
+            modules=self._module_map(None, "admin"),
         )
 
     def get_auth_session(
@@ -258,8 +281,18 @@ class AuthService:
         allow_super_admin_company: bool = False,
     ) -> AuthSession:
         companies = self.get_companies_for_user(user.id)
+        membership: CompanyMembership | None = None
         try:
             current_company = next(company for company in companies if company.id == company_id)
+            membership = (
+                self.db.query(CompanyMembership)
+                .filter(
+                    CompanyMembership.user_id == user.id,
+                    CompanyMembership.company_id == company_id,
+                    CompanyMembership.is_active == True,
+                )
+                .first()
+            )
         except StopIteration as exc:
             if not allow_super_admin_company or user.global_role != "super_admin":
                 raise ValueError("Company access not found") from exc
@@ -284,6 +317,7 @@ class AuthService:
 
         return AuthSession(
             user=user,
+            modules=self._module_map(membership, current_company.role),
             current_company=current_company,
             companies=companies,
         )
