@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
-from schemas.user import GlobalUserRole, TenantUserRole, User
+from schemas.user import GlobalUserRole, ModuleKey, ModuleLevel, TenantUserRole, User
 
 
 class OwnerLoginRequest(BaseModel):
@@ -176,3 +176,12 @@ class CompanyAdminMembershipCreate(BaseModel):
         if self.user_id is None and not self.identifier:
             raise ValueError("Either user_id or identifier is required")
         return self
+
+
+class MembershipModulesPayload(BaseModel):
+    modules: dict[ModuleKey, ModuleLevel]
+
+
+class MembershipModulesResponse(BaseModel):
+    membership_id: int
+    modules: dict[ModuleKey, ModuleLevel]

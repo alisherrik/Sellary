@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from bootstrap_utils import slugify_company_name
 from models.company import Company
 from models.company_membership import CompanyMembership
+from models.membership_module_access import MembershipModuleAccess
 from models.user import User
 from repositories.user_repository import UserRepository
 from schemas.admin import (
@@ -289,6 +290,44 @@ class AdminManagementService:
         )
         self.db.commit()
         return self.get_membership(membership.id)
+
+    def get_membership_modules(self, membership_id: int, allowed_company_id: int) -> dict:
+        membership = self._get_scoped_membership(membership_id, allowed_company_id)
+        rows = (
+            self.db.query(MembershipModuleAccess)
+            .filter(MembershipModuleAccess.membership_id == membership.id)
+            .all()
+        )
+        return {"membership_id": membership.id, "modules": {r.module: r.level for r in rows}}
+
+    def set_membership_modules(
+        self,
+        membership_id: int,
+        allowed_company_id: int,
+        modules: dict,
+    ) -> dict:
+        membership = self._get_scoped_membership(membership_id, allowed_company_id)
+        if membership.role == "admin":
+            raise ValueError("Admin memberships have full access")
+        self.db.query(MembershipModuleAccess).filter(
+            MembershipModuleAccess.membership_id == membership.id
+        ).delete()
+        for module, level in modules.items():
+            self.db.add(
+                MembershipModuleAccess(membership_id=membership.id, module=module, level=level)
+            )
+        self.db.commit()
+        return {"membership_id": membership.id, "modules": dict(modules)}
+
+    def _get_scoped_membership(self, membership_id: int, allowed_company_id: int) -> CompanyMembership:
+        membership = (
+            self.db.query(CompanyMembership)
+            .filter(CompanyMembership.id == membership_id)
+            .first()
+        )
+        if membership is None or membership.company_id != allowed_company_id:
+            raise ValueError("Membership not found")
+        return membership
 
     def enter_company_as_super_admin(self, user: User, company_id: int) -> CompanySession:
         company = self._get_company(company_id)

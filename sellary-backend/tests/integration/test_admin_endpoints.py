@@ -159,3 +159,77 @@ class TestCompanyAdminEndpoints:
         )
 
         assert response.status_code == 403
+
+
+class TestMembershipModules:
+    def _membership_id(self, db_session, user, company):
+        from models.company_membership import CompanyMembership
+        return (
+            db_session.query(CompanyMembership)
+            .filter_by(user_id=user.id, company_id=company.id)
+            .one()
+            .id
+        )
+
+    def test_get_modules(self, client, admin_headers, db_session, cashier_user, default_company):
+        m_id = self._membership_id(db_session, cashier_user, default_company)
+        resp = client.get(f"/api/admin/memberships/{m_id}/modules", headers=admin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["modules"] == {"pos": "user"}
+
+    def test_put_replaces_grants(
+        self, client, admin_headers, db_session, cashier_user, default_company
+    ):
+        m_id = self._membership_id(db_session, cashier_user, default_company)
+        resp = client.put(
+            f"/api/admin/memberships/{m_id}/modules",
+            headers=admin_headers,
+            json={"modules": {"inventory": "manager", "reports": "user"}},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["modules"] == {"inventory": "manager", "reports": "user"}
+        get_resp = client.get(f"/api/admin/memberships/{m_id}/modules", headers=admin_headers)
+        assert get_resp.json()["modules"] == {"inventory": "manager", "reports": "user"}
+
+    def test_put_invalid_module_422(
+        self, client, admin_headers, db_session, cashier_user, default_company
+    ):
+        m_id = self._membership_id(db_session, cashier_user, default_company)
+        resp = client.put(
+            f"/api/admin/memberships/{m_id}/modules",
+            headers=admin_headers,
+            json={"modules": {"banking": "user"}},
+        )
+        assert resp.status_code == 422
+
+    def test_put_admin_target_400(
+        self, client, admin_headers, db_session, admin_user, default_company
+    ):
+        m_id = self._membership_id(db_session, admin_user, default_company)
+        resp = client.put(
+            f"/api/admin/memberships/{m_id}/modules",
+            headers=admin_headers,
+            json={"modules": {"pos": "user"}},
+        )
+        assert resp.status_code == 400
+
+    def test_foreign_company_membership_404(
+        self, client, admin_headers, db_session, secondary_company, test_password
+    ):
+        from tests.conftest import _create_user_with_membership
+        user = _create_user_with_membership(
+            db_session,
+            username="foreigner",
+            email="foreigner@example.com",
+            password=test_password,
+            company=secondary_company,
+            role="cashier",
+        )
+        m_id = self._membership_id(db_session, user, secondary_company)
+        resp = client.get(f"/api/admin/memberships/{m_id}/modules", headers=admin_headers)
+        assert resp.status_code == 404
+
+    def test_non_admin_403(self, client, manager_headers, db_session, cashier_user, default_company):
+        m_id = self._membership_id(db_session, cashier_user, default_company)
+        resp = client.get(f"/api/admin/memberships/{m_id}/modules", headers=manager_headers)
+        assert resp.status_code == 403

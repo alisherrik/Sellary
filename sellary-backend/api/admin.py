@@ -9,6 +9,8 @@ from schemas.admin import (
     ManagedMembershipResponse,
     ManagedMembershipUpdate,
     ManagedUserResponse,
+    MembershipModulesPayload,
+    MembershipModulesResponse,
 )
 from services.admin_management import AdminManagementService
 
@@ -67,3 +69,33 @@ def update_company_membership(
         raise HTTPException(status_code=status_code, detail=str(exc))
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc))
+
+
+@router.get("/memberships/{membership_id}/modules", response_model=MembershipModulesResponse)
+def get_membership_modules(
+    membership_id: int,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_admin),
+):
+    try:
+        return AdminManagementService(db).get_membership_modules(
+            membership_id, allowed_company_id=auth.company_id
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.put("/memberships/{membership_id}/modules", response_model=MembershipModulesResponse)
+def set_membership_modules(
+    membership_id: int,
+    payload: MembershipModulesPayload,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_admin),
+):
+    try:
+        return AdminManagementService(db).set_membership_modules(
+            membership_id, allowed_company_id=auth.company_id, modules=payload.modules
+        )
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
