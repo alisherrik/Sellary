@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, get_auth_context
+from api.dependencies import AuthContext, require_module
 from core.database import get_db
 from schemas.report import DashboardWidgets, DailySalesReport, ProfitReport, TopProductReport
 from services.report_service import ReportService
@@ -30,7 +30,7 @@ def _default_range(service: ReportService, start_date, end_date, days: int):
 @router.get("/dashboard", response_model=DashboardWidgets)
 def get_dashboard_widgets(
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("reports")),
 ):
     service = ReportService(db, auth.company_id)
     return service.get_dashboard_widgets()
@@ -42,7 +42,7 @@ def get_daily_sales(
     end_date: datetime = Query(None),
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("reports")),
 ):
     service = ReportService(db, auth.company_id)
     start_date, end_date = _default_range(service, start_date, end_date, days)
@@ -55,7 +55,7 @@ def get_profit_report(
     end_date: datetime = Query(None),
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("reports")),
 ):
     service = ReportService(db, auth.company_id)
     start_date, end_date = _default_range(service, start_date, end_date, days)
@@ -69,7 +69,7 @@ def get_top_products(
     limit: int = Query(10, ge=1, le=50),
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("reports")),
 ):
     service = ReportService(db, auth.company_id)
     start_date, end_date = _default_range(service, start_date, end_date, days)

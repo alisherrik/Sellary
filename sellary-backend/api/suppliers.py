@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, get_auth_context, require_manager_or_admin
+from api.dependencies import AuthContext, require_module
 from core.database import get_db
 from schemas.supplier import SupplierCreate, SupplierResponse, SupplierUpdate
 from services.supplier_service import SupplierService
@@ -17,7 +17,7 @@ def get_suppliers(
     limit: int = Query(50, ge=1, le=200),
     search: Optional[str] = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("purchasing")),
 ):
     service = SupplierService(db, auth.company_id)
     suppliers, _ = service.get_all(skip=skip, limit=limit, search=search)
@@ -28,7 +28,7 @@ def get_suppliers(
 def get_supplier(
     supplier_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("purchasing")),
 ):
     service = SupplierService(db, auth.company_id)
     supplier = service.get_by_id(supplier_id)
@@ -41,7 +41,7 @@ def get_supplier(
 def create_supplier(
     supplier_create: SupplierCreate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("purchasing")),
 ):
     service = SupplierService(db, auth.company_id)
     try:
@@ -55,7 +55,7 @@ def update_supplier(
     supplier_id: int,
     supplier_update: SupplierUpdate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("purchasing")),
 ):
     service = SupplierService(db, auth.company_id)
     try:
@@ -69,7 +69,7 @@ def update_supplier(
 def delete_supplier(
     supplier_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("purchasing", "manager")),
 ):
     service = SupplierService(db, auth.company_id)
     try:

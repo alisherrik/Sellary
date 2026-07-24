@@ -7,7 +7,9 @@ Tests:
   POST /api/orders/{id}/status    — advance status
   POST /api/orders/{id}/cancel    — cancel with/without sale
 
-Auth: manager_headers (company-scoped token) required for mutations.
+Auth: "shop" module grant required (user level for reads/confirm/status,
+manager level for cancel). manager_headers/admin_headers carry all modules
+at manager level, so they exercise the happy path throughout.
 """
 import hashlib
 import hmac
@@ -201,11 +203,24 @@ def test_confirm_oversell_returns_400_order_stays_pending(
     assert "Insufficient" in resp.json().get("detail", "") or resp.status_code == 400
 
 
-def test_confirm_requires_manager_or_admin(client: TestClient, cashier_headers, db_session, default_company, tu):
+def test_confirm_requires_shop_module(client: TestClient, cashier_headers, db_session, default_company, tu):
+    """Cashier has no "shop" module grant by default (only pos:user) -> 403."""
     p = _make_published_product(db_session, default_company)
     order = _place_order(db_session, default_company, p, tu)
     resp = client.post(f"/api/orders/{order.id}/confirm", headers=cashier_headers)
     assert resp.status_code == 403
+
+
+def test_confirm_allows_non_manager_with_shop_grant(
+    client: TestClient, cashier_user, cashier_headers, default_company, grant_module, db_session, tu
+):
+    """Confirm/status moved down to shop:user — a cashier-role user with a plain
+    "shop" user-level grant (no manager role, no manager-level module) can confirm."""
+    grant_module(cashier_user, default_company, "shop", "user")
+    p = _make_published_product(db_session, default_company)
+    order = _place_order(db_session, default_company, p, tu)
+    resp = client.post(f"/api/orders/{order.id}/confirm", headers=cashier_headers)
+    assert resp.status_code == 200, resp.text
 
 
 # ---------------------------------------------------------------------------

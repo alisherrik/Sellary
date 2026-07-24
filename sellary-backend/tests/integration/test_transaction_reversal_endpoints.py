@@ -1,5 +1,4 @@
 """Integration tests for admin sale annulment (void) endpoints."""
-import pytest
 from decimal import Decimal
 
 
@@ -100,13 +99,33 @@ class TestVoidPreviewEndpoint:
 
 
 class TestPurchaseVoidEndpoints:
-    def test_purchase_void_requires_admin(self, client, partially_received_po, manager_headers):
+    def test_purchase_void_requires_purchasing_manager(
+        self,
+        client,
+        partially_received_po,
+        cashier_user,
+        default_company,
+        grant_module,
+        cashier_headers,
+    ):
+        """Void is a corrective op: purchasing:user level is not enough."""
+        grant_module(cashier_user, default_company, "purchasing", "user")
         response = client.post(
             f"/api/purchase-orders/{partially_received_po.id}/void",
             json={"reason": "Тестовая закупка"},
-            headers={**manager_headers, "Idempotency-Key": "purchase-void-forbid-01"},
+            headers={**cashier_headers, "Idempotency-Key": "purchase-void-forbid-01"},
         )
         assert response.status_code == 403
+
+    def test_purchase_void_preview_allowed_for_purchasing_manager(
+        self, client, partially_received_po, manager_headers
+    ):
+        """manager_headers carries purchasing:manager — voiding is allowed."""
+        response = client.get(
+            f"/api/purchase-orders/{partially_received_po.id}/void-preview",
+            headers=manager_headers,
+        )
+        assert response.status_code == 200
 
     def test_purchase_void_preview_and_execute(
         self, client, db_session, partially_received_po, admin_headers
@@ -134,30 +153,45 @@ class TestPurchaseItemVoidEndpoints:
     def _url(self, po_id, item_id, action):
         return f"/api/purchase-orders/{po_id}/items/{item_id}/{action}"
 
-    @pytest.mark.parametrize("headers_fixture", ["manager_headers", "cashier_headers"])
-    def test_item_void_requires_admin(
-        self, client, request, multi_line_received_po, headers_fixture
+    def test_item_void_requires_purchasing_manager(
+        self,
+        client,
+        multi_line_received_po,
+        cashier_user,
+        default_company,
+        grant_module,
+        cashier_headers,
     ):
+        """Item-void is corrective: purchasing:user level is not enough."""
+        grant_module(cashier_user, default_company, "purchasing", "user")
         po = multi_line_received_po
-        headers = {
-            **request.getfixturevalue(headers_fixture),
-            "Idempotency-Key": "po-item-void-forbid-0001",
-        }
         response = client.post(
             self._url(po.id, po.items[0].id, "void"),
             json={"reason": "Тест"},
-            headers=headers,
+            headers={**cashier_headers, "Idempotency-Key": "po-item-void-forbid-0001"},
         )
         assert response.status_code == 403
 
-    def test_item_void_preview_requires_admin(
+    def test_item_void_forbidden_without_purchasing_grant(
+        self, client, multi_line_received_po, no_module_headers
+    ):
+        po = multi_line_received_po
+        response = client.post(
+            self._url(po.id, po.items[0].id, "void"),
+            json={"reason": "Тест"},
+            headers={**no_module_headers, "Idempotency-Key": "po-item-void-forbid-0002"},
+        )
+        assert response.status_code == 403
+
+    def test_item_void_preview_allowed_for_purchasing_manager(
         self, client, multi_line_received_po, manager_headers
     ):
+        """manager_headers carries purchasing:manager — preview is allowed."""
         po = multi_line_received_po
         response = client.get(
             self._url(po.id, po.items[0].id, "void-preview"), headers=manager_headers
         )
-        assert response.status_code == 403
+        assert response.status_code == 200
 
     def test_item_void_preview_and_execute(
         self, client, db_session, multi_line_received_po, admin_headers

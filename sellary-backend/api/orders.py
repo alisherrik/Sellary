@@ -7,8 +7,8 @@ Routes:
   POST   /api/orders/{id}/status   — advance status (preparing/ready/etc.)
   POST   /api/orders/{id}/cancel   — reject with reason; voids Sale if exists
 
-All endpoints require a company-scoped access_token (manager or admin for
-mutations; any auth for reads).
+All endpoints require a company-scoped access_token with the "shop" module
+granted: reads and confirm/status need "user" level, cancel needs "manager".
 
 Resolved Decision #3: confirm does NOT require an open cash shift.
 Resolved Decision #4: oversell → 400; order stays pending.
@@ -18,7 +18,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, get_auth_context, require_manager_or_admin
+from api.dependencies import AuthContext, require_module
 from core.database import get_db
 from schemas.order import (
     OrderCancelRequest,
@@ -43,7 +43,7 @@ def list_orders(
     limit: int = Query(20, ge=1, le=100),
     order_status: Optional[str] = Query(None, alias="status"),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("shop")),
 ):
     """List incoming marketplace orders for the merchant's company."""
     service = OrderService(db, auth.company_id)
@@ -54,7 +54,7 @@ def list_orders(
 def get_order(
     order_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("shop")),
 ):
     service = OrderService(db, auth.company_id)
     order = service.get_order(order_id)
@@ -68,7 +68,7 @@ def confirm_order(
     order_id: int,
     payload: OrderConfirmRequest = OrderConfirmRequest(),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("shop")),
 ):
     """Confirm a pending order: creates a Sale and decrements stock via the FIFO ledger.
 
@@ -105,7 +105,7 @@ def advance_order_status(
     order_id: int,
     payload: OrderStatusAdvance,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("shop")),
 ):
     """Advance a confirmed order's lifecycle status (preparing → ready → etc.)."""
     service = OrderService(db, auth.company_id)
@@ -129,7 +129,7 @@ def cancel_order(
     order_id: int,
     payload: OrderCancelRequest = OrderCancelRequest(),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("shop", "manager")),
 ):
     """Cancel an order. If a Sale was created (confirmed), voids it to restore stock."""
     service = OrderService(db, auth.company_id)

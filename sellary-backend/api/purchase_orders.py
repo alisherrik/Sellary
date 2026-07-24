@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, get_auth_context, require_admin, require_manager_or_admin
+from api.dependencies import AuthContext, require_module
 from core.database import get_db
 from core.idempotency import (
     IdempotencyConflictError,
@@ -38,7 +38,7 @@ def get_purchase_orders(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("purchasing")),
 ):
     service = PurchaseOrderService(db, auth.company_id)
     purchase_orders, _ = service.get_all(
@@ -56,7 +56,7 @@ def get_purchase_orders(
 def get_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("purchasing")),
 ):
     service = PurchaseOrderService(db, auth.company_id)
     purchase_order = service.get_by_id(po_id)
@@ -69,7 +69,7 @@ def get_purchase_order(
 def preview_purchase_void(
     po_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_admin),
+    auth: AuthContext = Depends(require_module("purchasing", "manager")),
 ):
     try:
         return TransactionReversalService(db, auth.company_id).preview_purchase(po_id)
@@ -83,7 +83,7 @@ def void_purchase_order(
     po_id: int,
     payload: VoidRequest,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_admin),
+    auth: AuthContext = Depends(require_module("purchasing", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     endpoint = f"/api/purchase-orders/{po_id}/void"
@@ -137,7 +137,7 @@ def preview_purchase_item_void(
     po_id: int,
     item_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_admin),
+    auth: AuthContext = Depends(require_module("purchasing", "manager")),
 ):
     try:
         return TransactionReversalService(db, auth.company_id).preview_purchase_item(
@@ -157,7 +157,7 @@ def void_purchase_item(
     item_id: int,
     payload: VoidRequest,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_admin),
+    auth: AuthContext = Depends(require_module("purchasing", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     endpoint = f"/api/purchase-orders/{po_id}/items/{item_id}/void"
@@ -207,7 +207,7 @@ def void_purchase_item(
 def create_purchase_order(
     po_create: PurchaseOrderCreate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("purchasing")),
 ):
     service = PurchaseOrderService(db, auth.company_id)
     try:
@@ -221,7 +221,7 @@ def update_purchase_order(
     po_id: int,
     po_update: PurchaseOrderUpdate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("purchasing")),
 ):
     service = PurchaseOrderService(db, auth.company_id)
     try:
@@ -237,7 +237,7 @@ def update_purchase_order(
 def send_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("purchasing")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     endpoint = f"/api/purchase-orders/{po_id}/send"
@@ -288,7 +288,7 @@ def send_purchase_order(
 def cancel_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("purchasing", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     endpoint = f"/api/purchase-orders/{po_id}/cancel"
@@ -340,7 +340,7 @@ def receive_items(
     po_id: int,
     receive_request: ReceiveItemsRequest,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("purchasing", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     endpoint = f"/api/purchase-orders/{po_id}/receive"
@@ -391,7 +391,7 @@ def receive_items(
 def delete_purchase_order(
     po_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("purchasing", "manager")),
 ):
     service = PurchaseOrderService(db, auth.company_id)
     try:
