@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, get_auth_context, require_manager_or_admin
+from api.dependencies import AuthContext, require_module
 from core.database import get_db
 from schemas.product import ProductCreate, ProductResponse, ProductUpdate
 from services.image_upload_service import ImageUploadService
@@ -20,7 +20,7 @@ def get_products(
     search: Optional[str] = None,
     category_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     service = ProductService(db, auth.company_id)
     products, _ = service.get_all(skip=skip, limit=limit, search=search, category_id=category_id)
@@ -32,7 +32,7 @@ def search_products(
     q: str = Query(..., min_length=1),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     service = ProductService(db, auth.company_id)
     return service.search(q, limit=limit)
@@ -42,7 +42,7 @@ def search_products(
 def get_product_by_barcode(
     barcode: str,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     service = ProductService(db, auth.company_id)
     product = service.get_by_barcode(barcode)
@@ -54,7 +54,7 @@ def get_product_by_barcode(
 @router.get("/low-stock", response_model=list[ProductResponse])
 def get_low_stock(
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     service = ProductService(db, auth.company_id)
     return service.get_low_stock()
@@ -64,7 +64,7 @@ def get_low_stock(
 def get_product(
     product_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     service = ProductService(db, auth.company_id)
     product = service.get_by_id(product_id)
@@ -77,7 +77,7 @@ def get_product(
 def create_product(
     product_create: ProductCreate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     service = ProductService(db, auth.company_id)
     try:
@@ -99,7 +99,7 @@ def update_product(
     product_id: int,
     product_update: ProductUpdate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     service = ProductService(db, auth.company_id)
     try:
@@ -120,7 +120,7 @@ def update_product(
 def delete_product(
     product_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("inventory", "manager")),
 ):
     service = ProductService(db, auth.company_id)
     try:
@@ -147,7 +147,7 @@ async def upload_product_image(
     product_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     if not (file.content_type or "").startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, get_auth_context, require_manager_or_admin
+from api.dependencies import AuthContext, require_module
 from core.database import get_db
 from models.category import Category as CategoryModel
 from repositories.category_repository import CategoryRepository
@@ -17,7 +17,7 @@ def get_categories(
     limit: int = Query(100, ge=1, le=200),
     active_only: bool = False,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     repo = CategoryRepository(db)
     return repo.get_all(auth.company_id, skip=skip, limit=limit, active_only=active_only)
@@ -27,7 +27,7 @@ def get_categories(
 def get_category(
     category_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     repo = CategoryRepository(db)
     category = repo.get_by_id(auth.company_id, category_id)
@@ -40,7 +40,7 @@ def get_category(
 def create_category(
     category_create: CategoryCreate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     repo = CategoryRepository(db)
     if repo.get_by_name(auth.company_id, category_create.name):
@@ -53,7 +53,7 @@ def update_category(
     category_id: int,
     category_update: CategoryUpdate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     repo = CategoryRepository(db)
     category = repo.get_by_id(auth.company_id, category_id)
@@ -75,7 +75,7 @@ def update_category(
 def delete_category(
     category_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("inventory", "manager")),
 ):
     repo = CategoryRepository(db)
     if not repo.delete(auth.company_id, category_id):

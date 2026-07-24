@@ -18,7 +18,7 @@ class TestGetInventoryLogs:
         response = client.get("/api/inventory/logs")
         assert response.status_code == 401
 
-    def test_get_logs_with_auth(self, client: TestClient, db_session, cashier_headers):
+    def test_get_logs_with_auth(self, client: TestClient, db_session, manager_headers):
         """Test getting inventory logs with authentication."""
         category = Category(name="Test Category")
         db_session.add(category)
@@ -47,14 +47,14 @@ class TestGetInventoryLogs:
         db_session.add(log)
         db_session.flush()
 
-        response = client.get("/api/inventory/logs", headers=cashier_headers)
+        response = client.get("/api/inventory/logs", headers=manager_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
         assert len(data) >= 1
 
-    def test_get_logs_with_pagination(self, client: TestClient, db_session, cashier_headers):
+    def test_get_logs_with_pagination(self, client: TestClient, db_session, manager_headers):
         """Test inventory logs pagination."""
         category = Category(name="Test Category")
         db_session.add(category)
@@ -84,13 +84,13 @@ class TestGetInventoryLogs:
             db_session.add(log)
         db_session.flush()
 
-        response = client.get("/api/inventory/logs?skip=0&limit=5", headers=cashier_headers)
+        response = client.get("/api/inventory/logs?skip=0&limit=5", headers=manager_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 5
 
-    def test_get_logs_filtered_by_product(self, client: TestClient, db_session, cashier_headers):
+    def test_get_logs_filtered_by_product(self, client: TestClient, db_session, manager_headers):
         """Test filtering logs by product."""
         category = Category(name="Test Category")
         db_session.add(category)
@@ -137,7 +137,7 @@ class TestGetInventoryLogs:
 
         response = client.get(
             f"/api/inventory/logs?product_id={product1.id}",
-            headers=cashier_headers
+            headers=manager_headers
         )
 
         assert response.status_code == 200
@@ -332,7 +332,7 @@ class TestAdjustStock:
 class TestInventoryValuation:
     """Tests for GET /api/inventory/valuation endpoint."""
 
-    def test_get_inventory_valuation(self, client: TestClient, db_session, cashier_headers):
+    def test_get_inventory_valuation(self, client: TestClient, db_session, manager_headers):
         """Test getting total inventory valuation."""
         category = Category(name="Test Category")
         db_session.add(category)
@@ -360,7 +360,7 @@ class TestInventoryValuation:
         db_session.flush()
 
         # Expected valuation: (100 * 10) + (50 * 20) = 1000 + 1000 = 2000
-        response = client.get("/api/inventory/valuation", headers=cashier_headers)
+        response = client.get("/api/inventory/valuation", headers=manager_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -372,7 +372,7 @@ class TestInventoryValuation:
         assert response.status_code == 401
 
     def test_get_inventory_valuation_excludes_inactive_products(
-        self, client: TestClient, db_session, cashier_headers
+        self, client: TestClient, db_session, manager_headers
     ):
         """Test that inactive products are excluded from valuation."""
         category = Category(name="Test Category")
@@ -400,7 +400,7 @@ class TestInventoryValuation:
         db_session.add_all([active_product, inactive_product])
         db_session.flush()
 
-        response = client.get("/api/inventory/valuation", headers=cashier_headers)
+        response = client.get("/api/inventory/valuation", headers=manager_headers)
 
         assert response.status_code == 200
         # Should only include active product: 100 * 10 = 1000

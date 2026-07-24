@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, get_auth_context, require_manager_or_admin
+from api.dependencies import AuthContext, require_module
 from core.database import get_db
 from core.idempotency import (
     IdempotencyConflictError,
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/inventory", tags=["inventory"])
 def adjust_stock(
     adjustment: InventoryAdjustment,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("inventory", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     endpoint = "/api/inventory/adjust"
@@ -69,7 +69,7 @@ def get_inventory_logs(
     limit: int = Query(50, ge=1, le=200),
     product_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     service = InventoryService(db, auth.company_id)
     logs, _ = service.get_logs(skip=skip, limit=limit, product_id=product_id)
@@ -79,7 +79,7 @@ def get_inventory_logs(
 @router.get("/valuation")
 def get_inventory_valuation(
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("inventory")),
 ):
     service = InventoryService(db, auth.company_id)
     return service.get_inventory_value()
