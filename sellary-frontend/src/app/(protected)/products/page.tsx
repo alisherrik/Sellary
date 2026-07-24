@@ -12,6 +12,7 @@ import {
 import toast from 'react-hot-toast';
 
 import { TableSkeleton } from '@/components/skeletons';
+import { ModuleGuard } from '@/components/ModuleGuard';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useProducts } from '@/hooks/useQueries';
 import { categoriesApi, inventoryApi, productsApi } from '@/lib/api';
@@ -103,7 +104,7 @@ const stockBar = (product: Product) => {
   return { pct, color: 'bg-emerald-500' };
 };
 
-export default function Products() {
+function Products() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -1206,5 +1207,13 @@ export default function Products() {
         </div>
       )}
     </>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <ModuleGuard module="inventory">
+      <Products />
+    </ModuleGuard>
   );
 }

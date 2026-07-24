@@ -14,13 +14,14 @@ import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { suppliersApi } from '@/lib/api';
 import { Supplier } from '@/lib/types';
 import FilterMenu from '@/components/filters/FilterMenu';
+import { ModuleGuard } from '@/components/ModuleGuard';
 import { TableSkeleton } from '@/components/skeletons';
 import { useSuppliers } from '@/hooks/useQueries';
 import { useDebounce } from '@/hooks/useDebounce';
 
 type SupplierFilter = 'all' | 'with_terms' | 'without_terms' | 'with_email';
 
-export default function Suppliers() {
+function Suppliers() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [supplierFilter, setSupplierFilter] = useState<SupplierFilter>('all');
@@ -417,5 +418,13 @@ export default function Suppliers() {
         </div>
       )}
     </>
+  );
+}
+
+export default function SuppliersPage() {
+  return (
+    <ModuleGuard module="purchasing">
+      <Suppliers />
+    </ModuleGuard>
   );
 }

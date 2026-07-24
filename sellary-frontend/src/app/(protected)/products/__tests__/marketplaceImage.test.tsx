@@ -29,6 +29,10 @@ vi.mock('@/hooks/useQueries', () => ({
   useProducts: vi.fn(() => ({ data: [product], isLoading: false })),
 }));
 
+vi.mock('@/lib/store', () => ({
+  useModules: () => ({ inventory: 'user' }),
+}));
+
 vi.mock('@/lib/api', () => ({
   categoriesApi: {
     getAll: vi.fn().mockResolvedValue({ data: [] }),

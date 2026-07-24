@@ -11,6 +11,7 @@ vi.mock('@/providers/ServerHealthProvider', () => ({
 }));
 vi.mock('@/lib/store', () => ({
   useAuthStore: (selector: any) => selector({ currentCompany: { id: 1, role: 'admin' } }),
+  useModules: () => ({ shop: 'user' }),
 }));
 vi.mock('react-hot-toast', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/lib/api', () => ({

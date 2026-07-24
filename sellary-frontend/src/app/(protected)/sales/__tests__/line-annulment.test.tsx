@@ -29,6 +29,7 @@ vi.mock('@/lib/api', () => ({
 
 vi.mock('@/lib/store', () => ({
   useAuthStore: (selector: any) => selector({ currentCompany: { id: 1, role: 'admin' } }),
+  useModules: () => ({ pos: 'user' }),
 }));
 
 vi.mock('react-hot-toast', () => ({

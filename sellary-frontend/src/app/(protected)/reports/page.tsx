@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { CardSkeleton, ChartSkeleton, StatCardsSkeleton } from '@/components/skeletons';
+import { ModuleGuard } from '@/components/ModuleGuard';
 import { useDailySales, useDashboard, useTopProducts } from '@/hooks/useQueries';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import {
@@ -19,7 +20,7 @@ const SalesChart = dynamic(() => import('@/components/reports/SalesChart'), {
 
 const dayOptions = [7, 30, 90];
 
-export default function ReportsPage() {
+function Reports() {
   const [days, setDays] = useState(30);
   const { data: dashboard, isLoading: dashboardLoading } = useDashboard();
   const { data: salesData, isLoading: salesLoading } = useDailySales(days);
@@ -214,5 +215,13 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <ModuleGuard module="reports">
+      <Reports />
+    </ModuleGuard>
   );
 }

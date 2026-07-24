@@ -6,6 +6,7 @@ import { useCartStore, useUIStore } from '@/lib/store';
 import { salesApi, productsApi, categoriesApi, customersApi } from '@/lib/api';
 import { formatCurrency, hotkeyManager, printReceipt, registerHotkeys } from '@/lib/utils';
 import FilterMenu from '@/components/filters/FilterMenu';
+import { ModuleGuard } from '@/components/ModuleGuard';
 import { useProducts } from '@/hooks/useQueries';
 import { ShiftGateBanner, useHasOpenShift } from '@/components/shifts/ShiftGate';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -76,7 +77,7 @@ const tilePalette = [
 const tileColor = (id?: number | null) =>
   id == null ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300' : tilePalette[id % tilePalette.length];
 
-export default function POS() {
+function POS() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('cash');
   const [cardType, setCardType] = useState<'alif' | 'eskhata' | 'dc' | null>(null);
@@ -1454,5 +1455,13 @@ export default function POS() {
         </div>
       )}
     </>
+  );
+}
+
+export default function POSPage() {
+  return (
+    <ModuleGuard module="pos">
+      <POS />
+    </ModuleGuard>
   );
 }

@@ -8,6 +8,7 @@ import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { customersApi, generateIdempotencyKey } from '@/lib/api';
 import { Customer } from '@/lib/types';
 import FilterMenu from '@/components/filters/FilterMenu';
+import { ModuleGuard } from '@/components/ModuleGuard';
 import { formatCurrency } from '@/lib/utils';
 import { queryKeys, useCustomerLedger, useCustomers } from '@/hooks/useQueries';
 import { useAuthStore } from '@/lib/store';
@@ -22,7 +23,7 @@ const entryLabels: Record<string, string> = {
 
 type CustomerDebtFilter = 'all' | 'debt' | 'clear';
 
-export default function CustomersPage() {
+function Customers() {
   const queryClient = useQueryClient();
   const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
@@ -340,5 +341,13 @@ export default function CustomersPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function CustomersPage() {
+  return (
+    <ModuleGuard module="pos">
+      <Customers />
+    </ModuleGuard>
   );
 }

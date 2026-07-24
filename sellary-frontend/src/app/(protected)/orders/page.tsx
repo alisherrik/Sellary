@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { ordersApi, generateIdempotencyKey } from '@/lib/api';
+import { ModuleGuard } from '@/components/ModuleGuard';
 import { useOrders, useOrder } from '@/hooks/useQueries';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { Order, OrderStatus } from '@/lib/types';
@@ -38,7 +39,7 @@ function matchesTab(order: Order, tab: TabKey): boolean {
   }
 }
 
-export default function OrdersPage() {
+function Orders() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabKey>('new');
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -356,5 +357,13 @@ export default function OrdersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OrdersPage() {
+  return (
+    <ModuleGuard module="shop">
+      <Orders />
+    </ModuleGuard>
   );
 }

@@ -12,6 +12,7 @@ import { salesApi, metaApi, customersApi, generateIdempotencyKey } from '@/lib/a
 import { formatCurrency } from '@/lib/utils';
 import { TableSkeleton } from '@/components/skeletons';
 import FilterMenu from '@/components/filters/FilterMenu';
+import { ModuleGuard } from '@/components/ModuleGuard';
 import AnnulmentDialog from '@/components/transactions/AnnulmentDialog';
 import { Sale, SaleItem, VoidPreview } from '@/lib/types';
 import { useAuthStore } from '@/lib/store';
@@ -78,7 +79,7 @@ const debtStatusText = (status?: Sale['payment_status']) => {
   return labels[status || 'paid'] || status || 'Оплачено';
 };
 
-export default function SalesHistory() {
+function SalesHistory() {
   const queryClient = useQueryClient();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
@@ -1208,5 +1209,13 @@ export default function SalesHistory() {
         onConfirm={(reason) => void confirmVoid(reason)}
       />
     </>
+  );
+}
+
+export default function SalesPage() {
+  return (
+    <ModuleGuard module="pos">
+      <SalesHistory />
+    </ModuleGuard>
   );
 }

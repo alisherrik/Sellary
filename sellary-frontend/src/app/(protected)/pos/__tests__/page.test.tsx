@@ -118,6 +118,7 @@ beforeEach(() => {
     accessToken: null,
     isAuthenticated: false,
     hasHydrated: true,
+    modules: { pos: 'user' },
   });
   vi.mocked(productsApi.getAll).mockReset();
   vi.mocked(productsApi.getAll).mockResolvedValue({ data: [] } as never);

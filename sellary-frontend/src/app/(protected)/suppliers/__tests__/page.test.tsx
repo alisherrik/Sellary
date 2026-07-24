@@ -35,6 +35,10 @@ vi.mock('@/hooks/useQueries', () => ({
   useSuppliers: vi.fn(),
 }));
 
+vi.mock('@/lib/store', () => ({
+  useModules: () => ({ purchasing: 'user' }),
+}));
+
 vi.mock('@/lib/api', () => ({
   suppliersApi: {
     create: vi.fn(),

@@ -9,10 +9,11 @@ import {
   ArrowTrendingUpIcon,
 } from '@heroicons/react/24/outline';
 import { StatCardsSkeleton, CardSkeleton } from '@/components/skeletons';
+import { ModuleGuard } from '@/components/ModuleGuard';
 import { useDashboard } from '@/hooks/useQueries';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 
-export default function Dashboard() {
+function Dashboard() {
   const { data, isLoading, error } = useDashboard();
 
   useEffect(() => {
@@ -223,5 +224,13 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <ModuleGuard module="reports">
+      <Dashboard />
+    </ModuleGuard>
   );
 }
