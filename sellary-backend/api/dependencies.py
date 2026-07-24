@@ -13,6 +13,7 @@ from core.security import (
 )
 from models.company import Company
 from models.company_membership import CompanyMembership
+from models.membership_module_access import LEVELS, MODULES, MembershipModuleAccess
 from models.user import User
 from repositories.user_repository import UserRepository
 
@@ -219,3 +220,46 @@ def require_manager_or_admin(auth: AuthContext = Depends(get_auth_context)) -> A
 
 def require_super_admin(owner: OwnerContext = Depends(get_owner_context)) -> OwnerContext:
     return owner
+
+
+_LEVEL_RANK = {"user": 1, "manager": 2}
+
+
+def require_module(module: str, level: str = "user"):
+    """Dependency factory: 403 unless the member has `module` at >= `level`.
+
+    Membership role `admin` (including super-admin company entry) bypasses.
+    """
+    if module not in MODULES:
+        raise ValueError(f"Unknown module: {module}")
+    if level not in LEVELS:
+        raise ValueError(f"Unknown level: {level}")
+
+    def checker(
+        auth: AuthContext = Depends(get_auth_context),
+        db: Session = Depends(get_db),
+    ) -> AuthContext:
+        if auth.role == "admin":
+            return auth
+        grant = None
+        if auth.membership is not None:
+            grant = (
+                db.query(MembershipModuleAccess)
+                .filter(
+                    MembershipModuleAccess.membership_id == auth.membership.id,
+                    MembershipModuleAccess.module == module,
+                )
+                .first()
+            )
+        if grant is None or _LEVEL_RANK[grant.level] < _LEVEL_RANK[level]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "module_access_denied",
+                    "module": module,
+                    "required_level": level,
+                },
+            )
+        return auth
+
+    return checker
