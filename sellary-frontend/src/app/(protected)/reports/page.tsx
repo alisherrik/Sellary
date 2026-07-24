@@ -63,20 +63,23 @@ function Reports() {
 
   return (
       <div className="h-full overflow-y-auto mobile-no-overscroll p-4 space-y-4">
-        <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          {dayOptions.map((option) => (
-            <button
-              key={option}
-              onClick={() => setDays(option)}
-              className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors sm:text-sm ${
-                option === days
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-              }`}
-            >
-              {option} дн.
-            </button>
-          ))}
+        <div className="flex flex-wrap items-end gap-4">
+          <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Аналитика</h2>
+          <div className="ml-auto inline-flex border border-[var(--erp-divider)] bg-white p-1">
+            {dayOptions.map((option) => (
+              <button
+                key={option}
+                onClick={() => setDays(option)}
+                className={`px-3 py-2 text-xs font-medium transition-colors sm:text-sm ${
+                  option === days
+                    ? 'bg-[var(--erp-text)] text-white'
+                    : 'text-gray-600 hover:text-[var(--erp-text)]'
+                }`}
+              >
+                {option} дн.
+              </button>
+            ))}
+          </div>
         </div>
 
         {salesLoading || dashboardLoading ? (
@@ -86,17 +89,17 @@ function Reports() {
             {stats.map((stat) => (
               <div
                 key={stat.name}
-                className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-4"
+                className="border-2 border-[var(--erp-divider)] bg-white p-3 sm:p-4"
               >
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <div className={`${stat.color} rounded-lg p-2 text-white sm:p-3`}>
+                  <div className={`${stat.color} p-2 text-white sm:p-3`}>
                     <stat.icon className="h-4 w-4 sm:h-6 sm:w-6" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-[10px] font-medium text-gray-500 dark:text-gray-400 sm:text-sm">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:text-[11px]">
                       {stat.name}
                     </p>
-                    <p className="truncate text-sm font-bold text-gray-900 dark:text-white sm:text-2xl">
+                    <p className="truncate text-sm font-extrabold text-[var(--erp-text)] sm:text-2xl">
                       {stat.value}
                     </p>
                     {stat.hint && (
@@ -118,12 +121,12 @@ function Reports() {
                   <ChartSkeleton />
                 </div>
               ) : (
-                <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-5">
+                <div className="border-2 border-[var(--erp-divider)] bg-white p-4 sm:p-5">
                   <div className="mb-4">
-                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
+                    <h2 className="text-sm font-bold text-[var(--erp-text)] sm:text-lg">
                       Динамика продаж
                     </h2>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
+                    <p className="text-xs text-gray-500 sm:text-sm">
                       Общая выручка за последние {days} дней
                     </p>
                   </div>
@@ -136,15 +139,15 @@ function Reports() {
             {topProductsLoading ? (
               <CardSkeleton />
             ) : (
-              <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-700 sm:px-5 sm:py-4">
-                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
+              <div className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
+                <div className="border-b border-[var(--erp-divider)] px-4 py-3 sm:px-5 sm:py-4">
+                  <h2 className="text-sm font-bold text-[var(--erp-text)] sm:text-lg">
                     Топ товаров
                   </h2>
                 </div>
                 <div className="p-4 sm:p-5">
                   {!topProducts || topProducts.top_products.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <p className="py-6 text-center text-sm text-gray-500">
                       Нет данных по товарам
                     </p>
                   ) : (
@@ -153,15 +156,15 @@ function Reports() {
                         <div key={product.product_id} className="flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="text-xs text-gray-400">#{index + 1}</div>
-                            <div className="truncate font-medium text-gray-900 dark:text-white">
+                            <div className="truncate font-medium text-[var(--erp-text)]">
                               {product.product_name}
                             </div>
-                            <div className="truncate text-xs text-gray-500 dark:text-gray-400">
+                            <div className="truncate text-xs text-gray-500">
                               {product.barcode || 'Без штрихкода'}
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                            <div className="text-sm font-semibold text-[var(--erp-text)]">
                               {product.quantity_sold} шт
                             </div>
                             <div className="text-xs text-green-600">
@@ -179,15 +182,15 @@ function Reports() {
             {dashboardLoading ? (
               <CardSkeleton />
             ) : (
-              <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-700 sm:px-5 sm:py-4">
-                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
+              <div className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
+                <div className="border-b border-[var(--erp-divider)] px-4 py-3 sm:px-5 sm:py-4">
+                  <h2 className="text-sm font-bold text-[var(--erp-text)] sm:text-lg">
                     Остатки
                   </h2>
                 </div>
                 <div className="p-4 sm:p-5">
                   {!dashboard || dashboard.low_stock_items.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <p className="py-6 text-center text-sm text-gray-500">
                       Критичных остатков нет
                     </p>
                   ) : (
@@ -195,14 +198,14 @@ function Reports() {
                       {dashboard.low_stock_items.slice(0, 5).map((item: any) => (
                         <div key={item.product_id} className="flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium text-gray-900 dark:text-white">
+                            <div className="truncate font-medium text-[var(--erp-text)]">
                               {item.product_name}
                             </div>
-                            <div className="truncate text-xs text-gray-500 dark:text-gray-400">
+                            <div className="truncate text-xs text-gray-500">
                               {item.barcode || 'Без штрихкода'}
                             </div>
                           </div>
-                          <div className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
+                          <div className="bg-[var(--erp-badge-bg)] px-2 py-1 text-xs font-medium text-[var(--erp-badge-text)]">
                             {item.current_stock} шт
                           </div>
                         </div>

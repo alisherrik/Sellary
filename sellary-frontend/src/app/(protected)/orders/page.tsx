@@ -120,8 +120,9 @@ function Orders() {
     <div className="flex h-full">
       {/* Left panel: filter tabs + list */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="border-b bg-white px-4 pt-4">
-          <h1 className="mb-3 text-xl font-semibold text-gray-900">Заказы</h1>
+        <div className="border-b border-[var(--erp-divider)] bg-white px-4 pt-4">
+          <h2 className="mb-3 text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Заказы</h2>
+          <p className="-mt-2 mb-3 text-[13px] text-gray-500">Входящие из Telegram-магазина</p>
           <div className="flex gap-1" role="tablist">
             {tabs.map((tab) => {
               const count = allOrders.filter((o) => matchesTab(o, tab)).length;
@@ -132,15 +133,15 @@ function Orders() {
                   role="tab"
                   aria-selected={isActive}
                   onClick={() => setActiveTab(tab)}
-                  className={`flex items-center gap-1 rounded-t-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1 px-3 py-2 text-sm font-medium transition-colors ${
                     isActive
-                      ? 'border-b-2 border-blue-600 text-blue-600'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'border-b-2 border-[var(--erp-accent)] text-[var(--erp-text)]'
+                      : 'text-gray-500 hover:text-[var(--erp-text)]'
                   }`}
                 >
                   {TAB_LABELS[tab]}
                   {tab === 'new' && pendingCount > 0 ? (
-                    <span className="ml-1 rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white">
+                    <span className="ml-1 bg-[var(--erp-accent)] px-1.5 py-0.5 text-xs font-bold text-white">
                       {pendingCount}
                     </span>
                   ) : (
@@ -156,7 +157,7 @@ function Orders() {
           {listQuery.isLoading && (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-16 animate-pulse rounded-lg bg-gray-200" />
+                <div key={i} className="h-16 animate-pulse bg-gray-200" />
               ))}
             </div>
           )}
@@ -168,17 +169,17 @@ function Orders() {
               <button
                 key={o.id}
                 onClick={() => selectOrder(o.id)}
-                className={`w-full rounded-lg border p-3 text-left transition-colors hover:bg-gray-50 ${
-                  selectedId === o.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'
+                className={`w-full border p-3 text-left transition-colors hover:bg-[var(--erp-surface)] ${
+                  selectedId === o.id ? 'border-[var(--erp-text)] bg-[var(--erp-surface)]' : 'border-[var(--erp-divider)] bg-white'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <span className="font-semibold text-gray-900">#{o.order_number}</span>
+                    <span className="font-semibold text-[var(--erp-text)]">#{o.order_number}</span>
                     <span className="ml-2 text-sm text-gray-500">{o.contact_name}</span>
                   </div>
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[o.status]}`}
+                    className={`px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[o.status]}`}
                   >
                     {STATUS_LABELS[o.status]}
                   </span>
@@ -197,22 +198,22 @@ function Orders() {
 
       {/* Right panel: detail drawer */}
       {selectedId !== null && (
-        <div className="flex w-full flex-col border-l bg-white md:w-96 lg:w-[480px]">
+        <div className="flex w-full flex-col border-l border-[var(--erp-divider)] bg-white md:w-96 lg:w-[480px]">
           {detailQuery.isLoading && (
             <div className="p-4">
-              <div className="h-6 w-1/2 animate-pulse rounded bg-gray-200" />
+              <div className="h-6 w-1/2 animate-pulse bg-gray-200" />
             </div>
           )}
           {order && (
             <div className="flex flex-1 flex-col overflow-y-auto p-4">
               {/* Header */}
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-[var(--erp-text)]">
                   Заказ #{order.order_number}
                 </h2>
                 <button
                   onClick={() => setSelectedId(null)}
-                  className="text-sm text-gray-400 hover:text-gray-600"
+                  className="text-sm text-gray-400 hover:text-[var(--erp-text)]"
                 >
                   ✕
                 </button>
@@ -221,7 +222,7 @@ function Orders() {
               {/* Status badge */}
               <div className="mb-4">
                 <span
-                  className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_BADGE_CLASSES[order.status]}`}
+                  className={`px-3 py-1 text-sm font-medium ${STATUS_BADGE_CLASSES[order.status]}`}
                 >
                   {STATUS_LABELS[order.status]}
                 </span>
@@ -232,7 +233,7 @@ function Orders() {
 
               {/* Error alert */}
               {actionError && (
-                <div role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                <div role="alert" className="mb-3 border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   {actionError}
                 </div>
               )}
@@ -243,7 +244,7 @@ function Orders() {
                   <button
                     disabled={isActing}
                     onClick={handleConfirm}
-                    className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                    className="bg-[var(--erp-success)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                   >
                     Подтвердить заказ
                   </button>
@@ -253,7 +254,7 @@ function Orders() {
                     key={action.target}
                     disabled={isActing}
                     onClick={() => handleAdvance(action.target)}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    className="bg-[var(--erp-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                   >
                     {action.label}
                   </button>
@@ -262,7 +263,7 @@ function Orders() {
                   <button
                     disabled={isActing}
                     onClick={() => { setShowCancelForm(true); setActionError(''); }}
-                    className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    className="border border-[var(--erp-accent)] px-4 py-2 text-sm font-medium text-[var(--erp-accent)] hover:bg-red-50 disabled:opacity-50"
                   >
                     Отменить
                   </button>
@@ -271,7 +272,7 @@ function Orders() {
 
               {/* Cancel form */}
               {showCancelForm && (
-                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
+                <div className="mb-4 border border-[var(--erp-divider)] bg-[var(--erp-warn-bg)] p-3">
                   <label className="mb-1 block text-sm font-medium text-gray-700">
                     Причина отмены
                     <textarea
@@ -279,7 +280,7 @@ function Orders() {
                       value={cancelReason}
                       onChange={(e) => setCancelReason(e.target.value)}
                       rows={2}
-                      className="mt-1 w-full rounded border border-gray-300 p-2 text-sm"
+                      className="mt-1 w-full border border-[var(--erp-divider)] bg-white p-2 text-sm"
                       placeholder="Не обязательно"
                     />
                   </label>
@@ -287,13 +288,13 @@ function Orders() {
                     <button
                       disabled={isActing}
                       onClick={handleCancel}
-                      className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                      className="bg-[var(--erp-accent)] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                     >
                       Подтвердить отмену
                     </button>
                     <button
                       onClick={() => { setShowCancelForm(false); setCancelReason(''); }}
-                      className="rounded border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                      className="border border-[var(--erp-divider)] px-3 py-1.5 text-sm text-gray-600 hover:border-[var(--erp-text)]"
                     >
                       Назад
                     </button>
@@ -302,9 +303,9 @@ function Orders() {
               )}
 
               {/* Customer block */}
-              <div className="mb-4 rounded-lg bg-gray-50 p-3">
+              <div className="mb-4 border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-3">
                 <h3 className="mb-2 text-sm font-semibold text-gray-700">Покупатель</h3>
-                <p className="text-sm text-gray-900">{order.contact_name}</p>
+                <p className="text-sm text-[var(--erp-text)]">{order.contact_name}</p>
                 <p className="text-sm text-gray-600">{order.contact_phone}</p>
                 {order.fulfillment_type === 'delivery' && order.delivery_address && (
                   <p className="mt-1 text-sm text-gray-600">{order.delivery_address}</p>
@@ -319,22 +320,22 @@ function Orders() {
                 <h3 className="mb-2 text-sm font-semibold text-gray-700">Состав заказа</h3>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-left text-xs text-gray-500">
-                      <th className="pb-1 font-medium">Товар</th>
-                      <th className="pb-1 text-right font-medium">Кол.</th>
-                      <th className="pb-1 text-right font-medium">Цена</th>
-                      <th className="pb-1 text-right font-medium">Сумма</th>
+                    <tr className="border-b-2 border-[var(--erp-divider)] text-left text-[10.5px] uppercase tracking-wide text-gray-400">
+                      <th className="pb-1 font-semibold">Товар</th>
+                      <th className="pb-1 text-right font-semibold">Кол.</th>
+                      <th className="pb-1 text-right font-semibold">Цена</th>
+                      <th className="pb-1 text-right font-semibold">Сумма</th>
                     </tr>
                   </thead>
                   <tbody>
                     {order.items.map((item) => (
-                      <tr key={item.id} className="border-b border-gray-100">
-                        <td className="py-1.5 text-gray-900">{item.product_name}</td>
+                      <tr key={item.id} className="border-b border-[var(--erp-divider)]">
+                        <td className="py-1.5 text-[var(--erp-text)]">{item.product_name}</td>
                         <td className="py-1.5 text-right text-gray-600">{item.quantity}</td>
                         <td className="py-1.5 text-right text-gray-600">
                           {formatCurrency(item.unit_price)}
                         </td>
-                        <td className="py-1.5 text-right font-medium text-gray-900">
+                        <td className="py-1.5 text-right font-medium text-[var(--erp-text)]">
                           {formatCurrency(item.line_total)}
                         </td>
                       </tr>
@@ -345,7 +346,7 @@ function Orders() {
                       <td colSpan={3} className="pt-2 text-right text-sm font-semibold text-gray-700">
                         Итого:
                       </td>
-                      <td className="pt-2 text-right text-sm font-bold text-gray-900">
+                      <td className="pt-2 text-right text-sm font-bold text-[var(--erp-text)]">
                         {formatCurrency(order.total_amount)}
                       </td>
                     </tr>

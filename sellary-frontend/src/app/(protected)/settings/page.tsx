@@ -21,8 +21,8 @@ function StatusBadge({
 }) {
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-        enabled ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700'
+      className={`inline-flex px-2.5 py-1 text-xs font-medium ${
+        enabled ? 'bg-green-50 text-[var(--erp-success)]' : 'bg-gray-100 text-gray-600'
       }`}
     >
       {enabled ? activeLabel : inactiveLabel}
@@ -63,11 +63,15 @@ export default function SettingsPage() {
 
   return (
     <div className="h-full overflow-y-auto mobile-no-overscroll p-4 space-y-6">
-      <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="border-b border-gray-100 p-4 sm:p-6">
+      <div>
+        <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Настройки</h2>
+      </div>
+
+      <section className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
+        <div className="border-b border-[var(--erp-divider)] p-4 sm:p-6">
           <div className="flex items-center gap-2">
             <BanknotesIcon className="h-5 w-5 text-gray-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Валюта</h2>
+            <h2 className="text-lg font-bold text-[var(--erp-text)]">Валюта</h2>
           </div>
           <p className="mt-1 text-sm text-gray-500">
             Выберите валюту по умолчанию, используемую в ценах, отчётах и чеках.
@@ -82,22 +86,22 @@ export default function SettingsPage() {
                 <button
                   key={curr.code}
                   onClick={() => handleCurrencyChange(curr.code)}
-                  className={`relative flex flex-col items-start rounded-xl border-2 p-4 transition-all ${
+                  className={`relative flex flex-col items-start border-2 p-4 transition-all ${
                     isSelected
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50'
+                      ? 'border-[var(--erp-text)] bg-[var(--erp-surface)]'
+                      : 'border-[var(--erp-divider)] bg-white hover:border-[var(--erp-text)]'
                   }`}
                 >
                   {isSelected && (
                     <div className="absolute right-2 top-2">
-                      <CheckCircleIcon className="h-5 w-5 text-blue-500" />
+                      <CheckCircleIcon className="h-5 w-5 text-[var(--erp-accent)]" />
                     </div>
                   )}
 
-                  <span className={`mb-2 text-2xl ${isSelected ? 'text-blue-600' : 'text-gray-400'}`}>
+                  <span className={`mb-2 text-2xl ${isSelected ? 'text-[var(--erp-accent)]' : 'text-gray-400'}`}>
                     {curr.symbol}
                   </span>
-                  <span className="text-sm font-semibold text-gray-900">{curr.code}</span>
+                  <span className="text-sm font-semibold text-[var(--erp-text)]">{curr.code}</span>
                   <span className="mt-1 text-left text-xs text-gray-500">{curr.name}</span>
                 </button>
               );
@@ -106,11 +110,11 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="border-b border-gray-100 p-4 sm:p-6">
+      <section className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
+        <div className="border-b border-[var(--erp-divider)] p-4 sm:p-6">
           <div className="flex items-center gap-2">
             <PrinterIcon className="h-5 w-5 text-gray-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Печать чека</h2>
+            <h2 className="text-lg font-bold text-[var(--erp-text)]">Печать чека</h2>
           </div>
           <p className="mt-1 text-sm text-gray-500">
             Управляйте печатью чека после продажи. Когда печать выключена — после
@@ -121,14 +125,14 @@ export default function SettingsPage() {
         <div className="p-4 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-sm font-medium text-gray-900">
+              <div className="text-sm font-medium text-[var(--erp-text)]">
                 Печатать чек после продажи
               </div>
               <p className="mt-1 text-xs text-gray-500">
                 Включите, когда подключён принтер. Чтобы чек печатался сразу, без
                 диалога и PDF: сделайте чековый принтер принтером по умолчанию в
                 Windows и запускайте Chrome с флагом{' '}
-                <code className="rounded bg-gray-100 px-1 py-0.5 text-[11px]">
+                <code className="bg-gray-100 px-1 py-0.5 text-[11px]">
                   --kiosk-printing
                 </code>
                 .
@@ -141,7 +145,7 @@ export default function SettingsPage() {
               aria-label="Печатать чек после продажи"
               onClick={handleReceiptPrintToggle}
               className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                receiptPrintEnabled ? 'bg-blue-600' : 'bg-gray-300'
+                receiptPrintEnabled ? 'bg-[var(--erp-success)]' : 'bg-gray-300'
               }`}
             >
               <span
@@ -162,11 +166,11 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="border-b border-gray-100 p-4 sm:p-6">
+      <section className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
+        <div className="border-b border-[var(--erp-divider)] p-4 sm:p-6">
           <div className="flex items-center gap-2">
             <ServerIcon className="h-5 w-5 text-gray-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Статус релиза</h2>
+            <h2 className="text-lg font-bold text-[var(--erp-text)]">Статус релиза</h2>
           </div>
           <p className="mt-1 text-sm text-gray-500">
             Быстрый обзор того, какие модули MVP доступны в данный момент.
@@ -174,8 +178,8 @@ export default function SettingsPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 p-4 sm:p-6 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-xl bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Backend</div>
+          <div className="border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-4">
+            <div className="text-sm font-medium text-[var(--erp-text)]">Backend</div>
             <div className="mt-3">
               {isChecking ? (
                 <StatusBadge enabled={false} activeLabel="В сети" inactiveLabel="Проверка" />
@@ -189,8 +193,8 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Розничная касса</div>
+          <div className="border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-4">
+            <div className="text-sm font-medium text-[var(--erp-text)]">Розничная касса</div>
             <div className="mt-3">
               <StatusBadge enabled activeLabel="Активно" inactiveLabel="Отключено" />
             </div>
@@ -199,11 +203,11 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="border-b border-gray-100 p-4 sm:p-6">
+      <section className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
+        <div className="border-b border-[var(--erp-divider)] p-4 sm:p-6">
           <div className="flex items-center gap-2">
             <ServerIcon className="h-5 w-5 text-gray-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Версия</h2>
+            <h2 className="text-lg font-bold text-[var(--erp-text)]">Версия</h2>
           </div>
           <p className="mt-1 text-sm text-gray-500">
             Развёрнутые версии сервера и клиента.
@@ -211,9 +215,9 @@ export default function SettingsPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 p-4 sm:p-6 md:grid-cols-2">
-          <div className="rounded-xl bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Сервер</div>
-            <div className="mt-1 text-2xl font-bold text-gray-900">
+          <div className="border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-4">
+            <div className="text-sm font-medium text-[var(--erp-text)]">Сервер</div>
+            <div className="mt-1 text-2xl font-extrabold text-[var(--erp-text)]">
               {isServerReachable && backendVersion ? `v${backendVersion}` : '—'}
             </div>
             <div className="mt-1 text-xs text-gray-500">
@@ -221,9 +225,9 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Клиент</div>
-            <div className="mt-1 text-2xl font-bold text-gray-900">
+          <div className="border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-4">
+            <div className="text-sm font-medium text-[var(--erp-text)]">Клиент</div>
+            <div className="mt-1 text-2xl font-extrabold text-[var(--erp-text)]">
               v{frontendVersion}
             </div>
             <div className="mt-1 text-xs text-gray-500">Netlify</div>

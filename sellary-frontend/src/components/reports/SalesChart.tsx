@@ -19,7 +19,7 @@ interface SalesChartProps {
 export default function SalesChart({ data, days }: SalesChartProps) {
   if (data.length === 0) {
     return (
-      <div className="rounded-xl bg-gray-50 px-4 py-10 text-center text-sm text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+      <div className="bg-[var(--erp-surface)] px-4 py-10 text-center text-sm text-gray-500">
         Недостаточно данных для графика
       </div>
     );

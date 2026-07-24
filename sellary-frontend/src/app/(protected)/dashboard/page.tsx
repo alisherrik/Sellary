@@ -53,6 +53,11 @@ function Dashboard() {
 
   return (
       <div className="h-full overflow-y-auto mobile-no-overscroll p-4 space-y-4">
+        <div>
+          <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Дашборд</h2>
+          <p className="mt-0.5 text-[13px] text-gray-500">Сегодня</p>
+        </div>
+
         {isLoading ? (
           <StatCardsSkeleton count={4} />
         ) : (
@@ -60,17 +65,17 @@ function Dashboard() {
             {stats.map((stat) => (
               <div
                 key={stat.name}
-                className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-4"
+                className="border-2 border-[var(--erp-divider)] bg-white p-3 sm:p-4"
               >
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <div className={`${stat.color} rounded-lg p-2 sm:p-3`}>
+                  <div className={`${stat.color} p-2 sm:p-3`}>
                     <stat.icon className="h-4 w-4 text-white sm:h-6 sm:w-6" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-[10px] font-medium text-gray-600 dark:text-gray-400 sm:text-sm">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:text-[11px]">
                       {stat.name}
                     </p>
-                    <p className="truncate text-sm font-bold text-gray-900 dark:text-white sm:text-2xl">
+                    <p className="truncate text-sm font-extrabold text-[var(--erp-text)] sm:text-2xl">
                       {stat.value}
                     </p>
                   </div>
@@ -84,9 +89,9 @@ function Dashboard() {
           {isLoading ? (
             <CardSkeleton />
           ) : (
-            <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-              <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-700 sm:px-5 sm:py-4">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
+            <div className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
+              <div className="border-b border-[var(--erp-divider)] px-4 py-3 sm:px-5 sm:py-4">
+                <h3 className="text-sm font-bold text-[var(--erp-text)] sm:text-lg">
                   Топ продаж
                 </h3>
               </div>
@@ -100,14 +105,14 @@ function Dashboard() {
                         <div className="flex min-w-0 flex-1 items-center">
                           <span className="mr-2 text-sm text-gray-400 sm:mr-3 sm:text-base">#{index + 1}</span>
                           <div className="min-w-0">
-                            <p className="truncate text-xs font-medium text-gray-900 dark:text-white sm:text-base">
+                            <p className="truncate text-xs font-medium text-[var(--erp-text)] sm:text-base">
                               {product.product_name}
                             </p>
                             <p className="truncate text-[10px] text-gray-500 sm:text-sm">{product.barcode}</p>
                           </div>
                         </div>
                         <div className="ml-2 flex-shrink-0 text-right">
-                          <p className="text-xs font-medium text-gray-900 dark:text-white sm:text-base">
+                          <p className="text-xs font-medium text-[var(--erp-text)] sm:text-base">
                             {product.quantity_sold} шт
                           </p>
                           <p className="text-[10px] text-gray-500 sm:text-sm">
@@ -125,9 +130,9 @@ function Dashboard() {
           {isLoading ? (
             <CardSkeleton />
           ) : data && data.low_stock_items.length > 0 ? (
-            <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-              <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-700 sm:px-5 sm:py-4">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
+            <div className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
+              <div className="border-b border-[var(--erp-divider)] px-4 py-3 sm:px-5 sm:py-4">
+                <h3 className="text-sm font-bold text-[var(--erp-text)] sm:text-lg">
                   Заканчиваются
                 </h3>
               </div>
@@ -136,13 +141,13 @@ function Dashboard() {
                   {data.low_stock_items.slice(0, 5).map((item: any) => (
                     <div key={item.product_id} className="flex items-center justify-between">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium text-gray-900 dark:text-white sm:text-base">
+                        <p className="truncate text-xs font-medium text-[var(--erp-text)] sm:text-base">
                           {item.product_name}
                         </p>
                         <p className="truncate text-[10px] text-gray-500 sm:text-sm">{item.barcode}</p>
                       </div>
                       <div className="ml-2 flex-shrink-0">
-                        <span className="rounded bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-800 sm:py-1 sm:text-xs">
+                        <span className="bg-[var(--erp-badge-bg)] px-2 py-0.5 text-[10px] font-medium text-[var(--erp-badge-text)] sm:py-1 sm:text-xs">
                           {item.current_stock} ост.
                         </span>
                       </div>
@@ -157,9 +162,9 @@ function Dashboard() {
         {isLoading ? (
           <CardSkeleton />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-700 sm:px-5 sm:py-4">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
+          <div className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
+            <div className="border-b border-[var(--erp-divider)] px-4 py-3 sm:px-5 sm:py-4">
+              <h3 className="text-sm font-bold text-[var(--erp-text)] sm:text-lg">
                 Последние продажи
               </h3>
             </div>
@@ -172,16 +177,16 @@ function Dashboard() {
                     {data.recent_sales.map((sale: any) => (
                       <div
                         key={sale.id}
-                        className="flex items-center justify-between rounded-lg bg-gray-50 p-3 dark:bg-gray-700"
+                        className="flex items-center justify-between border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-3"
                       >
                         <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">#{sale.id}</p>
+                          <p className="text-sm font-medium text-[var(--erp-text)]">#{sale.id}</p>
                           <p className="text-[10px] text-gray-500">
                             {new Date(sale.created_at).toLocaleString('ru-RU')}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">
+                          <p className="text-sm font-bold text-[var(--erp-text)]">
                             {formatCurrency(sale.total_amount)}
                           </p>
                           <p className="text-[10px] uppercase text-gray-500">{sale.payment_method}</p>
@@ -193,24 +198,24 @@ function Dashboard() {
                   <div className="hidden overflow-x-auto sm:block">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-gray-200 text-left text-sm text-gray-500 dark:border-gray-600">
+                        <tr className="border-b-2 border-[var(--erp-divider)] text-left text-[10.5px] uppercase tracking-wide text-gray-400">
                           <th className="pb-3 font-medium">Чек №</th>
                           <th className="pb-3 font-medium">Дата и время</th>
                           <th className="pb-3 font-medium">Сумма</th>
                           <th className="pb-3 font-medium">Оплата</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                      <tbody className="divide-y divide-[var(--erp-divider)]">
                         {data.recent_sales.map((sale: any) => (
                           <tr key={sale.id}>
-                            <td className="py-3 font-medium text-gray-900 dark:text-white">#{sale.id}</td>
-                            <td className="py-3 text-gray-600 dark:text-gray-400">
+                            <td className="py-3 font-medium text-[var(--erp-text)]">#{sale.id}</td>
+                            <td className="py-3 text-gray-600">
                               {new Date(sale.created_at).toLocaleString('ru-RU')}
                             </td>
-                            <td className="py-3 font-medium text-gray-900 dark:text-white">
+                            <td className="py-3 font-medium text-[var(--erp-text)]">
                               {formatCurrency(sale.total_amount)}
                             </td>
-                            <td className="py-3 uppercase text-gray-600 dark:text-gray-400">
+                            <td className="py-3 uppercase text-gray-600">
                               {sale.payment_method}
                             </td>
                           </tr>

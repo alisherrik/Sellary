@@ -80,7 +80,7 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
         <button
           type="button"
           onClick={() => refetch()}
-          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+          className="border border-[var(--erp-divider)] px-3 py-2 text-xs font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)]"
         >
           Повторить
         </button>
@@ -101,7 +101,7 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
         </thead>
         <tbody>
           {MODULE_ROWS.map(({ key, label }) => (
-            <tr key={key} className="border-t border-slate-100">
+            <tr key={key} className="border-t border-[var(--erp-divider)]">
               <td className="py-2 pr-4">{label}</td>
               {(['', 'user', 'manager'] as const).map((level) => (
                 <td key={level || 'none'} className="py-2 pr-4">
@@ -121,7 +121,7 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
         type="button"
         onClick={handleSave}
         disabled={saveMutation.isPending}
-        className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+        className="bg-[var(--erp-accent)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
       >
         {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
       </button>
@@ -242,26 +242,26 @@ export default function CompanyAdminSection() {
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="border-2 border-[var(--erp-divider)] bg-white p-5">
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-600">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--erp-accent)]">
           Администратор компании
         </p>
-        <h2 className="mt-2 text-xl font-semibold text-slate-900">Управление доступом команды</h2>
+        <h2 className="mt-2 text-[22px] font-extrabold tracking-tight text-[var(--erp-text)]">Управление доступом команды</h2>
         <p className="mt-1 text-sm text-slate-500">
           Создавайте пользователей для этой компании или привязывайте существующего пользователя по имени пользователя или email.
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <form onSubmit={handleCreateUser} className="space-y-3 rounded-2xl border border-slate-200 p-4">
-          <h3 className="text-sm font-semibold text-slate-900">Создать пользователя</h3>
+        <form onSubmit={handleCreateUser} className="space-y-3 border border-[var(--erp-divider)] p-4">
+          <h3 className="text-sm font-semibold text-[var(--erp-text)]">Создать пользователя</h3>
           <input
             value={userForm.username}
             onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))}
             placeholder="Имя пользователя"
             required
-            className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
+            className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm"
           />
           <input
             type="email"
@@ -269,13 +269,13 @@ export default function CompanyAdminSection() {
             onChange={(event) => setUserForm((current) => ({ ...current, email: event.target.value }))}
             placeholder="Email"
             required
-            className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
+            className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm"
           />
           <input
             value={userForm.full_name}
             onChange={(event) => setUserForm((current) => ({ ...current, full_name: event.target.value }))}
             placeholder="Полное имя"
-            className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
+            className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm"
           />
           <input
             type="password"
@@ -283,7 +283,7 @@ export default function CompanyAdminSection() {
             onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))}
             placeholder="Пароль"
             required
-            className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
+            className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm"
           />
           <div className="grid grid-cols-3 gap-3">
             <select
@@ -291,7 +291,7 @@ export default function CompanyAdminSection() {
               onChange={(event) =>
                 setUserForm((current) => ({ ...current, role: event.target.value as UserRole }))
               }
-              className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
+              className="h-11 border border-[var(--erp-divider)] bg-white px-3 text-sm"
             >
               {roleOptions.map((role) => (
                 <option key={role} value={role}>
@@ -299,7 +299,7 @@ export default function CompanyAdminSection() {
                 </option>
               ))}
             </select>
-            <label className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm text-slate-700">
+            <label className="inline-flex h-11 items-center gap-2 border border-[var(--erp-divider)] px-3 text-sm text-gray-700">
               <input
                 type="checkbox"
                 checked={userForm.is_active}
@@ -309,7 +309,7 @@ export default function CompanyAdminSection() {
               />
               Активен
             </label>
-            <label className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm text-slate-700">
+            <label className="inline-flex h-11 items-center gap-2 border border-[var(--erp-divider)] px-3 text-sm text-gray-700">
               <input
                 type="checkbox"
                 checked={userForm.is_default}
@@ -322,14 +322,14 @@ export default function CompanyAdminSection() {
           </div>
           <button
             type="submit"
-            className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+            className="inline-flex h-11 items-center justify-center bg-[var(--erp-accent)] px-4 text-sm font-semibold text-white transition hover:opacity-90"
           >
             Создать пользователя компании
           </button>
         </form>
 
-        <form onSubmit={handleAttachUser} className="space-y-3 rounded-2xl border border-slate-200 p-4">
-          <h3 className="text-sm font-semibold text-slate-900">Привязать существующего пользователя</h3>
+        <form onSubmit={handleAttachUser} className="space-y-3 border border-[var(--erp-divider)] p-4">
+          <h3 className="text-sm font-semibold text-[var(--erp-text)]">Привязать существующего пользователя</h3>
           <input
             value={membershipForm.identifier}
             onChange={(event) =>
@@ -337,7 +337,7 @@ export default function CompanyAdminSection() {
             }
             placeholder="Имя пользователя или email"
             required
-            className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm"
+            className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm"
           />
           <div className="grid grid-cols-3 gap-3">
             <select
@@ -348,7 +348,7 @@ export default function CompanyAdminSection() {
                   role: event.target.value as UserRole,
                 }))
               }
-              className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
+              className="h-11 border border-[var(--erp-divider)] bg-white px-3 text-sm"
             >
               {roleOptions.map((role) => (
                 <option key={role} value={role}>
@@ -356,7 +356,7 @@ export default function CompanyAdminSection() {
                 </option>
               ))}
             </select>
-            <label className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm text-slate-700">
+            <label className="inline-flex h-11 items-center gap-2 border border-[var(--erp-divider)] px-3 text-sm text-gray-700">
               <input
                 type="checkbox"
                 checked={membershipForm.is_active}
@@ -366,7 +366,7 @@ export default function CompanyAdminSection() {
               />
               Активен
             </label>
-            <label className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm text-slate-700">
+            <label className="inline-flex h-11 items-center gap-2 border border-[var(--erp-divider)] px-3 text-sm text-gray-700">
               <input
                 type="checkbox"
                 checked={membershipForm.is_default}
@@ -379,7 +379,7 @@ export default function CompanyAdminSection() {
           </div>
           <button
             type="submit"
-            className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="inline-flex h-11 items-center justify-center border border-[var(--erp-divider)] bg-white px-4 text-sm font-semibold text-[var(--erp-text)] transition hover:border-[var(--erp-text)]"
           >
             Привязать существующего пользователя
           </button>
@@ -388,7 +388,7 @@ export default function CompanyAdminSection() {
 
       <div className="mt-5 overflow-x-auto">
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-500">
+          <thead className="bg-[var(--erp-surface)] text-gray-400">
             <tr>
               <th className="px-3 py-2 font-medium">Пользователь</th>
               <th className="px-3 py-2 font-medium">Email</th>
@@ -418,7 +418,7 @@ export default function CompanyAdminSection() {
 
                 return (
                   <Fragment key={user.id}>
-                    <tr className="border-t border-slate-100">
+                    <tr className="border-t border-[var(--erp-divider)]">
                     <td className="px-3 py-3">{user.full_name || user.username}</td>
                     <td className="px-3 py-3">{user.email}</td>
                     <td className="px-3 py-3">
@@ -431,7 +431,7 @@ export default function CompanyAdminSection() {
                                 current ? { ...current, role: event.target.value as UserRole } : current,
                               )
                             }
-                            className="h-10 rounded-lg border border-slate-200 px-3"
+                            className="h-10 border border-[var(--erp-divider)] bg-white px-3"
                           >
                             {roleOptions.map((role) => (
                               <option key={role} value={role}>
@@ -494,14 +494,14 @@ export default function CompanyAdminSection() {
                           <form onSubmit={handleUpdateMembership} className="flex gap-2">
                             <button
                               type="submit"
-                              className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
+                              className="bg-[var(--erp-accent)] px-3 py-2 text-xs font-semibold text-white"
                             >
                               Сохранить
                             </button>
                             <button
                               type="button"
                               onClick={() => setEditingMembership(null)}
-                              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                              className="border border-[var(--erp-divider)] px-3 py-2 text-xs font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)]"
                             >
                               Отмена
                             </button>
@@ -511,14 +511,14 @@ export default function CompanyAdminSection() {
                             <button
                               type="button"
                               onClick={() => setEditingMembership(membership)}
-                              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                              className="border border-[var(--erp-divider)] px-3 py-2 text-xs font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)]"
                             >
                               Изменить участие
                             </button>
                             <button
                               type="button"
                               onClick={() => toggleModules(membership.id)}
-                              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                              className="border border-[var(--erp-divider)] px-3 py-2 text-xs font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)]"
                             >
                               {expandedModuleIds.has(membership.id)
                                 ? 'Скрыть модули'
@@ -532,9 +532,9 @@ export default function CompanyAdminSection() {
                     </td>
                   </tr>
                   {membership && expandedModuleIds.has(membership.id) && (
-                    <tr className="border-t border-slate-100 bg-slate-50">
+                    <tr className="border-t border-[var(--erp-divider)] bg-[var(--erp-surface)]">
                       <td colSpan={6} className="px-3 py-4">
-                        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">
                           Доступ к модулям
                         </p>
                         {membership.role === 'admin' ? (
