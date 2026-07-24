@@ -32,4 +32,30 @@ class TestInventoryModuleAccess:
             headers={**manager_headers, "Idempotency-Key": "modtest-adjust-0002"},
             json={"product_id": test_product.id, "quantity_change": 1, "reason": "test"},
         )
-        assert resp.status_code in (200, 201)
+        assert resp.status_code == 200
+
+    def test_inventory_user_can_create_product(
+        self, client, cashier_user, default_company, grant_module, cashier_headers, test_category
+    ):
+        grant_module(cashier_user, default_company, "inventory", "user")
+        resp = client.post(
+            "/api/products",
+            headers=cashier_headers,
+            json={
+                "name": "Modtest Product",
+                "barcode": "MODTEST123",
+                "category_id": test_category.id,
+                "cost_price": "10.00",
+                "sell_price": "15.00",
+                "stock_quantity": 5,
+            },
+        )
+        assert resp.status_code == 201
+
+    def test_inventory_user_cannot_delete_product(
+        self, client, cashier_user, default_company, grant_module, cashier_headers, test_product
+    ):
+        grant_module(cashier_user, default_company, "inventory", "user")
+        resp = client.delete(f"/api/products/{test_product.id}", headers=cashier_headers)
+        assert resp.status_code == 403
+        assert resp.json()["detail"]["code"] == "module_access_denied"
