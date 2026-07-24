@@ -15,7 +15,7 @@ export default function Home() {
     }
 
     if (accessToken && isAuthenticated) {
-      router.push('/pos');
+      router.push('/apps');
     } else {
       router.push('/login');
     }

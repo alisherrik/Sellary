@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { useCartStore, useUIStore } from '@/lib/store';
+import { Squares2X2Icon } from '@heroicons/react/24/outline';
+import { useAuthStore, useCartStore, useUIStore } from '@/lib/store';
 import { salesApi, productsApi, categoriesApi, customersApi } from '@/lib/api';
 import { formatCurrency, hotkeyManager, printReceipt, registerHotkeys } from '@/lib/utils';
 import FilterMenu from '@/components/filters/FilterMenu';
 import { ModuleGuard } from '@/components/ModuleGuard';
-import { useProducts } from '@/hooks/useQueries';
+import { useCurrentShift, useProducts } from '@/hooks/useQueries';
 import { ShiftGateBanner, useHasOpenShift } from '@/components/shifts/ShiftGate';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -99,6 +100,8 @@ function POS() {
   const [showCartSheet, setShowCartSheet] = useState(false);
   const { isServerReachable } = useServerHealth();
   const hasOpenShift = useHasOpenShift();
+  const { data: currentShift, isSuccess: shiftStatusKnown } = useCurrentShift();
+  const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const { cartPanelWidth, setCartPanelWidth } = useUIStore();
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -943,8 +946,61 @@ function POS() {
   );
 
   return (
-    <>
-      <div className="flex h-full min-h-0 gap-4">
+    <div className="flex h-screen flex-col bg-[var(--erp-surface)]">
+      {/* POS top bar — the POS module renders its own fullscreen chrome instead
+          of the shared workspace shell (header/rail/sidebar are hidden for
+          /pos in Layout.tsx). */}
+      <div className="flex h-[52px] flex-none items-center gap-4 border-b-2 border-[var(--erp-divider)] bg-white px-4">
+        <div className="text-[17px] font-extrabold text-[var(--erp-text)]">Касса</div>
+        <div className="flex gap-0.5">
+          <Link
+            href="/sales"
+            prefetch={false}
+            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-[var(--erp-surface)]"
+          >
+            История продаж
+          </Link>
+          <Link
+            href="/shifts"
+            prefetch={false}
+            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-[var(--erp-surface)]"
+          >
+            Смена
+          </Link>
+          <Link
+            href="/customers"
+            prefetch={false}
+            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-[var(--erp-surface)]"
+          >
+            Клиенты
+          </Link>
+        </div>
+        <div className="ml-auto flex items-center gap-3.5 text-sm">
+          {shiftStatusKnown &&
+            (currentShift ? (
+              <span className="flex items-center gap-1.5 text-[var(--erp-text)]">
+                <span className="h-[7px] w-[7px] rounded-full bg-[var(--erp-success)]" />
+                Смена открыта
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-[var(--erp-warn)]">
+                <span className="h-[7px] w-[7px] rounded-full bg-[var(--erp-warn)]" />
+                Смена закрыта
+              </span>
+            ))}
+          <span className="text-gray-500">{user?.full_name || user?.username}</span>
+          <Link
+            href="/apps"
+            prefetch={false}
+            className="flex h-[34px] items-center gap-2 border border-[var(--erp-divider)] px-3 font-medium text-[var(--erp-text)] hover:bg-[var(--erp-surface)]"
+          >
+            <Squares2X2Icon className="h-[14px] w-[14px]" />
+            Приложения
+          </Link>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 gap-4 p-4">
         {/* Catalog */}
         <main className="flex min-w-0 flex-1 flex-col">
           {/* Search + barcode */}
@@ -1454,7 +1510,7 @@ function POS() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

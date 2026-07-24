@@ -206,7 +206,7 @@ export default function OwnerDashboard() {
       const response = await ownerApi.enterCompany(companyId);
       useAuthStore.getState().acceptCompanySession(response.data);
       toast.success('Сессия компании открыта.');
-      router.push('/pos');
+      router.push('/apps');
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || error?.message || 'Не удалось войти в компанию.');
     }

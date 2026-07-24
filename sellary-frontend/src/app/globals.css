@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ERP workspace shell design tokens (Stage A redesign). Light-only for now —
+   the shell does not participate in the existing dark: utility classes used
+   elsewhere in the app. */
+:root {
+  --erp-bg: #faf9f7;
+  --erp-surface: #f2f0ec;
+  --erp-divider: #e4e0da;
+  --erp-text: #1a1815;
+  --erp-accent: #e2452f;
+  --erp-success: #157347;
+  --erp-warn: #a75a12;
+  --erp-warn-bg: #fdf6e6;
+  --erp-badge-bg: #f6ead9;
+  --erp-badge-text: #8a4a0d;
+}
+
 @layer base {
   body {
     @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;

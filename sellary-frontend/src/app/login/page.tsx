@@ -47,7 +47,7 @@ export default function LoginPage() {
     }
 
     if (accessToken && currentCompany) {
-      router.replace('/pos');
+      router.replace('/apps');
     }
   }, [accessToken, currentCompany, hasHydrated, router]);
 
@@ -81,7 +81,7 @@ export default function LoginPage() {
         toast.success('Выберите компанию, в которой хотите работать.');
       } else {
         toast.success('Вход выполнен успешно.');
-        router.replace('/pos');
+        router.replace('/apps');
       }
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || error?.message || 'Не удалось войти.');
@@ -102,7 +102,7 @@ export default function LoginPage() {
     try {
       await selectCompany(selectedCompanyId);
       toast.success('Компания выбрана.');
-      router.replace('/pos');
+      router.replace('/apps');
     } catch (error: any) {
       toast.error(
         error?.response?.data?.detail || error?.message || 'Не удалось открыть эту компанию.',
