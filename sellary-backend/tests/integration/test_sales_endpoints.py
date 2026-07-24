@@ -712,9 +712,10 @@ class TestCreateSale:
 class TestCancelSale:
     """Tests for the DEPRECATED POST /api/sales/{id}/cancel endpoint.
 
-    The endpoint is now admin-only, requires a ``{"reason": ...}`` body and
-    routes through the annulment (void) service, returning a VoidResult.
-    Cashiers and managers can no longer cancel sales.
+    The endpoint requires ``pos`` module access at ``manager`` level (admin
+    bypasses), requires a ``{"reason": ...}`` body, and routes through the
+    annulment (void) service, returning a VoidResult. Plain cashiers can no
+    longer cancel sales.
     """
 
     def _build_legacy_sale(self, db_session, qty=5):
@@ -796,21 +797,31 @@ class TestCancelSale:
         db_session.refresh(product)
         assert product.stock_quantity == 100
 
-    @pytest.mark.parametrize("headers_fixture", ["manager_headers", "cashier_headers"])
-    def test_cancel_sale_forbidden_for_non_admin(
-        self, client: TestClient, db_session, request, headers_fixture
+    def test_cancel_sale_forbidden_for_plain_cashier(
+        self, client: TestClient, db_session, cashier_headers
     ):
-        """Managers and cashiers may no longer cancel sales."""
+        """A plain cashier (pos:user) may not cancel sales — manager+ only."""
         sale, _ = self._build_legacy_sale(db_session)
-        headers = with_idempotency(
-            request.getfixturevalue(headers_fixture), "sale-cancel-forbidden"
-        )
+        headers = with_idempotency(cashier_headers, "sale-cancel-forbidden")
         response = client.post(
             f"/api/sales/{sale.id}/cancel",
             json={"reason": "Попытка отмены"},
             headers=headers,
         )
         assert response.status_code == 403
+
+    def test_cancel_sale_allowed_for_manager(
+        self, client: TestClient, db_session, manager_headers
+    ):
+        """Managers (pos:manager) may cancel sales, same as admin."""
+        sale, _ = self._build_legacy_sale(db_session)
+        headers = with_idempotency(manager_headers, "sale-cancel-manager-allowed")
+        response = client.post(
+            f"/api/sales/{sale.id}/cancel",
+            json={"reason": "Отмена менеджером"},
+            headers=headers,
+        )
+        assert response.status_code == 200
 
     def test_cancel_sale_requires_reason(self, client: TestClient, db_session, admin_headers):
         """A reason of fewer than 3 characters is rejected with 422."""

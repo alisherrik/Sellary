@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, get_auth_context
+from api.dependencies import AuthContext, require_module
 from core.database import get_db
 from models.cash_shift import CashShift as CashShiftModel, CashShiftStatus
 from schemas.cash_shift import (
@@ -43,7 +43,7 @@ def _to_response(service: CashShiftService, shift: CashShiftModel) -> CashShift:
 @router.get("/current", response_model=Optional[CashShift])
 def get_current_shift(
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
 ):
     """The company's open shift with live totals, or null if none is open."""
     service = CashShiftService(db, auth.company_id)
@@ -55,7 +55,7 @@ def get_current_shift(
 def open_shift(
     body: ShiftOpen,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
 ):
     service = CashShiftService(db, auth.company_id)
     try:
@@ -72,7 +72,7 @@ def close_shift(
     shift_id: int,
     body: ShiftClose,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
 ):
     service = CashShiftService(db, auth.company_id)
     try:
@@ -88,7 +88,7 @@ def close_shift(
 def take_snapshot(
     shift_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
 ):
     """Save an X-report — the till breakdown right now, without closing."""
     service = CashShiftService(db, auth.company_id)
@@ -114,7 +114,7 @@ def list_shifts(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
 ):
     service = CashShiftService(db, auth.company_id)
     query = db.query(CashShiftModel).filter(CashShiftModel.company_id == auth.company_id)
@@ -132,7 +132,7 @@ def list_shifts(
 def get_shift(
     shift_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
 ):
     service = CashShiftService(db, auth.company_id)
     shift = (

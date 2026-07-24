@@ -24,7 +24,7 @@ def with_idempotency(headers: dict, key: str) -> dict:
 class TestCreateReturn:
     """Tests for POST /api/sales/{sale_id}/return endpoint."""
 
-    def test_create_return_single_item(self, client: TestClient, db_session, cashier_headers):
+    def test_create_return_single_item(self, client: TestClient, db_session, manager_headers):
         """Test creating a return for a single item."""
         # Setup: Create user, category, product, customer, sale
         user = User(
@@ -88,7 +88,7 @@ class TestCreateReturn:
         db_session.flush()
 
         # Create return
-        final_headers = with_idempotency(cashier_headers, "return-key-123")
+        final_headers = with_idempotency(manager_headers, "return-key-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -111,7 +111,7 @@ class TestCreateReturn:
         assert len(data["items"]) == 1
         assert Decimal(data["items"][0]["quantity_returned"]) == 1
 
-    def test_create_return_multiple_items(self, client: TestClient, db_session, cashier_headers):
+    def test_create_return_multiple_items(self, client: TestClient, db_session, manager_headers):
         """Test creating a return with multiple items."""
         user = User(
             username=f"cashier_{uuid.uuid4().hex[:8]}",
@@ -189,7 +189,7 @@ class TestCreateReturn:
         db_session.flush()
 
         # Return 1 item from each
-        final_headers = with_idempotency(cashier_headers, "return-multi-123")
+        final_headers = with_idempotency(manager_headers, "return-multi-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -219,9 +219,9 @@ class TestCreateReturn:
 
         assert response.status_code == 401
 
-    def test_create_return_for_nonexistent_sale(self, client: TestClient, cashier_headers):
+    def test_create_return_for_nonexistent_sale(self, client: TestClient, manager_headers):
         """Test creating return for sale that doesn't exist."""
-        final_headers = with_idempotency(cashier_headers, "return-test-123")
+        final_headers = with_idempotency(manager_headers, "return-test-123")
         response = client.post(
             "/api/sales/99999/return",
             headers=final_headers,
@@ -233,7 +233,7 @@ class TestCreateReturn:
 
         assert response.status_code == 404
 
-    def test_create_return_with_invalid_item_id(self, client: TestClient, db_session, cashier_headers):
+    def test_create_return_with_invalid_item_id(self, client: TestClient, db_session, manager_headers):
         """Test creating return with invalid sale item ID."""
         user = User(
             username=f"cashier_{uuid.uuid4().hex[:8]}",
@@ -290,7 +290,7 @@ class TestCreateReturn:
         db_session.add(sale_item)
         db_session.flush()
 
-        final_headers = with_idempotency(cashier_headers, "return-invalid-123")
+        final_headers = with_idempotency(manager_headers, "return-invalid-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -302,7 +302,7 @@ class TestCreateReturn:
 
         assert response.status_code == 404
 
-    def test_create_return_exceeds_quantity(self, client: TestClient, db_session, cashier_headers):
+    def test_create_return_exceeds_quantity(self, client: TestClient, db_session, manager_headers):
         """Test creating return with quantity exceeding sold quantity."""
         user = User(
             username=f"cashier_{uuid.uuid4().hex[:8]}",
@@ -360,7 +360,7 @@ class TestCreateReturn:
         db_session.flush()
 
         # Try to return 3 when only 2 were sold
-        final_headers = with_idempotency(cashier_headers, "return-exceed-123")
+        final_headers = with_idempotency(manager_headers, "return-exceed-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -372,7 +372,7 @@ class TestCreateReturn:
 
         assert response.status_code == 400
 
-    def test_create_return_restores_stock(self, client: TestClient, db_session, cashier_headers):
+    def test_create_return_restores_stock(self, client: TestClient, db_session, manager_headers):
         """Test that creating return restores product stock."""
         user = User(
             username=f"cashier_{uuid.uuid4().hex[:8]}",
@@ -431,7 +431,7 @@ class TestCreateReturn:
 
         initial_stock = product.stock_quantity
 
-        final_headers = with_idempotency(cashier_headers, "return-stock-123")
+        final_headers = with_idempotency(manager_headers, "return-stock-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -447,7 +447,7 @@ class TestCreateReturn:
         db_session.refresh(product)
         assert product.stock_quantity == initial_stock + 2
 
-    def test_create_return_with_refund_methods(self, client: TestClient, db_session, cashier_headers):
+    def test_create_return_with_refund_methods(self, client: TestClient, db_session, manager_headers):
         """Test creating returns with different refund methods."""
         user = User(
             username=f"cashier_{uuid.uuid4().hex[:8]}",
@@ -505,7 +505,7 @@ class TestCreateReturn:
         db_session.flush()
 
         # Test cash refund
-        final_headers = with_idempotency(cashier_headers, "return-cash-123")
+        final_headers = with_idempotency(manager_headers, "return-cash-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,
@@ -519,7 +519,7 @@ class TestCreateReturn:
         data = response.json()
         assert data["refund_method"] == "cash"
 
-    def test_create_return_with_notes(self, client: TestClient, db_session, cashier_headers):
+    def test_create_return_with_notes(self, client: TestClient, db_session, manager_headers):
         """Test creating return with notes."""
         user = User(
             username=f"cashier_{uuid.uuid4().hex[:8]}",
@@ -576,7 +576,7 @@ class TestCreateReturn:
         db_session.add(sale_item)
         db_session.flush()
 
-        final_headers = with_idempotency(cashier_headers, "return-notes-123")
+        final_headers = with_idempotency(manager_headers, "return-notes-123")
         response = client.post(
             f"/api/sales/{sale.id}/return",
             headers=final_headers,

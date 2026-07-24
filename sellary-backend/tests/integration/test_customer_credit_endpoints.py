@@ -173,6 +173,7 @@ def test_customer_payment_requires_idempotency_key(
 def test_credit_sale_return_reduces_customer_debt(
     client: TestClient,
     cashier_headers,
+    manager_headers,
     test_customer,
     test_product,
 ):
@@ -184,9 +185,10 @@ def test_credit_sale_return_reduces_customer_debt(
     assert sale_response.status_code == 201
     sale = sale_response.json()
 
+    # Returns are a manager-level (pos:manager) action.
     return_response = client.post(
         f"/api/sales/{sale['id']}/return",
-        headers=with_idempotency(cashier_headers, "credit-return-adjust-001"),
+        headers=with_idempotency(manager_headers, "credit-return-adjust-001"),
         json={
             "items": [{"sale_item_id": sale["items"][0]["id"], "quantity": "1"}],
             "refund_method": "cash",

@@ -253,27 +253,38 @@ class TestUpdateCustomer:
 class TestDeleteCustomer:
     """Tests for DELETE /api/customers/{id} endpoint."""
 
-    def test_delete_customer(self, client: TestClient, db_session, cashier_headers):
-        """Test deleting a customer."""
+    def test_delete_customer(self, client: TestClient, db_session, manager_headers):
+        """Test deleting a customer (manager-level: pos:manager required)."""
         customer = Customer(name="John Doe")
         db_session.add(customer)
         db_session.commit()
 
-        response = client.delete(f"/api/customers/{customer.id}", headers=cashier_headers)
+        response = client.delete(f"/api/customers/{customer.id}", headers=manager_headers)
 
         assert response.status_code == 204
 
         # Verify customer is deleted
         get_response = client.get(
             f"/api/customers/{customer.id}",
-            headers=cashier_headers
+            headers=manager_headers
         )
         assert get_response.status_code == 404
 
-    def test_delete_nonexistent_customer(self, client: TestClient, cashier_headers):
+    def test_delete_nonexistent_customer(self, client: TestClient, manager_headers):
         """Test deleting a customer that doesn't exist."""
-        response = client.delete("/api/customers/99999", headers=cashier_headers)
+        response = client.delete("/api/customers/99999", headers=manager_headers)
         assert response.status_code == 404
+
+    def test_delete_customer_forbidden_for_plain_cashier(
+        self, client: TestClient, db_session, cashier_headers
+    ):
+        """A plain cashier (pos:user) may not delete customers — manager+ only."""
+        customer = Customer(name="Jane Doe")
+        db_session.add(customer)
+        db_session.commit()
+
+        response = client.delete(f"/api/customers/{customer.id}", headers=cashier_headers)
+        assert response.status_code == 403
 
     def test_delete_customer_without_auth(self, client: TestClient, db_session):
         """Test deleting a customer without authentication."""

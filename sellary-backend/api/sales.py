@@ -4,7 +4,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
-from api.dependencies import AuthContext, get_auth_context, require_admin
+from api.dependencies import AuthContext, require_admin, require_module
 from core.database import get_db
 from core.idempotency import (
     IdempotencyConflictError,
@@ -38,7 +38,7 @@ router = APIRouter(prefix="/sales", tags=["sales"])
 def create_sale(
     sale_create: SaleCreate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     """
@@ -109,7 +109,7 @@ def get_sales(
     status_group: Optional[Literal["returns"]] = None,
     payment_method: Optional[PaymentMethod] = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
 ):
     service = SaleService(db, auth.company_id)
     sales, total = service.get_all(
@@ -134,7 +134,7 @@ def get_sale_search_suggestions(
     q: str = Query(..., min_length=2, max_length=100),
     limit: int = Query(8, ge=1, le=10),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
 ):
     return SaleService(db, auth.company_id).get_search_suggestions(q.strip(), limit)
 
@@ -152,7 +152,7 @@ def get_sales_summary(
     status_group: Optional[Literal["returns"]] = None,
     payment_method: Optional[PaymentMethod] = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
 ):
     """Totals over the whole filtered history, for the KPI cards.
 
@@ -175,7 +175,7 @@ def get_sales_summary(
 def get_sale(
     sale_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
 ):
     service = SaleService(db, auth.company_id)
     sale = service.get_by_id(sale_id)
@@ -273,15 +273,16 @@ def cancel_sale(
     sale_id: int,
     payload: VoidRequest,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_admin),
+    auth: AuthContext = Depends(require_module("pos", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     """DEPRECATED — use ``POST /sales/{id}/void`` instead.
 
-    Kept for one compatibility release. Now admin-only and requires a
-    ``{"reason": ...}`` body; routes through the same annulment service as
-    ``/void`` so the FIFO ledger allocations are released (no direct stock
-    bump). Cashiers and managers can no longer cancel sales.
+    Kept for one compatibility release. Requires ``pos`` module access at
+    ``manager`` level and a ``{"reason": ...}`` body; routes through the same
+    annulment service as ``/void`` so the FIFO ledger allocations are
+    released (no direct stock bump). Plain cashiers can no longer cancel
+    sales.
     """
     endpoint = f"/api/sales/{sale_id}/cancel"
     request_body = payload.model_dump()
@@ -332,7 +333,7 @@ def return_sale(
     sale_id: int,
     return_data: SaleReturnCreate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     """
@@ -394,7 +395,7 @@ def return_sale(
 def get_sale_returns(
     sale_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(get_auth_context),
+    auth: AuthContext = Depends(require_module("pos")),
 ):
     """
     Get all returns for a specific sale.
