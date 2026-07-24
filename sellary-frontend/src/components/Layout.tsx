@@ -22,7 +22,8 @@ import {
   ChevronDoubleRightIcon,
   InboxArrowDownIcon,
 } from '@heroicons/react/24/outline';
-import { useAuthStore, useUIStore } from '@/lib/store';
+import { useAuthStore, useModules, useUIStore } from '@/lib/store';
+import { filterNavByModules, type ModuleKey } from '@/lib/modules';
 import { usePrefetchOnHover } from '@/hooks/useQueries';
 import { ConnectionStatus } from './ui/ConnectionStatus';
 
@@ -30,18 +31,24 @@ interface LayoutProps {
   children: ReactNode;
 }
 
-const navigation = [
-  { name: 'Касса', href: '/pos', icon: ShoppingBagIcon, prefetchKey: null },
-  { name: 'Дашборд', href: '/dashboard', icon: HomeIcon, prefetchKey: 'dashboard' },
-  { name: 'История продаж', href: '/sales', icon: ArrowUturnLeftIcon, prefetchKey: 'sales' },
-  { name: 'Заказы', href: '/orders', icon: InboxArrowDownIcon, prefetchKey: null },
-  { name: 'Смена', href: '/shifts', icon: BanknotesIcon, prefetchKey: null },
-  { name: 'Товары', href: '/products', icon: CubeIcon, prefetchKey: 'products' },
-  { name: 'Клиенты', href: '/customers', icon: UserGroupIcon, prefetchKey: 'customers' },
-  { name: 'Поставщики', href: '/suppliers', icon: UserGroupIcon, prefetchKey: 'suppliers' },
-  { name: 'Закупки', href: '/purchase-orders', icon: TruckIcon, prefetchKey: 'purchaseOrders' },
-  { name: 'Отчеты', href: '/reports', icon: ChartBarIcon, prefetchKey: null },
-  { name: 'Настройки', href: '/settings', icon: Cog6ToothIcon, prefetchKey: null },
+const navigation: {
+  name: string;
+  href: string;
+  icon: typeof ShoppingBagIcon;
+  prefetchKey: string | null;
+  module: ModuleKey | null;
+}[] = [
+  { name: 'Касса', href: '/pos', icon: ShoppingBagIcon, prefetchKey: null, module: 'pos' },
+  { name: 'Дашборд', href: '/dashboard', icon: HomeIcon, prefetchKey: 'dashboard', module: 'reports' },
+  { name: 'История продаж', href: '/sales', icon: ArrowUturnLeftIcon, prefetchKey: 'sales', module: 'pos' },
+  { name: 'Заказы', href: '/orders', icon: InboxArrowDownIcon, prefetchKey: null, module: 'shop' },
+  { name: 'Смена', href: '/shifts', icon: BanknotesIcon, prefetchKey: null, module: 'pos' },
+  { name: 'Товары', href: '/products', icon: CubeIcon, prefetchKey: 'products', module: 'inventory' },
+  { name: 'Клиенты', href: '/customers', icon: UserGroupIcon, prefetchKey: 'customers', module: 'pos' },
+  { name: 'Поставщики', href: '/suppliers', icon: UserGroupIcon, prefetchKey: 'suppliers', module: 'purchasing' },
+  { name: 'Закупки', href: '/purchase-orders', icon: TruckIcon, prefetchKey: 'purchaseOrders', module: 'purchasing' },
+  { name: 'Отчеты', href: '/reports', icon: ChartBarIcon, prefetchKey: null, module: 'reports' },
+  { name: 'Настройки', href: '/settings', icon: Cog6ToothIcon, prefetchKey: null, module: null },
 ];
 
 export default function Layout({ children }: LayoutProps) {
@@ -49,6 +56,8 @@ export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, logout, isAuthenticated, currentCompany, companies, switchCompany } = useAuthStore();
+  const modules = useModules();
+  const visibleNavigation = filterNavByModules(navigation, modules);
   const prefetch = usePrefetchOnHover();
   const { sidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -173,7 +182,7 @@ export default function Layout({ children }: LayoutProps) {
 
         <nav className="mt-6 px-3">
           <div className="space-y-1">
-            {navigation.map((item) => {
+            {visibleNavigation.map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.href !== '/pos' && item.href !== '/dashboard' && pathname.startsWith(item.href));

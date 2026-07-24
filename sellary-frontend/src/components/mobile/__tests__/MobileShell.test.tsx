@@ -12,6 +12,16 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ back: mockBack }),
 }));
 
+vi.mock('@/lib/store', () => ({
+  useModules: () => ({
+    pos: 'manager',
+    inventory: 'manager',
+    purchasing: 'manager',
+    shop: 'manager',
+    reports: 'manager',
+  }),
+}));
+
 describe('MobileShell', () => {
   it('renders header with correct title', () => {
     render(<MobileShell><div>Content</div></MobileShell>);

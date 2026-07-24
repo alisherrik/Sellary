@@ -1,3 +1,5 @@
+import type { ModuleMap } from './modules';
+
 export type ProductType = 'item';
 export type GlobalUserRole = 'standard' | 'super_admin';
 export type UserRole = 'admin' | 'manager' | 'cashier';
@@ -45,12 +47,14 @@ export interface CompanySession {
   user: User;
   current_company: CompanySummary;
   companies: CompanySummary[];
+  modules?: ModuleMap;
 }
 
 export interface AuthSession {
   user: User;
   current_company: CompanySummary;
   companies: CompanySummary[];
+  modules?: ModuleMap;
 }
 
 export interface OwnerLoginResponse {

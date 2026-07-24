@@ -15,31 +15,43 @@ import {
   ArrowUturnLeftIcon as ArrowUturnLeftSolid,
   HomeIcon as HomeSolid,
 } from '@heroicons/react/24/solid';
+import { useModules } from '@/lib/store';
+import { filterNavByModules, type ModuleKey } from '@/lib/modules';
 
-const tabs = [
+const tabs: {
+  label: string;
+  href: string;
+  icon: typeof ShoppingBagIcon;
+  activeIcon: typeof ShoppingBagSolid;
+  module: ModuleKey | null;
+}[] = [
   {
     label: 'Касса',
     href: '/pos',
     icon: ShoppingBagIcon,
     activeIcon: ShoppingBagSolid,
+    module: 'pos',
   },
   {
     label: 'Товары',
     href: '/products',
     icon: CubeIcon,
     activeIcon: CubeSolid,
+    module: 'inventory',
   },
   {
     label: 'Продажи',
     href: '/sales',
     icon: ArrowUturnLeftIcon,
     activeIcon: ArrowUturnLeftSolid,
+    module: 'pos',
   },
   {
     label: 'Дашборд',
     href: '/dashboard',
     icon: HomeIcon,
     activeIcon: HomeSolid,
+    module: 'reports',
   },
 ];
 
@@ -49,6 +61,8 @@ interface BottomTabBarProps {
 
 export default function BottomTabBar({ onMoreClick }: BottomTabBarProps) {
   const pathname = usePathname();
+  const modules = useModules();
+  const visibleTabs = filterNavByModules(tabs, modules);
 
   const isActive = (href: string) =>
     pathname === href || (href !== '/pos' && href !== '/dashboard' && pathname.startsWith(href));
@@ -58,7 +72,7 @@ export default function BottomTabBar({ onMoreClick }: BottomTabBarProps) {
       className="flex h-14 shrink-0 items-center border-t border-gray-200 bg-white"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      {tabs.map((tab) => {
+      {visibleTabs.map((tab) => {
         const active = isActive(tab.href);
         return (
           <Link

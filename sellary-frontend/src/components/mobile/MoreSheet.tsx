@@ -9,15 +9,22 @@ import {
   Cog6ToothIcon,
   InboxArrowDownIcon,
 } from '@heroicons/react/24/outline';
+import { useModules } from '@/lib/store';
+import { filterNavByModules, type ModuleKey } from '@/lib/modules';
 
-const moreItems = [
-  { label: 'Смена', href: '/shifts', icon: BanknotesIcon },
-  { label: 'Клиенты', href: '/customers', icon: UserGroupIcon },
-  { label: 'Поставщики', href: '/suppliers', icon: UserGroupIcon },
-  { label: 'Закупки', href: '/purchase-orders', icon: TruckIcon },
-  { label: 'Заказы', href: '/orders', icon: InboxArrowDownIcon },
-  { label: 'Отчеты', href: '/reports', icon: ChartBarIcon },
-  { label: 'Настройки', href: '/settings', icon: Cog6ToothIcon },
+const moreItems: {
+  label: string;
+  href: string;
+  icon: typeof BanknotesIcon;
+  module: ModuleKey | null;
+}[] = [
+  { label: 'Смена', href: '/shifts', icon: BanknotesIcon, module: 'pos' },
+  { label: 'Клиенты', href: '/customers', icon: UserGroupIcon, module: 'pos' },
+  { label: 'Поставщики', href: '/suppliers', icon: UserGroupIcon, module: 'purchasing' },
+  { label: 'Закупки', href: '/purchase-orders', icon: TruckIcon, module: 'purchasing' },
+  { label: 'Заказы', href: '/orders', icon: InboxArrowDownIcon, module: 'shop' },
+  { label: 'Отчеты', href: '/reports', icon: ChartBarIcon, module: 'reports' },
+  { label: 'Настройки', href: '/settings', icon: Cog6ToothIcon, module: null },
 ];
 
 interface MoreSheetProps {
@@ -27,6 +34,8 @@ interface MoreSheetProps {
 
 export default function MoreSheet({ isOpen, onClose }: MoreSheetProps) {
   const router = useRouter();
+  const modules = useModules();
+  const visibleItems = filterNavByModules(moreItems, modules);
 
   if (!isOpen) return null;
 
@@ -46,7 +55,7 @@ export default function MoreSheet({ isOpen, onClose }: MoreSheetProps) {
         <div className="mt-4 px-4 pb-8">
           <h2 className="mb-3 text-sm font-semibold text-gray-500">Меню</h2>
           <div className="space-y-1">
-            {moreItems.map((item) => (
+            {visibleItems.map((item) => (
               <button
                 key={item.href}
                 onClick={() => handleNavigate(item.href)}

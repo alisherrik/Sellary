@@ -11,6 +11,16 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
+vi.mock('@/lib/store', () => ({
+  useModules: () => ({
+    pos: 'manager',
+    inventory: 'manager',
+    purchasing: 'manager',
+    shop: 'manager',
+    reports: 'manager',
+  }),
+}));
+
 describe('MoreSheet', () => {
   it('renders nothing when closed', () => {
     const { container } = render(<MoreSheet isOpen={false} onClose={vi.fn()} />);

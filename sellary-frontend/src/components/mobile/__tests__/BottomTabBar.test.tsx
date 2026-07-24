@@ -7,6 +7,16 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/pos',
 }));
 
+vi.mock('@/lib/store', () => ({
+  useModules: () => ({
+    pos: 'manager',
+    inventory: 'manager',
+    purchasing: 'manager',
+    shop: 'manager',
+    reports: 'manager',
+  }),
+}));
+
 describe('BottomTabBar', () => {
   it('renders all 5 tabs', () => {
     render(<BottomTabBar onMoreClick={vi.fn()} />);
