@@ -34,18 +34,29 @@ describe('BottomTabBar', () => {
     expect(screen.getByText('Ещё')).toBeInTheDocument();
   });
 
-  it('hides "Ещё" when 4 or fewer modules are granted', () => {
-    state.modules = { pos: 'user', inventory: 'user', purchasing: 'user' };
+  it('hides "Ещё" when granted modules fit within 4 tabs and none have secondary pages', () => {
+    // inventory and shop are both single-page modules — nothing for a sheet to hold.
+    state.modules = { inventory: 'user', shop: 'user' };
     state.isAdmin = false;
     render(<BottomTabBar onMoreClick={vi.fn()} />);
-    expect(screen.getByText('Касса')).toBeInTheDocument();
     expect(screen.getByText('Склад')).toBeInTheDocument();
-    expect(screen.getByText('Закупки')).toBeInTheDocument();
+    expect(screen.getByText('Магазин')).toBeInTheDocument();
     expect(screen.queryByText('Ещё')).not.toBeInTheDocument();
   });
 
-  it('adds a Настройки tab for admins, counting toward the 4-tab cap', () => {
-    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager' };
+  it('shows "Ещё" when a visible (non-overflowed) module has a second page', () => {
+    // Only 2 modules granted (well under the 4-tab cap), but purchasing has a
+    // second page (/purchase-orders) with no other mobile entry point.
+    state.modules = { inventory: 'user', purchasing: 'user' };
+    state.isAdmin = false;
+    render(<BottomTabBar onMoreClick={vi.fn()} />);
+    expect(screen.getByText('Склад')).toBeInTheDocument();
+    expect(screen.getByText('Закупки')).toBeInTheDocument();
+    expect(screen.getByText('Ещё')).toBeInTheDocument();
+  });
+
+  it('adds a Настройки tab for admins without showing "Ещё" when nothing overflows', () => {
+    state.modules = { inventory: 'manager', shop: 'manager' };
     state.isAdmin = true;
     render(<BottomTabBar onMoreClick={vi.fn()} />);
     expect(screen.getByText('Настройки')).toBeInTheDocument();

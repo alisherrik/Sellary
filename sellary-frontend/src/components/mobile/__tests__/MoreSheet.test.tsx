@@ -13,6 +13,7 @@ const { mockPush, state } = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
+  usePathname: () => '/suppliers',
 }));
 
 vi.mock('@/lib/store', () => ({
@@ -23,41 +24,47 @@ vi.mock('@/lib/store', () => ({
 
 describe('MoreSheet', () => {
   it('renders nothing when closed', () => {
-    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
+    state.modules = { purchasing: 'manager' };
     state.isAdmin = false;
     const { container } = render(<MoreSheet isOpen={false} onClose={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('renders the modules that overflowed past the bottom bar', () => {
-    // pos, inventory, purchasing, shop fill the 4 tab slots; reports overflows here.
+  it('lists every granted module, grouped, including ones already visible as tabs', () => {
     state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
     state.isAdmin = false;
     render(<MoreSheet isOpen={true} onClose={vi.fn()} />);
+    // pos fills one of the 4 tab slots, but still gets a full group here —
+    // the sheet is no longer limited to overflow-only modules. Check one of
+    // its secondary pages, since "Касса" itself is ambiguous (it labels both
+    // the group header and the module's first page).
+    expect(screen.getByText('История продаж')).toBeInTheDocument();
     expect(screen.getByText('Отчеты')).toBeInTheDocument();
-    expect(screen.queryByText('Касса')).not.toBeInTheDocument();
   });
 
-  it('adds Настройки for admins when it overflows the tab bar', () => {
-    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
-    state.isAdmin = true;
-    render(<MoreSheet isOpen={true} onClose={vi.fn()} />);
-    expect(screen.getByText('Отчеты')).toBeInTheDocument();
-    expect(screen.getByText('Настройки')).toBeInTheDocument();
-  });
-
-  it('navigates to the module\'s first page and closes on item click', async () => {
-    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
+  it('lists /purchase-orders under the Закупки group and navigates there on click', async () => {
+    state.modules = { purchasing: 'manager' };
     state.isAdmin = false;
     const onClose = vi.fn();
     render(<MoreSheet isOpen={true} onClose={onClose} />);
-    await userEvent.click(screen.getByText('Отчеты'));
-    expect(mockPush).toHaveBeenCalledWith('/dashboard');
+    expect(screen.getByText('Закупки')).toBeInTheDocument();
+    expect(screen.getByText('Поставщики')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Заказы поставщикам'));
+    expect(mockPush).toHaveBeenCalledWith('/purchase-orders');
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('adds a Настройки group for admins', () => {
+    state.modules = { inventory: 'manager' };
+    state.isAdmin = true;
+    render(<MoreSheet isOpen={true} onClose={vi.fn()} />);
+    // "Настройки" labels both the group header and its single page — assert
+    // via the (unambiguous) clickable page row.
+    expect(screen.getByRole('button', { name: 'Настройки' })).toBeInTheDocument();
+  });
+
   it('closes on backdrop click', async () => {
-    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
+    state.modules = { purchasing: 'manager' };
     state.isAdmin = false;
     const onClose = vi.fn();
     render(<MoreSheet isOpen={true} onClose={onClose} />);

@@ -88,6 +88,19 @@ export function grantedModuleDefs(modules: ModuleMap, isAdmin: boolean): ModuleD
   );
 }
 
+/**
+ * Whether the mobile "Ещё" tab/sheet has anything worth showing. It's needed
+ * not just when modules overflow past MOBILE_MAX_TABS, but also whenever a
+ * granted module has secondary pages — those pages have no other entry
+ * point on mobile (no secondary sidebar), even when the module itself is one
+ * of the visible tabs. See MoreSheet, which lists every granted module's
+ * full page list.
+ */
+export function shouldShowMoreTab(modules: ModuleMap, isAdmin: boolean): boolean {
+  const granted = grantedModuleDefs(modules, isAdmin);
+  return granted.length > MOBILE_MAX_TABS || granted.some((def) => def.pages.length > 1);
+}
+
 /** Display label for a module key, falling back to the key itself. */
 export function moduleLabel(key: ModuleKey | 'settings'): string {
   return moduleByKey(key)?.label ?? key;
