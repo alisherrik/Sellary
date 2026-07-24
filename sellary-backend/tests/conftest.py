@@ -27,6 +27,7 @@ from models.customer import Customer
 from models.customer_ledger_entry import CustomerLedgerEntry
 from models.inventory_layer import InventoryLayer
 from models.inventory_log import InventoryLog
+from models.membership_module_access import MembershipModuleAccess, MODULES
 from models.product import Product
 from models.purchase_order import PurchaseOrder, PurchaseOrderStatus
 from models.purchase_order_item import PurchaseOrderItem
@@ -132,6 +133,22 @@ def secondary_company(db_session: Session) -> Company:
     return company
 
 
+def _grant_modules_for_role(db_session: Session, membership: CompanyMembership) -> None:
+    """Mirror the b9c0d1e2f3a4 backfill: manager -> all modules manager,
+    other non-admin roles -> pos:user, admin -> nothing (bypass)."""
+    if membership.role == "admin":
+        return
+    if membership.role == "manager":
+        rows = [
+            MembershipModuleAccess(membership_id=membership.id, module=m, level="manager")
+            for m in MODULES
+        ]
+    else:
+        rows = [MembershipModuleAccess(membership_id=membership.id, module="pos", level="user")]
+    db_session.add_all(rows)
+    db_session.flush()
+
+
 def _create_user_with_membership(
     db_session: Session,
     *,
@@ -153,15 +170,16 @@ def _create_user_with_membership(
     )
     db_session.add(user)
     db_session.flush()
-    db_session.add(
-        CompanyMembership(
-            user_id=user.id,
-            company_id=company.id,
-            role=role,
-            is_default=True,
-            is_active=is_active,
-        )
+    membership = CompanyMembership(
+        user_id=user.id,
+        company_id=company.id,
+        role=role,
+        is_default=True,
+        is_active=is_active,
     )
+    db_session.add(membership)
+    db_session.flush()
+    _grant_modules_for_role(db_session, membership)
     db_session.commit()
     db_session.refresh(user)
     return user
@@ -295,6 +313,25 @@ def owner_token(super_admin_user: User) -> str:
 @pytest.fixture
 def owner_headers(owner_token: str) -> dict:
     return {"Authorization": f"Bearer {owner_token}"}
+
+
+@pytest.fixture
+def grant_module(db_session):
+    """grant_module(user, company, module, level) — replace a user's grants for one module."""
+    def _grant(user, company, module, level="user"):
+        membership = (
+            db_session.query(CompanyMembership)
+            .filter_by(user_id=user.id, company_id=company.id)
+            .one()
+        )
+        db_session.query(MembershipModuleAccess).filter_by(
+            membership_id=membership.id, module=module
+        ).delete()
+        db_session.add(
+            MembershipModuleAccess(membership_id=membership.id, module=module, level=level)
+        )
+        db_session.flush()
+    return _grant
 
 
 @pytest.fixture
