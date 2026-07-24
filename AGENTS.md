@@ -77,6 +77,8 @@ Login returns a `login_token` (short-lived). User picks a company, exchanges for
 
 One DB, shared schema, tenant isolation via `company_id`. Tenant-owned tables: `categories`, `customers`, `products`, `suppliers`, `purchase_orders`, `sales`, `sale_returns`, `inventory_logs`, `idempotency_keys`. `sale_items` and `purchase_order_items` inherit scope through parent records.
 
+Module-level access: non-admin members get per-module grants (`pos | inventory | purchasing | shop | reports` × `user | manager`) in `membership_module_access`, enforced by `require_module()`; admin role bypasses; sync/device-auth and shopper-facing shop endpoints unaffected. Admin manages grants via `GET/PUT /api/admin/memberships/{id}/modules`; sessions expose a `modules` map used by the frontend nav/ModuleGuard.
+
 ### Idempotency
 
 Required header `Idempotency-Key` (16-64 chars) on:

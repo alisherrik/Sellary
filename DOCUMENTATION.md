@@ -343,6 +343,7 @@ Margin = (Profit / Revenue) × 100
 | `purchase_orders` | Inventory purchase orders |
 | `purchase_order_items` | Items in each PO |
 | `inventory_logs` | Stock change history |
+| `membership_module_access` | Per-membership module grants (`pos`/`inventory`/`purchasing`/`shop`/`reports` × `user`/`manager`); no row = no access, admin role bypasses |
 
 ### Key Relationships
 
@@ -383,9 +384,13 @@ Multi-company auth flow:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/auth/login` | User login |
-| POST | `/api/auth/select-company` | Select company, get access token |
+| POST | `/api/auth/select-company` | Select company, get access token (response includes `modules` grant map) |
 | POST | `/api/auth/logout` | User logout |
-| GET | `/api/auth/me` | Get current user |
+| GET | `/api/auth/me` | Get current user (response includes `modules` grant map) |
+| GET | `/api/admin/memberships/{id}/modules` | Admin: read a member's module grants |
+| PUT | `/api/admin/memberships/{id}/modules` | Admin: replace a member's module grants |
+
+Module access: business endpoints are gated per module (`pos`: sales/shifts/customers; `inventory`: products/categories/inventory; `purchasing`: suppliers/POs; `shop`: merchant orders; `reports`) at level `user` (daily flow) or `manager` (destructive/corrective ops: cancels, returns, voids, deletes, inventory adjust, PO receive). Admin role bypasses. Missing grant → HTTP 403 `{"detail": {"code": "module_access_denied", ...}}`.
 
 ### Products
 | Method | Endpoint | Description |

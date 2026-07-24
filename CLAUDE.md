@@ -57,6 +57,8 @@ One database, shared schema, tenant isolation by `company_id`. A user can belong
 
 Tenant-owned tables carry `company_id` directly: `categories`, `customers`, `products`, `suppliers`, `purchase_orders`, `sales`, `sale_returns`, `inventory_logs`, `idempotency_keys`. `sale_items` and `purchase_order_items` inherit tenant scope through their parent records.
 
+**Module-level access:** non-admin members get per-module grants (`pos | inventory | purchasing | shop | reports` × `user | manager`) stored in `membership_module_access` and enforced by the `require_module()` dependency (`api/dependencies.py`). Membership role `admin` bypasses all module checks; the cashier sync/device-auth channel and shopper-facing shop endpoints are unaffected. Session responses (`select-company`, `/auth/me`) include a `modules` map that drives the frontend nav and `ModuleGuard`; admins edit grants via `GET/PUT /api/admin/memberships/{id}/modules`.
+
 ### Backend layering
 Strict layering — respect it when adding features:
 ```
