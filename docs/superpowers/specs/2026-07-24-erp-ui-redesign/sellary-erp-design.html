@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/modernist-3b2369c2-7649-49c5-9982-f223529671bd/styles.css">
+<script src="_ds/modernist-3b2369c2-7649-49c5-9982-f223529671bd/_ds_bundle.js"></script>
+<style>
+  html,body{height:100%}
+  body{margin:0;overflow:hidden}
+  a{color:var(--color-accent)}a:hover{color:var(--color-accent-700)}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--color-text) 20%,transparent)}
+  ::-webkit-scrollbar-track{background:transparent}
+  @keyframes seln-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @keyframes ov-fade{from{opacity:0}to{opacity:1}}
+  @keyframes drw-in{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
+  .seln-fade{animation:seln-fade .22s ease}
+  .rail-btn{position:relative}
+  .rail-btn::after{content:attr(data-tip);position:absolute;left:78px;top:50%;transform:translateY(-50%);background:var(--color-text);color:var(--color-bg);font-size:12px;padding:4px 8px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;z-index:60}
+  .rail-btn:hover::after{opacity:1}
+  .lz{letter-spacing:.02em}
+  .tnum{font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+
+<div style="height:100vh;display:flex;flex-direction:column;background:var(--color-bg);color:var(--color-text)">
+
+  <!-- ══ PROTOTYPE TOOLBAR ══ -->
+  <div style="flex:none;display:flex;align-items:center;gap:16px;background:var(--color-text);color:var(--color-bg);padding:7px 16px;font-size:12px">
+    <span style="font-family:var(--font-heading);font-weight:800;letter-spacing:.04em">SELLARY · ПРОТОТИП</span>
+    <span style="opacity:.5">Роль:</span>
+    <div style="display:flex;gap:2px">
+      <sc-for list="{{ personaBtns }}" as="p" hint-placeholder-count="4"><button onClick="{{ p.select }}" style="{{ p.style }}">{{ p.label }}</button></sc-for>
+    </div>
+    <span style="margin-left:auto;opacity:.6">{{ personaHint }}</span>
+    <div style="display:flex;gap:2px">
+      <button onClick="{{ setDesktop }}" style="{{ deskStyle }}">Десктоп</button>
+      <button onClick="{{ setMobile }}" style="{{ mobStyle }}">Мобайл</button>
+    </div>
+  </div>
+
+  <!-- ══ DESKTOP APP ══ -->
+  <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;min-height:0;display:flex;flex-direction:column">
+
+    <sc-if value="{{ fullTopbar }}" hint-placeholder-val="{{ true }}">
+    <header style="flex:none;height:56px;display:flex;align-items:center;gap:14px;padding:0 18px;background:#fff;border-bottom:2px solid var(--color-divider)">
+      <div onClick="{{ goHome }}" style="font-family:var(--font-heading);font-weight:800;font-size:19px;cursor:pointer;letter-spacing:-.01em">Sellary</div>
+      <button onClick="{{ goHome }}" class="btn btn-secondary" style="height:34px;gap:8px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Приложения
+      </button>
+      <div style="display:flex;align-items:center;gap:9px;font-size:14px">
+        <span style="width:6px;height:6px;background:var(--color-accent)"></span>
+        <span style="font-family:var(--font-heading);font-weight:800">{{ crumbModule }}</span>
+        <sc-if value="{{ crumbPage }}" hint-placeholder-val="{{ true }}"><span style="opacity:.35">/</span><span class="text-muted">{{ crumbPage }}</span></sc-if>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;border:1px solid var(--color-divider);padding:5px 11px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 21V7l6-4 6 4v14M10 9h.01M14 9h.01M10 13h.01M14 13h.01"/></svg>
+          {{ user.company }}
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.5"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="width:34px;height:34px;background:var(--color-accent);color:#fff;display:grid;place-items:center;font-family:var(--font-heading);font-weight:800;font-size:14px">{{ user.initial }}</div>
+          <div style="line-height:1.15"><div style="font-size:13px;font-weight:600">{{ user.name }}</div><div class="text-muted" style="font-size:11px">{{ user.role }}</div></div>
+        </div>
+      </div>
+    </header>
+    </sc-if>
+
+    <div style="flex:1;min-height:0;display:flex">
+
+      <sc-if value="{{ showRail }}" hint-placeholder-val="{{ true }}">
+      <nav style="flex:none;width:74px;background:var(--color-surface);border-right:2px solid var(--color-divider);display:flex;flex-direction:column;align-items:center;padding-top:12px;gap:4px">
+        <sc-for list="{{ railModules }}" as="m" hint-placeholder-count="4">
+          <button class="rail-btn" data-tip="{{ m.label }}" onClick="{{ m.open }}" style="{{ m.style }}" style-hover="background:color-mix(in srgb,var(--color-text) 7%,transparent)">
+            <span style="display:block" ref="{{ m.iconRef }}"></span>
+            <span style="font-size:9.5px;font-weight:600;letter-spacing:.02em">{{ m.label }}</span>
+          </button>
+        </sc-for>
+      </nav>
+      </sc-if>
+
+      <sc-if value="{{ showSecondary }}" hint-placeholder-val="{{ true }}">
+      <aside style="flex:none;width:216px;background:#fff;border-right:2px solid var(--color-divider);display:flex;flex-direction:column;padding:16px 12px">
+        <div style="font-family:var(--font-heading);font-weight:800;font-size:15px;padding:0 8px 4px">{{ crumbModule }}</div>
+        <div class="text-muted lz" style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;padding:0 8px 12px">{{ moduleTagline }}</div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <sc-for list="{{ pages }}" as="pg" hint-placeholder-count="4">
+            <button onClick="{{ pg.go }}" style="{{ pg.style }}" style-hover="background:var(--color-surface)">
+              <span>{{ pg.label }}</span>
+              <sc-if value="{{ pg.mgr }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto;opacity:.55"><path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2Z"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></sc-if>
+            </button>
+          </sc-for>
+        </div>
+        <div style="margin-top:auto;border-top:1px solid var(--color-divider);padding-top:12px;padding-left:8px">
+          <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.1em">Уровень доступа</div>
+          <div style="font-family:var(--font-heading);font-weight:800;font-size:14px;margin-top:3px;color:{{ levelColor }}">{{ levelLabel }}</div>
+        </div>
+      </aside>
+      </sc-if>
+
+      <!-- ══ CONTENT ══ -->
+      <main style="flex:1;min-width:0;overflow-y:auto;background:var(--color-bg)">
+
+        <!-- HOME / LAUNCHER -->
+        <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+        <div class="seln-fade" style="max-width:1000px;margin:0 auto;padding:56px 40px 40px">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--color-accent);font-weight:600">Рабочее пространство · {{ user.company }}</div>
+          <h1 style="font-size:44px;margin:8px 0 4px">Приложения</h1>
+          <p class="text-muted" style="max-width:60ch;font-size:15px">Выберите модуль. Вам доступны только выданные администратором приложения — каждое открывается как отдельное рабочее пространство.</p>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:28px">
+            <sc-for list="{{ moduleCards }}" as="c" hint-placeholder-count="6">
+              <button onClick="{{ c.open }}" style="{{ c.style }}" style-hover="box-shadow:var(--shadow-md);border-color:var(--color-text)">
+                <span style="display:flex;align-items:flex-start;justify-content:space-between;width:100%">
+                  <span ref="{{ c.iconRef }}" style="display:grid;place-items:center;width:46px;height:46px;border:2px solid var(--color-divider)"></span>
+                  <span style="{{ c.badgeStyle }}">{{ c.badge }}</span>
+                </span>
+                <span style="font-family:var(--font-heading);font-weight:800;font-size:20px;margin-top:16px;text-align:left;width:100%">{{ c.label }}</span>
+                <span style="font-size:12.5px;opacity:.7;text-align:left;width:100%;line-height:1.4">{{ c.tagline }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- MODULE PAGES -->
+        <sc-if value="{{ isModulePage }}" hint-placeholder-val="{{ false }}">
+        <div class="seln-fade" style="padding:26px 30px">
+
+          <!-- ТОВАРЫ -->
+          <sc-if value="{{ v.products }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:18px">
+              <div><h2 style="font-size:30px;margin:0">Товары</h2><p class="text-muted" style="margin:2px 0 0;font-size:13px">{{ productCount }} позиций · {{ lowCount }} заканчивается</p></div>
+              <div style="margin-left:auto;display:flex;gap:8px">
+                <sc-if value="{{ manageInv }}" hint-placeholder-val="{{ true }}">
+                  <button class="btn btn-secondary" style="height:38px">Импорт</button>
+                  <button class="btn btn-primary" style="height:38px;gap:7px" onClick="{{ addProduct }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Добавить товар</button>
+                </sc-if>
+                <sc-if value="{{ readonlyInv }}" hint-placeholder-val="{{ false }}"><span class="tag" style="align-self:center;background:#f6ead9;color:#8a4a0d">Только просмотр</span></sc-if>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+              <input class="input" placeholder="Поиск по названию или штрихкоду…" value="{{ search }}" onInput="{{ onSearch }}" style="max-width:320px;height:38px">
+              <sc-for list="{{ catChips }}" as="ch" hint-placeholder-count="5"><button onClick="{{ ch.pick }}" style="{{ ch.style }}">{{ ch.label }}</button></sc-for>
+            </div>
+            <div style="background:#fff;border:1px solid var(--color-divider)">
+              <table class="table">
+                <thead><tr><th>Товар</th><th>Категория</th><th style="text-align:right">Цена</th><th style="text-align:right">Наценка</th><th style="text-align:right">Остаток</th>
+                  <sc-if value="{{ manageInv }}" hint-placeholder-val="{{ true }}"><th style="text-align:right">Действия</th></sc-if></tr></thead>
+                <tbody>
+                  <sc-for list="{{ productRows }}" as="p" hint-placeholder-count="8">
+                    <tr>
+                      <td><div style="font-weight:600">{{ p.name }}</div><div class="text-muted" style="font-size:11px">{{ p.sku }}</div></td>
+                      <td><span class="tag tag-neutral">{{ p.cat }}</span></td>
+                      <td style="text-align:right;font-weight:600" class="tnum">{{ p.price }}</td>
+                      <td style="text-align:right;color:#157347;font-weight:600" class="tnum">{{ p.margin }}</td>
+                      <td style="text-align:right"><span style="{{ p.stockStyle }}">{{ p.stockLabel }}</span></td>
+                      <sc-if value="{{ manageInv }}" hint-placeholder-val="{{ true }}">
+                        <td style="text-align:right;white-space:nowrap"><button class="btn btn-ghost" style="font-size:13px" onClick="{{ p.edit }}">Изменить</button><button class="btn btn-ghost" style="font-size:13px;color:var(--color-accent)">Удалить</button></td>
+                      </sc-if>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+              <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}"><div style="padding:56px 20px;text-align:center"><div style="font-family:var(--font-heading);font-weight:800;font-size:18px">Ничего не найдено</div><p class="text-muted" style="font-size:13px;margin-top:4px">Измените запрос «{{ search }}» или сбросьте фильтр.</p><button class="btn btn-secondary" style="margin-top:8px" onClick="{{ resetSearch }}">Сбросить</button></div></sc-if>
+            </div>
+          </sc-if>
+
+          <!-- КАТЕГОРИИ -->
+          <sc-if value="{{ v.categories }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:flex-end;margin-bottom:18px"><div><h2 style="font-size:30px;margin:0">Категории</h2><p class="text-muted" style="margin:2px 0 0;font-size:13px">Группировка товаров каталога</p></div><sc-if value="{{ manageInv }}" hint-placeholder-val="{{ true }}"><button class="btn btn-primary" style="margin-left:auto;height:38px">Новая категория</button></sc-if></div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"><sc-for list="{{ categoryCards }}" as="c" hint-placeholder-count="6"><div style="background:#fff;border:1px solid var(--color-divider);padding:16px;display:flex;flex-direction:column;gap:6px"><div style="font-family:var(--font-heading);font-weight:800;font-size:17px">{{ c.name }}</div><div class="text-muted" style="font-size:12px">{{ c.count }} товаров</div></div></sc-for></div>
+          </sc-if>
+
+          <!-- ЕД. ИЗМЕРЕНИЯ -->
+          <sc-if value="{{ v.units }}" hint-placeholder-val="{{ false }}">
+            <h2 style="font-size:30px;margin:0 0 16px">Единицы измерения</h2>
+            <div style="background:#fff;border:1px solid var(--color-divider);max-width:520px"><table class="table"><thead><tr><th>Название</th><th>Сокращение</th><th style="text-align:right">Дробное</th></tr></thead><tbody><sc-for list="{{ unitRows }}" as="u" hint-placeholder-count="4"><tr><td style="font-weight:600">{{ u.name }}</td><td>{{ u.abbr }}</td><td style="text-align:right">{{ u.frac }}</td></tr></sc-for></tbody></table></div>
+          </sc-if>
+
+          <!-- ИНВЕНТАРИЗАЦИЯ -->
+          <sc-if value="{{ v.inventory }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><h2 style="font-size:30px;margin:0">Инвентаризация</h2><span class="tag" style="background:#f6ead9;color:#8a4a0d">Менеджер</span></div>
+            <p class="text-muted" style="font-size:13px;max-width:60ch;margin-bottom:16px">Пересчёт остатков и корректировка. Доступно только на уровне «Менеджер».</p>
+            <div style="background:#fff;border:1px solid var(--color-divider);max-width:640px"><table class="table"><thead><tr><th>Товар</th><th style="text-align:right">Учёт</th><th style="text-align:right">Факт</th><th style="text-align:right">Разница</th></tr></thead><tbody>
+              <sc-for list="{{ invRows }}" as="r" hint-placeholder-count="4"><tr><td style="font-weight:600">{{ r.name }}</td><td style="text-align:right" class="tnum">{{ r.book }}</td><td style="text-align:right"><input class="input" value="{{ r.fact }}" style="width:72px;height:32px;text-align:right"></td><td style="text-align:right;font-weight:700;color:{{ r.diffColor }}" class="tnum">{{ r.diff }}</td></tr></sc-for>
+            </tbody></table></div>
+            <button class="btn btn-primary" style="height:40px;margin-top:14px">Провести пересчёт</button>
+          </sc-if>
+
+          <!-- ДАШБОРД -->
+          <sc-if value="{{ v.dashboard }}" hint-placeholder-val="{{ false }}">
+            <h2 style="font-size:30px;margin:0 0 4px">Дашборд</h2>
+            <p class="text-muted" style="font-size:13px;margin:0 0 18px">Сегодня · {{ user.company }}</p>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px"><sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4"><div style="background:#fff;border:1px solid var(--color-divider);padding:16px 18px"><div class="text-muted lz" style="font-size:10px;text-transform:uppercase;letter-spacing:.1em">{{ k.label }}</div><div style="font-family:var(--font-heading);font-weight:800;font-size:27px;margin-top:6px;color:{{ k.color }}">{{ k.value }}</div><div style="font-size:11.5px;margin-top:2px;color:{{ k.deltaColor }}">{{ k.delta }}</div></div></sc-for></div>
+            <div style="background:#fff;border:1px solid var(--color-divider);padding:18px;margin-top:14px"><div style="font-family:var(--font-heading);font-weight:800;font-size:16px;margin-bottom:14px">Оборот по часам</div><div style="display:flex;align-items:flex-end;gap:8px;height:170px"><sc-for list="{{ chart }}" as="b" hint-placeholder-count="10"><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end"><div style="{{ b.barStyle }}"></div><div class="text-muted" style="font-size:10px">{{ b.hour }}</div></div></sc-for></div></div>
+          </sc-if>
+
+          <!-- АНАЛИТИКА -->
+          <sc-if value="{{ v.analytics }}" hint-placeholder-val="{{ false }}">
+            <h2 style="font-size:30px;margin:0 0 16px">Аналитика</h2>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+              <div style="background:#fff;border:1px solid var(--color-divider);padding:18px"><div style="font-family:var(--font-heading);font-weight:800;font-size:16px;margin-bottom:12px">Топ товаров за месяц</div><sc-for list="{{ topProducts }}" as="t" hint-placeholder-count="5"><div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--color-divider)"><span style="font-family:var(--font-heading);font-weight:800;color:var(--color-accent);width:22px">{{ t.rank }}</span><span style="flex:1;font-size:14px">{{ t.name }}</span><span class="tnum" style="font-weight:600">{{ t.qty }}</span></div></sc-for></div>
+              <div style="background:#fff;border:1px solid var(--color-divider);padding:18px"><div style="font-family:var(--font-heading);font-weight:800;font-size:16px;margin-bottom:12px">Прибыль по категориям</div><sc-for list="{{ categoryProfit }}" as="c" hint-placeholder-count="5"><div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>{{ c.name }}</span><span style="color:#157347;font-weight:600">{{ c.sum }}</span></div><div style="height:8px;background:var(--color-surface)"><div style="{{ c.barStyle }}"></div></div></div></sc-for></div>
+            </div>
+          </sc-if>
+
+          <!-- ИСТОРИЯ ПРОДАЖ -->
+          <sc-if value="{{ v.sales }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:flex-end;margin-bottom:16px"><div><h2 style="font-size:30px;margin:0">История продаж</h2><p class="text-muted" style="margin:2px 0 0;font-size:13px">Сегодня · 137 чеков</p></div></div>
+            <div style="background:#fff;border:1px solid var(--color-divider)"><table class="table"><thead><tr><th>Время</th><th>Чек</th><th>Способ</th><th style="text-align:right">Сумма</th><th>Статус</th><th style="text-align:right">Действия</th></tr></thead><tbody>
+              <sc-for list="{{ salesRows }}" as="s" hint-placeholder-count="6"><tr><td>{{ s.time }}</td><td style="font-weight:600">{{ s.no }}</td><td>{{ s.method }}</td><td style="text-align:right;font-weight:600" class="tnum">{{ s.sum }}</td><td><span style="{{ s.statusStyle }}">{{ s.status }}</span></td>
+                <td style="text-align:right;white-space:nowrap">
+                  <sc-if value="{{ managePos }}" hint-placeholder-val="{{ true }}"><button class="btn btn-ghost" style="font-size:13px;color:#a75a12" onClick="{{ s.return }}">Возврат</button><button class="btn btn-ghost" style="font-size:13px;color:var(--color-accent)" onClick="{{ s.annul }}">Аннулировать</button></sc-if>
+                  <sc-if value="{{ readonlyPos }}" hint-placeholder-val="{{ false }}"><span class="text-muted" style="font-size:12px">—</span></sc-if>
+                </td></tr></sc-for>
+            </tbody></table></div>
+            <sc-if value="{{ readonlyPos }}" hint-placeholder-val="{{ false }}"><p class="text-muted" style="font-size:12px;margin-top:10px">Возвраты и аннулирования доступны на уровне «Менеджер».</p></sc-if>
+          </sc-if>
+
+          <!-- СМЕНА -->
+          <sc-if value="{{ v.shifts }}" hint-placeholder-val="{{ false }}">
+            <h2 style="font-size:30px;margin:0 0 16px">Смена</h2>
+            <sc-if value="{{ shiftOpen }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+                <div style="background:#fff;border:1px solid var(--color-divider);padding:20px;min-width:300px">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span style="width:8px;height:8px;background:#157347;border-radius:50%"></span><span style="font-family:var(--font-heading);font-weight:800;font-size:16px">Смена открыта · 08:02</span></div>
+                  <div class="text-muted" style="font-size:12px;margin-bottom:14px">Кассир: {{ user.name }}</div>
+                  <div style="border-top:2px solid var(--color-divider);padding-top:12px">
+                    <div class="text-muted lz" style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Выручка по оплате</div>
+                    <sc-for list="{{ shiftRows }}" as="r" hint-placeholder-count="4"><div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13.5px;{{ r.style }}"><span>{{ r.label }}</span><span class="tnum">{{ r.value }}</span></div></sc-for>
+                  </div>
+                  <button class="btn btn-primary" style="width:100%;margin-top:16px;height:42px;justify-content:center" onClick="{{ openCloseShift }}">Закрыть смену</button>
+                </div>
+                <div style="background:#fff;border:1px solid var(--color-divider);padding:20px;min-width:260px">
+                  <div class="text-muted lz" style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Касса (наличные)</div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13.5px"><span>На начало</span><span class="tnum">{{ shiftCash.opening }}</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13.5px;font-weight:700;border-top:1px solid var(--color-divider);margin-top:4px;padding-top:8px"><span>Ожидается в кассе</span><span class="tnum">{{ shiftCash.expected }}</span></div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ shiftClosed }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fdf6e6;border:1px solid #e6c98a;padding:20px;max-width:520px">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a75a12" stroke-width="2"><rect x="4" y="11" width="16" height="10"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span style="font-family:var(--font-heading);font-weight:800;font-size:17px;color:#8a4a0d">Смена не открыта</span></div>
+                <p style="font-size:13px;color:#8a4a0d;margin-bottom:14px">Чтобы продавать, откройте смену и укажите сумму наличных в кассе на начало.</p>
+                <div style="display:flex;gap:8px;align-items:flex-end"><div class="field" style="flex:1"><label style="color:#8a4a0d">Наличные в кассе</label><input class="input" value="{{ openCashVal }}" onInput="{{ onOpenCash }}" style="background:#fff"></div><button class="btn btn-primary" style="height:38px" onClick="{{ doOpenShift }}">Открыть смену</button></div>
+              </div>
+            </sc-if>
+          </sc-if>
+
+          <!-- КЛИЕНТЫ -->
+          <sc-if value="{{ v.customers }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:flex-end;margin-bottom:16px"><div><h2 style="font-size:30px;margin:0">Клиенты</h2><p class="text-muted" style="margin:2px 0 0;font-size:13px">Долги и история</p></div><button class="btn btn-primary" style="margin-left:auto;height:38px">Новый клиент</button></div>
+            <div style="background:#fff;border:1px solid var(--color-divider)"><table class="table"><thead><tr><th>Клиент</th><th>Телефон</th><th style="text-align:right">Долг</th><th style="text-align:right">Покупок</th></tr></thead><tbody><sc-for list="{{ customerRows }}" as="c" hint-placeholder-count="4"><tr><td style="font-weight:600">{{ c.name }}</td><td class="text-muted">{{ c.phone }}</td><td style="text-align:right;{{ c.debtStyle }}" class="tnum">{{ c.debt }}</td><td style="text-align:right">{{ c.orders }}</td></tr></sc-for></tbody></table></div>
+          </sc-if>
+
+          <!-- ПОСТАВЩИКИ -->
+          <sc-if value="{{ v.suppliers }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:flex-end;margin-bottom:16px"><div><h2 style="font-size:30px;margin:0">Поставщики</h2><p class="text-muted" style="margin:2px 0 0;font-size:13px">{{ supplierCount }} активных</p></div><sc-if value="{{ managePur }}" hint-placeholder-val="{{ true }}"><button class="btn btn-primary" style="margin-left:auto;height:38px">Добавить</button></sc-if></div>
+            <div style="background:#fff;border:1px solid var(--color-divider)"><table class="table"><thead><tr><th>Поставщик</th><th>Контакт</th><th>Телефон</th><th style="text-align:right">Оборот</th></tr></thead><tbody><sc-for list="{{ supplierRows }}" as="s" hint-placeholder-count="4"><tr><td style="font-weight:600">{{ s.name }}</td><td>{{ s.contact }}</td><td class="text-muted">{{ s.phone }}</td><td style="text-align:right;font-weight:600" class="tnum">{{ s.turnover }}</td></tr></sc-for></tbody></table></div>
+          </sc-if>
+
+          <!-- ЗАКУПКИ (список) -->
+          <sc-if value="{{ v.po }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:flex-end;margin-bottom:16px"><div><h2 style="font-size:30px;margin:0">Заказы поставщикам</h2><p class="text-muted" style="margin:2px 0 0;font-size:13px">Создание и приёмка</p></div><sc-if value="{{ managePur }}" hint-placeholder-val="{{ true }}"><button class="btn btn-primary" style="margin-left:auto;height:38px;gap:7px" onClick="{{ startPO }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Новый заказ</button></sc-if></div>
+            <div style="background:#fff;border:1px solid var(--color-divider)"><table class="table"><thead><tr><th>№</th><th>Поставщик</th><th>Дата</th><th style="text-align:right">Сумма</th><th>Статус</th><th style="text-align:right">Действия</th></tr></thead><tbody>
+              <sc-for list="{{ poRows }}" as="p" hint-placeholder-count="4"><tr><td style="font-weight:600">{{ p.no }}</td><td>{{ p.supplier }}</td><td class="text-muted">{{ p.date }}</td><td style="text-align:right;font-weight:600" class="tnum">{{ p.sum }}</td><td><span style="{{ p.statusStyle }}">{{ p.status }}</span></td><td style="text-align:right"><sc-if value="{{ p.canReceive }}" hint-placeholder-val="{{ false }}"><button class="btn btn-ghost" style="font-size:13px;color:#157347" onClick="{{ p.receive }}">Приёмка</button></sc-if></td></tr></sc-for>
+            </tbody></table></div>
+            <sc-if value="{{ readonlyPur }}" hint-placeholder-val="{{ false }}"><p class="text-muted" style="font-size:12px;margin-top:10px">Приёмка доступна на уровне «Менеджер».</p></sc-if>
+          </sc-if>
+
+          <!-- ЗАКУПКИ · МАСТЕР -->
+          <sc-if value="{{ v.poEditor }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px"><button class="btn btn-ghost" onClick="{{ startPOback }}" style="padding-left:0">← К списку</button></div>
+            <h2 style="font-size:28px;margin:0 0 4px">{{ poTitle }}</h2>
+            <p class="text-muted" style="font-size:13px;margin:0 0 20px">Заказ поставщику · {{ poNo }}</p>
+            <!-- stepper -->
+            <div style="display:flex;align-items:center;margin-bottom:24px;max-width:720px">
+              <sc-for list="{{ poSteps }}" as="s" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;{{ s.wrapStyle }}">
+                  <button onClick="{{ s.go }}" style="display:flex;align-items:center;gap:9px;background:none;border:0;cursor:{{ s.cursor }};text-align:left;padding:0">
+                    <span style="{{ s.numStyle }}">{{ s.num }}</span>
+                    <span><span style="display:block;font-size:13.5px;font-weight:700">{{ s.label }}</span><span class="text-muted" style="font-size:11px">{{ s.state }}</span></span>
+                  </button>
+                  <sc-if value="{{ s.line }}" hint-placeholder-val="{{ true }}"><span style="flex:1;height:2px;background:var(--color-divider);margin:0 12px;min-width:24px"></span></sc-if>
+                </div>
+              </sc-for>
+            </div>
+
+            <sc-if value="{{ poIsSupplier }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border:1px solid var(--color-divider);padding:20px;max-width:560px">
+                <div style="font-family:var(--font-heading);font-weight:800;font-size:16px;margin-bottom:12px">Выберите поставщика</div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <sc-for list="{{ poSupplierOpts }}" as="s" hint-placeholder-count="4"><button onClick="{{ s.pick }}" style="{{ s.style }}"><span style="font-weight:600">{{ s.name }}</span><span class="text-muted" style="font-size:12px">{{ s.contact }}</span></button></sc-for>
+                </div>
+                <button class="btn btn-primary" style="height:40px;margin-top:16px" disabled="{{ poNoSupplier }}" onClick="{{ poNext }}">Далее · Товары</button>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ poIsItems }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border:1px solid var(--color-divider);padding:20px;max-width:720px">
+                <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:16px;border-bottom:2px solid var(--color-divider);padding-bottom:16px">
+                  <div class="field" style="flex:1"><label>Товар</label><select class="input" ref="{{ poAddSelRef }}"><sc-for list="{{ poProductOpts }}" as="o" hint-placeholder-count="6"><option value="{{ o.idx }}">{{ o.name }}</option></sc-for></select></div>
+                  <div class="field" style="width:90px"><label>Кол-во</label><input class="input" ref="{{ poAddQtyRef }}" value="1"></div>
+                  <button class="btn btn-secondary" style="height:38px" onClick="{{ poAddItem }}">Добавить</button>
+                </div>
+                <sc-if value="{{ poHasItems }}" hint-placeholder-val="{{ false }}">
+                  <table class="table"><thead><tr><th>Товар</th><th style="text-align:right">Кол-во</th><th style="text-align:right">Закуп. цена</th><th style="text-align:right">Сумма</th><th></th></tr></thead><tbody>
+                    <sc-for list="{{ poItemRows }}" as="i" hint-placeholder-count="0"><tr><td style="font-weight:600">{{ i.name }}</td><td style="text-align:right" class="tnum">{{ i.qty }}</td><td style="text-align:right" class="tnum">{{ i.cost }}</td><td style="text-align:right;font-weight:600" class="tnum">{{ i.total }}</td><td style="text-align:right"><button class="btn btn-ghost" style="color:var(--color-accent);font-size:13px" onClick="{{ i.remove }}">✕</button></td></tr></sc-for>
+                  </tbody></table>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:2px solid var(--color-divider)"><span style="font-family:var(--font-heading);font-weight:800">Итого заказа</span><span style="font-family:var(--font-heading);font-weight:800;font-size:22px" class="tnum">{{ poTotal }}</span></div>
+                </sc-if>
+                <sc-if value="{{ poNoItems }}" hint-placeholder-val="{{ true }}"><p class="text-muted" style="font-size:13px;text-align:center;padding:20px 0">Добавьте товары в заказ.</p></sc-if>
+                <div style="display:flex;gap:8px;margin-top:16px"><button class="btn btn-secondary" style="height:40px" onClick="{{ poBack }}">Назад</button><button class="btn btn-primary" style="height:40px" disabled="{{ poNoItems }}" onClick="{{ poNext }}">Далее · Проверка</button></div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ poIsReview }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border:1px solid var(--color-divider);padding:20px;max-width:720px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:16px"><div><div class="text-muted" style="font-size:12px">Поставщик</div><div style="font-family:var(--font-heading);font-weight:800;font-size:17px">{{ poSupplierName }}</div></div><div style="text-align:right"><div class="text-muted" style="font-size:12px">Позиций</div><div style="font-family:var(--font-heading);font-weight:800;font-size:17px">{{ poCount }}</div></div></div>
+                <table class="table"><thead><tr><th>Товар</th><th style="text-align:right">Кол-во</th><th style="text-align:right">Сумма</th></tr></thead><tbody><sc-for list="{{ poItemRows }}" as="i" hint-placeholder-count="0"><tr><td style="font-weight:600">{{ i.name }}</td><td style="text-align:right" class="tnum">{{ i.qty }}</td><td style="text-align:right;font-weight:600" class="tnum">{{ i.total }}</td></tr></sc-for></tbody></table>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:14px;border-top:2px solid var(--color-divider)"><span style="font-family:var(--font-heading);font-weight:800">К оплате</span><span style="font-family:var(--font-heading);font-weight:800;font-size:24px" class="tnum">{{ poTotal }}</span></div>
+                <div style="display:flex;gap:8px;margin-top:16px"><button class="btn btn-secondary" style="height:40px" onClick="{{ poBack }}">Назад</button><button class="btn btn-primary" style="height:40px" onClick="{{ poSend }}">Отправить поставщику</button></div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ poIsReceive }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border:1px solid var(--color-divider);padding:20px;max-width:720px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span class="tag" style="background:var(--color-accent-100);color:var(--color-accent-800)">Отправлен</span><span class="text-muted" style="font-size:12px">Ожидает приёмки</span></div>
+                <div style="font-family:var(--font-heading);font-weight:800;font-size:16px;margin:8px 0 14px">Приёмка товара · {{ poSupplierName }}</div>
+                <table class="table"><thead><tr><th>Товар</th><th style="text-align:right">Заказано</th><th style="text-align:right">Принято</th></tr></thead><tbody>
+                  <sc-for list="{{ poReceiveRows }}" as="r" hint-placeholder-count="3"><tr><td style="font-weight:600">{{ r.name }}</td><td style="text-align:right" class="tnum">{{ r.ordered }}</td><td style="text-align:right"><input class="input" value="{{ r.received }}" onInput="{{ r.onInput }}" style="width:80px;height:32px;text-align:right"></td></tr></sc-for>
+                </tbody></table>
+                <div style="display:flex;gap:8px;margin-top:16px"><button class="btn btn-secondary" style="height:40px" onClick="{{ startPOback }}">Отмена</button><button style="flex:none;background:#157347;color:#fff;border:0;height:40px;padding:0 20px;font-family:var(--font-heading);font-weight:800;cursor:pointer" onClick="{{ poDoReceive }}">Провести приёмку</button></div>
+              </div>
+            </sc-if>
+          </sc-if>
+
+          <!-- МАГАЗИН · KANBAN -->
+          <sc-if value="{{ v.orders }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:flex-end;margin-bottom:16px"><div><h2 style="font-size:30px;margin:0">Заказы</h2><p class="text-muted" style="margin:2px 0 0;font-size:13px">Входящие из Telegram-магазина</p></div></div>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:start"><sc-for list="{{ kanban }}" as="col" hint-placeholder-count="5"><div style="background:var(--color-surface);border:1px solid var(--color-divider);min-height:120px"><div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:2px solid var(--color-divider)"><span style="font-family:var(--font-heading);font-weight:800;font-size:12.5px">{{ col.title }}</span><span class="tag tag-neutral">{{ col.count }}</span></div><div style="padding:8px;display:flex;flex-direction:column;gap:8px"><sc-for list="{{ col.cards }}" as="o" hint-placeholder-count="2"><div style="background:#fff;border:1px solid var(--color-divider);padding:10px"><div style="font-weight:600;font-size:13px">{{ o.no }}</div><div class="text-muted" style="font-size:11.5px">{{ o.customer }}</div><div style="font-weight:600;font-size:13px;margin-top:4px">{{ o.sum }}</div></div></sc-for></div></div></sc-for></div>
+          </sc-if>
+
+          <!-- НАСТРОЙКИ · КОМПАНИЯ -->
+          <sc-if value="{{ v.company }}" hint-placeholder-val="{{ false }}">
+            <h2 style="font-size:30px;margin:0 0 16px">Компания</h2>
+            <div style="background:#fff;border:1px solid var(--color-divider);padding:22px;max-width:560px;display:flex;flex-direction:column;gap:16px"><div class="field"><label>Название</label><input class="input" value="Магазин «Дилдора»"></div><div style="display:flex;gap:14px"><div class="field" style="flex:1"><label>ИНН</label><input class="input" value="301 254 889"></div><div class="field" style="flex:1"><label>Телефон</label><input class="input" value="+998 90 123 45 67"></div></div><div class="field"><label>Адрес</label><input class="input" value="г. Ташкент, ул. Амира Темура, 12"></div><button class="btn btn-primary" style="align-self:flex-start;height:40px">Сохранить</button></div>
+          </sc-if>
+
+          <!-- НАСТРОЙКИ · МАРКЕТПЛЕЙС -->
+          <sc-if value="{{ v.marketplace }}" hint-placeholder-val="{{ false }}">
+            <h2 style="font-size:30px;margin:0 0 16px">Маркетплейс</h2>
+            <div style="background:#fff;border:1px solid var(--color-divider);padding:22px;max-width:560px;display:flex;flex-direction:column;gap:16px"><div style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-weight:600">Telegram-магазин</div><div class="text-muted" style="font-size:12px">Приём заказов в модуль «Магазин»</div></div><span class="tag" style="background:#e6f0ea;color:#157347">Подключён</span></div><div class="hr" style="margin:0"></div><div class="field"><label>Имя бота</label><input class="input" value="@dildora_shop_bot"></div><div class="field"><label>Витрина</label><input class="input" value="t.me/dildora_shop"></div><button class="btn btn-primary" style="align-self:flex-start;height:40px">Сохранить</button></div>
+          </sc-if>
+
+          <!-- НАСТРОЙКИ · СОТРУДНИКИ -->
+          <sc-if value="{{ v.employees }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:flex-end;margin-bottom:16px"><div><h2 style="font-size:30px;margin:0">Сотрудники</h2><p class="text-muted" style="margin:2px 0 0;font-size:13px">Доступ к модулям · {{ employeeCount }} человек</p></div><button class="btn btn-primary" style="margin-left:auto;height:38px">Пригласить</button></div>
+            <div style="background:#fff;border:1px solid var(--color-divider);overflow-x:auto"><table class="table" style="min-width:820px"><thead><tr><th style="min-width:180px">Сотрудник</th><sc-for list="{{ moduleCols }}" as="mc" hint-placeholder-count="5"><th style="text-align:center">{{ mc }}</th></sc-for></tr></thead><tbody>
+              <sc-for list="{{ employeesView }}" as="e" hint-placeholder-count="4"><tr><td><div style="font-weight:600">{{ e.name }}</div><div class="text-muted" style="font-size:11px">{{ e.roleLabel }}</div></td>
+                <sc-for list="{{ e.cells }}" as="c" hint-placeholder-count="5"><td style="text-align:center;padding:6px"><div class="seg" style="font-size:11px"><label class="seg-opt" style="padding:5px 8px"><input type="radio" name="{{ c.name }}" checked="{{ c.isNone }}" onChange="{{ c.setNone }}"><span>Нет</span></label><label class="seg-opt" style="padding:5px 8px"><input type="radio" name="{{ c.name }}" checked="{{ c.isUser }}" onChange="{{ c.setUser }}"><span>Сотр.</span></label><label class="seg-opt" style="padding:5px 8px"><input type="radio" name="{{ c.name }}" checked="{{ c.isManager }}" onChange="{{ c.setManager }}"><span>Менедж.</span></label></div></td></sc-for>
+              </tr></sc-for>
+            </tbody></table></div>
+            <p class="text-muted" style="font-size:12px;margin-top:12px">Сетка редактируема только для администратора. «Сотрудник» — базовый доступ, «Менеджер» открывает возвраты, приёмку, инвентаризацию и удаления.</p>
+          </sc-if>
+
+        </div>
+        </sc-if>
+
+        <!-- НЕТ ДОСТУПА -->
+        <sc-if value="{{ isNoAccess }}" hint-placeholder-val="{{ false }}">
+        <div class="seln-fade" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px">
+          <div style="width:64px;height:64px;border:2px solid var(--color-divider);display:grid;place-items:center;margin-bottom:20px"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2"><rect x="4" y="11" width="16" height="10"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+          <h2 style="font-size:28px;margin:0">Нет доступа к этому разделу</h2>
+          <p class="text-muted" style="font-size:14px;max-width:44ch;margin:8px 0 20px">Модуль «{{ naModule }}» не выдан вашей учётной записи. Обратитесь к администратору, чтобы получить доступ.</p>
+          <button class="btn btn-primary" style="height:40px" onClick="{{ goHome }}">К приложениям</button>
+        </div>
+        </sc-if>
+
+        <!-- POS -->
+        <sc-if value="{{ isPos }}" hint-placeholder-val="{{ false }}">
+        <div style="height:100%;display:flex;flex-direction:column;background:var(--color-surface)">
+          <div style="flex:none;height:52px;display:flex;align-items:center;gap:16px;padding:0 16px;background:#fff;border-bottom:2px solid var(--color-divider)">
+            <div style="font-family:var(--font-heading);font-weight:800;font-size:17px">Касса</div>
+            <div style="display:flex;gap:2px"><sc-for list="{{ posTabs }}" as="t" hint-placeholder-count="4"><button onClick="{{ t.go }}" style="{{ t.style }}">{{ t.label }}</button></sc-for></div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-size:13px">
+              <sc-if value="{{ shiftOpen }}" hint-placeholder-val="{{ true }}"><span style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;background:#157347;border-radius:50%"></span>Смена открыта</span></sc-if>
+              <sc-if value="{{ shiftClosed }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:6px;color:#a75a12"><span style="width:7px;height:7px;background:#a75a12;border-radius:50%"></span>Смена закрыта</span></sc-if>
+              <span class="text-muted">{{ user.name }}</span>
+              <button class="btn btn-secondary" style="height:34px;gap:7px" onClick="{{ goHome }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Приложения</button>
+            </div>
+          </div>
+          <div style="flex:1;min-height:0;display:flex">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;padding:16px;gap:12px">
+              <sc-if value="{{ shiftClosed }}" hint-placeholder-val="{{ false }}">
+                <div style="background:#fdf6e6;border:1px solid #e6c98a;padding:12px 16px;display:flex;align-items:center;gap:12px">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a75a12" stroke-width="2"><rect x="4" y="11" width="16" height="10"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                  <div style="flex:1"><div style="font-weight:700;font-size:13px;color:#8a4a0d">Смена не открыта</div><div style="font-size:11.5px;color:#8a4a0d">Откройте смену, чтобы принимать оплату.</div></div>
+                  <input class="input" value="{{ openCashVal }}" onInput="{{ onOpenCash }}" placeholder="Наличные" style="width:120px;height:34px;background:#fff">
+                  <button class="btn btn-primary" style="height:34px" onClick="{{ doOpenShift }}">Открыть смену</button>
+                </div>
+              </sc-if>
+              <input class="input" placeholder="Сканируйте штрихкод или введите название…  (F2)" style="height:46px;font-size:15px;background:#fff">
+              <div style="flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start">
+                <sc-for list="{{ posProducts }}" as="p" hint-placeholder-count="8"><button onClick="{{ p.add }}" style="background:#fff;border:1px solid var(--color-divider);padding:14px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:96px" style-hover="border-color:var(--color-text)"><span style="font-size:13.5px;font-weight:600;line-height:1.25">{{ p.name }}</span><span style="margin-top:auto;font-family:var(--font-heading);font-weight:800;font-size:16px">{{ p.price }}</span><span class="text-muted" style="font-size:11px">{{ p.stock }}</span></button></sc-for>
+              </div>
+            </div>
+            <div style="flex:none;width:400px;background:#fff;border-left:2px solid var(--color-divider);display:flex;flex-direction:column">
+              <div style="padding:14px 18px;border-bottom:1px solid var(--color-divider);display:flex;align-items:center;justify-content:space-between"><span style="font-family:var(--font-heading);font-weight:800;font-size:16px">Чек</span><span class="text-muted" style="font-size:12px">{{ cartCount }} позиций</span></div>
+              <div style="flex:1;overflow-y:auto">
+                <sc-if value="{{ cartEmpty }}" hint-placeholder-val="{{ true }}"><div style="padding:60px 24px;text-align:center;color:color-mix(in srgb,var(--color-text) 45%,transparent)"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="margin:0 auto 10px"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg><div style="font-size:13px">Отсканируйте товар или нажмите на плитку</div></div></sc-if>
+                <sc-for list="{{ cartLines }}" as="l" hint-placeholder-count="0"><div style="padding:12px 18px;border-bottom:1px solid var(--color-divider);display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:600">{{ l.name }}</div><div class="text-muted" style="font-size:11.5px">{{ l.price }} × {{ l.qty }}</div></div><div style="display:flex;align-items:center;gap:6px"><button onClick="{{ l.dec }}" class="btn btn-secondary" style="width:28px;height:28px;padding:0;justify-content:center">−</button><span style="width:22px;text-align:center;font-weight:600">{{ l.qty }}</span><button onClick="{{ l.inc }}" class="btn btn-secondary" style="width:28px;height:28px;padding:0;justify-content:center">+</button></div><div style="width:82px;text-align:right;font-weight:600" class="tnum">{{ l.total }}</div></div></sc-for>
+              </div>
+              <div style="border-top:2px solid var(--color-divider);padding:16px 18px">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px"><span style="font-family:var(--font-heading);font-weight:800;font-size:15px">Итого</span><span style="font-family:var(--font-heading);font-weight:800;font-size:34px;color:#157347;line-height:1" class="tnum">{{ cartTotal }}</span></div>
+                <div style="display:flex;gap:8px"><button onClick="{{ clearCart }}" class="btn" style="flex:none;background:#fbeee9;color:var(--color-accent);height:52px;padding:0 16px">Отмена</button><button onClick="{{ openPay }}" disabled="{{ payDisabled }}" style="flex:1;background:{{ payBtnBg }};color:#fff;border:0;height:52px;font-family:var(--font-heading);font-weight:800;font-size:16px;cursor:{{ payCursor }}">Оплатить · {{ cartTotal }}</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+      </main>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ══ MOBILE ══ -->
+  <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:var(--color-surface);gap:40px;padding:24px;overflow:auto">
+    <div style="flex:none;width:300px;height:600px;background:#fff;border:2px solid var(--color-text);display:flex;flex-direction:column;overflow:hidden">
+      <div style="flex:none;height:44px;display:flex;align-items:center;padding:0 16px;border-bottom:2px solid var(--color-divider);font-family:var(--font-heading);font-weight:800">Sellary</div>
+      <div style="flex:1;overflow-y:auto;padding:16px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--color-accent);font-weight:600">Приложения</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px"><sc-for list="{{ mobileTiles }}" as="m" hint-placeholder-count="4"><div style="{{ m.style }}"><span ref="{{ m.iconRef }}" style="display:block;margin-bottom:8px"></span><span style="font-family:var(--font-heading);font-weight:800;font-size:13px">{{ m.label }}</span></div></sc-for></div></div>
+      <div style="flex:none;height:58px;display:flex;border-top:2px solid var(--color-divider)"><sc-for list="{{ mobileTabs }}" as="t" hint-placeholder-count="4"><div style="{{ t.style }}"><span ref="{{ t.iconRef }}"></span><span style="font-size:9px;font-weight:600;margin-top:2px">{{ t.label }}</span></div></sc-for></div>
+    </div>
+    <div style="flex:none;width:300px;height:600px;background:var(--color-surface);border:2px solid var(--color-text);display:flex;flex-direction:column;overflow:hidden">
+      <div style="flex:none;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#fff;border-bottom:2px solid var(--color-divider)"><span style="font-family:var(--font-heading);font-weight:800">Касса</span><span style="font-size:11px;display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;background:#157347;border-radius:50%"></span>Смена</span></div>
+      <div style="flex:1;overflow-y:auto;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start"><sc-for list="{{ mobilePos }}" as="p" hint-placeholder-count="6"><div style="background:#fff;border:1px solid var(--color-divider);padding:10px;display:flex;flex-direction:column;gap:4px;min-height:70px"><span style="font-size:12px;font-weight:600;line-height:1.2">{{ p.name }}</span><span style="margin-top:auto;font-family:var(--font-heading);font-weight:800;font-size:13px">{{ p.price }}</span></div></sc-for></div>
+      <div style="flex:none;background:#fff;border-top:2px solid var(--color-divider);padding:12px 16px"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px"><span style="font-weight:600;font-size:13px">3 позиции</span><span style="font-family:var(--font-heading);font-weight:800;font-size:24px;color:#157347">32 000 сум</span></div><button style="width:100%;background:#157347;color:#fff;border:0;height:46px;font-family:var(--font-heading);font-weight:800;font-size:15px">Оплатить</button></div>
+    </div>
+    <div style="flex:none;max-width:240px;font-size:13px;line-height:1.6"><div style="font-family:var(--font-heading);font-weight:800;font-size:16px;margin-bottom:8px">Мобайл: модуль-first</div><p class="text-muted" style="font-size:13px">Нижняя панель показывает до 4 доступных модулей + «Ещё». Один модуль — сразу его экран. Касса открывается в 2 нажатия: плитка → «Оплатить».</p></div>
+  </div>
+  </sc-if>
+
+  <!-- ══ PAYMENT MODAL ══ -->
+  <sc-if value="{{ modalPay }}" hint-placeholder-val="{{ false }}">
+  <div class="dialog-backdrop" style="animation:ov-fade .15s ease" onClick="{{ closeModal }}">
+    <div class="dialog seln-fade" style="width:min(460px,100%)" onClick="{{ stop }}">
+      <div style="display:flex;align-items:baseline;justify-content:space-between"><h2 class="dialog-title">Оплата</h2><span style="font-family:var(--font-heading);font-weight:800;font-size:30px;color:#157347" class="tnum">{{ cartTotal }}</span></div>
+      <div>
+        <div class="text-muted" style="font-size:12px;margin-bottom:6px">Способ оплаты</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><sc-for list="{{ payMethods }}" as="m" hint-placeholder-count="4"><button onClick="{{ m.pick }}" style="{{ m.style }}">{{ m.label }}</button></sc-for></div>
+      </div>
+      <sc-if value="{{ payIsCash }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;gap:12px"><div class="field" style="flex:1"><label>Получено</label><input class="input" value="{{ payTendered }}" onInput="{{ onTendered }}" style="height:42px;font-size:16px"></div><div class="field" style="flex:1"><label>Сдача</label><div style="height:42px;display:flex;align-items:center;font-family:var(--font-heading);font-weight:800;font-size:20px;color:{{ payChangeColor }}" class="tnum">{{ payChange }}</div></div></div>
+      </sc-if>
+      <sc-if value="{{ payIsCard }}" hint-placeholder-val="{{ false }}">
+        <div><div class="text-muted" style="font-size:12px;margin-bottom:6px">Терминал</div><div style="display:flex;gap:6px"><sc-for list="{{ cardTypes }}" as="c" hint-placeholder-count="3"><button onClick="{{ c.pick }}" style="{{ c.style }}">{{ c.label }}</button></sc-for></div></div>
+      </sc-if>
+      <div class="dialog-actions"><button class="btn btn-secondary" onClick="{{ closeModal }}">Отмена</button><button style="background:#157347;color:#fff;border:0;padding:0 18px;height:38px;font-family:var(--font-heading);font-weight:800;cursor:{{ payConfirmCursor }};opacity:{{ payConfirmOpacity }}" disabled="{{ payConfirmDisabled }}" onClick="{{ confirmPay }}">Принять оплату</button></div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ══ CLOSE SHIFT MODAL ══ -->
+  <sc-if value="{{ modalCloseShift }}" hint-placeholder-val="{{ false }}">
+  <div class="dialog-backdrop" style="animation:ov-fade .15s ease" onClick="{{ closeModal }}">
+    <div class="dialog seln-fade" style="width:min(440px,100%)" onClick="{{ stop }}">
+      <h2 class="dialog-title">Закрытие смены</h2>
+      <div style="border:1px solid var(--color-divider)"><div style="display:flex;justify-content:space-between;padding:10px 14px;font-size:13.5px;border-bottom:1px solid var(--color-divider)"><span class="text-muted">Ожидается в кассе</span><span style="font-weight:700" class="tnum">{{ shiftCash.expected }}</span></div><div style="display:flex;justify-content:space-between;padding:10px 14px;font-size:13.5px"><span class="text-muted">На начало</span><span class="tnum">{{ shiftCash.opening }}</span></div></div>
+      <div class="field"><label>Посчитано наличными</label><input class="input" value="{{ countCashVal }}" onInput="{{ onCountCash }}" style="height:42px;font-size:16px"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:{{ discrBg }}"><span style="font-weight:700;color:{{ discrColor }}">{{ discrLabel }}</span><span style="font-family:var(--font-heading);font-weight:800;font-size:18px;color:{{ discrColor }}" class="tnum">{{ discrValue }}</span></div>
+      <div class="dialog-actions"><button class="btn btn-secondary" onClick="{{ closeModal }}">Отмена</button><button class="btn btn-primary" onClick="{{ confirmCloseShift }}">Закрыть смену</button></div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ══ RETURN MODAL ══ -->
+  <sc-if value="{{ modalReturn }}" hint-placeholder-val="{{ false }}">
+  <div class="dialog-backdrop" style="animation:ov-fade .15s ease" onClick="{{ closeModal }}">
+    <div class="dialog seln-fade" style="width:min(620px,100%);max-height:88vh;overflow-y:auto" onClick="{{ stop }}">
+      <div style="display:flex;align-items:baseline;justify-content:space-between"><h2 class="dialog-title">Возврат · {{ returnNo }}</h2><span class="tag" style="background:#f6ead9;color:#8a4a0d">Доступно: {{ returnAvailable }}</span></div>
+      <div class="text-muted" style="font-size:13px;font-weight:600">Выберите товары для возврата</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ returnItems }}" as="i" hint-placeholder-count="2"><div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--color-surface)"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">{{ i.name }}</div><div class="text-muted" style="font-size:11.5px">Продано: {{ i.sold }} · Можно вернуть: {{ i.max }} · {{ i.price }}</div></div><div style="display:flex;align-items:center;gap:6px"><button onClick="{{ i.dec }}" class="btn btn-secondary" style="width:30px;height:30px;padding:0;justify-content:center">−</button><span style="width:26px;text-align:center;font-weight:700">{{ i.qty }}</span><button onClick="{{ i.inc }}" class="btn btn-secondary" style="width:30px;height:30px;padding:0;justify-content:center">+</button></div></div></sc-for>
+      </div>
+      <div style="display:flex;gap:12px"><div class="field" style="flex:1"><label>Способ возврата</label><select class="input" ref="{{ refundSelRef }}"><option value="cash">Наличные</option><option value="card">Карта</option><option value="credit">На счёт клиента</option></select></div><div class="field" style="flex:1"><label>К возврату</label><div style="height:36px;display:flex;align-items:center;font-family:var(--font-heading);font-weight:800;font-size:18px;color:#a75a12" class="tnum">{{ returnTotal }}</div></div></div>
+      <div class="field"><label>Примечание (необязательно)</label><textarea class="input" placeholder="Причина возврата…" style="min-height:56px"></textarea></div>
+      <div class="dialog-actions"><button class="btn btn-secondary" onClick="{{ closeModal }}">Отмена</button><button style="background:#a75a12;color:#fff;border:0;padding:0 18px;height:38px;font-family:var(--font-heading);font-weight:800;cursor:{{ returnCursor }};opacity:{{ returnOpacity }}" disabled="{{ returnDisabled }}" onClick="{{ confirmReturn }}">Подтвердить возврат</button></div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ══ ANNULMENT MODAL ══ -->
+  <sc-if value="{{ modalAnnul }}" hint-placeholder-val="{{ false }}">
+  <div class="dialog-backdrop" style="animation:ov-fade .15s ease" onClick="{{ closeModal }}">
+    <div class="dialog seln-fade" style="width:min(520px,100%)" onClick="{{ stop }}">
+      <h2 class="dialog-title">Аннулирование · {{ returnNo }}</h2>
+      <p class="dialog-body" style="margin:0">Операция останется в истории и будет помечена как аннулированная. Товары вернутся на склад.</p>
+      <div><div class="text-muted lz" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Изменение склада</div><div style="border:1px solid var(--color-divider)"><sc-for list="{{ annulImpacts }}" as="a" hint-placeholder-count="2"><div style="display:flex;justify-content:space-between;padding:9px 12px;font-size:13px;border-bottom:1px solid var(--color-divider)"><span>{{ a.name }}</span><span style="font-weight:700;color:#157347" class="tnum">{{ a.change }}</span></div></sc-for></div></div>
+      <div class="field"><label>Причина аннулирования</label><textarea class="input" value="{{ annulReason }}" onInput="{{ onAnnulReason }}" placeholder="Например: тестовая операция" style="min-height:56px"></textarea></div>
+      <div class="dialog-actions"><button class="btn btn-secondary" onClick="{{ closeModal }}">Закрыть</button><button style="background:var(--color-accent);color:#fff;border:0;padding:0 18px;height:38px;font-family:var(--font-heading);font-weight:800;cursor:{{ annulCursor }};opacity:{{ annulOpacity }}" disabled="{{ annulDisabled }}" onClick="{{ confirmAnnul }}">Подтвердить аннулирование</button></div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ══ PRODUCT DRAWER ══ -->
+  <sc-if value="{{ modalProduct }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;z-index:70;display:flex;justify-content:flex-end;background:color-mix(in srgb,var(--color-neutral-900) 40%,transparent);animation:ov-fade .15s ease" onClick="{{ closeModal }}">
+    <div style="width:min(440px,100%);height:100%;background:var(--color-surface);box-shadow:var(--shadow-lg);display:flex;flex-direction:column;animation:drw-in .2s ease" onClick="{{ stop }}">
+      <div style="padding:18px 22px;border-bottom:2px solid var(--color-divider);display:flex;align-items:center;justify-content:between"><h2 class="dialog-title" style="margin:0">{{ productFormTitle }}</h2><button class="btn btn-icon" style="margin-left:auto" onClick="{{ closeModal }}">✕</button></div>
+      <div style="flex:1;overflow-y:auto;padding:22px;display:flex;flex-direction:column;gap:16px">
+        <div class="field"><label>Название</label><input class="input" value="{{ pf.name }}" onInput="{{ pf.onName }}"></div>
+        <div class="field"><label>Штрихкод</label><input class="input" value="{{ pf.sku }}" onInput="{{ pf.onSku }}"></div>
+        <div style="display:flex;gap:12px"><div class="field" style="flex:1"><label>Категория</label><select class="input" ref="{{ pf.catRef }}"><sc-for list="{{ pf.catOpts }}" as="o" hint-placeholder-count="5"><option value="{{ o }}">{{ o }}</option></sc-for></select></div><div class="field" style="width:110px"><label>Ед. изм.</label><select class="input"><option>шт</option><option>кг</option><option>л</option><option>упак</option></select></div></div>
+        <div style="display:flex;gap:12px"><div class="field" style="flex:1"><label>Цена продажи</label><input class="input" value="{{ pf.price }}" onInput="{{ pf.onPrice }}"></div><div class="field" style="flex:1"><label>Закупочная</label><input class="input" value="{{ pf.cost }}" onInput="{{ pf.onCost }}"></div></div>
+        <div class="field"><label>Остаток</label><input class="input" value="{{ pf.stock }}" onInput="{{ pf.onStock }}"></div>
+      </div>
+      <div style="padding:18px 22px;border-top:2px solid var(--color-divider);display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onClick="{{ closeModal }}">Отмена</button><button class="btn btn-primary" onClick="{{ closeModal }}">Сохранить</button></div>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  MODORDER = ['pos','inventory','purchasing','shop','reports','settings'];
+  MOD = {
+    pos:       { label:'Касса',    tagline:'Продажи, чеки, смены, клиенты', def:'pos' },
+    inventory: { label:'Склад',    tagline:'Товары, категории, инвентаризация', def:'products' },
+    purchasing:{ label:'Закупки',  tagline:'Поставщики и заказы поставщикам', def:'suppliers' },
+    shop:      { label:'Магазин',  tagline:'Заказы из Telegram-магазина', def:'orders' },
+    reports:   { label:'Отчеты',   tagline:'Дашборд и аналитика продаж', def:'dashboard' },
+    settings:  { label:'Настройки',tagline:'Компания, маркетплейс, сотрудники', def:'employees' },
+  };
+  VIEWMOD = { pos:'pos',sales:'pos',shifts:'pos',customers:'pos',
+    products:'inventory',categories:'inventory',units:'inventory',inventory:'inventory',
+    suppliers:'purchasing',po:'purchasing','po-editor':'purchasing', orders:'shop',
+    dashboard:'reports',analytics:'reports', company:'settings',marketplace:'settings',employees:'settings' };
+  PAGES = {
+    pos:[['Касса','pos'],['История продаж','sales'],['Смена','shifts'],['Клиенты','customers']],
+    inventory:[['Товары','products'],['Категории','categories'],['Ед. измерения','units'],['Инвентаризация','inventory','mgr']],
+    purchasing:[['Поставщики','suppliers'],['Заказы поставщикам','po']],
+    shop:[['Заказы','orders']],
+    reports:[['Дашборд','dashboard'],['Аналитика','analytics']],
+    settings:[['Компания','company'],['Маркетплейс','marketplace'],['Сотрудники','employees']],
+  };
+  PERSONAS = {
+    admin:   { name:'Азиз Рахимов', role:'Администратор', company:'Магазин «Дилдора»', isAdmin:true, grants:{} },
+    manager: { name:'Нигора Саидова', role:'Менеджер', company:'Магазин «Дилдора»', isAdmin:false, grants:{inventory:'manager',purchasing:'manager',reports:'user'} },
+    keeper:  { name:'Дилшод Т.', role:'Кладовщик', company:'Магазин «Дилдора»', isAdmin:false, grants:{inventory:'user',reports:'user'} },
+    cashier: { name:'Фаррух М.', role:'Кассир', company:'ТочкаКофе', isAdmin:false, grants:{pos:'user'} },
+  };
+  PRODUCTS = [
+    {name:'Кока-Кола 0.5л', sku:'4780008881015', cat:'Напитки', price:8000, cost:6000, stock:48, unit:'шт'},
+    {name:'Вода Ferghana 1л', sku:'4780008881022', cat:'Напитки', price:4000, cost:2800, stock:120, unit:'шт'},
+    {name:'Чипсы Lay’s 90г', sku:'4780008881039', cat:'Снеки', price:15000, cost:11000, stock:6, unit:'шт'},
+    {name:'Snickers 50г', sku:'4780008881046', cat:'Снеки', price:9000, cost:6500, stock:4, unit:'шт'},
+    {name:'Молоко Nemiroff 1л', sku:'4780008881053', cat:'Молочное', price:12000, cost:9000, stock:0, unit:'шт'},
+    {name:'Йогурт Chudo', sku:'4780008881060', cat:'Молочное', price:7000, cost:5000, stock:23, unit:'шт'},
+    {name:'Хлеб белый', sku:'4780008881077', cat:'Хлеб', price:5000, cost:3200, stock:15, unit:'шт'},
+    {name:'Рис Лазер 1кг', sku:'4780008881084', cat:'Бакалея', price:18000, cost:14000, stock:34, unit:'кг'},
+    {name:'Сахар 1кг', sku:'4780008881091', cat:'Бакалея', price:13000, cost:10500, stock:9, unit:'кг'},
+    {name:'Кофе 3в1', sku:'4780008881107', cat:'Напитки', price:3000, cost:2000, stock:210, unit:'шт'},
+    {name:'Пакет-майка', sku:'4780008881114', cat:'Бытовое', price:1000, cost:500, stock:500, unit:'шт'},
+    {name:'Сок Nectar 1л', sku:'4780008881121', cat:'Напитки', price:11000, cost:8000, stock:7, unit:'шт'},
+  ];
+  SALES = [
+    {no:'#1042', time:'14:32', method:'Наличные', status:'Оплачено', items:[{id:1,name:'Кока-Кола 0.5л',price:8000,sold:3,max:3},{id:2,name:'Хлеб белый',price:5000,sold:2,max:2},{id:3,name:'Пакет-майка',price:1000,sold:1,max:1}]},
+    {no:'#1041', time:'14:18', method:'Карта', status:'Оплачено', items:[{id:1,name:'Рис Лазер 1кг',price:18000,sold:4,max:4},{id:2,name:'Сахар 1кг',price:13000,sold:2,max:2}]},
+    {no:'#1040', time:'13:55', method:'Карта', status:'Возврат', items:[{id:1,name:'Молоко Nemiroff 1л',price:12000,sold:2,max:0}]},
+    {no:'#1039', time:'13:40', method:'Наличные', status:'Оплачено', items:[{id:1,name:'Кофе 3в1',price:3000,sold:6,max:6},{id:2,name:'Сок Nectar 1л',price:11000,sold:2,max:2}]},
+    {no:'#1038', time:'13:12', method:'Наличные', status:'Оплачено', items:[{id:1,name:'Чипсы Lay’s 90г',price:15000,sold:1,max:1}]},
+    {no:'#1037', time:'12:58', method:'Карта', status:'Оплачено', items:[{id:1,name:'Йогурт Chudo',price:7000,sold:4,max:4}]},
+  ];
+
+  state = { persona:'admin', view:'home', mobile:false, naModule:'', search:'', cat:'Все', cart:{},
+    modal:null, shiftOpen:true, openCash:'500000', countCash:'',
+    payMethod:'cash', payCardType:'dc', payTendered:'',
+    activeSale:null, returnQ:{}, annulReason:'',
+    editProduct:null,
+    poStep:'supplier', poStatus:'draft', poSupplier:null, poItems:[], poReceive:{},
+    employees:[
+      {id:1, name:'Азиз Рахимов', roleLabel:'Владелец', grants:{pos:'manager',inventory:'manager',purchasing:'manager',shop:'manager',reports:'manager'}},
+      {id:2, name:'Нигора Саидова', roleLabel:'Менеджер', grants:{pos:'none',inventory:'manager',purchasing:'manager',shop:'none',reports:'user'}},
+      {id:3, name:'Фаррух Мадаминов', roleLabel:'Кассир', grants:{pos:'user',inventory:'none',purchasing:'none',shop:'none',reports:'none'}},
+      {id:4, name:'Дилшод Тураев', roleLabel:'Кладовщик', grants:{pos:'none',inventory:'user',purchasing:'none',shop:'user',reports:'user'}},
+    ] };
+
+  persona(){ return this.PERSONAS[this.state.persona]; }
+  granted(m){ const p=this.persona(); return m==='settings'? p.isAdmin : (p.isAdmin || !!p.grants[m]); }
+  level(m){ const p=this.persona(); if(p.isAdmin) return 'manager'; return p.grants[m]||null; }
+  canManage(m){ const p=this.persona(); return p.isAdmin || p.grants[m]==='manager'; }
+  grantedKeys(){ return this.MODORDER.filter(k=>this.granted(k)); }
+  fmt(n){ return Math.round(n).toLocaleString('ru-RU')+' сум'; }
+
+  setPersona(k){ const p=this.PERSONAS[k]; const keys=this.MODORDER.filter(m=> m==='settings'? p.isAdmin : (p.isAdmin||!!p.grants[m]));
+    let view='home'; if(keys.length===1) view=this.MOD[keys[0]].def;
+    this.setState({persona:k, view, cart:{}, search:'', cat:'Все', naModule:'', modal:null}); }
+  openModule(k){ if(!this.granted(k)){ this.setState({view:'noaccess', naModule:this.MOD[k].label}); return; } this.setState({view:this.MOD[k].def}); }
+  go(v){ this.setState({view:v}); }
+  goHome(){ this.setState({view:'home'}); }
+  closeModal(){ this.setState({modal:null}); }
+
+  addToCart(i){ const c={...this.state.cart}; c[i]=(c[i]||0)+1; this.setState({cart:c}); }
+  incLine(i){ const c={...this.state.cart}; c[i]=(c[i]||0)+1; this.setState({cart:c}); }
+  decLine(i){ const c={...this.state.cart}; c[i]=(c[i]||0)-1; if(c[i]<=0) delete c[i]; this.setState({cart:c}); }
+  clearCart(){ this.setState({cart:{}}); }
+  cartTotalNum(){ return Object.entries(this.state.cart).reduce((s,[i,q])=>s+this.PRODUCTS[i].price*q,0); }
+  openPay(){ if(this.cartTotalNum()>0 && this.state.shiftOpen) this.setState({modal:'pay', payTendered:'', payMethod:'cash'}); }
+  confirmPay(){ this.setState({cart:{}, modal:null}); }
+
+  doOpenShift(){ this.setState({shiftOpen:true}); }
+  openCloseShift(){ this.setState({modal:'closeShift', countCash:''}); }
+  confirmCloseShift(){ this.setState({shiftOpen:false, modal:null}); }
+
+  openReturn(sale){ const q={}; this.setState({modal:'return', activeSale:sale, returnQ:q}); }
+  setReturnQ(id,d){ const s=this.state.activeSale; const it=s.items.find(x=>x.id===id); const cur=this.state.returnQ[id]||0; let n=cur+d; if(n<0)n=0; if(n>it.max)n=it.max; this.setState({returnQ:{...this.state.returnQ,[id]:n}}); }
+  confirmReturn(){ this.setState({modal:null}); }
+  openAnnul(sale){ this.setState({modal:'annul', activeSale:sale, annulReason:''}); }
+  confirmAnnul(){ this.setState({modal:null}); }
+
+  addProduct(){ this.setState({modal:'product', editProduct:{name:'',sku:'',cat:'Напитки',price:'',cost:'',stock:'',unit:'шт',isNew:true}}); }
+  editProductFn(p){ this.setState({modal:'product', editProduct:{name:p.name,sku:p.sku,cat:p.cat,price:String(p.price),cost:String(p.cost),stock:String(p.stock),unit:p.unit,isNew:false}}); }
+  setPF(field,val){ this.setState({editProduct:{...this.state.editProduct,[field]:val}}); }
+
+  startPO(){ this.setState({view:'po-editor', poStep:'supplier', poStatus:'draft', poSupplier:null, poItems:[], poReceive:{}}); }
+  startPOback(){ this.setState({view:'po'}); }
+  poGo(step){ this.setState({poStep:step}); }
+  poNext(){ const order=['supplier','items','review']; const i=order.indexOf(this.state.poStep); if(i>=0&&i<order.length-1) this.setState({poStep:order[i+1]}); }
+  poBack(){ const order=['supplier','items','review']; const i=order.indexOf(this.state.poStep); if(i>0) this.setState({poStep:order[i-1]}); }
+  poPick(name){ this.setState({poSupplier:name}); }
+  poAdd(idx,qty){ const p=this.PRODUCTS[idx]; const items=[...this.state.poItems, {idx, name:p.name, qty:qty||1, cost:p.cost}]; this.setState({poItems:items}); }
+  poRemove(n){ const items=this.state.poItems.filter((_,i)=>i!==n); this.setState({poItems:items}); }
+  poSend(){ const rec={}; this.state.poItems.forEach((it,i)=>rec[i]=it.qty); this.setState({poStatus:'sent', poStep:'receive', poReceive:rec}); }
+  openReceive(){ const items=[{idx:0,name:'Кока-Кола 0.5л',qty:60,cost:6000},{idx:6,name:'Хлеб белый',qty:40,cost:3200},{idx:9,name:'Кофе 3в1',qty:100,cost:2000}]; const rec={}; items.forEach((it,i)=>rec[i]=it.qty); this.setState({view:'po-editor', poStep:'receive', poStatus:'sent', poSupplier:'«АгроОпт»', poItems:items, poReceive:rec}); }
+  poSetReceive(i,val){ this.setState({poReceive:{...this.state.poReceive,[i]:val}}); }
+  poDoReceive(){ this.setState({view:'po', poStatus:'received'}); }
+
+  setGrant(id,mod,lvl){ const emps=this.state.employees.map(e=> e.id===id? {...e, grants:{...e.grants,[mod]:lvl}} : e); this.setState({employees:emps}); }
+
+  iconSvg(key,color,size){
+    const s=size||26, st='stroke="'+(color||'currentColor')+'" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+    const P={
+      pos:'<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
+      inventory:'<path d="m7.5 4.27 9 5.15M21 8v8a2 2 0 0 1-1 1.73l-7 4a2 2 0 0 1-2 0l-7-4A2 2 0 0 1 3 16V8a2 2 0 0 1 1-1.73l7-4a2 2 0 0 1 2 0l7 4A2 2 0 0 1 21 8z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>',
+      purchasing:'<path d="M10 17h4V5H2v12h3M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+      shop:'<path d="M2 7h20l-1.5 4.5a2 2 0 0 1-2 1.5H5.5a2 2 0 0 1-2-1.5L2 7zM4 7V4a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3M6 13v8h12v-8"/>',
+      reports:'<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>',
+      settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+    };
+    return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" '+st+'>'+(P[key]||'')+'</svg>';
+  }
+  mkIconRef(key,color,size){ return (el)=>{ if(el) el.innerHTML=this.iconSvg(key,color,size); }; }
+
+  renderVals(){
+    const st=this.state, p=this.persona(), view=st.view;
+    const accent='var(--color-accent)', ink='var(--color-text)', div='var(--color-divider)';
+    const isHome=view==='home', isPos=view==='pos', isNoAccess=view==='noaccess';
+    const curMod=this.VIEWMOD[view]||null;
+    const isModulePage=!isHome && !isPos && !isNoAccess && !!curMod;
+
+    const pbtn=(a)=>'font-family:inherit;font-size:11px;padding:4px 9px;border:0;cursor:pointer;'+(a?'background:var(--color-accent);color:#fff':'background:rgba(255,255,255,.14);color:#fff');
+    const personaBtns=Object.entries(this.PERSONAS).map(([k,v])=>({label:v.role, select:()=>this.setPersona(k), style:pbtn(st.persona===k)}));
+    const personaHint=p.isAdmin?'Все модули · admin':(this.grantedKeys().length+' модул(я/ей) · '+(Object.values(p.grants).includes('manager')?'есть manager':'только user'));
+
+    const railBtn=(a)=>'width:100%;background:transparent;border:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;color:'+(a?accent:'color-mix(in srgb,var(--color-text) 62%,transparent)')+';'+(a?'background:#fff;box-shadow:inset 3px 0 0 var(--color-accent)':'');
+    const railModules=this.grantedKeys().map(k=>({label:this.MOD[k].label, open:()=>this.openModule(k), style:railBtn(curMod===k), iconRef:this.mkIconRef(k, curMod===k?'#ec3013':'#7d7979', 22)}));
+
+    const moduleCards=this.MODORDER.map(k=>{ const g=this.granted(k), lvl=this.level(k);
+      const cardStyle='background:#fff;border:1px solid '+div+';padding:20px;display:flex;flex-direction:column;align-items:flex-start;cursor:pointer;text-align:left;transition:box-shadow .15s,border-color .15s;'+(g?'':'opacity:.55');
+      let badge='', badgeStyle='display:none';
+      if(!g){ badge='Нет доступа'; badgeStyle='font-size:10px;background:var(--color-surface);color:color-mix(in srgb,var(--color-text) 55%,transparent);padding:3px 8px'; }
+      else if(lvl==='manager'){ badge='Менеджер'; badgeStyle='font-size:10px;background:#f6ead9;color:#8a4a0d;padding:3px 8px'; }
+      else { badge='Сотрудник'; badgeStyle='font-size:10px;background:var(--color-accent-100);color:var(--color-accent-800);padding:3px 8px'; }
+      return { label:this.MOD[k].label, tagline:this.MOD[k].tagline, open:()=>this.openModule(k), style:cardStyle, badge, badgeStyle, iconRef:this.mkIconRef(k, g?'#201e1d':'#9b9797', 26) };
+    });
+
+    const pgActive=(a)=>'display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:'+(a?'var(--color-surface)':'transparent')+';border:0;cursor:pointer;padding:9px 8px;font-family:inherit;font-size:13.5px;font-weight:'+(a?'700':'500')+';color:'+(a?accent:ink)+';';
+    const pages=(this.PAGES[curMod]||[]).filter(pg=> !(pg[2]==='mgr' && !this.canManage(curMod))).map(pg=>({label:pg[0], go:()=>this.go(pg[1]), style:pgActive(view===pg[1]||(pg[1]==='po'&&view==='po-editor')), mgr:pg[2]==='mgr'}));
+
+    const crumbModule=curMod?this.MOD[curMod].label:(isHome?'Приложения':(isNoAccess?'Доступ':''));
+    const pageEntry=(this.PAGES[curMod]||[]).find(pg=>pg[1]===view || (pg[1]==='po'&&view==='po-editor'));
+    const crumbPage=pageEntry?pageEntry[0]:'';
+    const moduleTagline=curMod?this.MOD[curMod].tagline:'';
+    const lvl=curMod?this.level(curMod):null;
+    const levelLabel=p.isAdmin?'Администратор':(lvl==='manager'?'Менеджер':(lvl==='user'?'Сотрудник':'—'));
+    const levelColor=(p.isAdmin||lvl==='manager')?'#8a4a0d':accent;
+
+    const v={}; ['products','categories','units','inventory','dashboard','analytics','sales','shifts','customers','suppliers','po','orders','company','marketplace','employees'].forEach(x=>v[x]=view===x);
+    v.poEditor=view==='po-editor';
+
+    // products
+    const low=this.PRODUCTS.filter(x=>x.stock<=5).length;
+    let prods=this.PRODUCTS.map((x,i)=>({...x,i}));
+    if(st.cat!=='Все') prods=prods.filter(x=>x.cat===st.cat);
+    if(st.search) prods=prods.filter(x=>(x.name+' '+x.sku).toLowerCase().includes(st.search.toLowerCase()));
+    const stockCell=(x)=>{ if(x.stock===0) return {stockLabel:'Нет', stockStyle:'font-weight:700;color:var(--color-accent)'};
+      if(x.stock<=5) return {stockLabel:x.stock+' '+x.unit, stockStyle:'font-weight:700;color:#a75a12'};
+      return {stockLabel:x.stock+' '+x.unit, stockStyle:'font-weight:600'}; };
+    const productRows=prods.map(x=>({name:x.name, sku:x.sku, cat:x.cat, price:this.fmt(x.price), margin:'+'+this.fmt(x.price-x.cost), edit:()=>this.editProductFn(x), ...stockCell(x)}));
+    const cats=['Все',...Array.from(new Set(this.PRODUCTS.map(x=>x.cat)))];
+    const chipStyle=(a)=>'font-family:inherit;font-size:12.5px;padding:7px 13px;cursor:pointer;border:1px solid '+div+';background:'+(a?'var(--color-text)':'#fff')+';color:'+(a?'var(--color-bg)':ink)+';';
+    const catChips=cats.map(c=>({label:c, pick:()=>this.setState({cat:c}), style:chipStyle(st.cat===c)}));
+
+    const categoryCards=Array.from(new Set(this.PRODUCTS.map(x=>x.cat))).map(c=>({name:c, count:this.PRODUCTS.filter(x=>x.cat===c).length}));
+    const unitRows=[{name:'Штука',abbr:'шт',frac:'Нет'},{name:'Килограмм',abbr:'кг',frac:'Да'},{name:'Литр',abbr:'л',frac:'Да'},{name:'Упаковка',abbr:'упак',frac:'Нет'}];
+    const invSample=[['Кока-Кола 0.5л',48,48],['Чипсы Lay’s 90г',6,5],['Сахар 1кг',9,10],['Хлеб белый',15,14]];
+    const invRows=invSample.map(r=>{ const d=r[2]-r[1]; return {name:r[0], book:r[1], fact:r[2], diff:(d>0?'+':'')+d, diffColor:d<0?'var(--color-accent)':(d>0?'#157347':'color-mix(in srgb,var(--color-text) 45%,transparent)')}; });
+
+    const kpis=[
+      {label:'Выручка сегодня', value:this.fmt(4820000), color:'#157347', delta:'+12% ко вчера', deltaColor:'#157347'},
+      {label:'Продаж', value:'137', color:ink, delta:'+8 за час', deltaColor:'#157347'},
+      {label:'Средний чек', value:this.fmt(35180), color:ink, delta:'−2%', deltaColor:'#a75a12'},
+      {label:'Возвраты', value:'3', color:'#a75a12', delta:'на 84 000 сум', deltaColor:'color-mix(in srgb,var(--color-text) 55%,transparent)'},
+    ];
+    const chVals=[10,18,32,44,56,62,80,72,58,40], chHours=['9','10','11','12','13','14','15','16','17','18'];
+    const chart=chVals.map((val,i)=>({hour:chHours[i], barStyle:'width:100%;height:'+val+'%;background:var(--color-accent);'}));
+    const topProducts=[{rank:'1',name:'Кока-Кола 0.5л',qty:'412 шт'},{rank:'2',name:'Хлеб белый',qty:'388 шт'},{rank:'3',name:'Пакет-майка',qty:'351 шт'},{rank:'4',name:'Вода Ferghana 1л',qty:'297 шт'},{rank:'5',name:'Кофе 3в1',qty:'240 шт'}];
+    const cp=[['Напитки',88],['Бакалея',64],['Молочное',52],['Снеки',40],['Хлеб',28]], cpMax=88;
+    const categoryProfit=cp.map(([name,val])=>({name, sum:this.fmt(val*11000), barStyle:'height:100%;width:'+Math.round(val/cpMax*100)+'%;background:#157347;'}));
+
+    // sales
+    const stStyle=(s)=> s==='Возврат'?'font-size:11px;padding:3px 9px;background:#f6ead9;color:#8a4a0d':'font-size:11px;padding:3px 9px;background:#e6f0ea;color:#157347';
+    const salesRows=this.SALES.map(s=>{ const sum=s.items.reduce((a,b)=>a+b.price*b.sold,0);
+      return {time:s.time, no:s.no, method:s.method, sum:this.fmt(sum), status:s.status, statusStyle:stStyle(s.status), return:()=>this.openReturn(s), annul:()=>this.openAnnul(s)}; });
+
+    const custRaw=[['ООО «Барака»','+998 90 111 22 33',340000,42],['Гулнора А.','+998 91 222 33 44',0,18],['Кафе «Лола»','+998 93 333 44 55',128000,67],['Рустам К.','+998 94 444 55 66',0,9]];
+    const customerRows=custRaw.map(r=>({name:r[0],phone:r[1],orders:r[3], debt:r[2]===0?'—':this.fmt(r[2]), debtStyle:r[2]>0?'color:var(--color-accent);font-weight:700':'color:color-mix(in srgb,var(--color-text) 45%,transparent)'}));
+
+    const supRaw=[['«АгроОпт»','Ш. Каримов','+998 71 200 10 10',18400000],['«Nestlé Дистрибуция»','Отдел продаж','+998 71 233 44 55',31200000],['«Хлебзавод №3»','А. Юсупов','+998 90 555 66 77',6800000],['«ПакоСервис»','—','+998 95 100 20 30',2100000]];
+    const supplierRows=supRaw.map(r=>({name:r[0],contact:r[1],phone:r[2],turnover:this.fmt(r[3])}));
+    const poRaw=[['ЗП-0087','«АгроОпт»','24 июл',4200000,'Отправлен',true],['ЗП-0086','«Nestlé Дистрибуция»','23 июл',8900000,'Черновик',false],['ЗП-0085','«Хлебзавод №3»','22 июл',1200000,'Получен',false],['ЗП-0084','«ПакоСервис»','20 июл',560000,'Отправлен',true]];
+    const poStS=(s)=>{ if(s==='Получен') return 'font-size:11px;padding:3px 9px;background:#e6f0ea;color:#157347'; if(s==='Отправлен') return 'font-size:11px;padding:3px 9px;background:var(--color-accent-100);color:var(--color-accent-800)'; return 'font-size:11px;padding:3px 9px;background:var(--color-surface);color:color-mix(in srgb,var(--color-text) 55%,transparent)'; };
+    const poRows=poRaw.map(r=>({no:r[0],supplier:r[1],date:r[2],sum:this.fmt(r[3]),status:r[4],statusStyle:poStS(r[4]), canReceive:r[5]&&this.canManage('purchasing'), receive:()=>this.openReceive()}));
+
+    const kanban=[
+      {title:'Новый',count:2,cards:[{no:'#T-318',customer:'Азиза Р.',sum:this.fmt(56000)},{no:'#T-317',customer:'Жавлон',sum:this.fmt(23000)}]},
+      {title:'Подтверждён',count:1,cards:[{no:'#T-315',customer:'Кафе «Лола»',sum:this.fmt(184000)}]},
+      {title:'Готовится',count:1,cards:[{no:'#T-312',customer:'Дилноза',sum:this.fmt(41000)}]},
+      {title:'Готов',count:1,cards:[{no:'#T-309',customer:'Отабек',sum:this.fmt(77000)}]},
+      {title:'Выдан',count:0,cards:[]},
+    ];
+
+    // POS
+    const posProducts=this.PRODUCTS.filter(x=>x.stock>0).slice(0,10).map((x)=>{ const i=this.PRODUCTS.indexOf(x); return {name:x.name, price:this.fmt(x.price), stock:'ост. '+x.stock+' '+x.unit, add:()=>this.addToCart(i)}; });
+    const cartLines=Object.entries(st.cart).map(([i,q])=>{ const x=this.PRODUCTS[i]; return {name:x.name, price:this.fmt(x.price), qty:q, total:this.fmt(x.price*q), inc:()=>this.incLine(i), dec:()=>this.decLine(i)}; });
+    const posTabS=(a)=>'font-family:inherit;font-size:13px;padding:6px 12px;border:0;cursor:pointer;background:'+(a?'var(--color-text)':'transparent')+';color:'+(a?'var(--color-bg)':ink)+';';
+    const posTabs=this.PAGES.pos.map(pg=>({label:pg[0], go:()=>this.go(pg[1]), style:posTabS(view===pg[1])}));
+    const total=this.cartTotalNum();
+    const payDisabled=(total===0||!st.shiftOpen);
+
+    // shift
+    const shiftRowsRaw=[['Наличные',3110000],['Карта',1710000],['Мобильный',0],['В долг',0]];
+    const shiftRows=shiftRowsRaw.filter(r=>r[1]>0||r[0]==='Наличные'||r[0]==='Карта').map(r=>({label:r[0], value:this.fmt(r[1]), style:''}));
+    shiftRows.push({label:'Чеков', value:'137', style:'border-top:1px solid var(--color-divider);margin-top:4px;padding-top:8px'});
+    const openingNum=parseInt(st.openCash)||0;
+    const expectedNum=openingNum+3110000;
+    const countNum=parseInt(st.countCash)||0;
+    const discr=countNum-expectedNum;
+    const discrLabel=discr<0?'Недостача':(discr>0?'Излишек':'Расхождение');
+    const discrColor=discr<0?'var(--color-accent)':(discr>0?'#157347':ink);
+    const discrBg=discr<0?'#fbeee9':(discr>0?'#e6f0ea':'var(--color-surface)');
+
+    // payment modal
+    const methods=[['cash','Наличные'],['card','Карта'],['mobile','Мобильный'],['credit','В долг']];
+    const mSel=(a)=>'font-family:var(--font-heading);font-weight:800;font-size:13px;padding:10px;border:1px solid '+(a?'var(--color-text)':div)+';background:'+(a?'var(--color-text)':'#fff')+';color:'+(a?'var(--color-bg)':ink)+';cursor:pointer;text-align:left';
+    const payMethods=methods.map(([k,l])=>({label:l, pick:()=>this.setState({payMethod:k}), style:mSel(st.payMethod===k)}));
+    const cardTypesRaw=[['dc','DC'],['eskhata','Эсхата'],['alif','Alif']];
+    const ctSel=(a)=>'font-family:inherit;font-size:13px;padding:8px 14px;border:1px solid '+(a?'var(--color-text)':div)+';background:'+(a?'var(--color-surface)':'#fff')+';color:'+ink+';cursor:pointer';
+    const cardTypes=cardTypesRaw.map(([k,l])=>({label:l, pick:()=>this.setState({payCardType:k}), style:ctSel(st.payCardType===k)}));
+    const tendered=parseInt(st.payTendered)||0;
+    const change=Math.max(0,tendered-total);
+    const payIsCash=st.payMethod==='cash', payIsCard=st.payMethod==='card';
+    const payCanConfirm=payIsCash?(tendered>=total):true;
+
+    // return modal
+    const rs=st.activeSale;
+    const returnItems=rs?rs.items.filter(it=>it.max>0).map(it=>{ const q=st.returnQ[it.id]||0; return {name:it.name, sold:it.sold, max:it.max, price:this.fmt(it.price), qty:q, inc:()=>this.setReturnQ(it.id,1), dec:()=>this.setReturnQ(it.id,-1)}; }):[];
+    const returnTotalNum=rs?rs.items.reduce((a,it)=>a+(st.returnQ[it.id]||0)*it.price,0):0;
+    const returnAny=Object.values(st.returnQ).some(q=>q>0);
+    const returnAvailNum=rs?rs.items.reduce((a,it)=>a+it.max*it.price,0):0;
+
+    // annul modal
+    const annulImpacts=rs?rs.items.map(it=>({name:it.name, change:'+'+it.sold+' шт'})):[];
+    const annulOk=st.annulReason.trim().length>=3;
+
+    // product form
+    const ep=st.editProduct||{};
+    const pf={ name:ep.name||'', sku:ep.sku||'', price:ep.price||'', cost:ep.cost||'', stock:ep.stock||'',
+      catOpts:Array.from(new Set(this.PRODUCTS.map(x=>x.cat))),
+      catRef:(el)=>{ if(el&&ep.cat) el.value=ep.cat; },
+      onName:(e)=>this.setPF('name',e.target.value), onSku:(e)=>this.setPF('sku',e.target.value),
+      onPrice:(e)=>this.setPF('price',e.target.value), onCost:(e)=>this.setPF('cost',e.target.value), onStock:(e)=>this.setPF('stock',e.target.value) };
+
+    // PO wizard
+    const poOrder=['supplier','items','review','receive'];
+    const poStepLabels={supplier:'Поставщик',items:'Товары',review:'Проверка',receive:'Приёмка'};
+    const curIdx=poOrder.indexOf(st.poStep);
+    const receiptUnlocked=['sent','partially_received','received'].includes(st.poStatus);
+    const poSteps=poOrder.map((id,i)=>{ const isCur=id===st.poStep; const unav=id==='receive'&&!receiptUnlocked;
+      const done=!unav&&i<curIdx; const state=unav?'недоступно':(isCur?'текущий':(done?'завершено':'ожидает'));
+      const numStyle='display:grid;place-items:center;width:32px;height:32px;border-radius:50%;font-family:var(--font-heading);font-weight:800;font-size:13px;'+
+        (isCur?'background:var(--color-accent);color:#fff;border:2px solid var(--color-accent)':(done?'background:var(--color-accent-100);color:var(--color-accent-800);border:2px solid var(--color-accent-200)':(unav?'background:var(--color-surface);color:color-mix(in srgb,var(--color-text) 40%,transparent);border:2px solid var(--color-divider)':'background:#fff;color:color-mix(in srgb,var(--color-text) 55%,transparent);border:2px solid var(--color-divider)')));
+      const canClick=!unav;
+      return {num:unav?'🔒':(done?'✓':String(i+1)), label:poStepLabels[id], state, numStyle, line:i<poOrder.length-1, wrapStyle:i<poOrder.length-1?'flex:1':'', cursor:canClick?'pointer':'default', go:()=>{ if(canClick) this.poGo(id); }}; });
+    const poItemRows=st.poItems.map((it,i)=>({name:it.name, qty:it.qty, cost:this.fmt(it.cost), total:this.fmt(it.qty*it.cost), remove:()=>this.poRemove(i)}));
+    const poTotalNum=st.poItems.reduce((a,it)=>a+it.qty*it.cost,0);
+    const poProductOpts=this.PRODUCTS.map((x,i)=>({idx:i, name:x.name}));
+    const poSupplierOpts=supRaw.map(r=>({name:r[0], contact:r[1], pick:()=>this.poPick(r[0]),
+      style:'display:flex;flex-direction:column;gap:2px;text-align:left;padding:12px 14px;border:1px solid '+(st.poSupplier===r[0]?'var(--color-text)':div)+';background:'+(st.poSupplier===r[0]?'var(--color-surface)':'#fff')+';cursor:pointer'}));
+    const poReceiveRows=st.poItems.map((it,i)=>({name:it.name, ordered:it.qty, received:st.poReceive[i]!==undefined?st.poReceive[i]:it.qty, onInput:(e)=>this.poSetReceive(i,e.target.value)}));
+    let poAddSelEl=null, poAddQtyEl=null;
+
+    const mobKeys=this.grantedKeys().filter(k=>k!=='settings').slice(0,4);
+    const mobileTiles=mobKeys.map(k=>({label:this.MOD[k].label, style:'background:var(--color-surface);border:1px solid '+div+';padding:14px;display:flex;flex-direction:column;', iconRef:this.mkIconRef(k,'#201e1d',22)}));
+    const mobTabStyle=(a)=>'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:'+(a?accent:'color-mix(in srgb,var(--color-text) 50%,transparent)')+';';
+    const mobileTabs=mobKeys.map((k,i)=>({label:this.MOD[k].label, style:mobTabStyle(i===0), iconRef:this.mkIconRef(k, i===0?'#ec3013':'#9b9797', 20)}));
+    const mobilePos=this.PRODUCTS.filter(x=>x.stock>0).slice(0,6).map(x=>({name:x.name, price:this.fmt(x.price)}));
+
+    return {
+      isDesktop:!st.mobile, isMobile:st.mobile,
+      setDesktop:()=>this.setState({mobile:false}), setMobile:()=>this.setState({mobile:true}),
+      deskStyle:pbtn(!st.mobile), mobStyle:pbtn(st.mobile), personaBtns, personaHint,
+      user:{name:p.name, role:p.role, company:p.company, initial:p.name[0]},
+      isHome, isPos, isNoAccess, isModulePage, fullTopbar:!isPos, showRail:isModulePage, showSecondary:isModulePage,
+      railModules, moduleCards, pages, crumbModule, crumbPage, moduleTagline, levelLabel, levelColor,
+      goHome:()=>this.goHome(), v, naModule:st.naModule, stop:(e)=>e.stopPropagation(), closeModal:()=>this.closeModal(),
+      manageInv:this.canManage('inventory'), readonlyInv:!this.canManage('inventory'),
+      productRows, productCount:this.PRODUCTS.length, lowCount:low, catChips,
+      search:st.search, onSearch:(e)=>this.setState({search:e.target.value}), resetSearch:()=>this.setState({search:'',cat:'Все'}),
+      noResults:(view==='products'&&productRows.length===0),
+      categoryCards, unitRows, invRows, kpis, chart, topProducts, categoryProfit,
+      salesRows, managePos:this.canManage('pos'), readonlyPos:!this.canManage('pos'),
+      customerRows, supplierRows, supplierCount:supRaw.length, poRows, managePur:this.canManage('purchasing'), readonlyPur:!this.canManage('purchasing'),
+      kanban, posProducts, posTabs, cartLines, cartEmpty:cartLines.length===0,
+      cartCount:Object.values(st.cart).reduce((a,b)=>a+b,0), cartTotal:this.fmt(total),
+      addProduct:()=>this.addProduct(), clearCart:()=>this.clearCart(), openPay:()=>this.openPay(),
+      payDisabled, payBtnBg:payDisabled?'#9b9797':'#157347', payCursor:payDisabled?'not-allowed':'pointer',
+      shiftOpen:st.shiftOpen, shiftClosed:!st.shiftOpen,
+      openCashVal:st.openCash, onOpenCash:(e)=>this.setState({openCash:e.target.value}), doOpenShift:()=>this.doOpenShift(),
+      openCloseShift:()=>this.openCloseShift(), confirmCloseShift:()=>this.confirmCloseShift(),
+      countCashVal:st.countCash, onCountCash:(e)=>this.setState({countCash:e.target.value}),
+      shiftRows, shiftCash:{opening:this.fmt(openingNum), expected:this.fmt(expectedNum)},
+      discrLabel, discrValue:(discr>0?'+':'')+this.fmt(discr), discrColor, discrBg,
+      moduleCols:['Касса','Склад','Закупки','Магазин','Отчеты'], employeesView:st.employees.map(e=>({name:e.name, roleLabel:e.roleLabel,
+        cells:['pos','inventory','purchasing','shop','reports'].map(mk=>{ const cur=e.grants[mk]||'none'; return {name:'g-'+e.id+'-'+mk, isNone:cur==='none', isUser:cur==='user', isManager:cur==='manager', setNone:()=>this.setGrant(e.id,mk,'none'), setUser:()=>this.setGrant(e.id,mk,'user'), setManager:()=>this.setGrant(e.id,mk,'manager')}; })})), employeeCount:st.employees.length,
+      // modals
+      modalPay:st.modal==='pay', modalCloseShift:st.modal==='closeShift', modalReturn:st.modal==='return', modalAnnul:st.modal==='annul', modalProduct:st.modal==='product',
+      payMethods, cardTypes, payIsCash, payIsCard, payTendered:st.payTendered, onTendered:(e)=>this.setState({payTendered:e.target.value}),
+      payChange:this.fmt(change), payChangeColor:change>0?'#157347':ink, confirmPay:()=>this.confirmPay(),
+      payConfirmDisabled:!payCanConfirm, payConfirmCursor:payCanConfirm?'pointer':'not-allowed', payConfirmOpacity:payCanConfirm?'1':'.5',
+      returnNo:rs?rs.no:'', returnItems, returnTotal:this.fmt(returnTotalNum), returnAvailable:this.fmt(returnAvailNum),
+      returnDisabled:!returnAny, returnCursor:returnAny?'pointer':'not-allowed', returnOpacity:returnAny?'1':'.5', confirmReturn:()=>this.confirmReturn(), refundSelRef:()=>{},
+      annulImpacts, annulReason:st.annulReason, onAnnulReason:(e)=>this.setState({annulReason:e.target.value}),
+      annulDisabled:!annulOk, annulCursor:annulOk?'pointer':'not-allowed', annulOpacity:annulOk?'1':'.5', confirmAnnul:()=>this.confirmAnnul(),
+      productFormTitle:(ep.isNew?'Новый товар':'Изменить товар'), pf,
+      // PO
+      startPO:()=>this.startPO(), startPOback:()=>this.startPOback(), poSteps,
+      poIsSupplier:st.poStep==='supplier', poIsItems:st.poStep==='items', poIsReview:st.poStep==='review', poIsReceive:st.poStep==='receive',
+      poTitle:st.poStatus==='sent'?'Приёмка заказа':'Новый заказ', poNo:'ЗП-0088',
+      poSupplierOpts, poNoSupplier:!st.poSupplier, poSupplierName:st.poSupplier||'—',
+      poNext:()=>this.poNext(), poBack:()=>this.poBack(),
+      poProductOpts, poAddSelRef:(el)=>{poAddSelEl=el; this._poSel=el;}, poAddQtyRef:(el)=>{this._poQty=el;},
+      poAddItem:()=>{ const idx=this._poSel?parseInt(this._poSel.value):0; const qty=this._poQty?parseInt(this._poQty.value)||1:1; this.poAdd(idx,qty); },
+      poItemRows, poHasItems:st.poItems.length>0, poNoItems:st.poItems.length===0, poTotal:this.fmt(poTotalNum), poCount:st.poItems.length,
+      poSend:()=>this.poSend(), poReceiveRows, poDoReceive:()=>this.poDoReceive(),
+      mobileTiles, mobileTabs, mobilePos,
+    };
+  }
+}
+</script>
+</body>
+</html>
