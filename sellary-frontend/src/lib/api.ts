@@ -4,6 +4,7 @@ import axios from 'axios';
 
 import { clearOwnerSession, getOwnerAccessToken } from './owner-session';
 import { clearStoredSession, getActiveAccessToken } from './session';
+import type { ModuleMap } from './modules';
 import type {
   AuthSession,
   CompanySession,
@@ -209,6 +210,12 @@ export const adminApi = {
       is_active?: boolean;
     },
   ) => api.patch<ManagedMembership>(`/admin/memberships/${id}`, data),
+  getMembershipModules: (id: number) =>
+    api.get<{ membership_id: number; modules: ModuleMap }>(`/admin/memberships/${id}/modules`),
+  updateMembershipModules: (id: number, modules: ModuleMap) =>
+    api.put<{ membership_id: number; modules: ModuleMap }>(`/admin/memberships/${id}/modules`, {
+      modules,
+    }),
 };
 
 export const productsApi = {
