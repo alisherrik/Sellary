@@ -15,7 +15,8 @@ import FilterMenu from '@/components/filters/FilterMenu';
 import { ModuleGuard } from '@/components/ModuleGuard';
 import AnnulmentDialog from '@/components/transactions/AnnulmentDialog';
 import { Sale, SaleItem, VoidPreview } from '@/lib/types';
-import { useAuthStore } from '@/lib/store';
+import { useModules } from '@/lib/store';
+import { canAccessModule } from '@/lib/modules';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useSaleSearchSuggestions, useInfiniteSales, useSalesSummary } from '@/hooks/useQueries';
 import SalesSearch from '@/components/sales/SalesSearch';
@@ -69,6 +70,10 @@ const paymentChip = (sale: Sale) => {
   return { label: '💵 Наличные', cls: 'bg-zinc-100 text-zinc-600 dark:bg-gray-700 dark:text-gray-300' };
 };
 
+// Backend 403s carry a dict detail ({code, module, ...}); passing that to toast renders nothing.
+const errorText = (detail: unknown, fallback: string) =>
+  typeof detail === 'string' && detail ? detail : fallback;
+
 const debtStatusText = (status?: Sale['payment_status']) => {
   const labels: Record<string, string> = {
     unpaid: 'Не оплачено',
@@ -105,7 +110,9 @@ function SalesHistory() {
   const [debtPaymentMethod, setDebtPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
   const [debtPaymentDescription, setDebtPaymentDescription] = useState('');
   const [debtPaymentSubmitting, setDebtPaymentSubmitting] = useState(false);
-  const isAdmin = useAuthStore((state) => state.currentCompany?.role === 'admin');
+  const modules = useModules();
+  // Returns/voids need pos:manager on the backend; admin's modules map carries all modules at manager.
+  const canManagePos = canAccessModule(modules, 'pos', 'manager');
   const debouncedSearch = useDebounce(searchInput, 300);
 
   const salesParams = useMemo(() => {
@@ -170,7 +177,7 @@ function SalesHistory() {
       const response = await salesApi.previewVoid(sale.id);
       setVoidPreview(response.data);
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Не удалось проверить аннулирование');
+      toast.error(errorText(error.response?.data?.detail, 'Не удалось проверить аннулирование'));
       setShowVoidDialog(false);
     } finally {
       setVoidLoading(false);
@@ -191,7 +198,12 @@ function SalesHistory() {
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ]);
     } catch (error: any) {
-      toast.error(error.response?.data?.detail?.message || error.response?.data?.detail || 'Аннулирование не выполнено');
+      toast.error(
+        errorText(
+          error.response?.data?.detail?.message || error.response?.data?.detail,
+          'Аннулирование не выполнено',
+        ),
+      );
     } finally {
       setVoidSubmitting(false);
     }
@@ -224,7 +236,7 @@ function SalesHistory() {
       setShowDetail(false);
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Ошибка при оформлении возврата');
+      toast.error(errorText(error.response?.data?.detail, 'Ошибка при оформлении возврата'));
     },
   });
 
@@ -846,7 +858,7 @@ function SalesHistory() {
                       Number(item.quantity_returned || 0) >= Number(item.quantity) &&
                       Number(item.quantity) > 0;
                     const canAnnulItem =
-                      isAdmin &&
+                      canManagePos &&
                       item.transaction_type === 'sale' &&
                       outstanding > 0 &&
                       ['completed', 'partially_returned'].includes(selectedSale.status);
@@ -922,7 +934,7 @@ function SalesHistory() {
             </div>
 
             <div className="mt-auto flex gap-2 border-t border-gray-100 p-4 dark:border-gray-700">
-              {(selectedSale as any).can_return && (
+              {canManagePos && (selectedSale as any).can_return && (
                 <button
                   onClick={() => {
                     setShowDetail(false);
@@ -934,7 +946,7 @@ function SalesHistory() {
                   Оформить возврат
                 </button>
               )}
-              {isAdmin && ['completed', 'partially_returned'].includes(selectedSale.status) && (
+              {canManagePos && ['completed', 'partially_returned'].includes(selectedSale.status) && (
                 <button
                   onClick={() => void openVoidDialog(selectedSale)}
                   className="flex flex-1 items-center justify-center rounded-lg border border-red-200 px-3 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50"
@@ -979,7 +991,7 @@ function SalesHistory() {
               </div>
             </div>
             <div className="flex gap-2 border-t border-gray-100 p-4 dark:border-gray-700">
-              {(selectedSale as any).can_return && (
+              {canManagePos && (selectedSale as any).can_return && (
                 <button
                   onClick={() => { setShowDetail(false); handleOpenReturnModal(selectedSale); }}
                   className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
@@ -987,7 +999,7 @@ function SalesHistory() {
                   <ArrowUturnLeftIcon className="h-4 w-4" /> Возврат
                 </button>
               )}
-              {isAdmin && ['completed', 'partially_returned'].includes(selectedSale.status) && (
+              {canManagePos && ['completed', 'partially_returned'].includes(selectedSale.status) && (
                 <button onClick={() => void openVoidDialog(selectedSale)} className="rounded-lg border border-red-200 px-3 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">
                   Аннулировать
                 </button>
