@@ -14,7 +14,7 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { accessToken, isAuthenticated, hasHydrated } = useAuthStore();
+  const { accessToken, isAuthenticated, hasHydrated, fetchSession } = useAuthStore();
   const isMobile = useMediaQuery('(max-width: 767px)');
 
   useEffect(() => {
@@ -24,8 +24,12 @@ export default function ProtectedLayout({
 
     if (!accessToken || !isAuthenticated) {
       router.replace('/login');
+      return;
     }
-  }, [accessToken, hasHydrated, isAuthenticated, router]);
+
+    // Refresh /me so module grants revoked/added by an admin apply without re-login.
+    void fetchSession().catch(() => {});
+  }, [accessToken, fetchSession, hasHydrated, isAuthenticated, router]);
 
   if (!hasHydrated) {
     return (
