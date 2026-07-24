@@ -251,7 +251,7 @@ def require_module(module: str, level: str = "user"):
                 )
                 .first()
             )
-        if grant is None or _LEVEL_RANK[grant.level] < _LEVEL_RANK[level]:
+        if grant is None or _LEVEL_RANK.get(grant.level, 0) < _LEVEL_RANK[level]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail={

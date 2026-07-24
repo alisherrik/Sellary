@@ -61,7 +61,7 @@ class TestRequireModule:
         with pytest.raises(ValueError):
             require_module("pos", level="root")
 
-    def test_membership_none_403(self, db_session, super_admin_user, default_company):
+    def test_super_admin_membership_none_bypass(self, db_session, super_admin_user, default_company):
         # super-admin company entry has membership=None but role admin -> bypass
         auth = AuthContext(
             user=super_admin_user,
