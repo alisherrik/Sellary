@@ -125,13 +125,15 @@ function Customers() {
 
   return (
     <>
-      <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
-        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <div className="border-b border-gray-100 p-4 dark:border-gray-700">
-            <h1 className="text-xl font-black text-gray-900 dark:text-white">Клиенты</h1>
-            <p className="text-sm text-gray-500">Клиенты для продаж в долг и история оплат.</p>
-          </div>
-          <div className="border-b border-gray-100 p-3 dark:border-gray-700">
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        <div className="flex-none">
+          <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Клиенты</h2>
+          <p className="mt-0.5 text-[13px] text-gray-500">Долги и история · {customers.length}</p>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+        <section className="flex min-h-0 flex-1 flex-col overflow-hidden border border-[var(--erp-divider)] bg-white">
+          <div className="border-b border-[var(--erp-divider)] p-3">
             <div className="flex items-center gap-2">
               <div className="relative min-w-0 flex-1">
               <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -141,7 +143,7 @@ function Customers() {
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Поиск по имени, телефону или email..."
-                className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                className="h-10 w-full border border-[var(--erp-divider)] bg-white pl-9 pr-3 text-sm outline-none focus:border-[var(--erp-text)]"
               />
               </div>
               <FilterMenu activeCount={activeFilterCount} onReset={resetAdvancedFilters}>
@@ -150,7 +152,7 @@ function Customers() {
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                       Баланс
                     </p>
-                    <div className="grid gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-900">
+                    <div className="grid gap-1 border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-1">
                       {debtTabs.map((tab) => (
                         <button
                           key={tab.key}
@@ -158,10 +160,10 @@ function Customers() {
                           aria-label={tab.label}
                           data-filter-close
                           onClick={() => setDebtFilter(tab.key)}
-                          className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                          className={`flex items-center justify-between px-3 py-2 text-sm font-medium transition-colors ${
                             debtFilter === tab.key
-                              ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
-                              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                              ? 'bg-white text-[var(--erp-text)]'
+                              : 'text-gray-500 hover:text-[var(--erp-text)]'
                           }`}
                         >
                           <span>{tab.label}</span>
@@ -196,21 +198,21 @@ function Customers() {
                       key={customer.id}
                       type="button"
                       onClick={() => setSelectedCustomerId(customer.id)}
-                      className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors ${
+                      className={`flex w-full items-center gap-3 border p-3 text-left transition-colors ${
                         selected
-                          ? 'border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20'
-                          : 'border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/50'
+                          ? 'border-[var(--erp-text)] bg-[var(--erp-surface)]'
+                          : 'border-[var(--erp-divider)] bg-white hover:bg-[var(--erp-surface)]'
                       }`}
                     >
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-gray-900 text-sm font-black text-white">
+                      <div className="grid h-10 w-10 place-items-center bg-[var(--erp-accent)] text-sm font-black text-white">
                         {(customer.name || '?').charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-bold text-gray-900 dark:text-white">{customer.name}</p>
+                        <p className="truncate font-bold text-[var(--erp-text)]">{customer.name}</p>
                         {customer.phone && <p className="text-xs text-gray-500">{customer.phone}</p>}
                         {customer.description && <p className="truncate text-xs text-gray-400">{customer.description}</p>}
                       </div>
-                      <span className={`shrink-0 font-black tabular-nums ${balance > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                      <span className={`shrink-0 font-black tabular-nums ${balance > 0 ? 'text-[var(--erp-accent)]' : 'text-gray-400'}`}>
                         {formatCurrency(customer.balance || '0')}
                       </span>
                     </button>
@@ -221,29 +223,29 @@ function Customers() {
           </div>
         </section>
 
-        <aside className="min-h-0 rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:w-[420px]">
+        <aside className="min-h-0 border border-[var(--erp-divider)] bg-white lg:w-[420px]">
           {selectedCustomer ? (
             <div className="flex h-full min-h-0 flex-col">
-              <div className="border-b border-gray-100 p-4 dark:border-gray-700">
+              <div className="border-b border-[var(--erp-divider)] p-4">
                 <p className="text-xs uppercase tracking-wide text-gray-400">Выбранный клиент</p>
-                <h2 className="mt-1 text-lg font-black text-gray-900 dark:text-white">{selectedCustomer.name}</h2>
+                <h3 className="mt-1 text-lg font-black text-[var(--erp-text)]">{selectedCustomer.name}</h3>
                 {selectedCustomer.phone && <p className="text-sm text-gray-500">{selectedCustomer.phone}</p>}
-                <div className="mt-3 rounded-2xl bg-red-50 p-3 dark:bg-red-900/20">
-                  <p className="text-xs text-red-500">Текущий долг</p>
-                  <p className="text-2xl font-black tabular-nums text-red-600">{formatCurrency(ledger?.balance ?? selectedCustomer.balance ?? '0')}</p>
+                <div className="mt-3 border border-[var(--erp-divider)] bg-red-50 p-3">
+                  <p className="text-xs text-[var(--erp-accent)]">Текущий долг</p>
+                  <p className="text-2xl font-black tabular-nums text-[var(--erp-accent)]">{formatCurrency(ledger?.balance ?? selectedCustomer.balance ?? '0')}</p>
                 </div>
                 <button
                   type="button"
                   onClick={openPayment}
                   disabled={Number(ledger?.balance ?? selectedCustomer.balance ?? 0) <= 0}
-                  className="mt-3 w-full rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                  className="mt-3 w-full bg-[var(--erp-success)] px-4 py-2.5 text-sm font-bold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
                 >
                   Принять оплату долга
                 </button>
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                <p className="mb-3 text-sm font-bold text-gray-900 dark:text-white">История долга</p>
+                <p className="mb-3 text-sm font-bold text-[var(--erp-text)]">История долга</p>
                 {ledgerLoading ? (
                   <p className="py-6 text-center text-sm text-gray-400">Загрузка истории…</p>
                 ) : !ledger || ledger.entries.length === 0 ? (
@@ -251,10 +253,10 @@ function Customers() {
                 ) : (
                   <div className="space-y-2">
                     {ledger.entries.map((entry) => (
-                      <div key={entry.id} className="rounded-xl bg-gray-50 p-3 dark:bg-gray-700/50">
+                      <div key={entry.id} className="border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-3">
                         <div className="flex justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                            <p className="truncate text-sm font-semibold text-[var(--erp-text)]">
                               {entry.description || entryLabels[entry.entry_type] || entry.entry_type}
                             </p>
                             <p className="text-xs text-gray-400">
@@ -262,7 +264,7 @@ function Customers() {
                               {entry.sale_id ? ` · чек #${entry.sale_id}` : ''}
                             </p>
                           </div>
-                          <span className={`font-black tabular-nums ${Number(entry.amount) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          <span className={`font-black tabular-nums ${Number(entry.amount) >= 0 ? 'text-[var(--erp-accent)]' : 'text-[var(--erp-success)]'}`}>
                             {Number(entry.amount) >= 0 ? '+' : ''}
                             {formatCurrency(entry.amount)}
                           </span>
@@ -277,31 +279,32 @@ function Customers() {
             <div className="p-10 text-center text-sm text-gray-400">Выберите клиента</div>
           )}
         </aside>
+        </div>
       </div>
 
       {showPaymentModal && selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="w-full rounded-t-2xl bg-white p-4 shadow-2xl dark:bg-gray-800 sm:max-w-md sm:rounded-2xl">
-            <h2 className="text-lg font-black text-gray-900 dark:text-white">Оплата долга</h2>
+          <div className="w-full bg-white p-4 shadow-2xl sm:max-w-md">
+            <h2 className="text-lg font-black text-[var(--erp-text)]">Оплата долга</h2>
             <p className="mt-1 text-sm text-gray-500">{selectedCustomer.name}</p>
 
-            <label className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mt-4 block text-sm font-medium text-gray-700">
               Сумма оплаты
               <input
                 type="text"
                 inputMode="decimal"
                 value={paymentAmount}
                 onChange={(event) => setPaymentAmount(event.target.value)}
-                className="mt-1 h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-right text-lg font-bold tabular-nums outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                className="mt-1 h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-right text-lg font-bold tabular-nums outline-none focus:border-[var(--erp-text)]"
               />
             </label>
 
-            <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mt-3 block text-sm font-medium text-gray-700">
               Способ оплаты долга
               <select
                 value={paymentMethod}
                 onChange={(event) => setPaymentMethod(event.target.value as 'cash' | 'card' | 'mobile')}
-                className="mt-1 h-11 w-full rounded-xl border border-gray-300 bg-white px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                className="mt-1 h-11 w-full border border-[var(--erp-divider)] bg-white px-3 outline-none focus:border-[var(--erp-text)]"
               >
                 <option value="cash">Наличные</option>
                 <option value="card">Карта</option>
@@ -309,13 +312,13 @@ function Customers() {
               </select>
             </label>
 
-            <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mt-3 block text-sm font-medium text-gray-700">
               Примечание
               <input
                 type="text"
                 value={paymentDescription}
                 onChange={(event) => setPaymentDescription(event.target.value)}
-                className="mt-1 h-11 w-full rounded-xl border border-gray-300 bg-white px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                className="mt-1 h-11 w-full border border-[var(--erp-divider)] bg-white px-3 outline-none focus:border-[var(--erp-text)]"
               />
             </label>
 
@@ -323,7 +326,7 @@ function Customers() {
               <button
                 type="button"
                 onClick={() => setShowPaymentModal(false)}
-                className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-[var(--erp-surface)]"
                 disabled={submittingPayment}
               >
                 Отмена
@@ -332,7 +335,7 @@ function Customers() {
                 type="button"
                 onClick={savePayment}
                 disabled={submittingPayment}
-                className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:bg-gray-400"
+                className="bg-[var(--erp-success)] px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:bg-gray-400"
               >
                 Сохранить оплату
               </button>

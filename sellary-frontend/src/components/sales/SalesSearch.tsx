@@ -98,7 +98,7 @@ export default function SalesSearch({
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder="Поиск по чеку, товару, кассиру, сумме..."
-          className="h-10 w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-16 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          className="h-10 w-full border border-[var(--erp-divider)] bg-white py-2 pl-9 pr-16 text-sm text-[var(--erp-text)] outline-none transition focus:border-[var(--erp-text)]"
         />
         <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
           {isSearching && (
@@ -116,7 +116,7 @@ export default function SalesSearch({
                 setOpen(false);
                 inputRef.current?.focus();
               }}
-              className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
+              className="p-1 text-gray-400 hover:text-[var(--erp-text)]"
             >
               <XMarkIcon className="h-4 w-4" />
             </button>
@@ -125,8 +125,8 @@ export default function SalesSearch({
       </div>
 
       {showPanel && (
-        <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
-          <div className="border-b border-gray-100 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:border-gray-700">
+        <div className="absolute z-50 mt-2 w-full overflow-hidden border border-[var(--erp-divider)] bg-white shadow-xl">
+          <div className="border-b border-[var(--erp-divider)] px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-gray-400">
             Возможно, вы искали
           </div>
           {isLoading ? (
@@ -146,12 +146,12 @@ export default function SalesSearch({
                   onClick={() => selectSuggestion(suggestion)}
                   className={`flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-sm ${
                     activeIndex === index
-                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
-                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60'
+                      ? 'bg-[var(--erp-surface)] text-[var(--erp-text)]'
+                      : 'text-gray-700 hover:bg-[var(--erp-surface)]'
                   }`}
                 >
                   <span className="min-w-0 truncate font-medium">{suggestion.label}</span>
-                  <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                  <span className="shrink-0 bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
                     {KIND_LABELS[suggestion.kind]}
                   </span>
                 </li>

@@ -235,7 +235,7 @@ describe('Sales history smart search', () => {
     );
     const { container } = renderPage();
 
-    const bars = Array.from(container.querySelectorAll<HTMLElement>('[class*="bg-blue-500"]'));
+    const bars = Array.from(container.querySelectorAll<HTMLElement>('[class*="erp-accent"]'));
     const heights = bars.map((b) => parseFloat(b.style.height)).filter((h) => h > 0);
 
     // The tallest bucket anchors the scale; the smaller one stays proportional.

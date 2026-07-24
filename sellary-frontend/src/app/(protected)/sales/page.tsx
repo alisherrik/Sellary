@@ -55,19 +55,19 @@ const paymentChip = (sale: Sale) => {
   if (sale.payment_method === 'credit') {
     return {
       label: '🧾 В долг',
-      cls: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+      cls: 'bg-[var(--erp-badge-bg)] text-[var(--erp-badge-text)]',
     };
   }
   if (sale.payment_method === 'card') {
     return {
       label: `💳 ${sale.card_type ? cardLabels[sale.card_type] ?? sale.card_type : 'Карта'}`,
-      cls: 'bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300',
+      cls: 'bg-sky-50 text-sky-600',
     };
   }
   if (sale.payment_method === 'mobile') {
-    return { label: '📱 Мобильный', cls: 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300' };
+    return { label: '📱 Мобильный', cls: 'bg-violet-50 text-violet-600' };
   }
-  return { label: '💵 Наличные', cls: 'bg-zinc-100 text-zinc-600 dark:bg-gray-700 dark:text-gray-300' };
+  return { label: '💵 Наличные', cls: 'bg-gray-100 text-gray-600' };
 };
 
 // Backend 403s carry a dict detail ({code, module, ...}); passing that to toast renders nothing.
@@ -464,10 +464,10 @@ function SalesHistory() {
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      completed: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300',
-      partially_returned: 'bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300',
-      returned: 'bg-red-50 text-red-500 dark:bg-red-900/30 dark:text-red-300',
-      cancelled: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300',
+      completed: 'bg-green-50 text-[var(--erp-success)]',
+      partially_returned: 'bg-[var(--erp-badge-bg)] text-[var(--erp-badge-text)]',
+      returned: 'bg-red-50 text-[var(--erp-accent)]',
+      cancelled: 'bg-gray-100 text-gray-500',
     };
     return styles[status] || styles.completed;
   };
@@ -510,18 +510,26 @@ function SalesHistory() {
     <>
       <div className="flex h-full min-h-0 gap-4">
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+          {/* Page header */}
+          <div className="mb-3 flex flex-none items-end gap-4">
+            <div>
+              <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">История продаж</h2>
+              <p className="mt-0.5 text-[13px] text-gray-500">{totals.count} чеков</p>
+            </div>
+          </div>
+
           {/* Header row */}
           <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center">
-            <div className="flex shrink-0 gap-0.5 overflow-x-auto rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+            <div className="flex shrink-0 gap-0.5 overflow-x-auto border border-[var(--erp-divider)] bg-white p-1">
               {statusTabs.map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
                   onClick={() => setStatusFilter(tab.key)}
-                  className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                  className={`px-3 py-1.5 text-[13px] font-medium transition-colors ${
                     statusFilter === tab.key
-                      ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
-                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                      ? 'bg-[var(--erp-text)] text-white'
+                      : 'text-gray-500 hover:text-[var(--erp-text)]'
                   }`}
                 >
                   {tab.label}
@@ -550,7 +558,7 @@ function SalesHistory() {
                       aria-label="Способ оплаты"
                       value={paymentFilter}
                       onChange={(event) => setPaymentFilter(event.target.value as PaymentFilter)}
-                      className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                      className="h-10 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm outline-none focus:border-[var(--erp-text)]"
                     >
                       {paymentOptions.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -570,7 +578,7 @@ function SalesHistory() {
                         aria-label="Дата от"
                         value={startDate}
                         onChange={(event) => setStartDate(event.target.value)}
-                        className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                        className="h-10 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm outline-none focus:border-[var(--erp-text)]"
                       />
                     </label>
                     <label className="block">
@@ -582,7 +590,7 @@ function SalesHistory() {
                         aria-label="Дата до"
                         value={endDate}
                         onChange={(event) => setEndDate(event.target.value)}
-                        className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                        className="h-10 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm outline-none focus:border-[var(--erp-text)]"
                       />
                     </label>
                   </div>
@@ -596,7 +604,7 @@ function SalesHistory() {
                 type="button"
                 aria-label="Обновить продажи"
                 onClick={() => refetch()}
-                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-sm text-white hover:bg-blue-700 sm:px-4"
+                className="flex h-10 shrink-0 items-center justify-center gap-2 bg-[var(--erp-accent)] px-3 text-sm text-white hover:opacity-90 sm:px-4"
               >
                 <ArrowPathIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span className="hidden sm:inline">Обновить</span>
@@ -606,9 +614,9 @@ function SalesHistory() {
 
           {/* KPI cards */}
           <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Оборот</p>
-              <p className="text-xl font-bold tabular-nums text-gray-900 dark:text-white sm:text-2xl">{formatCurrency(totals.turnover)}</p>
+            <div className="border-2 border-[var(--erp-divider)] bg-white p-4">
+              <p className="text-xs text-gray-500">Оборот</p>
+              <p className="text-xl font-extrabold tabular-nums text-[var(--erp-text)] sm:text-2xl">{formatCurrency(totals.turnover)}</p>
               {/* The reports page headlines net revenue; showing it here too is
                   what lets an operator reconcile the two screens. */}
               <p className="mt-1 text-[11px] tabular-nums text-gray-400">
@@ -653,26 +661,26 @@ function SalesHistory() {
                 )}
               </div>
             </div>
-            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Чеков</p>
-              <p className="text-xl font-bold tabular-nums text-gray-900 dark:text-white sm:text-2xl">{totals.count}</p>
+            <div className="border-2 border-[var(--erp-divider)] bg-white p-4">
+              <p className="text-xs text-gray-500">Чеков</p>
+              <p className="text-xl font-extrabold tabular-nums text-[var(--erp-text)] sm:text-2xl">{totals.count}</p>
             </div>
-            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Средний чек</p>
-              <p className="text-xl font-bold tabular-nums text-gray-900 dark:text-white sm:text-2xl">{formatCurrency(totals.avg)}</p>
+            <div className="border-2 border-[var(--erp-divider)] bg-white p-4">
+              <p className="text-xs text-gray-500">Средний чек</p>
+              <p className="text-xl font-extrabold tabular-nums text-[var(--erp-text)] sm:text-2xl">{formatCurrency(totals.avg)}</p>
             </div>
-            <div className="rounded-2xl bg-red-50 p-4 dark:bg-red-900/20">
-              <p className="text-xs text-red-500">Возвраты</p>
-              <p className="text-xl font-bold tabular-nums text-red-600 sm:text-2xl">{formatCurrency(totals.refunds)}</p>
-              <p className="text-[11px] tabular-nums text-red-400">{totals.refundOps} операций</p>
+            <div className="border-2 border-[var(--erp-divider)] bg-[var(--erp-warn-bg)] p-4">
+              <p className="text-xs text-[var(--erp-accent)]">Возвраты</p>
+              <p className="text-xl font-extrabold tabular-nums text-[var(--erp-accent)] sm:text-2xl">{formatCurrency(totals.refunds)}</p>
+              <p className="text-[11px] tabular-nums text-[var(--erp-accent)]/70">{totals.refundOps} операций</p>
             </div>
           </div>
 
           {/* Hourly chart */}
           {!loading && totals.turnover > 0 && (
-            <div className="mb-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <div className="mb-3 border-2 border-[var(--erp-divider)] bg-white p-4">
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-[13px] font-semibold text-gray-900 dark:text-white">Оборот по часам</p>
+                <p className="text-[13px] font-semibold text-[var(--erp-text)]">Оборот по часам</p>
                 <span className="text-[11px] text-gray-400">08:00 – 22:00</span>
               </div>
               {/* No items-end here: it stops the columns stretching to h-20, so
@@ -684,7 +692,7 @@ function SalesHistory() {
                   <div key={b.hour} className="flex flex-1 flex-col items-center gap-1" title={`${b.hour}:00 — ${formatCurrency(b.value)}`}>
                     <div className="flex w-full flex-1 items-end">
                       <div
-                        className="w-full rounded-t bg-blue-500/80 transition-all hover:bg-blue-600"
+                        className="w-full bg-[var(--erp-accent)]/80 transition-all hover:bg-[var(--erp-accent)]"
                         style={{ height: `${Math.max(b.value > 0 ? 6 : 0, (b.value / hourly.max) * 100)}%` }}
                       />
                     </div>
@@ -696,7 +704,7 @@ function SalesHistory() {
           )}
 
           {/* Table */}
-          <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="min-h-0 flex-1 overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
             {loading ? (
               <div className="p-4">
                 <TableSkeleton rows={6} columns={6} />
@@ -706,31 +714,31 @@ function SalesHistory() {
             ) : (
               <div className="h-full overflow-y-auto">
                 {/* Mobile list */}
-                <div className="divide-y divide-gray-50 dark:divide-gray-700/50 sm:hidden">
+                <div className="divide-y divide-[var(--erp-divider)] sm:hidden">
                   {visibleSales.map((sale) => {
                     const chip = paymentChip(sale);
                     return (
                       <button
                         key={sale.id}
                         onClick={() => handleViewSale(sale)}
-                        className="flex w-full items-center gap-3 p-3 text-left active:bg-gray-50 dark:active:bg-gray-700/40"
+                        className="flex w-full items-center gap-3 p-3 text-left active:bg-[var(--erp-surface)]"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm font-semibold text-gray-900 dark:text-white">#{sale.id}</span>
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${getStatusBadge(sale.status)}`}>
+                            <span className="font-mono text-sm font-semibold text-[var(--erp-text)]">#{sale.id}</span>
+                            <span className={`px-2 py-0.5 text-[10px] font-medium ${getStatusBadge(sale.status)}`}>
                               {getStatusText(sale.status)}
                             </span>
                           </div>
                           <p className="mt-0.5 text-[11px] text-gray-400">
                             {sale.cashier_name} · {new Date(sale.created_at).toLocaleString('ru-RU')}
                           </p>
-                          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] ${chip.cls}`}>{chip.label}</span>
+                          <span className={`mt-1 inline-block px-2 py-0.5 text-[10px] ${chip.cls}`}>{chip.label}</span>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold tabular-nums text-gray-900 dark:text-white">{formatCurrency(sale.total_amount)}</p>
+                          <p className="font-bold tabular-nums text-[var(--erp-text)]">{formatCurrency(sale.total_amount)}</p>
                           {Number(sale.refunded_amount) > 0 && (
-                            <p className="text-[11px] tabular-nums text-orange-600">−{formatCurrency(sale.refunded_amount!)}</p>
+                            <p className="text-[11px] tabular-nums text-[var(--erp-warn)]">−{formatCurrency(sale.refunded_amount!)}</p>
                           )}
                         </div>
                       </button>
@@ -741,15 +749,15 @@ function SalesHistory() {
                 {/* Desktop table */}
                 <table className="hidden w-full text-sm sm:table">
                   <thead>
-                    <tr className="border-b border-gray-100 text-[11px] uppercase tracking-wider text-gray-400 dark:border-gray-700">
-                      <th className="px-4 py-3 text-left font-medium">Чек</th>
-                      <th className="px-4 py-3 text-left font-medium">Время</th>
-                      <th className="px-4 py-3 text-left font-medium">Кассир</th>
-                      <th className="px-4 py-3 text-right font-medium">Позиций</th>
-                      <th className="px-4 py-3 text-left font-medium">Оплата</th>
-                      <th className="px-4 py-3 text-right font-medium">Сумма</th>
-                      <th className="px-4 py-3 text-right font-medium">Возврат</th>
-                      <th className="px-4 py-3 text-left font-medium">Статус</th>
+                    <tr className="border-b-2 border-[var(--erp-divider)] text-[10.5px] uppercase tracking-wide text-gray-400">
+                      <th className="px-4 py-3 text-left font-semibold">Чек</th>
+                      <th className="px-4 py-3 text-left font-semibold">Время</th>
+                      <th className="px-4 py-3 text-left font-semibold">Кассир</th>
+                      <th className="px-4 py-3 text-right font-semibold">Позиций</th>
+                      <th className="px-4 py-3 text-left font-semibold">Оплата</th>
+                      <th className="px-4 py-3 text-right font-semibold">Сумма</th>
+                      <th className="px-4 py-3 text-right font-semibold">Возврат</th>
+                      <th className="px-4 py-3 text-left font-semibold">Статус</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -760,31 +768,31 @@ function SalesHistory() {
                         <tr
                           key={sale.id}
                           onClick={() => handleViewSale(sale)}
-                          className={`cursor-pointer border-b border-gray-50 transition-colors hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/40 ${
-                            active ? 'bg-blue-50/60 dark:bg-blue-900/20' : ''
+                          className={`cursor-pointer border-b border-[var(--erp-divider)] transition-colors hover:bg-[var(--erp-surface)] ${
+                            active ? 'bg-[var(--erp-surface)]' : ''
                           }`}
                         >
-                          <td className="px-4 py-3 font-mono font-semibold text-gray-900 dark:text-white">#{sale.id}</td>
-                          <td className="px-4 py-3 tabular-nums text-gray-500 dark:text-gray-400">
+                          <td className="px-4 py-3 font-mono font-semibold text-[var(--erp-text)]">#{sale.id}</td>
+                          <td className="px-4 py-3 tabular-nums text-gray-500">
                             {new Date(sale.created_at).toLocaleString('ru-RU')}
                           </td>
-                          <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{sale.cashier_name}</td>
+                          <td className="px-4 py-3 text-gray-700">{sale.cashier_name}</td>
                           <td className="px-4 py-3 text-right tabular-nums text-gray-500">{sale.items?.length ?? 0}</td>
                           <td className="px-4 py-3">
-                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${chip.cls}`}>{chip.label}</span>
+                            <span className={`px-2 py-0.5 text-[11px] font-medium ${chip.cls}`}>{chip.label}</span>
                           </td>
-                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900 dark:text-white">
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-[var(--erp-text)]">
                             {formatCurrency(sale.total_amount)}
                           </td>
                           <td className="px-4 py-3 text-right tabular-nums">
                             {Number(sale.refunded_amount) > 0 ? (
-                              <span className="text-orange-600">−{formatCurrency(sale.refunded_amount!)}</span>
+                              <span className="text-[var(--erp-warn)]">−{formatCurrency(sale.refunded_amount!)}</span>
                             ) : (
                               <span className="text-gray-300">—</span>
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${getStatusBadge(sale.status)}`}>
+                            <span className={`px-2 py-0.5 text-[11px] font-medium ${getStatusBadge(sale.status)}`}>
                               {getStatusText(sale.status)}
                             </span>
                           </td>
@@ -795,12 +803,12 @@ function SalesHistory() {
                 </table>
 
                 {hasMore && (
-                  <div className="flex justify-center border-t border-gray-50 p-4 dark:border-gray-700/50">
+                  <div className="flex justify-center border-t border-[var(--erp-divider)] p-4">
                     <button
                       type="button"
                       onClick={() => loadMore()}
                       disabled={isFetchingNextPage}
-                      className="rounded-xl border border-gray-200 px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                      className="border border-[var(--erp-divider)] px-5 py-2 text-sm font-medium text-gray-600 hover:border-[var(--erp-text)] disabled:opacity-50"
                     >
                       {isFetchingNextPage
                         ? 'Загрузка…'
@@ -815,20 +823,20 @@ function SalesHistory() {
 
         {/* Slide-over: sale detail (desktop) */}
         {showDetail && selectedSale && (
-          <div className="hidden w-[360px] shrink-0 flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:flex">
-            <div className="flex items-start gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-700">
+          <div className="hidden w-[360px] shrink-0 flex-col overflow-hidden border-2 border-[var(--erp-divider)] bg-white lg:flex">
+            <div className="flex items-start gap-3 border-b border-[var(--erp-divider)] px-5 py-4">
               <div>
-                <h2 className="font-mono text-[17px] font-bold text-gray-900 dark:text-white">Чек #{selectedSale.id}</h2>
+                <h2 className="font-mono text-[17px] font-bold text-[var(--erp-text)]">Чек #{selectedSale.id}</h2>
                 <p className="text-[12px] text-gray-400">
                   {new Date(selectedSale.created_at).toLocaleString('ru-RU')} · {selectedSale.cashier_name}
                 </p>
               </div>
-              <span className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-medium ${getStatusBadge(selectedSale.status)}`}>
+              <span className={`ml-auto px-2 py-0.5 text-[11px] font-medium ${getStatusBadge(selectedSale.status)}`}>
                 {getStatusText(selectedSale.status)}
               </span>
               <button
                 onClick={() => setShowDetail(false)}
-                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
+                className="p-1 text-gray-400 hover:text-[var(--erp-text)]"
               >
                 <XMarkIcon className="h-5 w-5" />
               </button>
@@ -962,13 +970,13 @@ function SalesHistory() {
       {/* Detail modal — mobile only */}
       {showDetail && selectedSale && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm lg:hidden">
-          <div className="max-h-[90vh] w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-800">
-            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-700">
+          <div className="max-h-[90vh] w-full overflow-hidden bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[var(--erp-divider)] px-4 py-3">
               <div>
-                <h2 className="font-mono text-base font-bold text-gray-900 dark:text-white">Чек #{selectedSale.id}</h2>
+                <h2 className="font-mono text-base font-bold text-[var(--erp-text)]">Чек #{selectedSale.id}</h2>
                 <p className="text-[10px] text-gray-400">{new Date(selectedSale.created_at).toLocaleString('ru-RU')}</p>
               </div>
-              <button onClick={() => setShowDetail(false)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+              <button onClick={() => setShowDetail(false)} className="p-1 text-gray-400 hover:text-[var(--erp-text)]">
                 <XMarkIcon className="h-5 w-5" />
               </button>
             </div>

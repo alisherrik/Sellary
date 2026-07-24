@@ -18,10 +18,10 @@ function Row({ label, value, bold = false, tone }: {
   tone?: 'short' | 'over';
 }) {
   const toneClass =
-    tone === 'short' ? 'text-red-600' : tone === 'over' ? 'text-emerald-600' : '';
+    tone === 'short' ? 'text-[var(--erp-accent)]' : tone === 'over' ? 'text-[var(--erp-success)]' : '';
   return (
     <div className="flex items-center justify-between py-1 text-sm">
-      <span className={`text-gray-600 dark:text-gray-300 ${bold ? 'font-semibold' : ''}`}>{label}</span>
+      <span className={`text-gray-600 ${bold ? 'font-semibold' : ''}`}>{label}</span>
       <span className={`tabular-nums ${bold ? 'font-bold' : ''} ${toneClass}`}>{value}</span>
     </div>
   );
@@ -41,7 +41,7 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-gray-100 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+      <div className="border border-[var(--erp-divider)] bg-white p-4">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Выручка по оплате</p>
         <Row label={METHOD_LABELS.cash} value={formatCurrency(totals.cash_sales)} />
         <Row label={METHOD_LABELS.card} value={formatCurrency(totals.card_sales)} />
@@ -55,13 +55,13 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
           <Row label={METHOD_LABELS.mobile} value={formatCurrency(totals.mobile_sales)} />
         )}
         <Row label={METHOD_LABELS.credit} value={formatCurrency(totals.credit_sales)} />
-        <div className="mt-1 border-t border-gray-100 pt-1 dark:border-gray-700">
+        <div className="mt-1 border-t border-[var(--erp-divider)] pt-1">
           <Row label="Чеков" value={String(totals.sales_count)} />
         </div>
       </div>
 
       {(debtEntries.length > 0 || refundEntries.length > 0) && (
-        <div className="rounded-2xl border border-gray-100 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div className="border border-[var(--erp-divider)] bg-white p-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Прочие движения</p>
           {debtEntries.map(([method, amount]) => (
             <Row key={`d-${method}`} label={`Оплата долга (${METHOD_LABELS[method] ?? method})`} value={`+${formatCurrency(amount)}`} />
@@ -72,7 +72,7 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
         </div>
       )}
 
-      <div className="rounded-2xl border border-gray-100 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+      <div className="border border-[var(--erp-divider)] bg-white p-4">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Касса (наличные)</p>
         <Row label="На начало" value={formatCurrency(shift.opening_cash)} />
         <Row label="Ожидается в кассе" value={formatCurrency(totals.expected_cash)} bold />

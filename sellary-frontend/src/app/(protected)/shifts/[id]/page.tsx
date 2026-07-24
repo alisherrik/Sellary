@@ -24,12 +24,12 @@ export default function ShiftDetailPage({ params }: { params: Promise<{ id: stri
       ) : (
         <>
           <div>
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+            <h2 className="text-[28px] font-extrabold tracking-tight text-[var(--erp-text)]">
               Смена №{shift.shift_number}
-              <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${shift.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+              <span className={`ml-2 px-2 py-0.5 text-xs font-medium ${shift.status === 'open' ? 'bg-green-50 text-[var(--erp-success)]' : 'bg-gray-100 text-gray-600'}`}>
                 {shift.status === 'open' ? 'Открыта' : 'Закрыта'}
               </span>
-            </h1>
+            </h2>
             <p className="text-xs text-gray-500">
               Открыта {formatDateTime(shift.opened_at)}
               {shift.closed_at ? ` · Закрыта ${formatDateTime(shift.closed_at)}` : ''}
@@ -39,13 +39,13 @@ export default function ShiftDetailPage({ params }: { params: Promise<{ id: stri
           <ShiftTotalsPanel shift={shift} totals={shift.totals} />
 
           {shift.snapshots.length > 0 && (
-            <div className="rounded-2xl border border-gray-100 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+            <div className="border border-[var(--erp-divider)] bg-white p-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Срезы</p>
               <ul className="space-y-1 text-sm">
                 {shift.snapshots.map((snap) => (
-                  <li key={snap.id} className="flex justify-between border-b border-gray-50 py-1 last:border-0 dark:border-gray-700">
+                  <li key={snap.id} className="flex justify-between border-b border-[var(--erp-divider)] py-1 last:border-0">
                     <span className="text-gray-500">{formatDateTime(snap.taken_at)}</span>
-                    <span className="tabular-nums text-gray-700 dark:text-gray-200">
+                    <span className="tabular-nums text-gray-700">
                       ожидалось {snap.totals.expected_cash}
                     </span>
                   </li>
