@@ -20,12 +20,20 @@ vi.mock('@/lib/store', () => ({
     shop: 'manager',
     reports: 'manager',
   }),
+  useAuthStore: (selector: (s: { currentCompany: { role: string } }) => unknown) =>
+    selector({ currentCompany: { role: 'manager' } }),
 }));
 
 describe('MobileShell', () => {
   it('renders header with correct title', () => {
     render(<MobileShell><div>Content</div></MobileShell>);
     expect(screen.getByRole('heading', { name: 'Товары' })).toBeInTheDocument();
+  });
+
+  it('shows the "Sellary" wordmark on unmapped/launcher routes', () => {
+    mockPathname.mockReturnValueOnce('/apps');
+    render(<MobileShell><div>Content</div></MobileShell>);
+    expect(screen.getByRole('heading', { name: 'Sellary' })).toBeInTheDocument();
   });
 
   it('renders children', () => {

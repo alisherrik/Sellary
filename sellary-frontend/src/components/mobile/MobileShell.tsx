@@ -23,12 +23,17 @@ const headerTitles: Record<string, string> = {
 };
 
 function getHeaderTitle(pathname: string): string {
+  // The launcher shows the app wordmark, per the mobile prototype's first
+  // frame ("Sellary" 44px header above the module tile grid).
+  if (pathname === '/apps') {
+    return 'Sellary';
+  }
   for (const [path, title] of Object.entries(headerTitles)) {
     if (pathname === path || (path !== '/pos' && path !== '/dashboard' && pathname.startsWith(path))) {
       return title;
     }
   }
-  return '';
+  return 'Sellary';
 }
 
 export default function MobileShell({ children }: MobileShellProps) {
@@ -40,7 +45,7 @@ export default function MobileShell({ children }: MobileShellProps) {
   const showBack = pathname.split('/').filter(Boolean).length > 1;
 
   return (
-    <div className="flex h-dvh flex-col bg-gray-50">
+    <div className="flex h-dvh flex-col bg-[var(--erp-bg)]">
       <MobileHeader
         title={title}
         showBack={showBack}

@@ -2,24 +2,52 @@
 
 import Link from 'next/link';
 import { useAuthStore, useModules } from '@/lib/store';
-import { canAccessModule, type ModuleKey } from '@/lib/modules';
-import { MODULE_NAV } from '@/lib/moduleNav';
+import type { ModuleKey } from '@/lib/modules';
+import { grantedModuleDefs } from '@/lib/moduleNav';
 import { MODULE_ICONS } from '@/components/moduleIcons';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export default function AppsPage() {
   const { currentCompany } = useAuthStore();
   const modules = useModules();
   const isAdmin = currentCompany?.role === 'admin';
+  const isMobile = useMediaQuery('(max-width: 767px)');
 
-  const cards = MODULE_NAV.filter((def) => {
-    if (def.key === 'settings') return isAdmin;
-    return canAccessModule(modules, def.key as ModuleKey);
-  }).map((def) => {
+  const granted = grantedModuleDefs(modules, isAdmin);
+  const cards = granted.map((def) => {
     const level = def.key === 'settings' ? null : modules[def.key as ModuleKey];
     const badge = def.key === 'settings' ? 'Админ' : level === 'manager' ? 'Менеджер' : 'Сотрудник';
     const badgeElevated = def.key === 'settings' || level === 'manager';
     return { def, badge, badgeElevated };
   });
+
+  if (isMobile) {
+    return (
+      <div className="px-4 py-4">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--erp-accent)]">
+          Приложения
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2.5">
+          {granted.map((def) => {
+            const Icon = MODULE_ICONS[def.key];
+            return (
+              <Link
+                key={def.key}
+                href={def.pages[0]?.href ?? '/apps'}
+                prefetch={false}
+                className="flex flex-col items-start gap-2 border border-[var(--erp-divider)] bg-white p-4"
+              >
+                <Icon className="h-6 w-6 text-[var(--erp-text)]" />
+                <span className="text-[13px] font-extrabold tracking-tight text-[var(--erp-text)]">
+                  {def.label}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1000px] px-10 py-14 pb-10">

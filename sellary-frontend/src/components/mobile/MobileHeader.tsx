@@ -17,19 +17,19 @@ export default function MobileHeader({
   actions,
 }: MobileHeaderProps) {
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4">
+    <header className="flex h-[44px] shrink-0 items-center justify-between border-b-2 border-[var(--erp-divider)] bg-white px-4">
       <div className="flex w-10 items-center">
         {showBack && (
           <button
             onClick={onBack}
-            className="-ml-1 flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-100"
+            className="-ml-1 flex h-9 w-9 items-center justify-center hover:bg-[var(--erp-surface)]"
             aria-label="Назад"
           >
-            <ChevronLeftIcon className="h-5 w-5 text-gray-600" />
+            <ChevronLeftIcon className="h-5 w-5 text-[var(--erp-text)]" />
           </button>
         )}
       </div>
-      <h1 className="text-base font-semibold text-gray-900">{title}</h1>
+      <h1 className="text-[15px] font-extrabold tracking-tight text-[var(--erp-text)]">{title}</h1>
       <div className="flex w-10 items-center justify-end">{actions}</div>
     </header>
   );

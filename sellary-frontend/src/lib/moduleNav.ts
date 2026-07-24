@@ -1,4 +1,4 @@
-import type { ModuleKey } from './modules';
+import { canAccessModule, type ModuleKey, type ModuleMap } from './modules';
 
 export interface ModulePage {
   label: string;
@@ -70,6 +70,22 @@ export const MODULE_NAV: ModuleDef[] = [
 /** Look up a module definition by its rail/nav key. */
 export function moduleByKey(key: ModuleKey | 'settings'): ModuleDef | undefined {
   return MODULE_NAV.find((def) => def.key === key);
+}
+
+/** Mobile bottom bar shows at most this many module tabs before folding the rest into «Ещё». */
+export const MOBILE_MAX_TABS = 4;
+
+/**
+ * Modules the current user may open, in the canonical MODULE_NAV order
+ * (pos, inventory, purchasing, shop, reports, settings). `settings` is
+ * included only for admins — mirrors the desktop rail/launcher and the
+ * mobile shell's tab-bar + "Ещё" sheet, keeping module-visibility logic in
+ * one place.
+ */
+export function grantedModuleDefs(modules: ModuleMap, isAdmin: boolean): ModuleDef[] {
+  return MODULE_NAV.filter((def) =>
+    def.key === 'settings' ? isAdmin : canAccessModule(modules, def.key as ModuleKey),
+  );
 }
 
 /** Display label for a module key, falling back to the key itself. */

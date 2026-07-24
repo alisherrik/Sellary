@@ -2,108 +2,68 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  ShoppingBagIcon,
-  CubeIcon,
-  ArrowUturnLeftIcon,
-  HomeIcon,
-  EllipsisHorizontalIcon,
-} from '@heroicons/react/24/outline';
-import {
-  ShoppingBagIcon as ShoppingBagSolid,
-  CubeIcon as CubeSolid,
-  ArrowUturnLeftIcon as ArrowUturnLeftSolid,
-  HomeIcon as HomeSolid,
-} from '@heroicons/react/24/solid';
-import { useModules } from '@/lib/store';
-import { filterNavByModules, type ModuleKey } from '@/lib/modules';
-
-const tabs: {
-  label: string;
-  href: string;
-  icon: typeof ShoppingBagIcon;
-  activeIcon: typeof ShoppingBagSolid;
-  module: ModuleKey | null;
-}[] = [
-  {
-    label: 'Касса',
-    href: '/pos',
-    icon: ShoppingBagIcon,
-    activeIcon: ShoppingBagSolid,
-    module: 'pos',
-  },
-  {
-    label: 'Товары',
-    href: '/products',
-    icon: CubeIcon,
-    activeIcon: CubeSolid,
-    module: 'inventory',
-  },
-  {
-    label: 'Продажи',
-    href: '/sales',
-    icon: ArrowUturnLeftIcon,
-    activeIcon: ArrowUturnLeftSolid,
-    module: 'pos',
-  },
-  {
-    label: 'Дашборд',
-    href: '/dashboard',
-    icon: HomeIcon,
-    activeIcon: HomeSolid,
-    module: 'reports',
-  },
-];
+import { EllipsisHorizontalIcon } from '@heroicons/react/24/outline';
+import { useAuthStore, useModules } from '@/lib/store';
+import { grantedModuleDefs, MOBILE_MAX_TABS } from '@/lib/moduleNav';
+import { MODULE_ICONS } from '@/components/moduleIcons';
 
 interface BottomTabBarProps {
   onMoreClick: () => void;
 }
 
+// Module-first bottom bar: one tab per granted module (in MODULE_NAV order),
+// each routing straight to that module's first page. Modules beyond the
+// first MOBILE_MAX_TABS fold into the "Ещё" tab/sheet instead of a tab of
+// their own — see MoreSheet for what lands there.
 export default function BottomTabBar({ onMoreClick }: BottomTabBarProps) {
   const pathname = usePathname();
   const modules = useModules();
-  const visibleTabs = filterNavByModules(tabs, modules);
+  const isAdmin = useAuthStore((state) => state.currentCompany?.role === 'admin');
+  const granted = grantedModuleDefs(modules, isAdmin);
+  const tabs = granted.slice(0, MOBILE_MAX_TABS);
+  const hasMore = granted.length > MOBILE_MAX_TABS;
 
-  const isActive = (href: string) =>
-    pathname === href || (href !== '/pos' && href !== '/dashboard' && pathname.startsWith(href));
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <nav
-      className="flex h-14 shrink-0 items-center border-t border-gray-200 bg-white"
+      className="flex h-[58px] shrink-0 items-center border-t-2 border-[var(--erp-divider)] bg-white"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      {visibleTabs.map((tab) => {
-        const active = isActive(tab.href);
+      {tabs.map((def) => {
+        const href = def.pages[0]?.href ?? '/apps';
+        const active = isActive(href);
+        const Icon = MODULE_ICONS[def.key];
         return (
           <Link
-            key={tab.href}
-            href={tab.href}
+            key={def.key}
+            href={href}
             prefetch={false}
-            className="flex flex-1 flex-col items-center justify-center gap-0.5 py-1"
+            className="flex flex-1 flex-col items-center justify-center gap-1 py-1"
           >
-            {active ? (
-              <tab.activeIcon className="h-6 w-6 text-blue-600" />
-            ) : (
-              <tab.icon className="h-6 w-6 text-gray-400" />
-            )}
+            <Icon
+              className={`h-5 w-5 ${active ? 'text-[var(--erp-accent)]' : 'text-gray-400'}`}
+            />
             <span
-              className={`text-[10px] font-medium ${
-                active ? 'text-blue-600' : 'text-gray-400'
+              className={`text-[9px] font-semibold ${
+                active ? 'text-[var(--erp-accent)]' : 'text-gray-400'
               }`}
             >
-              {tab.label}
+              {def.label}
             </span>
           </Link>
         );
       })}
 
-      <button
-        onClick={onMoreClick}
-        className="flex flex-1 flex-col items-center justify-center gap-0.5 py-1"
-      >
-        <EllipsisHorizontalIcon className="h-6 w-6 text-gray-400" />
-        <span className="text-[10px] font-medium text-gray-400">Ещё</span>
-      </button>
+      {hasMore && (
+        <button
+          onClick={onMoreClick}
+          className="flex flex-1 flex-col items-center justify-center gap-1 py-1"
+        >
+          <EllipsisHorizontalIcon className="h-5 w-5 text-gray-400" />
+          <span className="text-[9px] font-semibold text-gray-400">Ещё</span>
+        </button>
+      )}
     </nav>
   );
 }

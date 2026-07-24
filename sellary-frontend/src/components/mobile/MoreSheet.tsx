@@ -1,41 +1,23 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import {
-  UserGroupIcon,
-  TruckIcon,
-  ChartBarIcon,
-  BanknotesIcon,
-  Cog6ToothIcon,
-  InboxArrowDownIcon,
-} from '@heroicons/react/24/outline';
-import { useModules } from '@/lib/store';
-import { filterNavByModules, type ModuleKey } from '@/lib/modules';
-
-const moreItems: {
-  label: string;
-  href: string;
-  icon: typeof BanknotesIcon;
-  module: ModuleKey | null;
-}[] = [
-  { label: 'Смена', href: '/shifts', icon: BanknotesIcon, module: 'pos' },
-  { label: 'Клиенты', href: '/customers', icon: UserGroupIcon, module: 'pos' },
-  { label: 'Поставщики', href: '/suppliers', icon: UserGroupIcon, module: 'purchasing' },
-  { label: 'Закупки', href: '/purchase-orders', icon: TruckIcon, module: 'purchasing' },
-  { label: 'Заказы', href: '/orders', icon: InboxArrowDownIcon, module: 'shop' },
-  { label: 'Отчеты', href: '/reports', icon: ChartBarIcon, module: 'reports' },
-  { label: 'Настройки', href: '/settings', icon: Cog6ToothIcon, module: null },
-];
+import { useAuthStore, useModules } from '@/lib/store';
+import { grantedModuleDefs, MOBILE_MAX_TABS } from '@/lib/moduleNav';
+import { MODULE_ICONS } from '@/components/moduleIcons';
 
 interface MoreSheetProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+// Holds whatever granted modules didn't make the bottom bar's first
+// MOBILE_MAX_TABS slots (see BottomTabBar). Each row opens that module's
+// first page, same as tapping its tab would.
 export default function MoreSheet({ isOpen, onClose }: MoreSheetProps) {
   const router = useRouter();
   const modules = useModules();
-  const visibleItems = filterNavByModules(moreItems, modules);
+  const isAdmin = useAuthStore((state) => state.currentCompany?.role === 'admin');
+  const overflowModules = grantedModuleDefs(modules, isAdmin).slice(MOBILE_MAX_TABS);
 
   if (!isOpen) return null;
 
@@ -46,25 +28,30 @@ export default function MoreSheet({ isOpen, onClose }: MoreSheetProps) {
 
   return (
     <div className="fixed inset-0 z-50">
-      <div
-        className="absolute inset-0 bg-black/50 animate-scale-in"
-        onClick={onClose}
-      />
-      <div className="absolute inset-x-0 bottom-0 animate-slide-up rounded-t-3xl bg-white pb-safe">
-        <div className="mx-auto mt-3 h-1 w-8 rounded-full bg-gray-300" />
+      <div className="absolute inset-0 bg-black/50 animate-scale-in" onClick={onClose} />
+      <div className="absolute inset-x-0 bottom-0 animate-slide-up border-t-2 border-[var(--erp-divider)] bg-white pb-safe">
+        <div className="mx-auto mt-3 h-1 w-8 bg-gray-300" />
         <div className="mt-4 px-4 pb-8">
-          <h2 className="mb-3 text-sm font-semibold text-gray-500">Меню</h2>
+          <h2 className="mb-3 text-[11px] font-extrabold uppercase tracking-[0.15em] text-[var(--erp-accent)]">
+            Ещё
+          </h2>
           <div className="space-y-1">
-            {visibleItems.map((item) => (
-              <button
-                key={item.href}
-                onClick={() => handleNavigate(item.href)}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 hover:bg-gray-50"
-              >
-                <item.icon className="h-5 w-5 text-gray-500" />
-                <span className="text-sm font-medium text-gray-900">{item.label}</span>
-              </button>
-            ))}
+            {overflowModules.map((def) => {
+              const Icon = MODULE_ICONS[def.key];
+              const href = def.pages[0]?.href ?? '/apps';
+              return (
+                <button
+                  key={def.key}
+                  onClick={() => handleNavigate(href)}
+                  className="flex w-full items-center gap-3 border border-transparent px-3 py-3 hover:border-[var(--erp-divider)] hover:bg-[var(--erp-surface)]"
+                >
+                  <Icon className="h-5 w-5 text-[var(--erp-text)]" />
+                  <span className="text-[14px] font-extrabold tracking-tight text-[var(--erp-text)]">
+                    {def.label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -1205,16 +1205,26 @@ function POS() {
         </aside>
       </div>
 
-      {/* Mobile cart bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-100 bg-white p-3 shadow-2xl dark:border-gray-700 dark:bg-gray-800 lg:hidden">
+      {/* Mobile cart bar — restyled to the ERP design language (sharp corners,
+          extrabold green total). Still opens the cart sheet on tap, same as
+          before; the sheet's own Оплатить button drives the payment modal. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t-2 border-[var(--erp-divider)] bg-white p-3 lg:hidden">
         <button
           type="button"
           onClick={() => setShowCartSheet(true)}
-          className="flex w-full items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 text-white dark:bg-gray-700"
+          aria-label="Открыть корзину"
+          className="flex w-full flex-col gap-2"
         >
-          <ShoppingBagIcon className="h-5 w-5" />
-          <span className="font-bold">Корзина · {cartCount}</span>
-          <span className="ml-auto text-[18px] font-extrabold tabular-nums">{formatCurrency(finalTotal)}</span>
+          <span className="flex items-baseline justify-between">
+            <span className="text-[13px] font-semibold text-[var(--erp-text)]">{cartCount} товаров</span>
+            <span className="text-[24px] font-extrabold tabular-nums text-[var(--erp-success)]">
+              {formatCurrency(finalTotal)}
+            </span>
+          </span>
+          <span className="flex h-[46px] w-full items-center justify-center gap-2 bg-[var(--erp-success)] text-[15px] font-extrabold text-white">
+            <ShoppingBagIcon className="h-4 w-4" />
+            Оплатить
+          </span>
         </button>
       </div>
 
