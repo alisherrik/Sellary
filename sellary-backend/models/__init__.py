@@ -24,6 +24,7 @@ from .order import Order, OrderStatus, FulfillmentType
 from .order_item import OrderItem
 from .merchant_notify_link import MerchantNotifyLink
 from .platform_setting import PlatformSetting
+from .membership_module_access import MembershipModuleAccess
 
 __all__ = [
     "Company",
@@ -58,4 +59,5 @@ __all__ = [
     "OrderItem",
     "MerchantNotifyLink",
     "PlatformSetting",
+    "MembershipModuleAccess",
 ]
