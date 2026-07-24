@@ -37,7 +37,7 @@ export default function PurchaseOrderDetailPage() {
   const isAdmin = useAuthStore((state) => state.currentCompany?.role === 'admin');
 
   if (!validId) return <DetailError message="Некорректный номер закупки." />;
-  if (orderQuery.isLoading) return <div className="h-72 animate-pulse rounded-lg bg-white" />;
+  if (orderQuery.isLoading) return <div className="h-72 animate-pulse bg-white" />;
   if (orderQuery.isError || !orderQuery.data) {
     return <DetailError message="Закупка не найдена или недоступна." />;
   }
@@ -139,13 +139,13 @@ export default function PurchaseOrderDetailPage() {
     <div className="mx-auto max-w-7xl">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/purchase-orders" className="text-sm font-medium text-blue-700 hover:underline">
+          <Link href="/purchase-orders" className="text-sm font-medium text-[var(--erp-accent)] hover:underline">
             Закупки
           </Link>
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+            <h2 className="text-[28px] font-extrabold tracking-tight text-[var(--erp-text)]">
               Закупка #{order.id}
-            </h1>
+            </h2>
             <PurchaseOrderStatusBadge status={order.status} voided={Boolean(order.voided_at)} />
           </div>
           <p className="mt-1 text-sm text-gray-500">{order.supplier?.name ?? 'Поставщик не указан'}</p>
@@ -156,7 +156,7 @@ export default function PurchaseOrderDetailPage() {
             <>
               <Link
                 href={`/purchase-orders/${order.id}/edit`}
-                className="inline-flex min-h-11 items-center rounded-md border border-gray-300 px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                className="inline-flex min-h-11 items-center border border-[var(--erp-divider)] px-4 text-sm font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)]"
               >
                 Редактировать
               </Link>
@@ -168,7 +168,7 @@ export default function PurchaseOrderDetailPage() {
                     await purchaseOrdersApi.send(order.id);
                   }, 'Закупка отправлена поставщику')
                 }
-                className="min-h-11 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                className="min-h-11 bg-[var(--erp-accent)] px-4 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
               >
                 Отправить поставщику
               </button>
@@ -184,7 +184,7 @@ export default function PurchaseOrderDetailPage() {
                   await purchaseOrdersApi.cancel(order.id);
                 }, 'Закупка отменена');
               }}
-              className="min-h-11 rounded-md px-4 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+              className="min-h-11 px-4 text-sm font-semibold text-[var(--erp-accent)] hover:bg-[var(--erp-surface)] disabled:opacity-50"
             >
               Отменить
             </button>
@@ -194,7 +194,7 @@ export default function PurchaseOrderDetailPage() {
               type="button"
               disabled={isActing || voidLoading}
               onClick={() => void openVoidDialog()}
-              className="min-h-11 rounded-md border border-red-200 px-4 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+              className="min-h-11 border border-[var(--erp-accent)] px-4 text-sm font-semibold text-[var(--erp-accent)] hover:bg-red-50 disabled:opacity-50"
             >
               Аннулировать закупку
             </button>
@@ -210,7 +210,7 @@ export default function PurchaseOrderDetailPage() {
                   router.push('/purchase-orders');
                 }, 'Черновик удалён');
               }}
-              className="min-h-11 rounded-md px-4 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+              className="min-h-11 px-4 text-sm font-semibold text-[var(--erp-accent)] hover:bg-[var(--erp-surface)] disabled:opacity-50"
             >
               Удалить
             </button>
@@ -218,7 +218,7 @@ export default function PurchaseOrderDetailPage() {
         </div>
       </div>
 
-      <div className="mt-6 border-y border-gray-200 bg-white py-4">
+      <div className="mt-6 border-y border-[var(--erp-divider)] bg-white py-4">
         <PurchaseOrderStepper
           mode="detail"
           currentStep={currentStep}
@@ -410,12 +410,12 @@ export default function PurchaseOrderDetailPage() {
 
 function DetailError({ message }: { message: string }) {
   return (
-    <div className="rounded-md border border-gray-200 bg-white p-6">
-      <h1 className="text-xl font-bold text-gray-900">Закупка недоступна</h1>
+    <div className="border border-[var(--erp-divider)] bg-white p-6">
+      <h2 className="text-xl font-bold text-[var(--erp-text)]">Закупка недоступна</h2>
       <p className="mt-2 text-sm text-gray-600">{message}</p>
       <Link
         href="/purchase-orders"
-        className="mt-4 inline-flex min-h-11 items-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white"
+        className="mt-4 inline-flex min-h-11 items-center bg-[var(--erp-accent)] px-4 text-sm font-semibold text-white hover:opacity-90"
       >
         К списку закупок
       </Link>

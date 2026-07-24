@@ -73,23 +73,21 @@ export default function PurchaseOrdersPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <header className="flex flex-wrap items-end gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Закупки</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Создавайте заказы поставщикам и контролируйте приёмку товара.
-          </p>
+          <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Заказы поставщикам</h2>
+          <p className="mt-0.5 text-[13px] text-gray-500">Создание и приёмка</p>
         </div>
         <Link
           href="/purchase-orders/new"
-          className="inline-flex min-h-11 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+          className="ml-auto inline-flex h-[38px] items-center gap-2 bg-[var(--erp-accent)] px-4 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--erp-accent)] focus-visible:ring-offset-2"
         >
           <PlusIcon className="h-5 w-5" />
           Создать закупку
         </Link>
       </header>
 
-      <section aria-label="Поиск и фильтры закупок" className="mt-6 border-y border-gray-200 bg-white py-4">
+      <section aria-label="Поиск и фильтры закупок" className="mt-6 border-y border-[var(--erp-divider)] bg-white py-4">
         <div className="flex items-center gap-2">
           <label className="relative block min-w-0 flex-1">
             <span className="sr-only">Поиск закупок</span>
@@ -103,7 +101,7 @@ export default function PurchaseOrdersPage() {
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Номер заказа или поставщик"
-              className="min-h-11 w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+              className="min-h-11 w-full border border-[var(--erp-divider)] bg-white py-2 pl-9 pr-3 text-sm focus:border-[var(--erp-text)] focus:outline-none"
             />
           </label>
 
@@ -119,7 +117,7 @@ export default function PurchaseOrdersPage() {
                   onChange={(event) =>
                     setStatusFilter(event.target.value as PurchaseOrderStatus | '')
                   }
-                  className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                  className="min-h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus:border-[var(--erp-text)] focus:outline-none"
                 >
                   {statusOptions.map((option) => (
                     <option key={option.value || 'all'} value={option.value}>
@@ -137,7 +135,7 @@ export default function PurchaseOrdersPage() {
                   aria-label="Поставщик"
                   value={supplierFilter}
                   onChange={(event) => setSupplierFilter(event.target.value)}
-                  className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                  className="min-h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus:border-[var(--erp-text)] focus:outline-none"
                 >
                   <option value="">Все поставщики</option>
                   {suppliers.map((supplier) => (
@@ -158,7 +156,7 @@ export default function PurchaseOrdersPage() {
                     aria-label="Дата от"
                     value={startDate}
                     onChange={(event) => setStartDate(event.target.value)}
-                    className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                    className="min-h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus:border-[var(--erp-text)] focus:outline-none"
                   />
                 </label>
 
@@ -171,7 +169,7 @@ export default function PurchaseOrdersPage() {
                     aria-label="Дата до"
                     value={endDate}
                     onChange={(event) => setEndDate(event.target.value)}
-                    className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                    className="min-h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus:border-[var(--erp-text)] focus:outline-none"
                   />
                 </label>
               </div>
@@ -184,19 +182,19 @@ export default function PurchaseOrdersPage() {
         </div>
       </section>
 
-      <section className="mt-5 overflow-hidden border-y border-gray-200 bg-white">
+      <section className="mt-5 overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
         {ordersQuery.isLoading ? (
           <div className="p-4">
             <TableSkeleton rows={6} columns={6} />
           </div>
         ) : ordersQuery.isError ? (
           <div role="alert" className="p-8 text-center">
-            <h2 className="font-semibold text-gray-900">Не удалось загрузить закупки</h2>
+            <h2 className="font-semibold text-[var(--erp-text)]">Не удалось загрузить закупки</h2>
             <p className="mt-1 text-sm text-gray-500">Обновите страницу и попробуйте снова.</p>
           </div>
         ) : visibleOrders.length === 0 ? (
           <div className="p-10 text-center">
-            <h2 className="font-semibold text-gray-900">
+            <h2 className="font-semibold text-[var(--erp-text)]">
               {hasFilters ? 'Закупки не найдены' : 'Закупок пока нет'}
             </h2>
             <p className="mt-1 text-sm text-gray-500">
@@ -208,14 +206,14 @@ export default function PurchaseOrdersPage() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="mt-4 min-h-11 rounded-md px-4 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                className="mt-4 min-h-11 px-4 text-sm font-semibold text-[var(--erp-accent)] hover:bg-[var(--erp-surface)]"
               >
                 Сбросить фильтры
               </button>
             ) : (
               <Link
                 href="/purchase-orders/new"
-                className="mt-4 inline-flex min-h-11 items-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white"
+                className="mt-4 inline-flex min-h-11 items-center bg-[var(--erp-accent)] px-4 text-sm font-semibold text-white hover:opacity-90"
               >
                 Создать закупку
               </Link>
@@ -223,14 +221,14 @@ export default function PurchaseOrdersPage() {
           </div>
         ) : (
           <>
-            <div className="divide-y divide-gray-200 sm:hidden">
+            <div className="divide-y divide-[var(--erp-divider)] sm:hidden">
               {visibleOrders.map((order) => (
                 <article key={order.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <Link
                         href={'/purchase-orders/' + order.id}
-                        className="font-bold text-gray-900 hover:text-blue-700"
+                        className="font-bold text-[var(--erp-text)] hover:text-[var(--erp-accent)]"
                       >
                         #{order.id}
                       </Link>
@@ -247,14 +245,14 @@ export default function PurchaseOrdersPage() {
                     </div>
                     <div className="text-right">
                       <dt className="text-xs text-gray-500">Сумма</dt>
-                      <dd className="mt-1 font-bold tabular-nums text-blue-600">
+                      <dd className="mt-1 font-bold tabular-nums text-[var(--erp-text)]">
                         {formatCurrency(order.total_amount)}
                       </dd>
                     </div>
                   </dl>
                   <Link
                     href={'/purchase-orders/' + order.id}
-                    className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-700"
+                    className="mt-4 inline-flex min-h-11 w-full items-center justify-center border border-[var(--erp-divider)] bg-white px-4 text-sm font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)]"
                   >
                     {getPrimaryAction(order.status)}
                   </Link>
@@ -264,8 +262,8 @@ export default function PurchaseOrdersPage() {
 
             <div className="hidden overflow-x-auto sm:block">
               <table className="w-full min-w-[760px] text-sm">
-                <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  <tr>
+                <thead>
+                  <tr className="border-b-2 border-[var(--erp-divider)] text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">
                     <th className="px-4 py-3">№</th>
                     <th className="px-4 py-3">Поставщик</th>
                     <th className="px-4 py-3">Дата</th>
@@ -274,13 +272,13 @@ export default function PurchaseOrdersPage() {
                     <th className="px-4 py-3 text-right">Следующий шаг</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-[var(--erp-divider)]">
                   {visibleOrders.map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50">
+                    <tr key={order.id} className="hover:bg-[var(--erp-surface)]">
                       <td className="px-4 py-4">
                         <Link
                           href={'/purchase-orders/' + order.id}
-                          className="font-bold text-gray-900 hover:text-blue-700"
+                          className="font-bold text-[var(--erp-text)] hover:text-[var(--erp-accent)]"
                         >
                           #{order.id}
                         </Link>
@@ -294,13 +292,13 @@ export default function PurchaseOrdersPage() {
                       <td className="px-4 py-4">
                         <PurchaseOrderStatusBadge status={order.status} />
                       </td>
-                      <td className="px-4 py-4 text-right font-bold tabular-nums text-blue-600">
+                      <td className="px-4 py-4 text-right font-bold tabular-nums text-[var(--erp-text)]">
                         {formatCurrency(order.total_amount)}
                       </td>
                       <td className="px-4 py-4 text-right">
                         <Link
                           href={'/purchase-orders/' + order.id}
-                          className="inline-flex min-h-9 items-center rounded-md px-3 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                          className="inline-flex min-h-9 items-center px-3 text-sm font-semibold text-[var(--erp-accent)] hover:bg-[var(--erp-surface)]"
                         >
                           {getPrimaryAction(order.status)}
                         </Link>

@@ -158,20 +158,22 @@ function Suppliers() {
   return (
     <>
       <div className="h-full overflow-y-auto mobile-no-overscroll p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-wrap items-end gap-4">
+          <div>
+            <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Поставщики</h2>
+            <p className="mt-0.5 text-[13px] text-gray-500">{suppliers.length} активных</p>
+          </div>
           <button
             onClick={handleCreate}
-            className="self-start rounded-lg bg-blue-500 px-3 py-2 text-sm text-white hover:bg-blue-600 sm:self-auto sm:px-4 sm:text-base"
+            className="ml-auto flex h-[38px] items-center justify-center gap-2 bg-[var(--erp-accent)] px-3 text-sm text-white hover:opacity-90 sm:px-4 sm:text-base"
           >
-            <span className="flex items-center justify-center gap-2">
-              <PlusIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="hidden sm:inline">Добавить поставщика</span>
-              <span className="sm:hidden">Добавить</span>
-            </span>
+            <PlusIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">Добавить поставщика</span>
+            <span className="sm:hidden">Добавить</span>
           </button>
         </div>
 
-        <div className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-4">
+        <div className="border border-[var(--erp-divider)] bg-white p-3 sm:p-4">
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 sm:h-5 sm:w-5" />
@@ -181,7 +183,7 @@ function Suppliers() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Поиск поставщиков..."
-                className="h-9 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-sm dark:border-gray-600 dark:bg-gray-700 sm:h-10 sm:pl-10 sm:text-base"
+                className="h-9 w-full border border-[var(--erp-divider)] bg-white pl-9 pr-3 text-sm sm:h-10 sm:pl-10 sm:text-base"
               />
             </div>
             <FilterMenu activeCount={activeFilterCount} onReset={resetAdvancedFilters}>
@@ -190,7 +192,7 @@ function Suppliers() {
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                     Данные поставщика
                   </p>
-                  <div className="grid gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-900">
+                  <div className="grid gap-1 border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-1">
                     {filterTabs.map((tab) => (
                       <button
                         key={tab.key}
@@ -198,10 +200,10 @@ function Suppliers() {
                         aria-label={tab.label}
                         data-filter-close
                         onClick={() => setSupplierFilter(tab.key)}
-                        className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        className={`flex items-center justify-between px-3 py-2 text-sm font-medium transition-colors ${
                           supplierFilter === tab.key
-                            ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
-                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                            ? 'bg-white text-[var(--erp-text)]'
+                            : 'text-gray-500 hover:text-[var(--erp-text)]'
                         }`}
                       >
                         <span>{tab.label}</span>
@@ -220,7 +222,7 @@ function Suppliers() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="mt-3 overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
           {loading ? (
             <div className="p-4">
               <TableSkeleton rows={5} columns={5} />
@@ -233,16 +235,16 @@ function Suppliers() {
             <>
               <div className="space-y-2 sm:hidden">
                 {visibleSuppliers.map((supplier: Supplier) => (
-                  <div key={supplier.id} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                  <div key={supplier.id} className="border border-[var(--erp-divider)] bg-white p-3">
                     <div className="flex items-start justify-between">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{supplier.name}</p>
+                        <p className="text-sm font-semibold text-[var(--erp-text)]">{supplier.name}</p>
                         {supplier.contact_person && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{supplier.contact_person}</p>
+                          <p className="text-xs text-gray-500">{supplier.contact_person}</p>
                         )}
                       </div>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
                       {supplier.phone && (
                         <span className="flex items-center gap-1">
                           <PhoneIcon className="h-3 w-3" /> {supplier.phone}
@@ -255,10 +257,10 @@ function Suppliers() {
                       )}
                     </div>
                     <div className="mt-2 flex justify-end gap-1">
-                      <button onClick={() => handleEdit(supplier)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-700 dark:hover:text-blue-400" aria-label="Редактировать">
+                      <button onClick={() => handleEdit(supplier)} className="p-2 text-gray-400 hover:text-[var(--erp-text)]" aria-label="Редактировать">
                         <PencilIcon className="h-4 w-4" />
                       </button>
-                      <button onClick={() => handleDelete(supplier.id)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700 dark:hover:text-red-400" aria-label="Удалить">
+                      <button onClick={() => handleDelete(supplier.id)} className="p-2 text-gray-400 hover:text-[var(--erp-accent)]" aria-label="Удалить">
                         <TrashIcon className="h-4 w-4" />
                       </button>
                     </div>
@@ -268,35 +270,35 @@ function Suppliers() {
 
               <div className="hidden overflow-x-auto sm:block">
                 <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Наименование</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Контакт</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Email</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Телефон</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Условия</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Действия</th>
+                  <thead>
+                    <tr className="border-b-2 border-[var(--erp-divider)]">
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Наименование</th>
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Контакт</th>
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Email</th>
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Телефон</th>
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Условия</th>
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Действия</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="divide-y divide-[var(--erp-divider)]">
                     {visibleSuppliers.map((supplier: Supplier) => (
-                      <tr key={supplier.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{supplier.name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{supplier.contact_person || '-'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{supplier.email || '-'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{supplier.phone}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{supplier.payment_terms || '-'}</td>
+                      <tr key={supplier.id} className="hover:bg-[var(--erp-surface)]">
+                        <td className="px-4 py-3 text-sm font-medium text-[var(--erp-text)]">{supplier.name}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{supplier.contact_person || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{supplier.email || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{supplier.phone}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{supplier.payment_terms || '-'}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleEdit(supplier)}
-                              className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900"
+                              className="p-2 text-gray-400 hover:text-[var(--erp-text)]"
                             >
                               <PencilIcon className="h-5 w-5" />
                             </button>
                             <button
                               onClick={() => handleDelete(supplier.id)}
-                              className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900"
+                              className="p-2 text-gray-400 hover:text-[var(--erp-accent)]"
                             >
                               <TrashIcon className="h-5 w-5" />
                             </button>
@@ -314,9 +316,9 @@ function Suppliers() {
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-50 sm:items-center sm:p-4">
-          <div className="max-h-[90vh] w-full overflow-hidden rounded-t-2xl bg-white dark:bg-gray-800 sm:max-w-md sm:rounded-2xl">
-            <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-6 sm:py-4">
-              <h3 className="text-base font-bold text-gray-900 dark:text-white sm:text-xl">
+          <div className="max-h-[90vh] w-full overflow-hidden bg-white sm:max-w-md">
+            <div className="border-b border-[var(--erp-divider)] px-4 py-3 sm:px-6 sm:py-4">
+              <h3 className="text-base font-bold text-[var(--erp-text)] sm:text-xl">
                 {editingSupplier ? 'Редактировать поставщика' : 'Добавить поставщика'}
               </h3>
             </div>
@@ -331,7 +333,7 @@ function Suppliers() {
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-700 sm:h-10"
+                  className="h-9 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm sm:h-10"
                 />
               </div>
 
@@ -343,7 +345,7 @@ function Suppliers() {
                   type="text"
                   value={formData.contact_person}
                   onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
-                  className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-700 sm:h-10"
+                  className="h-9 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm sm:h-10"
                 />
               </div>
 
@@ -356,7 +358,7 @@ function Suppliers() {
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-700 sm:h-10"
+                    className="h-9 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm sm:h-10"
                   />
                 </div>
                 <div>
@@ -368,7 +370,7 @@ function Suppliers() {
                     required
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-700 sm:h-10"
+                    className="h-9 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm sm:h-10"
                   />
                 </div>
               </div>
@@ -381,7 +383,7 @@ function Suppliers() {
                   type="text"
                   value={formData.payment_terms}
                   onChange={(e) => setFormData({ ...formData, payment_terms: e.target.value })}
-                  className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-700 sm:h-10"
+                  className="h-9 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm sm:h-10"
                   placeholder="Напр.: 50% предоплата"
                 />
               </div>
@@ -393,7 +395,7 @@ function Suppliers() {
                 <textarea
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="h-16 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 sm:h-20"
+                  className="h-16 w-full resize-none border border-[var(--erp-divider)] bg-white px-3 py-2 text-sm sm:h-20"
                 />
               </div>
 
@@ -401,14 +403,14 @@ function Suppliers() {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="order-2 rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 sm:order-1 sm:text-base"
+                  className="order-2 px-4 py-2 text-sm text-gray-600 hover:bg-[var(--erp-surface)] sm:order-1 sm:text-base"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
                   disabled={createSupplierMutation.isPending || updateSupplierMutation.isPending}
-                  className="order-1 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 sm:order-2 sm:text-base"
+                  className="order-1 bg-[var(--erp-accent)] px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50 sm:order-2 sm:text-base"
                 >
                   {editingSupplier ? 'Сохранить' : 'Создать'}
                 </button>

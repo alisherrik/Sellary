@@ -176,7 +176,7 @@ export default function PurchaseOrderEditor({
 
   if (initialOrder && initialOrder.status !== 'draft') {
     return (
-      <div className="rounded-md border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
+      <div className="border border-[var(--erp-divider)] bg-[var(--erp-badge-bg)] p-5 text-sm text-[var(--erp-badge-text)]">
         Эту закупку нельзя редактировать, потому что её статус изменился.
       </div>
     );
@@ -184,19 +184,19 @@ export default function PurchaseOrderEditor({
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-gray-500">
+          <p className="text-[13px] text-gray-500">
             Закупки / {initialOrder ? `#${initialOrder.id}` : 'Новая закупка'}
           </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-900">
+          <h2 className="mt-1 text-[28px] font-extrabold tracking-tight text-[var(--erp-text)]">
             {initialOrder ? `Редактирование закупки #${initialOrder.id}` : 'Новая закупка'}
-          </h1>
+          </h2>
         </div>
         <PurchaseOrderStatusBadge status="draft" />
       </div>
 
-      <div className="border-y border-gray-200 bg-white py-4">
+      <div className="border-y border-[var(--erp-divider)] bg-white py-4">
         <PurchaseOrderStepper
           mode="editor"
           currentStep={currentStep}
@@ -345,7 +345,7 @@ export default function PurchaseOrderEditor({
             </div>
           )}
 
-          <div className="sticky bottom-0 z-20 mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 bg-white py-4 lg:static">
+          <div className="sticky bottom-0 z-20 mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--erp-divider)] bg-white py-4 lg:static">
             <div className="flex gap-2">
               <button
                 type="button"
@@ -353,7 +353,7 @@ export default function PurchaseOrderEditor({
                   if (isDirty && !window.confirm('Есть несохранённые изменения. Выйти?')) return;
                   onCancel?.();
                 }}
-                className="min-h-11 rounded-md px-4 text-sm font-semibold text-gray-600 hover:bg-gray-100"
+                className="min-h-11 px-4 text-sm font-semibold text-gray-600 hover:bg-[var(--erp-surface)]"
               >
                 Отмена
               </button>
@@ -361,7 +361,7 @@ export default function PurchaseOrderEditor({
                 <button
                   type="button"
                   onClick={() => setCurrentStep(currentStep === 'review' ? 'items' : 'supplier')}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-md border border-gray-300 px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  className="inline-flex min-h-11 items-center gap-2 border border-[var(--erp-divider)] px-4 text-sm font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)]"
                 >
                   <ArrowLeftIcon className="h-4 w-4" /> Назад
                 </button>
@@ -372,7 +372,7 @@ export default function PurchaseOrderEditor({
               <button
                 type="button"
                 onClick={() => changeStep('items')}
-                className="inline-flex min-h-11 items-center gap-2 rounded-md bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700"
+                className="inline-flex min-h-11 items-center gap-2 bg-[var(--erp-accent)] px-5 text-sm font-semibold text-white hover:opacity-90"
               >
                 Продолжить <ArrowRightIcon className="h-4 w-4" />
               </button>
@@ -381,7 +381,7 @@ export default function PurchaseOrderEditor({
               <button
                 type="button"
                 onClick={() => changeStep('review')}
-                className="inline-flex min-h-11 items-center gap-2 rounded-md bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700"
+                className="inline-flex min-h-11 items-center gap-2 bg-[var(--erp-accent)] px-5 text-sm font-semibold text-white hover:opacity-90"
               >
                 Продолжить к проверке <ArrowRightIcon className="h-4 w-4" />
               </button>
@@ -392,7 +392,7 @@ export default function PurchaseOrderEditor({
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => void saveDraft(true)}
-                  className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  className="min-h-11 border border-[var(--erp-divider)] px-4 text-sm font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)] disabled:opacity-50"
                 >
                   Сохранить черновик
                 </button>
@@ -400,7 +400,7 @@ export default function PurchaseOrderEditor({
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => void saveAndSend()}
-                  className="min-h-11 rounded-md bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="min-h-11 bg-[var(--erp-accent)] px-5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
                 >
                   Отправить поставщику
                 </button>

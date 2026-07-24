@@ -460,16 +460,46 @@ function Products() {
 
   return (
     <>
-      <div className="flex h-full min-h-0 gap-4">
+      <div className="flex h-full min-h-0 flex-col">
+        {/* Page header */}
+        <div className="mb-4 flex flex-none flex-wrap items-end gap-4">
+          <div>
+            <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Товары</h2>
+            <p className="mt-0.5 text-[13px] text-gray-500">
+              {visibleProducts.length} позиций
+              {lowCount + outCount > 0 ? ` · ${lowCount + outCount} заканчивается` : ''}
+            </p>
+          </div>
+          <div className="ml-auto flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCategoryManager(true)}
+              className="flex h-[38px] shrink-0 items-center justify-center gap-2 border border-[var(--erp-divider)] bg-white px-3 text-sm font-semibold text-[var(--erp-text)] transition-colors hover:border-[var(--erp-text)] lg:hidden"
+            >
+              <Cog6ToothIcon className="h-5 w-5" />
+              <span className="hidden sm:inline">Категории</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateProduct}
+              className="flex h-[38px] shrink-0 items-center justify-center gap-2 bg-[var(--erp-accent)] px-3 text-sm font-semibold text-white transition-colors hover:opacity-90 sm:px-4"
+            >
+              <PlusIcon className="h-5 w-5" />
+              <span className="hidden sm:inline">Добавить товар</span>
+            </button>
+          </div>
+        </div>
+
+      <div className="flex min-h-0 flex-1 gap-4">
         {/* Category rail — desktop */}
-        <aside className="hidden w-56 shrink-0 flex-col overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:flex">
+        <aside className="hidden w-56 shrink-0 flex-col overflow-y-auto border border-[var(--erp-divider)] bg-white p-3 lg:flex">
           <div className="mb-2 flex items-center px-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Категории</span>
             <button
               type="button"
               onClick={() => setShowCategoryManager(true)}
               title="Управление категориями"
-              className="ml-auto rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-700"
+              className="ml-auto p-1 text-gray-400 transition-colors hover:text-[var(--erp-accent)]"
             >
               <Cog6ToothIcon className="h-4 w-4" />
             </button>
@@ -478,13 +508,13 @@ function Products() {
           <button
             type="button"
             onClick={() => setSelectedCategory(null)}
-            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors ${
+            className={`flex w-full items-center gap-2.5 px-2.5 py-2 text-sm transition-colors ${
               selectedCategory === null
-                ? 'bg-blue-50 font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
-                : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+                ? 'bg-[var(--erp-surface)] font-semibold text-[var(--erp-text)]'
+                : 'text-gray-600 hover:bg-[var(--erp-surface)]'
             }`}
           >
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500" />
+            <span className="h-2.5 w-2.5 shrink-0 bg-blue-500" />
             Все товары
           </button>
 
@@ -497,13 +527,13 @@ function Products() {
                   key={category.id}
                   type="button"
                   onClick={() => setSelectedCategory(active ? null : category.id)}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors ${
+                  className={`flex w-full items-center gap-2.5 px-2.5 py-2 text-sm transition-colors ${
                     active
-                      ? 'bg-blue-50 font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
-                      : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+                      ? 'bg-[var(--erp-surface)] font-semibold text-[var(--erp-text)]'
+                      : 'text-gray-600 hover:bg-[var(--erp-surface)]'
                   }`}
                 >
-                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${color.dot}`} />
+                  <span className={`h-2.5 w-2.5 shrink-0 ${color.dot}`} />
                   <span className="truncate">{category.name}</span>
                 </button>
               );
@@ -513,7 +543,7 @@ function Products() {
           <button
             type="button"
             onClick={() => openCategoryCreateModal('manager')}
-            className="mt-2 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20"
+            className="mt-2 flex w-full items-center gap-2 px-2.5 py-2 text-sm font-medium text-[var(--erp-accent)] transition-colors hover:bg-[var(--erp-surface)]"
           >
             <PlusIcon className="h-4 w-4" />
             Добавить категорию
@@ -532,50 +562,31 @@ function Products() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Поиск по названию или штрихкоду…"
-                  className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-800 sm:pl-10"
+                  className="h-10 w-full border border-[var(--erp-divider)] bg-white pl-9 pr-3 text-sm outline-none focus:border-[var(--erp-text)] sm:pl-10"
                 />
               </div>
-              <button
-                type="button"
-                onClick={() => setShowCategoryManager(true)}
-                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 lg:hidden"
-              >
-                <Cog6ToothIcon className="h-5 w-5" />
-                <span className="hidden sm:inline">Категории</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateProduct}
-                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 sm:px-4"
-              >
-                <PlusIcon className="h-5 w-5" />
-                <span className="hidden sm:inline">Товар</span>
-              </button>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex gap-0.5 rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+              <div className="flex gap-0.5 border border-[var(--erp-divider)] bg-white p-1">
                 {statusTabs.map((tab) => (
                   <button
                     key={tab.key}
                     type="button"
                     onClick={() => setStatusFilter(tab.key)}
-                    className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                    className={`px-3 py-1.5 text-[13px] font-medium transition-colors ${
                       statusFilter === tab.key
-                        ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
-                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                        ? 'bg-[var(--erp-text)] text-white'
+                        : 'text-gray-500 hover:text-[var(--erp-text)]'
                     }`}
                   >
                     {tab.label}
                     {tab.count != null && tab.count > 0 && (
-                      <span className="ml-1.5 text-gray-400">· {tab.count}</span>
+                      <span className="ml-1.5 opacity-70">· {tab.count}</span>
                     )}
                   </button>
                 ))}
               </div>
-              <span className="ml-auto hidden text-xs tabular-nums text-gray-400 sm:block">
-                {visibleProducts.length} позиций
-              </span>
             </div>
 
             {/* Category chips — mobile */}
@@ -583,10 +594,10 @@ function Products() {
               <button
                 type="button"
                 onClick={() => setSelectedCategory(null)}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
+                className={`shrink-0 px-3 py-1.5 text-xs font-medium ${
                   selectedCategory === null
-                    ? 'bg-blue-600 text-white'
-                    : 'border border-gray-200 bg-white text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                    ? 'bg-[var(--erp-accent)] text-white'
+                    : 'border border-[var(--erp-divider)] bg-white text-gray-600'
                 }`}
               >
                 Все
@@ -598,10 +609,10 @@ function Products() {
                   onClick={() =>
                     setSelectedCategory(selectedCategory === category.id ? null : category.id)
                   }
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
+                  className={`shrink-0 px-3 py-1.5 text-xs font-medium ${
                     selectedCategory === category.id
-                      ? 'bg-blue-600 text-white'
-                      : 'border border-gray-200 bg-white text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                      ? 'bg-[var(--erp-accent)] text-white'
+                      : 'border border-[var(--erp-divider)] bg-white text-gray-600'
                   }`}
                 >
                   {category.name}
@@ -611,7 +622,7 @@ function Products() {
           </div>
 
           {/* Content */}
-          <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="min-h-0 flex-1 overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
             {loading ? (
               <div className="p-4">
                 <TableSkeleton rows={6} columns={5} />
@@ -628,17 +639,17 @@ function Products() {
                     return (
                       <div
                         key={product.id}
-                        className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                        className="border border-[var(--erp-divider)] bg-white p-3"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{product.name}</p>
+                            <p className="truncate text-sm font-semibold text-[var(--erp-text)]">{product.name}</p>
                             {product.barcode && (
                               <p className="font-mono text-[11px] text-gray-400">{product.barcode}</p>
                             )}
                           </div>
                           {product.category?.name && (
-                            <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-medium ${color.badge}`}>
+                            <span className={`shrink-0 px-2 py-0.5 text-[10px] font-medium ${color.badge}`}>
                               {product.category.name}
                             </span>
                           )}
@@ -665,22 +676,22 @@ function Products() {
                             />
                             <button
                               onClick={() => handleEditProduct(product)}
-                              className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-700"
+                              className="p-2 text-gray-400 hover:text-[var(--erp-text)]"
                               aria-label="Редактировать"
                             >
                               <PencilIcon className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => handleDeleteProduct(product.id)}
-                              className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700"
+                              className="p-2 text-gray-400 hover:text-[var(--erp-accent)]"
                               aria-label="Удалить"
                             >
                               <TrashIcon className="h-4 w-4" />
                             </button>
                           </div>
                         </div>
-                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                          <div className={`h-full rounded-full ${bar.color}`} style={{ width: `${bar.pct}%` }} />
+                        <div className="mt-2 h-1.5 overflow-hidden bg-[var(--erp-surface)]">
+                          <div className={`h-full ${bar.color}`} style={{ width: `${bar.pct}%` }} />
                         </div>
                       </div>
                     );
@@ -690,13 +701,13 @@ function Products() {
                 {/* Desktop table */}
                 <table className="hidden w-full text-sm sm:table">
                   <thead>
-                    <tr className="border-b border-gray-100 text-[11px] uppercase tracking-wider text-gray-400 dark:border-gray-700">
-                      <th className="px-4 py-3 text-left font-medium">Товар</th>
-                      <th className="px-4 py-3 text-left font-medium">Категория</th>
-                      <th className="px-4 py-3 text-right font-medium">Цена</th>
-                      <th className="px-4 py-3 text-right font-medium">Остаток</th>
-                      <th className="px-4 py-3 text-left font-medium">Уровень запаса</th>
-                      <th className="px-4 py-3 text-center font-medium">Маркетплейс</th>
+                    <tr className="border-b-2 border-[var(--erp-divider)] text-[10.5px] uppercase tracking-wide text-gray-400">
+                      <th className="px-4 py-3 text-left font-semibold">Товар</th>
+                      <th className="px-4 py-3 text-left font-semibold">Категория</th>
+                      <th className="px-4 py-3 text-right font-semibold">Цена</th>
+                      <th className="px-4 py-3 text-right font-semibold">Остаток</th>
+                      <th className="px-4 py-3 text-left font-semibold">Уровень запаса</th>
+                      <th className="px-4 py-3 text-center font-semibold">Маркетплейс</th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
@@ -707,35 +718,35 @@ function Products() {
                       return (
                         <tr
                           key={product.id}
-                          className={`group border-b border-gray-50 transition-colors hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/40 ${
+                          className={`group border-b border-[var(--erp-divider)] transition-colors hover:bg-[var(--erp-surface)] ${
                             product.stock_quantity === 0 ? 'opacity-60' : ''
                           }`}
                         >
                           <td className="px-4 py-3">
-                            <div className="font-semibold text-gray-900 dark:text-white">{product.name}</div>
+                            <div className="font-semibold text-[var(--erp-text)]">{product.name}</div>
                             {product.barcode && (
                               <div className="font-mono text-[11px] text-gray-400">{product.barcode}</div>
                             )}
                           </td>
                           <td className="px-4 py-3">
                             {product.category?.name ? (
-                              <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] font-medium ${color.badge}`}>
-                                <span className={`h-1.5 w-1.5 rounded-full ${color.dot}`} />
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[12px] font-medium ${color.badge}`}>
+                                <span className={`h-1.5 w-1.5 ${color.dot}`} />
                                 {product.category.name}
                               </span>
                             ) : (
                               <span className="text-gray-300">—</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-right font-medium tabular-nums text-gray-900 dark:text-white">
+                          <td className="px-4 py-3 text-right font-medium tabular-nums text-[var(--erp-text)]">
                             {formatUnitPrice(product.sell_price)}
                           </td>
                           <td className={`px-4 py-3 text-right tabular-nums ${
                             product.stock_quantity === 0
-                              ? 'font-semibold text-red-600'
+                              ? 'font-semibold text-[var(--erp-accent)]'
                               : product.stock_quantity <= product.min_stock_level
-                                ? 'font-semibold text-red-600'
-                                : 'text-gray-700 dark:text-gray-200'
+                                ? 'font-semibold text-[var(--erp-accent)]'
+                                : 'text-gray-700'
                           }`}>
                             {product.stock_quantity}
                             {product.stock_quantity > 0 && product.stock_quantity <= product.min_stock_level && ' ⚠'}
@@ -743,8 +754,8 @@ function Products() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <div className="h-1.5 w-28 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                                <div className={`h-full rounded-full ${bar.color}`} style={{ width: `${bar.pct}%` }} />
+                              <div className="h-1.5 w-28 overflow-hidden bg-[var(--erp-surface)]">
+                                <div className={`h-full ${bar.color}`} style={{ width: `${bar.pct}%` }} />
                               </div>
                             </div>
                           </td>
@@ -765,7 +776,7 @@ function Products() {
                               <button
                                 type="button"
                                 onClick={() => handleEditProduct(product)}
-                                className="rounded-lg p-2 text-gray-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30"
+                                className="p-2 text-gray-400 hover:text-[var(--erp-text)]"
                                 aria-label="Редактировать"
                               >
                                 <PencilIcon className="h-4 w-4" />
@@ -773,7 +784,7 @@ function Products() {
                               <button
                                 type="button"
                                 onClick={() => handleDeleteProduct(product.id)}
-                                className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+                                className="p-2 text-gray-400 hover:text-[var(--erp-accent)]"
                                 aria-label="Удалить"
                               >
                                 <TrashIcon className="h-4 w-4" />
@@ -790,10 +801,11 @@ function Products() {
           </div>
         </div>
       </div>
+      </div>
 
       {showProductModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 sm:p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[90vh] overflow-hidden">
+          <div className="bg-white w-full sm:max-w-2xl max-h-[90vh] overflow-hidden">
             <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white">
                 {editingProduct ? 'Редактировать товар' : 'Добавить товар'}
@@ -808,7 +820,7 @@ function Products() {
                     type="text"
                     value={formData.barcode}
                     onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                    className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
+                    className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
                   />
                 </div>
                 <div>
@@ -818,7 +830,7 @@ function Products() {
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
+                    className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
                   />
                 </div>
                 <div>
@@ -826,7 +838,7 @@ function Products() {
                   <select
                     value={formData.uom}
                     onChange={(e) => setFormData({ ...formData, uom: e.target.value })}
-                    className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
+                    className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
                   >
                     <option value="dona">дона (штука)</option>
                     <option value="metr">метр</option>
@@ -843,7 +855,7 @@ function Products() {
                     <select
                       value={formData.category_id}
                       onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                      className="flex-1 h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
+                      className="flex-1 h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
                     >
                       <option value="">Выберите</option>
                       {sortedCategories.map((category) => (
@@ -853,7 +865,7 @@ function Products() {
                     <button
                       type="button"
                       onClick={() => openCategoryCreateModal('product')}
-                      className="px-3 h-9 sm:h-10 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 text-sm whitespace-nowrap"
+                      className="px-3 h-9 sm:h-10 border border-[var(--erp-divider)] text-[var(--erp-text)] bg-white hover:border-[var(--erp-text)] text-sm whitespace-nowrap"
                     >
                       Новая
                     </button>
@@ -875,7 +887,7 @@ function Products() {
                     step="0.0001"
                     value={formData.cost_price}
                     onChange={(e) => setFormData({ ...formData, cost_price: e.target.value })}
-                    className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
+                    className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
                   />
                 </div>
                 <div>
@@ -887,7 +899,7 @@ function Products() {
                     step="0.0001"
                     value={formData.sell_price}
                     onChange={(e) => setFormData({ ...formData, sell_price: e.target.value })}
-                    className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
+                    className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
                   />
                 </div>
                 <div>
@@ -899,7 +911,7 @@ function Products() {
                     step="0.1"
                     value={formData.tax_percent}
                     onChange={(e) => setFormData({ ...formData, tax_percent: e.target.value })}
-                    className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
+                    className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
                   />
                 </div>
                 <div>
@@ -911,7 +923,7 @@ function Products() {
                     step="0.001"
                     value={formData.stock_quantity}
                     onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
-                    className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
+                    className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
                   />
                 </div>
                 <div>
@@ -922,7 +934,7 @@ function Products() {
                     step="0.001"
                     value={formData.min_stock_level}
                     onChange={(e) => setFormData({ ...formData, min_stock_level: e.target.value })}
-                    className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
+                    className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
                   />
                 </div>
               </div>
@@ -932,12 +944,12 @@ function Products() {
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full h-16 sm:h-20 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm resize-none"
+                  className="w-full h-16 sm:h-20 px-3 py-2 border border-[var(--erp-divider)] bg-white text-sm resize-none"
                 />
               </div>
 
               {editingProduct && (
-                <div className="mt-3 sm:mt-4 rounded-xl border border-gray-200 dark:border-gray-600 p-3">
+                <div className="mt-3 sm:mt-4 border border-[var(--erp-divider)] p-3">
                   <label className="mb-2 block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                     Фото для маркетплейса
                   </label>
@@ -947,15 +959,15 @@ function Products() {
                       <img
                         src={imagePreview}
                         alt="Фото товара"
-                        className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                        className="h-16 w-16 shrink-0 object-cover"
                       />
                     ) : (
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-[11px] text-gray-400 dark:bg-gray-700">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center bg-[var(--erp-surface)] text-[11px] text-gray-400">
                         Нет фото
                       </div>
                     )}
                     <div className="min-w-0">
-                      <label className="inline-flex cursor-pointer items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100">
+                      <label className="inline-flex cursor-pointer items-center border border-[var(--erp-divider)] bg-white px-3 py-2 text-sm text-[var(--erp-text)] hover:border-[var(--erp-text)]">
                         {uploadImageMutation.isPending ? 'Загрузка…' : 'Загрузить фото'}
                         <input
                           type="file"
@@ -975,7 +987,7 @@ function Products() {
               )}
 
               {/* Additional sale units (multi-UOM). Base unit = uom + цена продажи. */}
-              <div className="mt-3 sm:mt-4 rounded-xl border border-gray-200 dark:border-gray-600 p-3">
+              <div className="mt-3 sm:mt-4 border border-[var(--erp-divider)] p-3">
                 <div className="mb-1 flex items-center justify-between">
                   <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                     Дополнительные единицы продажи
@@ -1003,7 +1015,7 @@ function Products() {
                           placeholder="Название (qop)"
                           value={row.name}
                           onChange={(e) => updateUnitRow(index, 'name', e.target.value)}
-                          className="col-span-4 h-9 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-sm"
+                          className="col-span-4 h-9 border border-[var(--erp-divider)] bg-white px-2 text-sm"
                         />
                         <input
                           type="number"
@@ -1013,7 +1025,7 @@ function Products() {
                           title={`Сколько «${formData.uom || 'ед.'}» в одной единице`}
                           value={row.factor}
                           onChange={(e) => updateUnitRow(index, 'factor', e.target.value)}
-                          className="col-span-3 h-9 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-sm"
+                          className="col-span-3 h-9 border border-[var(--erp-divider)] bg-white px-2 text-sm"
                         />
                         <input
                           type="number"
@@ -1022,13 +1034,13 @@ function Products() {
                           placeholder="Цена"
                           value={row.sell_price}
                           onChange={(e) => updateUnitRow(index, 'sell_price', e.target.value)}
-                          className="col-span-3 h-9 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-sm"
+                          className="col-span-3 h-9 border border-[var(--erp-divider)] bg-white px-2 text-sm"
                         />
                         <button
                           type="button"
                           onClick={() => setFormUnits((rows) => rows.filter((_, i) => i !== index))}
                           aria-label="Удалить единицу"
-                          className="col-span-2 flex h-9 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+                          className="col-span-2 flex h-9 items-center justify-center text-gray-400 hover:text-[var(--erp-accent)]"
                         >
                           <TrashIcon className="h-4 w-4" />
                         </button>
@@ -1042,14 +1054,14 @@ function Products() {
                 <button
                   type="button"
                   onClick={() => setShowProductModal(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm sm:text-base order-2 sm:order-1"
+                  className="px-4 py-2 text-gray-600 hover:bg-[var(--erp-surface)] text-sm sm:text-base order-2 sm:order-1"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
                   disabled={createProductMutation.isPending || updateProductMutation.isPending}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm sm:text-base order-1 sm:order-2"
+                  className="px-4 py-2 bg-[var(--erp-accent)] text-white hover:opacity-90 disabled:opacity-50 text-sm sm:text-base order-1 sm:order-2"
                 >
                   {editingProduct ? 'Сохранить' : 'Создать'}
                 </button>
@@ -1061,7 +1073,7 @@ function Products() {
 
       {showCategoryManager && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-[60] sm:p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl max-h-[90vh] overflow-hidden">
+          <div className="bg-white w-full sm:max-w-3xl max-h-[90vh] overflow-hidden">
             <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white">Управление категориями</h3>
@@ -1072,7 +1084,7 @@ function Products() {
               <button
                 type="button"
                 onClick={() => openCategoryCreateModal('manager')}
-                className="shrink-0 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                className="shrink-0 flex items-center justify-center gap-2 px-3 py-2 bg-[var(--erp-accent)] text-white hover:opacity-90 text-sm"
               >
                 <PlusIcon className="w-4 h-4" />
                 <span>Добавить</span>
@@ -1081,7 +1093,7 @@ function Products() {
 
             <div className="p-4 sm:p-6 overflow-y-auto max-h-[72vh] space-y-3">
               {sortedCategories.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-gray-500">
+                <div className="border border-dashed border-[var(--erp-divider)] p-8 text-center text-gray-500">
                   Категорий пока нет
                 </div>
               ) : (
@@ -1090,14 +1102,14 @@ function Products() {
                   return (
                     <div
                       key={category.id}
-                      className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
+                      className="border border-[var(--erp-divider)] p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`h-2.5 w-2.5 rounded-full ${color.dot}`} />
+                          <span className={`h-2.5 w-2.5 ${color.dot}`} />
                           <p className="font-semibold text-gray-900 dark:text-white">{category.name}</p>
                           {!category.is_active && (
-                            <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                            <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600">
                               Неактивна
                             </span>
                           )}
@@ -1111,7 +1123,7 @@ function Products() {
                         <button
                           type="button"
                           onClick={() => openCategoryEditModal(category)}
-                          className="px-3 py-2 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg"
+                          className="px-3 py-2 text-sm text-[var(--erp-text)] bg-white border border-[var(--erp-divider)] hover:border-[var(--erp-text)]"
                         >
                           Редактировать
                         </button>
@@ -1119,7 +1131,7 @@ function Products() {
                           type="button"
                           onClick={() => handleDeleteCategory(category)}
                           disabled={deleteCategoryMutation.isPending}
-                          className="px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg disabled:opacity-50"
+                          className="px-3 py-2 text-sm text-[var(--erp-accent)] bg-white border border-[var(--erp-divider)] hover:border-[var(--erp-accent)] disabled:opacity-50"
                         >
                           Удалить
                         </button>
@@ -1134,7 +1146,7 @@ function Products() {
               <button
                 type="button"
                 onClick={() => setShowCategoryManager(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm sm:text-base"
+                className="px-4 py-2 text-gray-600 hover:bg-[var(--erp-surface)] text-sm sm:text-base"
               >
                 Закрыть
               </button>
@@ -1145,7 +1157,7 @@ function Products() {
 
       {showCategoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-[70] sm:p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg overflow-hidden">
+          <div className="bg-white w-full sm:max-w-lg overflow-hidden">
             <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white">
                 {categoryModalMode === 'edit' ? 'Редактировать категорию' : 'Добавить категорию'}
@@ -1165,7 +1177,7 @@ function Products() {
                   required
                   value={categoryFormData.name}
                   onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
-                  className="w-full h-9 sm:h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm"
+                  className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
                   placeholder="Например: Напитки"
                 />
               </div>
@@ -1175,7 +1187,7 @@ function Products() {
                 <textarea
                   value={categoryFormData.description}
                   onChange={(e) => setCategoryFormData({ ...categoryFormData, description: e.target.value })}
-                  className="w-full h-20 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm resize-none"
+                  className="w-full h-20 px-3 py-2 border border-[var(--erp-divider)] bg-white text-sm resize-none"
                   placeholder="Короткое описание категории"
                 />
               </div>
@@ -1184,14 +1196,14 @@ function Products() {
                 <button
                   type="button"
                   onClick={closeCategoryModal}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm sm:text-base"
+                  className="px-4 py-2 text-gray-600 hover:bg-[var(--erp-surface)] text-sm sm:text-base"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingCategory}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm sm:text-base"
+                  className="px-4 py-2 bg-[var(--erp-accent)] text-white hover:opacity-90 disabled:opacity-50 text-sm sm:text-base"
                 >
                   {isSavingCategory
                     ? categoryModalMode === 'edit'
