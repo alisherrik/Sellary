@@ -24,6 +24,16 @@ def with_idempotency(headers: dict, key: str) -> dict:
 class TestCreateReturn:
     """Tests for POST /api/sales/{sale_id}/return endpoint."""
 
+    def test_create_return_forbidden_for_plain_cashier(self, client: TestClient, cashier_headers):
+        """pos:user grant is not enough — returns require pos:manager."""
+        response = client.post(
+            "/api/sales/999999/return",
+            json={"items": [], "reason": "Тест"},
+            headers=with_idempotency(cashier_headers, "return-forbidden-cashier-01"),
+        )
+        assert response.status_code == 403
+        assert response.json()["detail"]["code"] == "module_access_denied"
+
     def test_create_return_single_item(self, client: TestClient, db_session, manager_headers):
         """Test creating a return for a single item."""
         # Setup: Create user, category, product, customer, sale

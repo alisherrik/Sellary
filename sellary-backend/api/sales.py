@@ -337,7 +337,7 @@ def return_sale(
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     """
-    Process a sale return/refund (idempotent).
+    Process a sale return/refund (pos manager, idempotent).
 
     Supports partial returns (some items) and full returns (all items).
     Requires Idempotency-Key header.
