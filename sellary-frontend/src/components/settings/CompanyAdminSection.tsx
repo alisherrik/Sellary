@@ -35,7 +35,7 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<ModuleDraft>(() => toDraft({}));
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['membership-modules', membershipId],
     queryFn: async () => {
       const response = await adminApi.getMembershipModules(membershipId);
@@ -71,6 +71,21 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
 
   if (isLoading) {
     return <p className="text-sm text-slate-500">Загрузка доступа к модулям...</p>;
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="flex items-center gap-3">
+        <p className="text-sm text-red-600">Не удалось загрузить доступы. Повторите попытку.</p>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+        >
+          Повторить
+        </button>
+      </div>
+    );
   }
 
   return (
