@@ -184,6 +184,16 @@
     animation: none;
   }
 
+  /* The catch-all below would run the sweep once, instantly, parking the fill
+     off the end of its track — leaving an empty grey line as the only "we are
+     working" signal. Give it a static state instead. */
+  .animate-session-sweep {
+    animation: none;
+    width: 100%;
+    opacity: 0.55;
+    transform: none;
+  }
+
   *,
   *::before,
   *::after {

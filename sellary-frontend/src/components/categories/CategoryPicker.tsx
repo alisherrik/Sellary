@@ -35,6 +35,10 @@ export default function CategoryPicker({
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
+  // The caller's refresh is async; without holding the new category here the
+  // select briefly has no matching option and falls back to "Без категории",
+  // so the user sees their creation apparently not selected.
+  const [justCreated, setJustCreated] = useState<Category | null>(null);
 
   const cancel = () => {
     setCreating(false);
@@ -53,6 +57,7 @@ export default function CategoryPicker({
     try {
       const response = await categoriesApi.create({ name: trimmed });
       const category: Category = response.data;
+      setJustCreated(category);
       onCreated?.(category);
       onChange(String(category.id));
       toast.success(`Категория «${category.name}» создана`);
@@ -65,6 +70,11 @@ export default function CategoryPicker({
       setSaving(false);
     }
   };
+
+  const options =
+    justCreated && !categories.some((category) => category.id === justCreated.id)
+      ? [...categories, justCreated]
+      : categories;
 
   if (creating) {
     return (
@@ -129,7 +139,7 @@ export default function CategoryPicker({
           className="min-h-11 flex-1 border border-[var(--erp-divider)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
         >
           <option value="">Без категории</option>
-          {categories.map((category) => (
+          {options.map((category) => (
             <option key={category.id} value={category.id}>
               {category.name}
             </option>

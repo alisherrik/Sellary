@@ -170,7 +170,7 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
                         radio into a 44px target. Column meaning lives in a
                         <th> a radio can't reference, so each control names
                         itself: "Склад: Менеджер". */}
-                    <label className="flex min-h-[44px] cursor-pointer items-center">
+                    <label className="flex min-h-[44px] w-full min-w-[44px] cursor-pointer items-center justify-center">
                       <input
                         type="radio"
                         name={`module-${membershipId}-${key}`}
@@ -228,6 +228,10 @@ export default function CompanyAdminSection() {
   // second, explicit press rather than riding along with a role edit.
   const [confirmDeactivation, setConfirmDeactivation] = useState(false);
   const [expandedModuleIds, setExpandedModuleIds] = useState<Set<number>>(new Set());
+  // Without this a double-press fired two POSTs; the second came back a
+  // duplicate-key error, so the admin saw a red toast for an operation that
+  // had in fact succeeded.
+  const [busy, setBusy] = useState(false);
 
   const isCompanyAdmin = currentCompany?.role === 'admin';
 
@@ -297,6 +301,8 @@ export default function CompanyAdminSection() {
 
   const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
+    setBusy(true);
     try {
       await adminApi.createUser(userForm);
       setUserForm(emptyUserForm);
@@ -304,11 +310,15 @@ export default function CompanyAdminSection() {
       await loadUsers();
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || error?.message || 'Не удалось создать пользователя.');
+    } finally {
+      setBusy(false);
     }
   };
 
   const handleAttachUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
+    setBusy(true);
     try {
       await adminApi.createMembership(membershipForm);
       setMembershipForm(emptyMembershipForm);
@@ -316,10 +326,14 @@ export default function CompanyAdminSection() {
       await loadUsers();
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || error?.message || 'Не удалось привязать пользователя.');
+    } finally {
+      setBusy(false);
     }
   };
 
   const saveMembership = async (draft: ManagedUserMembershipSummary) => {
+    if (busy) return;
+    setBusy(true);
     try {
       await adminApi.updateMembership(draft.id, {
         role: draft.role,
@@ -333,6 +347,8 @@ export default function CompanyAdminSection() {
       toast.error(
         error?.response?.data?.detail || error?.message || 'Не удалось обновить участие.',
       );
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -496,7 +512,7 @@ export default function CompanyAdminSection() {
                                   : 'Сотрудник не сможет войти в эту компанию, пока доступ не вернут.'}
                               </p>
                               <div className="mt-3 flex flex-wrap gap-2">
-                                <button type="submit" className={dangerButtonClass}>
+                                <button type="submit" disabled={busy} className={dangerButtonClass}>
                                   Отключить доступ
                                 </button>
                                 <button
@@ -510,7 +526,7 @@ export default function CompanyAdminSection() {
                             </div>
                           ) : (
                             <div className="mt-3 flex flex-wrap gap-2">
-                              <button type="submit" className={primaryButtonClass}>
+                              <button type="submit" disabled={busy} className={primaryButtonClass}>
                                 Сохранить участие
                               </button>
                               <button
@@ -677,8 +693,8 @@ export default function CompanyAdminSection() {
                 onChange={(next) => setUserForm((current) => ({ ...current, is_default: next }))}
               />
             </div>
-            <button type="submit" className={`${primaryButtonClass} w-full sm:w-auto`}>
-              Создать пользователя компании
+            <button type="submit" disabled={busy} className={`${primaryButtonClass} w-full sm:w-auto`}>
+              {busy ? 'Сохранение…' : 'Создать пользователя компании'}
             </button>
           </form>
 
@@ -742,7 +758,7 @@ export default function CompanyAdminSection() {
                 }
               />
             </div>
-            <button type="submit" className={`${secondaryButtonClass} w-full sm:w-auto`}>
+            <button type="submit" disabled={busy} className={`${secondaryButtonClass} w-full sm:w-auto`}>
               Привязать существующего пользователя
             </button>
           </form>

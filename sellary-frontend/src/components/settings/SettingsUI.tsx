@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 
 /**
  * One vocabulary for every control on the settings screen (DESIGN.md §5):
@@ -129,14 +129,19 @@ export function SettingsToggle({
   onChange: (next: boolean) => void;
   disabled?: boolean;
 }) {
+  const descriptionId = useId();
+
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       // Pins the accessible name to the label alone: the description below it
-      // would otherwise be read out as part of the control's name.
+      // would otherwise be read out as part of the control's name — but it
+      // still has to reach AT, since it is the sentence that says what
+      // turning this off actually does.
       aria-label={label}
+      aria-describedby={description ? descriptionId : undefined}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`flex min-h-[44px] w-full items-center justify-between gap-4 border border-[var(--erp-divider)] bg-white px-3 py-2.5 text-left transition-colors hover:border-[var(--erp-text)] disabled:cursor-not-allowed disabled:opacity-50 ${controlFocus}`}
@@ -144,7 +149,10 @@ export function SettingsToggle({
       <span className="min-w-0">
         <span className="block text-sm font-semibold text-[var(--erp-text)]">{label}</span>
         {description ? (
-          <span className="mt-0.5 block text-[12px] leading-snug text-[var(--erp-muted)]">
+          <span
+            id={descriptionId}
+            className="mt-0.5 block text-[12px] leading-snug text-[var(--erp-muted)]"
+          >
             {description}
           </span>
         ) : null}

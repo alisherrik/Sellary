@@ -15,7 +15,9 @@ export default function SessionSplash({ label = 'Загрузка…' }: { label
       <div className="h-0.5 w-16 overflow-hidden bg-[var(--erp-divider)]">
         <div className="h-full w-1/2 animate-session-sweep bg-[var(--erp-accent)]" />
       </div>
-      <span className="sr-only" role="status">
+      {/* Visible, not sr-only: a live region announces changes, not the text
+          it was born with, so a screen-reader user heard nothing at all. */}
+      <span role="status" className="text-[13px] text-[var(--erp-muted)]">
         {label}
       </span>
     </div>
