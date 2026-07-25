@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 import toast from 'react-hot-toast';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import {
@@ -14,6 +15,7 @@ import { formatCurrency, printReceipt } from '@/lib/utils';
 import { TableSkeleton } from '@/components/skeletons';
 import FilterMenu from '@/components/filters/FilterMenu';
 import { ModuleGuard } from '@/components/ModuleGuard';
+import QueryError from '@/components/ui/QueryError';
 import AnnulmentDialog from '@/components/transactions/AnnulmentDialog';
 import { Sale, SaleItem, VoidPreview } from '@/lib/types';
 import { useModules } from '@/lib/store';
@@ -152,8 +154,14 @@ function SalesHistory() {
   // Returns/voids need pos:manager on the backend; admin's modules map carries all modules at manager.
   const canManagePos = canAccessModule(modules, 'sales', 'manager');
   const debouncedSearch = useDebounce(searchInput, 300);
+
   const returnKey = useIdempotencyKey();
   const debtPaymentKey = useIdempotencyKey();
+  const returnPanelRef = useRef<HTMLDivElement>(null);
+  const debtPanelRef = useRef<HTMLDivElement>(null);
+
+  useDialogFocus(returnPanelRef, showReturnModal, () => setShowReturnModal(false));
+  useDialogFocus(debtPanelRef, showDebtPaymentModal, () => setShowDebtPaymentModal(false));
 
   const salesParams = useMemo(() => {
     const params: Record<string, string | number> = { limit: 200 };
@@ -176,6 +184,7 @@ function SalesHistory() {
     sales = [],
     total,
     isLoading: loading,
+    isError,
     isFetching,
     isFetchingNextPage,
     hasMore,
@@ -217,6 +226,20 @@ function SalesHistory() {
       const response = await salesApi.previewVoid(sale.id);
       setVoidPreview(response.data);
     } catch (error: any) {
+      const conflictDetail = error?.response?.data?.detail;
+      if (
+        error?.response?.status === 409 &&
+        typeof conflictDetail === 'string' &&
+        conflictDetail.toLowerCase().includes('idempotency')
+      ) {
+        // The amount or quantities changed after a failed attempt, so the held
+        // key no longer describes this request. Retire it rather than leaving
+        // the dialog permanently dead with an English server string.
+        returnKey.reset();
+        debtPaymentKey.reset();
+        toast.error('Данные изменились после сбоя. Повторите ещё раз.');
+        return;
+      }
       toast.error(errorText(error.response?.data?.detail, 'Не удалось проверить аннулирование'));
       setShowVoidDialog(false);
     } finally {
@@ -753,8 +776,14 @@ function SalesHistory() {
               <div className="p-4">
                 <TableSkeleton rows={6} columns={6} />
               </div>
+            ) : isError ? (
+              // A failed query used to render the empty state, so a server
+              // outage read as "you sold nothing today".
+              <div className="p-4">
+                <QueryError what="продажи" onRetry={() => void refetch()} />
+              </div>
             ) : visibleSales.length === 0 ? (
-              <div className="p-12 text-center text-gray-500">Продажи не найдены</div>
+              <div className="p-12 text-center text-[var(--erp-muted)]">Продажи не найдены</div>
             ) : (
               <div className="h-full overflow-y-auto">
                 {/* Mobile list */}
@@ -942,7 +971,7 @@ function SalesHistory() {
                           <p className="text-[11px] text-[var(--erp-muted)]">
                             {soldAs(item).quantity} {soldAs(item).unit} × {formatCurrency(item.unit_price)}
                             {item.quantity_returned > 0 && (
-                              <span className="ml-1 text-orange-600">({item.quantity_returned} возв.)</span>
+                              <span className="ml-1 text-[var(--erp-warn)]">({item.quantity_returned} возв.)</span>
                             )}
                           </p>
                           {fullyAnnulled && (
@@ -985,10 +1014,10 @@ function SalesHistory() {
                 ) : (
                   <div className="space-y-2">
                     {returns.map((ret) => (
-                      <div key={ret.id} className="rounded-xl bg-orange-50 p-3 dark:bg-orange-900/20">
+                      <div key={ret.id} className="rounded-xl bg-[var(--erp-warn-bg)] p-3 dark:bg-orange-900/20">
                         <div className="flex justify-between">
                           <span className="text-[12px] font-medium text-gray-900 dark:text-white">Возврат #{ret.id}</span>
-                          <span className="text-[12px] font-bold tabular-nums text-orange-600">−{formatCurrency(ret.total_refund_amount)}</span>
+                          <span className="text-[12px] font-bold tabular-nums text-[var(--erp-warn)]">−{formatCurrency(ret.total_refund_amount)}</span>
                         </div>
                         <p className="text-[11px] text-gray-500">
                           {ret.user_name} · {new Date(ret.created_at).toLocaleString('ru-RU')}
@@ -1017,7 +1046,7 @@ function SalesHistory() {
                     setShowDetail(false);
                     handleOpenReturnModal(selectedSale);
                   }}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg min-h-11 bg-[var(--erp-accent)] py-2.5 text-sm font-semibold text-white hover:bg-[var(--erp-accent-strong)]"
                 >
                   <ArrowUturnLeftIcon className="h-4 w-4" />
                   Оформить возврат
@@ -1078,7 +1107,7 @@ function SalesHistory() {
               {canManagePos && (selectedSale as any).can_return && (
                 <button
                   onClick={() => { setShowDetail(false); handleOpenReturnModal(selectedSale); }}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg min-h-11 bg-[var(--erp-accent)] py-2.5 text-sm font-semibold text-white hover:bg-[var(--erp-accent-strong)]"
                 >
                   <ArrowUturnLeftIcon className="h-4 w-4" /> Возврат
                 </button>
@@ -1097,6 +1126,7 @@ function SalesHistory() {
       {showReturnModal && selectedSale && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
           <div
+            ref={returnPanelRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="return-modal-title"
@@ -1227,7 +1257,7 @@ function SalesHistory() {
               <button
                 onClick={handleSubmitReturn}
                 disabled={returnMutation.isPending || !canSubmitReturn}
-                className="order-1 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-semibold text-white hover:from-orange-600 hover:to-red-600 disabled:opacity-50 sm:order-2 sm:px-6 sm:text-base"
+                className="order-1 rounded-xl bg-[#dc2626] px-4 py-2 text-sm font-semibold text-white hover:from-orange-600 hover:to-red-600 disabled:opacity-50 sm:order-2 sm:px-6 sm:text-base"
               >
                 {returnMutation.isPending
                   ? 'Обработка...'
@@ -1243,6 +1273,7 @@ function SalesHistory() {
       {showDebtPaymentModal && selectedSale && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
           <div
+            ref={debtPanelRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="debt-payment-title"

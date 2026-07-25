@@ -1624,7 +1624,7 @@ function POS() {
                   type="button"
                   onClick={createQuickCustomer}
                   disabled={creatingCustomer}
-                  className="mt-3 w-full rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-gray-400"
+                  className="mt-3 w-full rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[var(--erp-accent-strong)] disabled:cursor-not-allowed disabled:bg-gray-400"
                 >
                   {creatingCustomer ? 'Создание...' : 'Создать клиента'}
                 </button>

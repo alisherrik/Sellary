@@ -110,7 +110,7 @@ export const printReceipt = (sale: any): void => {
     .map(
       (item: any) => `
     <tr>
-      <td style="padding: 4px 0;">${item.product_name} x${item.quantity}</td>
+      <td style="padding: 4px 0;">${item.product_name} x${item.sold_quantity ?? item.quantity} ${item.sold_unit_label ?? item.uom ?? ''}</td>
       <td style="text-align: right; padding: 4px 0;">${formatCurrency(item.total)}</td>
     </tr>
   `

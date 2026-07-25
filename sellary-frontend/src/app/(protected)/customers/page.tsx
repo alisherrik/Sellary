@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { MagnifyingGlassIcon, PencilIcon } from '@heroicons/react/24/outline';
@@ -63,6 +64,9 @@ function Customers() {
 
   const debouncedSearch = useDebounce(searchQuery, 300);
   const paymentKey = useIdempotencyKey();
+  const paymentPanelRef = useRef<HTMLDivElement>(null);
+
+  useDialogFocus(paymentPanelRef, showPaymentModal, () => setShowPaymentModal(false));
   const customerParams: Record<string, string | number> = { limit: 200 };
   if (debouncedSearch.trim()) customerParams.search = debouncedSearch.trim();
 
@@ -152,7 +156,18 @@ function Customers() {
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ]);
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Не удалось сохранить оплату');
+      const detail = error?.response?.data?.detail;
+      if (
+        error?.response?.status === 409 &&
+        typeof detail === 'string' &&
+        detail.toLowerCase().includes('idempotency')
+      ) {
+        // Retire the key rather than leaving the dialog dead for this customer.
+        paymentKey.reset();
+        toast.error('Сумма изменилась после сбоя. Повторите ещё раз.');
+        return;
+      }
+      toast.error(typeof detail === 'string' && detail ? detail : 'Не удалось сохранить оплату');
     } finally {
       setSubmittingPayment(false);
     }
@@ -344,6 +359,7 @@ function Customers() {
       {showPaymentModal && selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
           <div
+            ref={paymentPanelRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="customer-payment-title"

@@ -59,12 +59,12 @@ export function ShiftGateBanner() {
             value={openingCash}
             onChange={(e) => setOpeningCash(e.target.value)}
             placeholder="Наличные в кассе"
-            className="h-9 w-32 rounded-lg border border-amber-300 bg-white px-3 text-sm dark:border-amber-700 dark:bg-gray-800"
+            className="h-11 w-32 rounded-lg border border-amber-300 bg-white px-3 text-sm dark:border-amber-700 dark:bg-gray-800"
           />
           <button
             onClick={() => openMutation.mutate()}
             disabled={openMutation.isPending}
-            className="h-9 shrink-0 rounded-lg bg-amber-600 px-4 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+            className="h-11 shrink-0 rounded-lg bg-[var(--erp-accent)] px-4 text-sm font-medium text-white hover:bg-[var(--erp-accent-strong)] disabled:opacity-60"
           >
             Открыть смену
           </button>

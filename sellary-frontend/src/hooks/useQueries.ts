@@ -197,6 +197,7 @@ export function useInfiniteSales(params?: any) {
         sales,
         total: Number.isNaN(lastTotal) ? undefined : lastTotal,
         isLoading: query.isLoading,
+        isError: query.isError,
         isFetching: query.isFetching,
         isFetchingNextPage: query.isFetchingNextPage,
         hasMore: Boolean(query.hasNextPage),

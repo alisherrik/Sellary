@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { VoidPreview } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 interface AnnulmentDialogProps {
   open: boolean;
@@ -33,25 +34,9 @@ export default function AnnulmentDialog({
     if (!open) setReason('');
   }, [open]);
 
-  // This is the confirmation gate for an irreversible stock reversal, and it
-  // was a bare div: no dialog role, no Escape, nothing to tell a screen reader
-  // anything had opened.
-  useEffect(() => {
-    if (!open) return;
-    const opener = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      opener?.focus?.();
-    };
-  }, [onClose, open]);
+  // The confirmation gate for an irreversible stock reversal: dialog role,
+  // initial focus, a Tab cycle and Escape, like every other money dialog.
+  useDialogFocus(panelRef, open, onClose);
 
   if (!open) return null;
 
