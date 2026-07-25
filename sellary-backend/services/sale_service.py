@@ -19,7 +19,7 @@ from schemas.sale import (
     SalesSummary,
 )
 from services.calculation_service import CalculationService
-from services.company_time import UTC, company_tz, to_local
+from services.company_time import UTC, company_tz, to_local, utc_now
 from services.customer_ledger_service import CustomerLedgerService
 from services.inventory_ledger_service import InventoryLedgerService
 from services.sale_search_service import (
@@ -282,7 +282,7 @@ class SaleService:
                 # FIFO layers consumed once the item has been flushed below.
                 unit_cost_at_sale=product.cost_price,
                 cost_total_at_sale=(base_quantity * product.cost_price).quantize(Decimal("0.01")),
-                created_at=datetime.now(),
+                created_at=utc_now(),
             )
             items.append(item)
 
@@ -332,7 +332,7 @@ class SaleService:
             payment_status="unpaid" if sale_create.payment_method.value == "credit" else "paid",
             status=SaleStatus.COMPLETED,
             notes=sale_create.notes,
-            created_at=datetime.now(),
+            created_at=utc_now(),
         )
 
         sale = self.sale_repo.create(sale, items)

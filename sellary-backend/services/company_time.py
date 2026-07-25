@@ -6,7 +6,7 @@ server clock — a naive `datetime.now()` reported every sale rung before 05:00
 local against the previous day.
 """
 
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -15,6 +15,18 @@ from core.config import settings
 from models.company import Company
 
 UTC = ZoneInfo("UTC")
+
+
+def utc_now() -> datetime:
+    """The instant to stamp a row with.
+
+    Naive, but naive *UTC* — matching what `func.now()` writes for every
+    server-defaulted column, so the two never disagree. A bare
+    `datetime.now()` is the server's local wall clock, which silently offsets
+    every row it stamps on any host that is not UTC and puts sales outside the
+    till shift that contains them.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def company_tz(db: Session, company_id: int) -> ZoneInfo:
