@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 
 import { TableSkeleton } from '@/components/skeletons';
 import { ModuleGuard } from '@/components/ModuleGuard';
+import CategoryPicker from '@/components/categories/CategoryPicker';
 import QueryError from '@/components/ui/QueryError';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useProducts } from '@/hooks/useQueries';
@@ -858,30 +859,18 @@ function Products() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Категория</label>
-                  <div className="flex gap-2">
-                    <select
-                      value={formData.category_id}
-                      onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                      className="flex-1 h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
-                    >
-                      <option value="">Выберите</option>
-                      {sortedCategories.map((category) => (
-                        <option key={category.id} value={category.id}>{category.name}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => openCategoryCreateModal('product')}
-                      className="px-3 h-9 sm:h-10 border border-[var(--erp-divider)] text-[var(--erp-text)] bg-white hover:border-[var(--erp-text)] text-sm whitespace-nowrap"
-                    >
-                      Новая
-                    </button>
-                  </div>
+                  {/* Creates in place. Sending the user to the category manager
+                      mid-form cost them the form. */}
+                  <CategoryPicker
+                    value={formData.category_id}
+                    categories={sortedCategories}
+                    onChange={(categoryId) => setFormData({ ...formData, category_id: categoryId })}
+                    onCreated={() => void refreshCategoryData()}
+                  />
                   <button
                     type="button"
                     onClick={() => setShowCategoryManager(true)}
-                    className="mt-2 text-xs sm:text-sm text-blue-600 hover:text-blue-700"
+                    className="mt-2 text-xs text-[var(--erp-accent)] hover:underline sm:text-sm"
                   >
                     Управлять категориями
                   </button>

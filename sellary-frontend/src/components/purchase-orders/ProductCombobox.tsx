@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { MagnifyingGlassIcon } from '@heroicons/react/20/solid';
+import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/20/solid';
 
 import { productsApi } from '@/lib/api';
 import type { Product } from '@/lib/types';
+import QuickProductCreate from './QuickProductCreate';
 import { formatCurrency } from '@/lib/utils';
 
 interface ProductComboboxProps {
@@ -32,6 +33,7 @@ export default function ProductCombobox({
   const [isLoading, setIsLoading] = useState(false);
   const [requestError, setRequestError] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     setQuery(value?.name ?? '');
@@ -82,7 +84,11 @@ export default function ProductCombobox({
     onSelect(product);
     setQuery(product.name);
     setIsOpen(false);
+    setCreating(false);
   };
+
+  const trimmedQuery = query.trim();
+  const canCreate = trimmedQuery.length >= 2 && !isLoading && !requestError;
 
   return (
     <div ref={containerRef} className="relative min-w-0">
@@ -137,8 +143,14 @@ export default function ProductCombobox({
           role="listbox"
           className="absolute z-30 mt-1 max-h-64 w-full min-w-72 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg"
         >
-          {isLoading ? (
-            <p className="px-3 py-3 text-sm text-gray-500">Загрузка...</p>
+          {creating ? (
+            <QuickProductCreate
+              initialName={trimmedQuery}
+              onCancel={() => setCreating(false)}
+              onCreated={select}
+            />
+          ) : isLoading ? (
+            <p className="px-3 py-3 text-sm text-[var(--erp-muted)]">Загрузка...</p>
           ) : requestError ? (
             <p className="px-3 py-3 text-sm text-red-600">{requestError}</p>
           ) : options.length ? (
@@ -174,7 +186,20 @@ export default function ProductCombobox({
               </button>
             ))
           ) : (
-            <p className="px-3 py-3 text-sm text-gray-500">Товары не найдены</p>
+            <p className="px-3 py-3 text-sm text-[var(--erp-muted)]">Товары не найдены</p>
+          )}
+
+          {/* A delivery routinely contains something not yet in the catalogue.
+              Sending the buyer to /products to add it loses the order. */}
+          {!creating && canCreate && (
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="flex min-h-11 w-full items-center gap-2 border-t border-[var(--erp-divider)] px-3 text-left text-sm font-semibold text-[var(--erp-accent)] hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+            >
+              <PlusIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="truncate">Создать «{trimmedQuery}»</span>
+            </button>
           )}
         </div>
       )}
