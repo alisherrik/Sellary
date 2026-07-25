@@ -119,10 +119,17 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_db] = override_get_db
 
-    with TestClient(app) as test_client:
+    # No `with`: the context manager runs the app lifespan, which calls
+    # ensure_customer_credit_schema() and ensure_super_admin() against the real
+    # DATABASE_URL. The suite's data lives in the in-memory SQLite session
+    # above, so that bootstrap is useless here — and on a machine without a
+    # local Postgres (CI) every client fixture spent its time failing to
+    # connect. Startup events are not under test.
+    test_client = TestClient(app)
+    try:
         yield test_client
-
-    app.dependency_overrides.clear()
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture
