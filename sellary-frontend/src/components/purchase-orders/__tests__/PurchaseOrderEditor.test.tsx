@@ -61,7 +61,7 @@ describe('PurchaseOrderEditor', () => {
     expect(screen.getByRole('heading', { name: 'Поставщик' })).toBeInTheDocument();
   });
 
-  it('shows a live blue total in the sticky summary', () => {
+  it('shows a live Register-Blue total in the sticky summary', () => {
     render(
       <PurchaseOrderEditor
         initialOrder={purchaseOrder}
@@ -73,7 +73,8 @@ describe('PurchaseOrderEditor', () => {
     );
 
     expect(screen.getByTestId('purchase-order-total')).toHaveTextContent(/37[,.]5/);
-    expect(screen.getByTestId('purchase-order-total')).toHaveClass('text-blue-600');
+    // Register Blue via the token, not a literal Tailwind hue.
+    expect(screen.getByTestId('purchase-order-total')).toHaveClass('text-[var(--erp-accent)]');
   });
 
   it('saves before sending and returns the sent order', async () => {

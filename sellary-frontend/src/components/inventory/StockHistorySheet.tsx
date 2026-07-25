@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { XMarkIcon } from '@heroicons/react/24/outline';
@@ -53,58 +54,23 @@ export default function StockHistorySheet({ product, onClose }: StockHistoryShee
     },
   });
 
-  // The caller passes an inline arrow, so `onClose` is a new identity on every
-  // parent render. With it in the dep array this effect re-ran on every
-  // products-page refetch — throwing focus back to the trigger and then into
-  // the dialog again, mid-Tab.
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  // The mount gate means the first render returns null, so a focus effect with
+  // [] deps ran while panelRef was still null and never ran again — the dialog
+  // opened with focus nowhere while the page behind it was inert. The shared
+  // hook keys on `mounted` and is the same contract every other dialog uses.
+  useDialogFocus(panelRef, mounted, onClose);
 
   useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
-
+    if (!mounted) return;
     const main = document.getElementById('main');
     main?.setAttribute('inert', '');
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        onCloseRef.current();
-        return;
-      }
-      if (event.key !== 'Tab') {
-        return;
-      }
-      // aria-modal is an accessibility-tree hint; it never constrains Tab. The
-      // keyboard used to walk straight out into the table behind the scrim.
-      const focusables = panelRef.current?.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      if (!focusables?.length) {
-        return;
-      }
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
     return () => {
-      document.removeEventListener('keydown', onKeyDown);
       main?.removeAttribute('inert');
       document.body.style.overflow = previousOverflow;
-      opener?.focus?.();
     };
-  }, []);
+  }, [mounted]);
 
   if (!mounted) {
     return null;

@@ -554,7 +554,11 @@ export default function CompanyAdminSection() {
                                   : 'Сотрудник не сможет войти в эту компанию, пока доступ не вернут.'}
                               </p>
                               <div className="mt-3 flex flex-wrap gap-2">
-                                <button type="submit" disabled={busy} className={dangerButtonClass}>
+                                <button
+                                  type="submit"
+                                  disabled={busyOp === 'membership'}
+                                  className={dangerButtonClass}
+                                >
                                   Отключить доступ
                                 </button>
                                 <button
@@ -568,7 +572,11 @@ export default function CompanyAdminSection() {
                             </div>
                           ) : (
                             <div className="mt-3 flex flex-wrap gap-2">
-                              <button type="submit" disabled={busy} className={primaryButtonClass}>
+                              <button
+                                type="submit"
+                                disabled={busyOp === 'membership'}
+                                className={primaryButtonClass}
+                              >
                                 Сохранить участие
                               </button>
                               <button
@@ -738,7 +746,11 @@ export default function CompanyAdminSection() {
                 onChange={(next) => setUserForm((current) => ({ ...current, is_default: next }))}
               />
             </div>
-            <button type="submit" disabled={busy} className={`${primaryButtonClass} w-full sm:w-auto`}>
+            <button
+              type="submit"
+              disabled={busyOp === 'create'}
+              className={`${primaryButtonClass} w-full sm:w-auto`}
+            >
               {busyOp === 'create' ? 'Сохранение…' : 'Создать пользователя компании'}
             </button>
           </form>
@@ -803,7 +815,11 @@ export default function CompanyAdminSection() {
                 }
               />
             </div>
-            <button type="submit" disabled={busy} className={`${secondaryButtonClass} w-full sm:w-auto`}>
+            <button
+              type="submit"
+              disabled={busyOp === 'attach'}
+              className={`${secondaryButtonClass} w-full sm:w-auto`}
+            >
               Привязать существующего пользователя
             </button>
           </form>

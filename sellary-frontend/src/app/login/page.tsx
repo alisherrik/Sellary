@@ -326,7 +326,7 @@ export default function LoginPage() {
                   disabled={submitting}
                   className={`mt-2 w-full ${PRIMARY_BUTTON_CLASS}`}
                 >
-                  {submitting ? 'Загрузка компаний...' : 'Продолжить'}
+                  {submitting ? 'Загрузка компаний…' : 'Продолжить'}
                 </button>
               </form>
             </>
@@ -411,7 +411,7 @@ export default function LoginPage() {
                     disabled={selectingCompany || selectedCompanyId === null}
                     className={`w-full leading-tight sm:flex-1 ${PRIMARY_BUTTON_CLASS}`}
                   >
-                    {selectingCompany ? 'Открытие компании...' : 'Открыть рабочее пространство'}
+                    {selectingCompany ? 'Открытие компании…' : 'Открыть рабочее пространство'}
                   </button>
                 </div>
               </form>

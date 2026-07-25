@@ -23,6 +23,8 @@ import { canAccessModule } from '@/lib/modules';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useSaleSearchSuggestions, useInfiniteSales, useSalesSummary } from '@/hooks/useQueries';
 import SalesSearch from '@/components/sales/SalesSearch';
+import { parseEditableAmount } from '@/lib/posPricing';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface SaleReturnItem {
   id: number;
@@ -144,6 +146,17 @@ const toSoldUnits = (baseQuantity: number, item?: SaleItem) =>
 const toBaseUnits = (soldQuantity: number, item?: SaleItem) =>
   Math.round(soldQuantity * soldFactor(item) * 1000) / 1000;
 
+/**
+ * A 409 from an idempotency conflict means the held key no longer describes
+ * this request — the operator changed the amount or the quantities after a
+ * failed attempt. Retire it, or the dialog is dead for that sale until a
+ * reload, showing an untranslated server string.
+ */
+const isIdempotencyConflict = (error: any) =>
+  error?.response?.status === 409 &&
+  typeof error?.response?.data?.detail === 'string' &&
+  error.response.data.detail.toLowerCase().includes('idempotency');
+
 function SalesHistory() {
   const queryClient = useQueryClient();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -156,6 +169,10 @@ function SalesHistory() {
   const [searchInput, setSearchInput] = useState('');
   const [returns, setReturns] = useState<SaleReturn[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
+  // A swallowed error used to render "Возвратов нет" — telling a manager this
+  // receipt has no refund history on the screen where they decide whether to
+  // refund again.
+  const [returnsFailed, setReturnsFailed] = useState(false);
   const [refundMethods, setRefundMethods] = useState<string[]>([]);
   const [returnQuantities, setReturnQuantities] = useState<ReturnQuantity[]>([]);
   const [refundMethod, setRefundMethod] = useState('');
@@ -183,7 +200,11 @@ function SalesHistory() {
 
   useDialogFocus(returnPanelRef, showReturnModal, () => setShowReturnModal(false));
   useDialogFocus(debtPanelRef, showDebtPaymentModal, () => setShowDebtPaymentModal(false));
-  useDialogFocus(mobileDetailRef, showDetail, () => setShowDetail(false));
+  // The mobile detail panel is mounted at every width and merely `lg:hidden`,
+  // so on desktop the trap focused an element inside a display:none subtree —
+  // a no-op that left focus on <body>.
+  const isMobileViewport = useMediaQuery('(max-width: 1023px)');
+  useDialogFocus(mobileDetailRef, showDetail && isMobileViewport, () => setShowDetail(false));
 
   const salesParams = useMemo(() => {
     const params: Record<string, string | number> = { limit: 200 };
@@ -248,20 +269,6 @@ function SalesHistory() {
       const response = await salesApi.previewVoid(sale.id);
       setVoidPreview(response.data);
     } catch (error: any) {
-      const conflictDetail = error?.response?.data?.detail;
-      if (
-        error?.response?.status === 409 &&
-        typeof conflictDetail === 'string' &&
-        conflictDetail.toLowerCase().includes('idempotency')
-      ) {
-        // The amount or quantities changed after a failed attempt, so the held
-        // key no longer describes this request. Retire it rather than leaving
-        // the dialog permanently dead with an English server string.
-        returnKey.reset();
-        debtPaymentKey.reset();
-        toast.error('Данные изменились после сбоя. Повторите ещё раз.');
-        return;
-      }
       toast.error(errorText(error.response?.data?.detail, 'Не удалось проверить аннулирование'));
       setShowVoidDialog(false);
     } finally {
@@ -324,6 +331,11 @@ function SalesHistory() {
       setShowDetail(false);
     },
     onError: (error: any) => {
+      if (isIdempotencyConflict(error)) {
+        returnKey.reset();
+        toast.error('Данные возврата изменились после сбоя. Повторите ещё раз.');
+        return;
+      }
       toast.error(errorText(error.response?.data?.detail, 'Ошибка при оформлении возврата'));
     },
   });
@@ -332,10 +344,12 @@ function SalesHistory() {
     setSelectedSale(sale);
     setShowDetail(true);
     setReturnsLoading(true);
+    setReturnsFailed(false);
     try {
       const res = await salesApi.getReturns(sale.id);
       setReturns(res.data);
     } catch {
+      setReturnsFailed(true);
       setReturns([]);
     } finally {
       setReturnsLoading(false);
@@ -473,7 +487,10 @@ function SalesHistory() {
       toast.error('У продажи нет клиента для оплаты долга');
       return;
     }
-    if (!debtPaymentAmount.trim() || Number(debtPaymentAmount) <= 0) {
+    // Number('12,5') is NaN, and NaN <= 0 is false — a comma sailed past this
+    // guard into a 422 whose detail is an array the toast cannot render.
+    const parsedDebtAmount = parseEditableAmount(debtPaymentAmount);
+    if (parsedDebtAmount === null || parsedDebtAmount <= 0) {
       toast.error('Введите сумму оплаты');
       return;
     }
@@ -500,7 +517,14 @@ function SalesHistory() {
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ]);
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Не удалось сохранить оплату долга');
+      if (isIdempotencyConflict(error)) {
+        debtPaymentKey.reset();
+        toast.error('Сумма изменилась после сбоя. Повторите ещё раз.');
+        return;
+      }
+      // FastAPI's 422 detail is an array; handing it to a toast puts objects
+      // where React expects children and takes the whole app down.
+      toast.error(errorText(error.response?.data?.detail, 'Не удалось сохранить оплату долга'));
     } finally {
       setDebtPaymentSubmitting(false);
     }
@@ -1032,7 +1056,11 @@ function SalesHistory() {
                 {returnsLoading ? (
                   <p className="py-3 text-center text-[13px] text-[var(--erp-muted)]">Загрузка…</p>
                 ) : returns.length === 0 ? (
-                  <p className="py-3 text-center text-[13px] text-[var(--erp-muted)]">Возвратов нет</p>
+                  <p className="py-3 text-center text-[13px] text-[var(--erp-muted)]">
+                    {returnsFailed
+                      ? 'История возвратов не загрузилась — проверьте связь.'
+                      : 'Возвратов нет'}
+                  </p>
                 ) : (
                   <div className="space-y-2">
                     {returns.map((ret) => (

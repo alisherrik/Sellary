@@ -8,12 +8,22 @@ import type { Product } from '@/lib/types';
 import QuickProductCreate from './QuickProductCreate';
 import { formatCurrency } from '@/lib/utils';
 
+// Russian counts take three forms; "Найдено 1 товаров" reads as a bug.
+function plural(count: number, one: string, few: string, many: string) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
 interface ProductComboboxProps {
   value: Product | null;
   excludedProductIds: Set<number>;
   error?: string;
   errorId?: string;
-  onSelect: (product: Product) => void;
+  /** Return false to refuse the pick (e.g. the product is already on the order). */
+  onSelect: (product: Product) => boolean | void;
   label?: string;
 }
 
@@ -87,7 +97,11 @@ export default function ProductCombobox({
   );
 
   const select = (product: Product) => {
-    onSelect(product);
+    // The parent may refuse — a duplicate line. Committing the text first left
+    // the field showing a product the row did not hold.
+    if (onSelect(product) === false) {
+      return;
+    }
     setQuery(product.name);
     setIsOpen(false);
     setCreating(false);
@@ -114,7 +128,7 @@ export default function ProductCombobox({
         role="combobox"
         aria-label={label}
         aria-autocomplete="list"
-        aria-expanded={isOpen}
+        aria-expanded={isOpen && !creating}
         aria-controls={`${id}-listbox`}
         aria-activedescendant={activeOptionId}
         aria-invalid={Boolean(error)}
@@ -151,16 +165,12 @@ export default function ProductCombobox({
           result states were plain paragraphs with no live region. */}
       <span className="sr-only" role="status" aria-live="polite">
         {isOpen && !isLoading && !requestError && options.length > 0
-          ? `Найдено ${options.length} товаров`
+          ? `Найдено ${options.length} ${plural(options.length, 'товар', 'товара', 'товаров')}`
           : ''}
       </span>
 
       {isOpen && (
-        <div
-          id={`${id}-listbox`}
-          role="listbox"
-          className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto border-2 border-[var(--erp-divider)] bg-white py-1 sm:min-w-72"
-        >
+        <div className="absolute z-30 mt-1 w-full border-2 border-[var(--erp-divider)] bg-white sm:min-w-72">
           {creating ? (
             <QuickProductCreate
               initialName={trimmedQuery}
@@ -170,12 +180,20 @@ export default function ProductCombobox({
               }}
               onCreated={select}
             />
-          ) : isLoading ? (
-            <p role="status" className="px-3 py-3 text-sm text-[var(--erp-muted)]">Загрузка…</p>
-          ) : requestError ? (
-            <p role="alert" className="px-3 py-3 text-sm text-[#dc2626]">{requestError}</p>
-          ) : options.length ? (
-            options.map((product, index) => (
+          ) : (
+            <div
+              id={`${id}-listbox`}
+              role="listbox"
+              className="max-h-64 overflow-y-auto py-1"
+            >
+              {isLoading ? (
+                <p role="status" className="px-3 py-3 text-sm text-[var(--erp-muted)]">
+                  Загрузка…
+                </p>
+              ) : requestError ? (
+                <p role="alert" className="px-3 py-3 text-sm text-[#dc2626]">{requestError}</p>
+              ) : options.length ? (
+                options.map((product, index) => (
               <button
                 id={`${id}-option-${product.id}`}
                 key={product.id}
@@ -212,12 +230,17 @@ export default function ProductCombobox({
                 </span>
               </button>
             ))
-          ) : (
-            <p role="status" className="px-3 py-3 text-sm text-[var(--erp-muted)]">Товары не найдены</p>
+              ) : (
+                <p role="status" className="px-3 py-3 text-sm text-[var(--erp-muted)]">
+                  Товары не найдены
+                </p>
+              )}
+            </div>
           )}
 
           {/* A delivery routinely contains something not yet in the catalogue.
-              Sending the buyer to /products to add it loses the order. */}
+              Sending the buyer to /products to add it loses the order. The
+              button lives outside the listbox: a listbox may only own options. */}
           {!creating && canCreate && (
             <button
               type="button"

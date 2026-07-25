@@ -1,7 +1,7 @@
 """
 Sale Return Service for handling refunds and returns.
 """
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy.orm import Session
 
@@ -21,6 +21,9 @@ from services.customer_ledger_service import CustomerLedgerService
 from services.tenant import resolve_company_id
 
 
+CENTS = Decimal("0.01")
+
+
 class SaleReturnService:
     def __init__(self, db: Session, company_id: int | None = None):
         self.db = db
@@ -30,6 +33,14 @@ class SaleReturnService:
         self.ledger = InventoryLedgerService(db, self.company_id)
         self.ledger_repo = InventoryLedgerRepository(db)
         self.customer_ledger = CustomerLedgerService(db, self.company_id)
+
+    @staticmethod
+    def _already_refunded(sale_item) -> Decimal:
+        """What previous partial returns have already paid back on this line."""
+        refunded = Decimal("0.00")
+        for previous in getattr(sale_item, "return_items", []) or []:
+            refunded += Decimal(previous.refund_amount or 0)
+        return refunded
 
     def process_return(
         self,
@@ -92,8 +103,17 @@ class SaleReturnService:
                 Decimal("0.00"),
                 sale_item.total - sale_item.allocated_sale_discount_amount
             )
+            # Quantized here, not left to the column: dividing at 28 significant
+            # digits and rounding on write made three refunds of a 100.00 line
+            # sum to 99.99 — the customer a cent short on a fully returned sale
+            # — or to 100.02, which drove remaining_refundable_amount negative.
             unit_refund = item_final_total / sale_item.quantity
-            item_refund = unit_refund * return_item.quantity
+            item_refund = (unit_refund * return_item.quantity).quantize(
+                CENTS, rounding=ROUND_HALF_UP
+            )
+            # A full return must pay back exactly what the line charged.
+            if sale_item.quantity_returned + return_item.quantity >= sale_item.quantity:
+                item_refund = item_final_total - self._already_refunded(sale_item)
             total_refund += item_refund
 
             return_item_record = SaleReturnItem(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 
 import { categoriesApi } from '@/lib/api';
@@ -43,9 +43,17 @@ export default function CategoryPicker({
   const cancel = () => {
     setCreating(false);
     setName('');
-    // Focus goes back where it came from, not to the top of the form.
-    selectRef.current?.focus();
   };
+
+  // Focus after the select is back in the DOM: calling .focus() in the same
+  // tick hit a null ref, so Escape sent the keyboard to the top of the page.
+  const wasCreating = useRef(false);
+  useEffect(() => {
+    if (wasCreating.current && !creating) {
+      selectRef.current?.focus();
+    }
+    wasCreating.current = creating;
+  }, [creating]);
 
   const create = async () => {
     const trimmed = name.trim();
@@ -63,7 +71,6 @@ export default function CategoryPicker({
       toast.success(`Категория «${category.name}» создана`);
       setCreating(false);
       setName('');
-      selectRef.current?.focus();
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || 'Не удалось создать категорию');
     } finally {

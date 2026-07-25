@@ -60,7 +60,7 @@ export default function PurchaseOrderSummary({
         <p className="text-sm font-medium text-gray-500">Итого</p>
         <p
           data-testid="purchase-order-total"
-          className="mt-1 text-3xl font-black tabular-nums text-blue-600"
+          className="mt-1 text-3xl font-black tabular-nums text-[var(--erp-accent)]"
         >
           {formatCurrency(calculateOrderTotal(form.items))}
         </p>

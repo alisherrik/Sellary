@@ -71,6 +71,13 @@ const CREDIT_INITIAL_PAYMENT_METHODS = PAYMENT_METHODS.filter(
 // One neutral chip. The old palette assigned eight hues by `category_id % 8`,
 // which carries no meaning a cashier can use and breaks DESIGN.md's
 // Two-Accent Rule on the very screen the rule was written for.
+// FastAPI's 422 detail is an array of dicts. Passed to a toast it becomes React
+// children the renderer cannot handle, and because <Toaster> sits in the root
+// layout the nearest boundary is global-error — a validation slip takes the
+// whole app down, mid-sale.
+const errorText = (detail: unknown, fallback: string) =>
+  typeof detail === 'string' && detail ? detail : fallback;
+
 const tilePalette = ['bg-[var(--erp-surface)] text-[var(--erp-muted)]'];
 
 const tileColor = (_id?: number | null) => tilePalette[0];
@@ -416,7 +423,7 @@ function POS() {
       handleAddToCart(response.data);
       setBarcode('');
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Товар не найден');
+      toast.error(errorText(error.response?.data?.detail, 'Товар не найден'));
     }
     barcodeInputRef.current?.focus();
   };
@@ -465,7 +472,7 @@ function POS() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       toast.success('Клиент создан');
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Не удалось создать клиента');
+      toast.error(errorText(error.response?.data?.detail, 'Не удалось создать клиента. Проверьте имя и телефон.'));
     } finally {
       setCreatingCustomer(false);
     }
@@ -862,7 +869,7 @@ function POS() {
                           }
                           return;
                         }
-                        updateQuantity(key, parsed);
+                        updateQuantity(key, toQuantityPrecision(parsed));
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();

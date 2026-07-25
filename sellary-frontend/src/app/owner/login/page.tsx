@@ -166,7 +166,7 @@ export default function OwnerLoginPage() {
             </div>
 
             <button type="submit" disabled={submitting} className={`mt-2 ${PRIMARY_BUTTON_CLASS}`}>
-              {submitting ? 'Вход...' : 'Войти'}
+              {submitting ? 'Вход…' : 'Войти'}
             </button>
           </form>
         </div>

@@ -85,12 +85,11 @@ export default function PurchaseOrderItemsTable({
   };
 
   return (
-    // The six-column grid needs 758px and only turns on at xl, so the
-    // horizontal scroller belongs at xl too. Below it, any overflow rule here
-    // also forces overflow-y and clips the combobox popup — the one thing that
-    // must escape this box.
-    <div className="xl:overflow-x-auto">
-      <div className="hidden min-w-[758px] grid-cols-[minmax(220px,1fr)_64px_110px_130px_130px_44px] gap-3 border-b border-gray-200 px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)] xl:grid">
+    // No overflow rule at all: a non-visible axis forces the other to auto,
+    // and the combobox popup is the one thing that must escape this box. The
+    // 758px grid only turns on at xl, where the content column fits it.
+    <div>
+      <div className="hidden min-w-[758px] grid-cols-[minmax(220px,1fr)_64px_110px_130px_130px_44px] gap-3 border-b border-[var(--erp-divider)] px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)] xl:grid">
         <span>Товар</span>
         <span>Ед.</span>
         <span className="text-right">Количество</span>
@@ -99,7 +98,7 @@ export default function PurchaseOrderItemsTable({
         <span className="sr-only">Действия</span>
       </div>
 
-      <div className="divide-y divide-gray-200">
+      <div className="divide-y divide-[var(--erp-divider)]">
         {items.map((item, index) => {
           const productId = Number(item.product_id);
           const excludedProductIds = new Set(
@@ -154,10 +153,9 @@ export default function PurchaseOrderItemsTable({
                     );
                     if (duplicate) {
                       setDuplicateRow(item.key);
-                      document
-                        .querySelector<HTMLElement>(`[data-product-id="${selected.id}"] input`)
-                        ?.focus();
-                      return;
+                      // Refuse, and stay put: moving focus to the other row
+                      // announced that row's label instead of the reason.
+                      return false;
                     }
                     setDuplicateRow(null);
                     setResolvedProducts((current) => {
@@ -171,16 +169,17 @@ export default function PurchaseOrderItemsTable({
                       product_uom: selected.uom,
                       unit_cost: selected.cost_price,
                     });
+                    return true;
                   }}
                 />
                 {productError && (
-                  <p id={`${item.key}-product-error`} className="mt-1 text-xs text-red-600">
+                  <p id={`${item.key}-product-error`} className="mt-1 text-xs text-[#dc2626]">
                     {productError}
                   </p>
                 )}
               </div>
 
-              <div className="pt-0 text-sm text-gray-600 sm:pt-3">
+              <div className="pt-0 text-sm text-[var(--erp-muted)] sm:pt-3">
                 <span className="mr-2 text-xs font-medium text-[var(--erp-muted)] xl:hidden">Ед.</span>
                 {product?.uom ?? '—'}
               </div>
@@ -211,7 +210,7 @@ export default function PurchaseOrderItemsTable({
                   }`}
                 />
                 {rowErrors.quantity_ordered && (
-                  <p id={`${item.key}-quantity-error`} className="mt-1 text-xs text-red-600">
+                  <p id={`${item.key}-quantity-error`} className="mt-1 text-xs text-[#dc2626]">
                     {rowErrors.quantity_ordered}
                   </p>
                 )}
@@ -236,7 +235,7 @@ export default function PurchaseOrderItemsTable({
                   }`}
                 />
                 {rowErrors.unit_cost && (
-                  <p id={`${item.key}-cost-error`} className="mt-1 text-xs text-red-600">
+                  <p id={`${item.key}-cost-error`} className="mt-1 text-xs text-[#dc2626]">
                     {rowErrors.unit_cost}
                   </p>
                 )}
@@ -263,7 +262,7 @@ export default function PurchaseOrderItemsTable({
                 type="button"
                 aria-label={`Удалить ${product?.name ?? `товар ${index + 1}`}`}
                 onClick={() => removeRow(item.key)}
-                className="grid min-h-11 min-w-11 place-items-center rounded-md text-[var(--erp-muted)] hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                className="grid min-h-11 min-w-11 place-items-center text-[var(--erp-muted)] hover:bg-[var(--erp-surface)] hover:text-[#dc2626] focus-visible:outline-none focus-visible:ring-2 focus-visible:outline-[var(--erp-accent)]"
               >
                 <TrashIcon className="h-5 w-5" />
               </button>
@@ -275,7 +274,7 @@ export default function PurchaseOrderItemsTable({
       <button
         type="button"
         onClick={() => onChange([...items, createPurchaseOrderItemInput()])}
-        className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-sm font-semibold text-blue-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+        className="mt-3 inline-flex min-h-11 items-center gap-2 px-3 text-sm font-semibold text-[var(--erp-accent)] hover:bg-[var(--erp-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:outline-[var(--erp-accent)]"
       >
         <PlusIcon className="h-4 w-4" />
         Добавить товар
