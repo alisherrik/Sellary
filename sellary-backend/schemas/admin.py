@@ -81,6 +81,19 @@ class ManagedUserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     is_active: Optional[bool] = None
+    # A forgotten password was previously unrecoverable without database
+    # access: passwords could be set at creation and never again.
+    password: Optional[str] = Field(None, min_length=8, max_length=128)
+
+
+class CompanyUserPasswordUpdate(BaseModel):
+    """A company admin resetting a member's password.
+
+    Scoped deliberately: an admin may reset a password for someone who works
+    for them, and nothing else about that user's account.
+    """
+
+    password: str = Field(..., min_length=8, max_length=128)
 
 
 BusinessType = Literal["retail", "online", "warehouse", "kitchen", "production"]

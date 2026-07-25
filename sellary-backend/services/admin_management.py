@@ -28,6 +28,7 @@ from schemas.user import CompanySession
 from services.auth_service import AuthService
 from core.modules import BUSINESS_TYPE_PRESETS
 from repositories.company_module_repository import CompanyModuleRepository
+from core.security import get_password_hash
 
 
 class AdminManagementService:
@@ -121,6 +122,12 @@ class AdminManagementService:
             email=new_email,
             exclude_user_id=user.id,
         )
+
+        # Hash before assignment: `password` is not a column, and setting it
+        # raw would either fail or store a plaintext secret.
+        new_password = updates.pop("password", None)
+        if new_password:
+            user.hashed_password = get_password_hash(new_password)
 
         for field, value in updates.items():
             setattr(user, field, value)
@@ -335,6 +342,28 @@ class AdminManagementService:
             )
         self.db.commit()
         return {"membership_id": membership.id, "modules": dict(modules)}
+
+    def set_company_user_password(self, user_id: int, company_id: int, password: str) -> None:
+        """Reset a member's password, within the caller's company only.
+
+        A forgotten password used to be unrecoverable for anyone but the
+        platform owner, which made it a support ticket the shop's own admin
+        could not close.
+        """
+        membership = (
+            self.db.query(CompanyMembership)
+            .filter(
+                CompanyMembership.user_id == user_id,
+                CompanyMembership.company_id == company_id,
+            )
+            .first()
+        )
+        if membership is None:
+            raise ValueError("User not found in this company")
+
+        user = self._get_user(user_id)
+        user.hashed_password = get_password_hash(password)
+        self.db.commit()
 
     def get_company_modules(self, company_id: int) -> dict:
         company = self._get_company(company_id)

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from api.dependencies import AuthContext, require_admin
 from core.database import get_db
 from schemas.admin import (
+    CompanyUserPasswordUpdate,
     CompanyAdminMembershipCreate,
     CompanyAdminUserCreate,
     ManagedMembershipResponse,
@@ -99,3 +100,19 @@ def set_membership_modules(
     except ValueError as exc:
         status_code = 404 if "not found" in str(exc).lower() else 400
         raise HTTPException(status_code=status_code, detail=str(exc))
+
+
+@router.put("/users/{user_id}/password", status_code=204)
+def set_company_user_password(
+    user_id: int,
+    payload: CompanyUserPasswordUpdate,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_admin),
+):
+    """Reset a member's password. Scoped to the admin's own company."""
+    try:
+        AdminManagementService(db).set_company_user_password(
+            user_id, auth.company_id, payload.password
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
