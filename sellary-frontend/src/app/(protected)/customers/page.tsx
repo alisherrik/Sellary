@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, PencilIcon } from '@heroicons/react/24/outline';
 
 import { customersApi, generateIdempotencyKey } from '@/lib/api';
 import { Customer } from '@/lib/types';
 import FilterMenu from '@/components/filters/FilterMenu';
 import { ModuleGuard } from '@/components/ModuleGuard';
 import QueryError from '@/components/ui/QueryError';
+import CustomerEditSheet from '@/components/customers/CustomerEditSheet';
 import { formatCurrency } from '@/lib/utils';
 import { queryKeys, useCustomerLedger, useCustomers } from '@/hooks/useQueries';
 import { useAuthStore } from '@/lib/store';
@@ -35,6 +36,7 @@ function Customers() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
   const [paymentDescription, setPaymentDescription] = useState('');
   const [submittingPayment, setSubmittingPayment] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
   const customerParams: Record<string, string | number> = { limit: 200 };
@@ -235,9 +237,23 @@ function Customers() {
           {selectedCustomer ? (
             <div className="flex h-full min-h-0 flex-col">
               <div className="border-b border-[var(--erp-divider)] p-4">
-                <p className="text-xs uppercase tracking-wide text-[var(--erp-muted)]">Выбранный клиент</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs uppercase tracking-wide text-[var(--erp-muted)]">Выбранный клиент</p>
+                  {/* Quick-added at the register, in a hurry — a wrong phone
+                      number used to be permanent. */}
+                  <button
+                    type="button"
+                    onClick={() => setEditingCustomer(selectedCustomer)}
+                    aria-label="Изменить данные клиента"
+                    className="-mr-2 -mt-2 grid h-11 w-11 shrink-0 place-items-center text-[var(--erp-muted)] hover:bg-[var(--erp-surface)] hover:text-[var(--erp-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                  </button>
+                </div>
                 <h3 className="mt-1 text-lg font-black text-[var(--erp-text)]">{selectedCustomer.name}</h3>
-                {selectedCustomer.phone && <p className="text-sm text-gray-500">{selectedCustomer.phone}</p>}
+                {selectedCustomer.phone && (
+                  <p className="text-sm text-[var(--erp-muted)]">{selectedCustomer.phone}</p>
+                )}
                 <div className="mt-3 border border-[var(--erp-divider)] bg-red-50 p-3">
                   <p className="text-xs text-[var(--erp-accent)]">Текущий долг</p>
                   <p className="text-2xl font-black tabular-nums text-[var(--erp-accent)]">{formatCurrency(ledger?.balance ?? selectedCustomer.balance ?? '0')}</p>
@@ -289,6 +305,14 @@ function Customers() {
         </aside>
         </div>
       </div>
+
+      {editingCustomer && (
+        <CustomerEditSheet
+          customer={editingCustomer}
+          onClose={() => setEditingCustomer(null)}
+          onSaved={() => void queryClient.invalidateQueries({ queryKey: ['customers'] })}
+        />
+      )}
 
       {showPaymentModal && selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">

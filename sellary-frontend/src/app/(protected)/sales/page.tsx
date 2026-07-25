@@ -6,10 +6,11 @@ import { useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   ArrowPathIcon,
   ArrowUturnLeftIcon,
+  PrinterIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { salesApi, metaApi, customersApi, generateIdempotencyKey } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, printReceipt } from '@/lib/utils';
 import { TableSkeleton } from '@/components/skeletons';
 import FilterMenu from '@/components/filters/FilterMenu';
 import { ModuleGuard } from '@/components/ModuleGuard';
@@ -956,7 +957,17 @@ function SalesHistory() {
               </div>
             </div>
 
-            <div className="mt-auto flex gap-2 border-t border-gray-100 p-4 dark:border-gray-700">
+            <div className="mt-auto flex flex-wrap gap-2 border-t border-[var(--erp-divider)] p-4">
+              {/* A customer coming back for a duplicate had no path: the receipt
+                  renderer only ever ran once, straight after checkout. */}
+              <button
+                type="button"
+                onClick={() => printReceipt(selectedSale)}
+                className="flex min-h-[44px] flex-1 items-center justify-center gap-2 border border-[var(--erp-divider)] px-3 text-sm font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
+              >
+                <PrinterIcon className="h-4 w-4" />
+                Печать чека
+              </button>
               {canManagePos && (selectedSale as any).can_return && (
                 <button
                   onClick={() => {
@@ -1013,7 +1024,14 @@ function SalesHistory() {
                 ))}
               </div>
             </div>
-            <div className="flex gap-2 border-t border-gray-100 p-4 dark:border-gray-700">
+            <div className="flex flex-wrap gap-2 border-t border-[var(--erp-divider)] p-4">
+              <button
+                type="button"
+                onClick={() => printReceipt(selectedSale)}
+                className="flex min-h-[44px] flex-1 items-center justify-center gap-2 border border-[var(--erp-divider)] px-3 text-sm font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
+              >
+                <PrinterIcon className="h-4 w-4" /> Печать
+              </button>
               {canManagePos && (selectedSale as any).can_return && (
                 <button
                   onClick={() => { setShowDetail(false); handleOpenReturnModal(selectedSale); }}
