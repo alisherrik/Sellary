@@ -814,7 +814,7 @@ function POS() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                       }}
-                      className="w-10 rounded-lg border border-transparent bg-transparent text-center text-sm font-extrabold text-gray-900 focus:bg-white focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] dark:text-white dark:focus:bg-gray-800"
+                      className="min-h-11 w-12 rounded-lg border border-transparent bg-transparent text-center text-sm font-extrabold text-gray-900 focus:bg-white focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] dark:text-white dark:focus:bg-gray-800"
                     />
                     <button
                       type="button"
@@ -876,7 +876,7 @@ function POS() {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                     }}
-                    className={`w-24 rounded-lg border bg-white px-2 py-1 text-right text-[13px] font-bold focus:outline-none focus:ring-2 dark:bg-gray-800 ${
+                    className={`min-h-11 w-24 rounded-lg border bg-white px-2 text-right text-[13px] font-bold focus:outline-none focus:ring-2 dark:bg-gray-800 ${
                       isMarkup
                         ? 'border-blue-300 text-blue-700 focus:ring-blue-400 dark:border-blue-700 dark:text-blue-300'
                         : hasPriceAdjustment
@@ -921,7 +921,7 @@ function POS() {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                     }}
-                    className="ml-auto w-24 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-right text-[14px] font-extrabold tabular-nums text-gray-900 focus:bg-white focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] dark:text-white dark:focus:bg-gray-800"
+                    className="ml-auto min-h-11 w-24 rounded-lg border border-transparent bg-transparent px-1 text-right text-[14px] font-extrabold tabular-nums text-gray-900 focus:bg-white focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] dark:text-white dark:focus:bg-gray-800"
                   />
                   <button
                     type="button"
@@ -1543,7 +1543,7 @@ function POS() {
                       type="text"
                       value={quickCustomerName}
                       onChange={(event) => setQuickCustomerName(event.target.value)}
-                      className="mt-1 h-10 w-full rounded-xl border border-amber-200 bg-white px-3 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 dark:border-gray-600 dark:bg-gray-900"
+                      className="mt-1 h-10 w-full rounded-xl border border-amber-200 bg-white px-3 text-sm outline-none focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] dark:border-gray-600 dark:bg-gray-900"
                     />
                   </label>
                   <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -1552,7 +1552,7 @@ function POS() {
                       type="text"
                       value={quickCustomerPhone}
                       onChange={(event) => setQuickCustomerPhone(event.target.value)}
-                      className="mt-1 h-10 w-full rounded-xl border border-amber-200 bg-white px-3 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 dark:border-gray-600 dark:bg-gray-900"
+                      className="mt-1 h-10 w-full rounded-xl border border-amber-200 bg-white px-3 text-sm outline-none focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] dark:border-gray-600 dark:bg-gray-900"
                     />
                   </label>
                   <label className="text-xs font-medium text-gray-600 dark:text-gray-300 sm:col-span-2">
@@ -1561,7 +1561,7 @@ function POS() {
                       type="text"
                       value={quickCustomerDescription}
                       onChange={(event) => setQuickCustomerDescription(event.target.value)}
-                      className="mt-1 h-10 w-full rounded-xl border border-amber-200 bg-white px-3 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 dark:border-gray-600 dark:bg-gray-900"
+                      className="mt-1 h-10 w-full rounded-xl border border-amber-200 bg-white px-3 text-sm outline-none focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] dark:border-gray-600 dark:bg-gray-900"
                     />
                   </label>
                 </div>

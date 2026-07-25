@@ -58,7 +58,7 @@ const buildPatch = (
 };
 
 export default function MarketplaceSettingsSection() {
-  const { data: settings, isLoading } = useMarketplaceSettings();
+  const { data: settings, isFetching, isError, refetch } = useMarketplaceSettings();
   const queryClient = useQueryClient();
   const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
   const [form, setForm] = useState<FormState | null>(null);
@@ -93,10 +93,33 @@ export default function MarketplaceSettingsSection() {
     saveMutation.mutate(patch);
   };
 
-  if (isLoading || !form) {
+  // The query is gated on server health, and a disabled or failed query
+  // reports isLoading === false. Keying the placeholder on `!form` alone left
+  // this tab showing "Загрузка настроек…" forever, with no error and no way
+  // back to the storefront settings.
+  if (isError && !form) {
     return (
       <SettingsCard title="Витрина" description="Как магазин выглядит в Telegram-маркетплейсе.">
-        <p className="text-sm text-[var(--erp-muted)]">Загрузка настроек…</p>
+        <p role="alert" className="text-sm text-[var(--erp-text)]">
+          Не удалось загрузить настройки магазина. Проверьте связь с сервером.
+        </p>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="mt-3 inline-flex min-h-[44px] items-center bg-[var(--erp-accent)] px-4 text-sm font-semibold text-white hover:bg-[var(--erp-accent-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
+        >
+          Повторить
+        </button>
+      </SettingsCard>
+    );
+  }
+
+  if (!form) {
+    return (
+      <SettingsCard title="Витрина" description="Как магазин выглядит в Telegram-маркетплейсе.">
+        <p role="status" className="text-sm text-[var(--erp-muted)]">
+          {isFetching ? 'Загрузка настроек…' : 'Настройки магазина недоступны — нет связи с сервером.'}
+        </p>
       </SettingsCard>
     );
   }

@@ -84,25 +84,33 @@ export default function SettingsPage() {
       <div className="mt-5 lg:mt-7 lg:grid lg:grid-cols-[228px_minmax(0,1fr)] lg:items-start lg:gap-8">
         <SettingsNav sections={sections} activeId={active.id} onSelect={setActiveId} />
 
-        <div
-          key={active.id}
-          id={panelDomId(active.id)}
-          role="tabpanel"
-          aria-labelledby={tabDomId(active.id)}
-          tabIndex={0}
-          className="mt-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] lg:mt-0"
-        >
-          <h2 className="text-[19px] font-extrabold tracking-tight text-[var(--erp-text)]">
-            {active.label}
-          </h2>
-          <p className="mb-4 mt-1 max-w-[68ch] text-[13px] leading-snug text-[var(--erp-muted)]">
-            {active.summary}
-          </p>
+        {/* Panels are hidden, not unmounted. Remounting on every tab change
+            threw away a half-filled storefront form or a new user's password —
+            silently, with a stray click on another tab. */}
+        <div className="mt-5 lg:mt-0">
+          {sections.map((section) => (
+            <div
+              key={section.id}
+              id={panelDomId(section.id)}
+              role="tabpanel"
+              aria-labelledby={tabDomId(section.id)}
+              tabIndex={0}
+              hidden={section.id !== active.id}
+              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
+            >
+              <h2 className="text-[19px] font-extrabold tracking-tight text-[var(--erp-text)]">
+                {section.label}
+              </h2>
+              <p className="mb-4 mt-1 max-w-[68ch] text-[13px] leading-snug text-[var(--erp-muted)]">
+                {section.summary}
+              </p>
 
-          {active.id === COMPANY.id && <CompanyProfileSection />}
-          {active.id === MARKETPLACE.id && <MarketplaceSettingsSection />}
-          {active.id === TEAM.id && <CompanyAdminSection />}
-          {active.id === SYSTEM.id && <SystemStatusSection />}
+              {section.id === COMPANY.id && <CompanyProfileSection />}
+              {section.id === MARKETPLACE.id && <MarketplaceSettingsSection />}
+              {section.id === TEAM.id && <CompanyAdminSection />}
+              {section.id === SYSTEM.id && <SystemStatusSection />}
+            </div>
+          ))}
         </div>
       </div>
     </div>

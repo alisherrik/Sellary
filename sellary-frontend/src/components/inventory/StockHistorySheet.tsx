@@ -46,21 +46,58 @@ export default function StockHistorySheet({ product, onClose }: StockHistoryShee
     },
   });
 
+  // The caller passes an inline arrow, so `onClose` is a new identity on every
+  // parent render. With it in the dep array this effect re-ran on every
+  // products-page refetch — throwing focus back to the trigger and then into
+  // the dialog again, mid-Tab.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
+
+    const main = document.getElementById('main');
+    main?.setAttribute('inert', '');
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') {
+        return;
+      }
+      // aria-modal is an accessibility-tree hint; it never constrains Tab. The
+      // keyboard used to walk straight out into the table behind the scrim.
+      const focusables = panelRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusables?.length) {
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
+
     document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
+      main?.removeAttribute('inert');
+      document.body.style.overflow = previousOverflow;
       opener?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -97,7 +134,8 @@ export default function StockHistorySheet({ product, onClose }: StockHistoryShee
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {isLoading ? (
-            <div className="space-y-2">
+            <div className="space-y-2" role="status" aria-live="polite">
+              <span className="sr-only">Загрузка истории остатка</span>
               {[1, 2, 3, 4].map((row) => (
                 <div key={row} className="h-14 animate-pulse bg-[var(--erp-surface)]" />
               ))}
@@ -108,7 +146,10 @@ export default function StockHistorySheet({ product, onClose }: StockHistoryShee
               className="border-2 border-[var(--erp-warn)] bg-[var(--erp-warn-bg)] p-4 text-center"
             >
               <p className="text-[15px] font-extrabold text-[var(--erp-text)]">
-                Не удалось загрузить историю
+                Не удалось загрузить историю остатка
+              </p>
+              <p className="mt-1 text-[13px] text-[var(--erp-muted)]">
+                Проверьте связь с сервером и повторите.
               </p>
               <button
                 type="button"

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { VoidPreview } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
@@ -27,17 +27,46 @@ export default function AnnulmentDialog({
 }: AnnulmentDialogProps) {
   const [reason, setReason] = useState('');
 
+  const panelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) setReason('');
   }, [open]);
+
+  // This is the confirmation gate for an irreversible stock reversal, and it
+  // was a bare div: no dialog role, no Escape, nothing to tell a screen reader
+  // anything had opened.
+  useEffect(() => {
+    if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      opener?.focus?.();
+    };
+  }, [onClose, open]);
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl dark:bg-gray-800 sm:rounded-2xl">
-        <h2 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h2>
-        <p className="mt-1 text-sm text-gray-500">Операция останется в истории и будет помечена как аннулированная.</p>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="annulment-title"
+        tabIndex={-1}
+        className="max-h-[90dvh] w-full max-w-xl overflow-y-auto border-2 border-[var(--erp-divider)] bg-white p-5 shadow-2xl outline-none"
+      >
+        <h2 id="annulment-title" className="text-lg font-bold text-[var(--erp-text)]">{title}</h2>
+        <p className="mt-1 text-sm text-[var(--erp-muted)]">Операция останется в истории и будет помечена как аннулированная.</p>
 
         {loading ? (
           <div className="my-8 text-center text-sm text-gray-500">Проверяем связанные операции...</div>

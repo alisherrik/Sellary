@@ -1082,12 +1082,17 @@ function SalesHistory() {
 
       {showReturnModal && selectedSale && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="max-h-[90vh] w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-slate-800 sm:max-w-2xl sm:rounded-2xl">
-            <div className="border-b border-slate-200 bg-gradient-to-r from-orange-500 to-red-500 px-4 py-3 dark:border-slate-700 sm:px-6 sm:py-4">
-              <h2 className="text-base font-bold text-white sm:text-xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="return-modal-title"
+            className="max-h-[90dvh] w-full overflow-hidden border-2 border-[var(--erp-divider)] bg-white shadow-2xl sm:max-w-2xl"
+          >
+            <div className="border-b-2 border-[var(--erp-divider)] bg-[var(--erp-surface)] px-4 py-3 sm:px-6 sm:py-4">
+              <h2 id="return-modal-title" className="text-base font-bold text-[var(--erp-text)] sm:text-xl">
                 {annulMode ? 'Аннулировать позицию' : `Возврат #${selectedSale.id}`}
               </h2>
-              <p className="text-[10px] text-white/80 sm:text-sm">
+              <p className="text-xs text-[var(--erp-muted)] sm:text-sm">
                 {annulMode
                   ? `Продажа #${selectedSale.id} · позиция будет возвращена полностью`
                   : `Доступно: ${formatCurrency((selectedSale as any).remaining_refundable_amount || '0')}`}
@@ -1124,11 +1129,12 @@ function SalesHistory() {
                             {rq.quantity} шт.
                           </span>
                         ) : (
-                          <div className="flex flex-shrink-0 items-center gap-1 sm:gap-2">
+                          <div className="flex flex-shrink-0 items-center gap-2">
                             <button
                               type="button"
                               onClick={() => handleQuantityChange(rq.saleItemId, rq.quantity - 1)}
-                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-200 text-sm font-bold hover:bg-slate-300 dark:bg-slate-600 sm:h-8 sm:w-8"
+                              aria-label="Уменьшить количество"
+                              className="flex h-11 w-11 items-center justify-center border border-[var(--erp-divider)] text-sm font-bold text-[var(--erp-text)] hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] disabled:opacity-40"
                               disabled={rq.quantity <= 0}
                             >
                               -
@@ -1138,13 +1144,20 @@ function SalesHistory() {
                               min={0}
                               max={rq.maxQuantity}
                               value={rq.quantity}
-                              onChange={(e) => handleQuantityChange(rq.saleItemId, parseInt(e.target.value) || 0)}
-                              className="w-10 rounded-lg border border-slate-300 bg-white py-1 text-center text-sm dark:border-slate-600 dark:bg-slate-700 sm:w-16"
+                              step="any"
+                              inputMode="decimal"
+                              aria-label={`Количество к возврату: ${item.product_name}`}
+                              // parseInt floored 1.5 kg to 1 while the field
+                              // still showed 1.5 — a refund the cashier read
+                              // and would not get.
+                              onChange={(e) => handleQuantityChange(rq.saleItemId, parseFloat(e.target.value) || 0)}
+                              className="min-h-11 w-16 border border-[var(--erp-divider)] bg-white text-center text-sm tabular-nums focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] sm:w-20"
                             />
                             <button
                               type="button"
                               onClick={() => handleQuantityChange(rq.saleItemId, rq.quantity + 1)}
-                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-200 text-sm font-bold hover:bg-slate-300 dark:bg-slate-600 sm:h-8 sm:w-8"
+                              aria-label="Увеличить количество"
+                              className="flex h-11 w-11 items-center justify-center border border-[var(--erp-divider)] text-sm font-bold text-[var(--erp-text)] hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] disabled:opacity-40"
                               disabled={rq.quantity >= rq.maxQuantity}
                             >
                               +
