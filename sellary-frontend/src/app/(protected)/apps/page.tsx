@@ -24,22 +24,47 @@ export default function AppsPage() {
   if (isMobile) {
     return (
       <div className="px-4 py-4">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--erp-accent)]">
-          Приложения
+        <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--erp-accent)]">
+          Рабочее пространство · {(currentCompany?.name || '').toUpperCase()}
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2.5">
-          {granted.map((def) => {
+        <h1 className="mt-1.5 text-[26px] font-extrabold tracking-tight text-[var(--erp-text)]">
+          Приложения
+        </h1>
+        <p className="mt-1 text-[13px] leading-snug text-[var(--erp-muted)]">
+          Выберите модуль. Вам доступны только выданные администратором приложения.
+        </p>
+        {/* One column: a two-up grid on a phone forces the tagline and the
+            access badge out, and those are the only things that tell a
+            first-time user what a module is and what they may do in it. */}
+        <div className="mt-4 flex flex-col gap-2.5">
+          {cards.map(({ def, badge, badgeElevated }) => {
             const Icon = MODULE_ICONS[def.key];
             return (
               <Link
                 key={def.key}
                 href={def.pages[0]?.href ?? '/apps'}
                 prefetch={false}
-                className="flex flex-col items-start gap-2 border border-[var(--erp-divider)] bg-white p-4"
+                className="flex min-h-[44px] items-start gap-3 border border-[var(--erp-divider)] bg-white p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
               >
-                <Icon className="h-6 w-6 text-[var(--erp-text)]" />
-                <span className="text-[13px] font-extrabold tracking-tight text-[var(--erp-text)]">
-                  {def.label}
+                <Icon className="mt-0.5 h-6 w-6 shrink-0 text-[var(--erp-text)]" />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-[15px] font-extrabold tracking-tight text-[var(--erp-text)]">
+                      {def.label}
+                    </span>
+                    <span
+                      className={`shrink-0 px-2 py-0.5 text-[11px] font-semibold ${
+                        badgeElevated
+                          ? 'bg-[var(--erp-badge-bg)] text-[var(--erp-badge-text)]'
+                          : 'bg-gray-100 text-[var(--erp-muted)]'
+                      }`}
+                    >
+                      {badge}
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block text-[12.5px] leading-snug text-[var(--erp-muted)]">
+                    {def.tagline}
+                  </span>
                 </span>
               </Link>
             );

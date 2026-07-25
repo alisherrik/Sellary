@@ -945,62 +945,88 @@ function POS() {
     </div>
   );
 
+  const posNavLinks = [
+    { href: '/sales', label: 'История продаж' },
+    { href: '/shifts', label: 'Смена' },
+    { href: '/customers', label: 'Клиенты' },
+  ];
+
+  const shiftPill = shiftStatusKnown && (
+    currentShift ? (
+      <span className="flex items-center gap-1.5 whitespace-nowrap text-[var(--erp-text)]">
+        <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-[var(--erp-success)]" />
+        Смена открыта
+      </span>
+    ) : (
+      <span className="flex items-center gap-1.5 whitespace-nowrap text-[var(--erp-warn)]">
+        <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-[var(--erp-warn)]" />
+        Смена закрыта
+      </span>
+    )
+  );
+
   return (
-    <div className="flex h-screen flex-col bg-[var(--erp-surface)]">
+    <div className="flex h-dvh flex-col bg-[var(--erp-surface)]">
       {/* POS top bar — the POS module renders its own fullscreen chrome instead
           of the shared workspace shell (header/rail/sidebar are hidden for
-          /pos in Layout.tsx). */}
-      <div className="flex h-[52px] flex-none items-center gap-4 border-b-2 border-[var(--erp-divider)] bg-white px-4">
-        <div className="text-[17px] font-extrabold text-[var(--erp-text)]">Касса</div>
-        <div className="flex gap-0.5">
-          <Link
-            href="/sales"
-            prefetch={false}
-            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-[var(--erp-surface)]"
-          >
-            История продаж
-          </Link>
-          <Link
-            href="/shifts"
-            prefetch={false}
-            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-[var(--erp-surface)]"
-          >
-            Смена
-          </Link>
-          <Link
-            href="/customers"
-            prefetch={false}
-            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-[var(--erp-surface)]"
-          >
-            Клиенты
-          </Link>
-        </div>
-        <div className="ml-auto flex items-center gap-3.5 text-sm">
-          {shiftStatusKnown &&
-            (currentShift ? (
-              <span className="flex items-center gap-1.5 text-[var(--erp-text)]">
-                <span className="h-[7px] w-[7px] rounded-full bg-[var(--erp-success)]" />
-                Смена открыта
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-[var(--erp-warn)]">
-                <span className="h-[7px] w-[7px] rounded-full bg-[var(--erp-warn)]" />
-                Смена закрыта
-              </span>
-            ))}
-          <span className="text-gray-500">{user?.full_name || user?.username}</span>
+          /pos in the (protected) layout, on desktop and mobile alike). The
+          shift pill and the Приложения exit stay on screen at every width:
+          they are how a cashier knows a sale is possible, and how they leave. */}
+      <div className="flex-none border-b-2 border-[var(--erp-divider)] bg-white pt-safe">
+        <div className="flex min-h-[52px] items-center gap-2 px-2 sm:gap-4 sm:px-4">
           <Link
             href="/apps"
             prefetch={false}
-            className="flex h-[34px] items-center gap-2 border border-[var(--erp-divider)] px-3 font-medium text-[var(--erp-text)] hover:bg-[var(--erp-surface)]"
+            aria-label="Приложения"
+            className="-ml-1 flex h-11 w-11 items-center justify-center text-[var(--erp-text)] hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] sm:hidden"
           >
-            <Squares2X2Icon className="h-[14px] w-[14px]" />
-            Приложения
+            <Squares2X2Icon className="h-5 w-5" />
           </Link>
+          <div className="text-[17px] font-extrabold text-[var(--erp-text)]">Касса</div>
+          <div className="hidden gap-0.5 sm:flex">
+            {posNavLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                prefetch={false}
+                className="px-3 py-1.5 text-sm font-medium text-[var(--erp-muted)] hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+          <div className="ml-auto flex items-center gap-3 text-[13px] sm:gap-3.5 sm:text-sm">
+            {shiftPill}
+            <span className="hidden text-[var(--erp-muted)] sm:inline">
+              {user?.full_name || user?.username}
+            </span>
+            <Link
+              href="/apps"
+              prefetch={false}
+              className="hidden h-[34px] items-center gap-2 border border-[var(--erp-divider)] px-3 font-medium text-[var(--erp-text)] hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] sm:flex"
+            >
+              <Squares2X2Icon className="h-[14px] w-[14px]" />
+              Приложения
+            </Link>
+          </div>
+        </div>
+        {/* Mobile: the module's other pages, which have no tab bar here. */}
+        <div className="flex gap-0.5 overflow-x-auto border-t border-[var(--erp-divider)] px-1 scrollbar-hide sm:hidden">
+          {posNavLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              prefetch={false}
+              className="flex min-h-[44px] shrink-0 items-center whitespace-nowrap px-3 text-sm font-medium text-[var(--erp-muted)] hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+            >
+              {link.label}
+            </Link>
+          ))}
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-4 p-4">
+      {/* pb clears the fixed mobile cart bar so the last catalog row is reachable. */}
+      <div className="flex min-h-0 flex-1 gap-4 p-4 pb-[132px] lg:pb-4">
         {/* Catalog */}
         <main className="flex min-w-0 flex-1 flex-col">
           {/* Search + barcode */}
@@ -1205,23 +1231,29 @@ function POS() {
         </aside>
       </div>
 
-      {/* Mobile cart bar — restyled to the ERP design language (sharp corners,
-          extrabold green total). Still opens the cart sheet on tap, same as
-          before; the sheet's own Оплатить button drives the payment modal. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t-2 border-[var(--erp-divider)] bg-white p-3 lg:hidden">
+      {/* Mobile cart bar — restyled to the ERP design language (sharp corners).
+          The total is Register Blue and the heaviest thing in its context; the
+          action beneath it is Confirm Green. They no longer share one hue and
+          compete. pb-safe keeps Оплатить out of the iOS home-indicator strip.
+          Still opens the cart sheet on tap, same as before; the sheet's own
+          Оплатить button drives the payment modal. */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-30 border-t-2 border-[var(--erp-divider)] bg-white p-3 lg:hidden"
+        style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         <button
           type="button"
           onClick={() => setShowCartSheet(true)}
           aria-label="Открыть корзину"
-          className="flex w-full flex-col gap-2"
+          className="flex w-full flex-col gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
         >
-          <span className="flex items-baseline justify-between">
-            <span className="text-[13px] font-semibold text-[var(--erp-text)]">{cartCount} товаров</span>
-            <span className="text-[24px] font-extrabold tabular-nums text-[var(--erp-success)]">
+          <span className="flex items-baseline justify-between gap-3">
+            <span className="text-[13px] font-semibold text-[var(--erp-muted)]">{cartCount} товаров</span>
+            <span className="text-[30px] font-black leading-none tabular-nums text-[var(--erp-accent)]">
               {formatCurrency(finalTotal)}
             </span>
           </span>
-          <span className="flex h-[46px] w-full items-center justify-center gap-2 bg-[var(--erp-success)] text-[15px] font-extrabold text-white">
+          <span className="flex h-[48px] w-full items-center justify-center gap-2 bg-[var(--erp-success)] text-[15px] font-extrabold text-white">
             <ShoppingBagIcon className="h-4 w-4" />
             Оплатить
           </span>

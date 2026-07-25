@@ -236,7 +236,7 @@ export default function Layout({ children }: LayoutProps) {
         {showSecondary && currentModule && (
           <aside className="flex w-[216px] flex-none flex-col border-r-2 border-[var(--erp-divider)] bg-white p-4">
             <div className="px-2 pb-1 text-[15px] font-extrabold">{currentModule.label}</div>
-            <div className="px-2 pb-3 text-[10px] uppercase tracking-[0.1em] text-gray-400">
+            <div className="px-2 pb-3 text-[10px] uppercase tracking-[0.1em] text-[var(--erp-muted)]">
               {currentModule.tagline}
             </div>
             <div className="flex flex-col gap-0.5">
@@ -278,7 +278,7 @@ export default function Layout({ children }: LayoutProps) {
                 })}
             </div>
             <div className="mt-auto border-t border-[var(--erp-divider)] pl-2 pt-3">
-              <div className="text-[10px] uppercase tracking-[0.1em] text-gray-400">
+              <div className="text-[10px] uppercase tracking-[0.1em] text-[var(--erp-muted)]">
                 Уровень доступа
               </div>
               <div

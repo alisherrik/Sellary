@@ -7,6 +7,8 @@ interface MobileHeaderProps {
   title: string;
   showBack?: boolean;
   onBack?: () => void;
+  /** Rendered in the left slot when there is no back button (e.g. the /apps launcher link). */
+  leading?: ReactNode;
   actions?: ReactNode;
 }
 
@@ -14,23 +16,29 @@ export default function MobileHeader({
   title,
   showBack = false,
   onBack,
+  leading,
   actions,
 }: MobileHeaderProps) {
   return (
-    <header className="flex h-[44px] shrink-0 items-center justify-between border-b-2 border-[var(--erp-divider)] bg-white px-4">
-      <div className="flex w-10 items-center">
-        {showBack && (
+    <header className="flex h-[48px] shrink-0 items-center justify-between border-b-2 border-[var(--erp-divider)] bg-white pl-1 pr-1">
+      <div className="flex min-w-[44px] items-center">
+        {showBack ? (
           <button
+            type="button"
             onClick={onBack}
-            className="-ml-1 flex h-9 w-9 items-center justify-center hover:bg-[var(--erp-surface)]"
+            className="flex h-11 w-11 items-center justify-center hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
             aria-label="Назад"
           >
             <ChevronLeftIcon className="h-5 w-5 text-[var(--erp-text)]" />
           </button>
+        ) : (
+          leading
         )}
       </div>
-      <h1 className="text-[15px] font-extrabold tracking-tight text-[var(--erp-text)]">{title}</h1>
-      <div className="flex w-10 items-center justify-end">{actions}</div>
+      <h1 className="truncate px-1 text-[15px] font-extrabold tracking-tight text-[var(--erp-text)]">
+        {title}
+      </h1>
+      <div className="flex min-w-[44px] items-center justify-end gap-1">{actions}</div>
     </header>
   );
 }

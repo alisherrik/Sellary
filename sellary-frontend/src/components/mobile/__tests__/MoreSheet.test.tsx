@@ -73,4 +73,45 @@ describe('MoreSheet', () => {
     await userEvent.click(backdrop!);
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('is a labelled modal dialog', () => {
+    state.modules = { purchasing: 'manager' };
+    state.isAdmin = false;
+    render(<MoreSheet isOpen={true} onClose={vi.fn()} />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAccessibleName('Все разделы');
+  });
+
+  it('closes on Escape', async () => {
+    state.modules = { purchasing: 'manager' };
+    state.isAdmin = false;
+    const onClose = vi.fn();
+    render(<MoreSheet isOpen={true} onClose={onClose} />);
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('closes from an explicit close button, not just the fake grabber', async () => {
+    state.modules = { purchasing: 'manager' };
+    state.isAdmin = false;
+    const onClose = vi.fn();
+    render(<MoreSheet isOpen={true} onClose={onClose} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('marks the current page with aria-current', () => {
+    state.modules = { purchasing: 'manager' };
+    state.isAdmin = false;
+    render(<MoreSheet isOpen={true} onClose={vi.fn()} />);
+    // usePathname is mocked to /suppliers for this suite.
+    expect(screen.getByRole('button', { name: 'Поставщики' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('button', { name: 'Заказы поставщикам' })).not.toHaveAttribute(
+      'aria-current',
+    );
+  });
 });

@@ -9,14 +9,21 @@ import { MODULE_ICONS } from '@/components/moduleIcons';
 
 interface BottomTabBarProps {
   onMoreClick: () => void;
+  moreOpen?: boolean;
 }
+
+// Active tabs carry a 2px top rule as well as the accent color — the store
+// floor is not a place to convey state by hue alone, and a color-only active
+// state fails WCAG 1.4.1 for anyone who can't distinguish it.
+const TAB_BASE =
+  'relative flex flex-1 flex-col items-center justify-center gap-1 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]';
 
 // Module-first bottom bar: one tab per granted module (in MODULE_NAV order),
 // each routing straight to that module's first page. "Ещё" holds every
 // granted module's full page list (see MoreSheet) — it's shown whenever a
 // module overflows past MOBILE_MAX_TABS, or a visible module has secondary
 // pages that wouldn't otherwise be reachable (no secondary sidebar on mobile).
-export default function BottomTabBar({ onMoreClick }: BottomTabBarProps) {
+export default function BottomTabBar({ onMoreClick, moreOpen = false }: BottomTabBarProps) {
   const pathname = usePathname();
   const modules = useModules();
   const isAdmin = useAuthStore((state) => state.currentCompany?.role === 'admin');
@@ -35,7 +42,8 @@ export default function BottomTabBar({ onMoreClick }: BottomTabBarProps) {
 
   return (
     <nav
-      className="flex h-[58px] shrink-0 items-center border-t-2 border-[var(--erp-divider)] bg-white"
+      aria-label="Основная навигация"
+      className="flex h-[58px] shrink-0 items-stretch border-t-2 border-[var(--erp-divider)] bg-white"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       {tabs.map((def) => {
@@ -47,14 +55,18 @@ export default function BottomTabBar({ onMoreClick }: BottomTabBarProps) {
             key={def.key}
             href={href}
             prefetch={false}
-            className="flex flex-1 flex-col items-center justify-center gap-1 py-1"
+            aria-current={active ? 'page' : undefined}
+            className={TAB_BASE}
           >
+            {active && (
+              <span aria-hidden="true" className="absolute inset-x-0 top-0 h-0.5 bg-[var(--erp-accent)]" />
+            )}
             <Icon
-              className={`h-5 w-5 ${active ? 'text-[var(--erp-accent)]' : 'text-gray-400'}`}
+              className={`h-5 w-5 ${active ? 'text-[var(--erp-accent)]' : 'text-[var(--erp-muted)]'}`}
             />
             <span
-              className={`text-[9px] font-semibold ${
-                active ? 'text-[var(--erp-accent)]' : 'text-gray-400'
+              className={`text-[11px] font-semibold leading-none ${
+                active ? 'text-[var(--erp-accent)]' : 'text-[var(--erp-muted)]'
               }`}
             >
               {def.label}
@@ -65,15 +77,21 @@ export default function BottomTabBar({ onMoreClick }: BottomTabBarProps) {
 
       {hasMore && (
         <button
+          type="button"
           onClick={onMoreClick}
-          className="flex flex-1 flex-col items-center justify-center gap-1 py-1"
+          aria-haspopup="dialog"
+          aria-expanded={moreOpen}
+          className={TAB_BASE}
         >
+          {moreActive && (
+            <span aria-hidden="true" className="absolute inset-x-0 top-0 h-0.5 bg-[var(--erp-accent)]" />
+          )}
           <EllipsisHorizontalIcon
-            className={`h-5 w-5 ${moreActive ? 'text-[var(--erp-accent)]' : 'text-gray-400'}`}
+            className={`h-5 w-5 ${moreActive ? 'text-[var(--erp-accent)]' : 'text-[var(--erp-muted)]'}`}
           />
           <span
-            className={`text-[9px] font-semibold ${
-              moreActive ? 'text-[var(--erp-accent)]' : 'text-gray-400'
+            className={`text-[11px] font-semibold leading-none ${
+              moreActive ? 'text-[var(--erp-accent)]' : 'text-[var(--erp-muted)]'
             }`}
           >
             Ещё

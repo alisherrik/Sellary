@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 import Layout from '@/components/Layout';
 import MobileShell from '@/components/mobile/MobileShell';
@@ -14,6 +14,7 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { accessToken, isAuthenticated, hasHydrated, fetchSession } = useAuthStore();
   const isMobile = useMediaQuery('(max-width: 767px)');
 
@@ -41,6 +42,15 @@ export default function ProtectedLayout({
 
   if (!accessToken || !isAuthenticated) {
     return null;
+  }
+
+  // POS brings its own fullscreen chrome on every viewport (see pos/page.tsx).
+  // The desktop Layout already steps aside for it; on mobile the shell was
+  // still wrapping it, and the POS cart bar (fixed, z-30) painted over the tab
+  // bar while the shell's own top bar hid POS's shift pill and its only exit —
+  // leaving the cashier with no way out of the register.
+  if (pathname.startsWith('/pos')) {
+    return <>{children}</>;
   }
 
   if (isMobile) {
