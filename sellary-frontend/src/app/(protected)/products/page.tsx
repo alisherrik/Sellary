@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ClockIcon,
   Cog6ToothIcon,
   MagnifyingGlassIcon,
   PencilIcon,
@@ -14,6 +15,7 @@ import toast from 'react-hot-toast';
 import { TableSkeleton } from '@/components/skeletons';
 import { ModuleGuard } from '@/components/ModuleGuard';
 import CategoryPicker from '@/components/categories/CategoryPicker';
+import StockHistorySheet from '@/components/inventory/StockHistorySheet';
 import QueryError from '@/components/ui/QueryError';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useLowStockProducts, useProducts } from '@/hooks/useQueries';
@@ -122,6 +124,7 @@ function Products() {
   const [formUnits, setFormUnits] = useState<UnitRow[]>([]);
   const [categoryFormData, setCategoryFormData] = useState(emptyCategoryForm);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
 
   // Debounce so typing in search doesn't fire a network request per keystroke.
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -696,6 +699,13 @@ function Products() {
                               }
                             />
                             <button
+                              onClick={() => setHistoryProduct(product)}
+                              className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-text)]"
+                              aria-label="История остатка"
+                            >
+                              <ClockIcon className="h-4 w-4" />
+                            </button>
+                            <button
                               onClick={() => handleEditProduct(product)}
                               className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-text)]"
                               aria-label="Редактировать"
@@ -797,6 +807,14 @@ function Products() {
                                 touch tablet — hover-only actions are invisible
                                 there and to keyboard users. */}
                             <div className="flex justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+                              <button
+                                type="button"
+                                onClick={() => setHistoryProduct(product)}
+                                className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-text)]"
+                                aria-label="История остатка"
+                              >
+                                <ClockIcon className="h-4 w-4" />
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleEditProduct(product)}
@@ -1229,6 +1247,13 @@ function Products() {
             </form>
           </div>
         </div>
+      )}
+
+      {historyProduct && (
+        <StockHistorySheet
+          product={historyProduct}
+          onClose={() => setHistoryProduct(null)}
+        />
       )}
     </>
   );

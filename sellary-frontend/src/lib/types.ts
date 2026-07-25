@@ -638,3 +638,20 @@ export interface OrderCancelPayload {
 
 // Only the statuses the merchant can set via POST /api/orders/{id}/status.
 export type OrderStatusAdvanceTarget = 'preparing' | 'ready' | 'delivering' | 'completed';
+
+/** One row of the stock ledger: who moved it, by how much, and from what to what. */
+export interface InventoryLog {
+  id: number;
+  product_id: number;
+  product_name: string;
+  user_id: number;
+  user_name: string;
+  quantity_change: string;
+  value_change: string;
+  previous_quantity: string;
+  new_quantity: string;
+  reason?: string | null;
+  reference_type?: string | null;
+  reference_id?: number | null;
+  created_at: string;
+}
