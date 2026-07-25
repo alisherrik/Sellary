@@ -1,6 +1,14 @@
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 
 
+# Rounding is stated at every call rather than left to the process-wide
+# decimal context: `set_context()` existed and was never called from
+# application code, so money quantized under the default ROUND_HALF_EVEN
+# while the register rounded half-up — 0.5 × 19.99 showed 9.99 and charged
+# 10.00, on exactly the weighed goods this till exists for.
+CENTS = Decimal("0.01")
+
+
 class CalculationService:
     """Handles all financial calculations with proper decimal precision."""
 
@@ -13,21 +21,21 @@ class CalculationService:
     @staticmethod
     def calculate_item_subtotal(quantity: Decimal, unit_price: Decimal) -> Decimal:
         """Calculate subtotal for a sale item."""
-        return (quantity * unit_price).quantize(Decimal("0.01"))
+        return (quantity * unit_price).quantize(CENTS, rounding=ROUND_HALF_UP)
 
     @staticmethod
     def calculate_item_tax(
         subtotal: Decimal, tax_percent: Decimal
     ) -> Decimal:
         """Calculate tax amount for a sale item."""
-        return (subtotal * tax_percent / Decimal("100")).quantize(Decimal("0.01"))
+        return (subtotal * tax_percent / Decimal("100")).quantize(CENTS, rounding=ROUND_HALF_UP)
 
     @staticmethod
     def calculate_item_total(
         subtotal: Decimal, tax_amount: Decimal, discount_amount: Decimal
     ) -> Decimal:
         """Calculate total for a sale item."""
-        return (subtotal + tax_amount - discount_amount).quantize(Decimal("0.01"))
+        return (subtotal + tax_amount - discount_amount).quantize(CENTS, rounding=ROUND_HALF_UP)
 
     @staticmethod
     def calculate_profit(

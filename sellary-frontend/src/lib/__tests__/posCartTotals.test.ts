@@ -85,3 +85,26 @@ describe('calculateCartTotals', () => {
     expect(totals.finalTotal).toBe(0);
   });
 });
+
+describe('payload precision', () => {
+  it('rounds a price edit to what the schema accepts', async () => {
+    const { toPricePrecision, toQuantityPrecision } = await import('../posPricing');
+    // 19.99 − 0.10 is 19.889999999999997 in IEEE-754, and the API rejects
+    // anything past four decimals with a 422 the register cannot render.
+    expect(toPricePrecision(19.99 - 0.1)).toBe(19.89);
+    expect(toPricePrecision(12.35 - 0.05)).toBe(12.3);
+    expect(toPricePrecision(7.7 - 0.1)).toBe(7.6);
+    expect(toQuantityPrecision(0.1 + 0.2)).toBe(0.3);
+  });
+
+  it('rounds half-up on a tie, as the server does', async () => {
+    const { calculateCartTotals } = await import('../posPricing');
+    // 0.5 × 19.99 = 9.995. Banker's rounding would give 9.99 here and the
+    // server 10.00 — a drawer that does not match the screen on weighed goods.
+    const totals = calculateCartTotals(
+      [{ quantity: 0.5, discount: 0, taxPercent: 0, unitPrice: 19.99 }],
+      0,
+    );
+    expect(totals.subtotal).toBe(10);
+  });
+});

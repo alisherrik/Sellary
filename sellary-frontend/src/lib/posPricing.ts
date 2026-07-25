@@ -1,4 +1,15 @@
-const roundMoney = (value: number) => Math.round(value * 100) / 100;
+// Half-up with a tolerance, because binary error otherwise tips ties the wrong
+// way: 0.5 × 19.99 is 9.994999999999999, so a plain Math.round gives 9.99 while
+// the server — which quantizes half-up on exact decimals — charges 10.00. On
+// weighed goods, the case this till exists for, that is a drawer that does not
+// match the screen. The tolerance is far below a cent and far above float noise.
+const ROUND_TOLERANCE = 1e-9;
+const roundMoney = (value: number) =>
+  Math.round(value * 100 + Math.sign(value) * ROUND_TOLERANCE) / 100;
+
+/** Prices carry 4 decimals server-side; quantities 3. */
+export const toPricePrecision = (value: number) => Number(value.toFixed(4));
+export const toQuantityPrecision = (value: number) => Number(value.toFixed(3));
 
 export function formatEditableAmount(value: number): string {
   if (!Number.isFinite(value)) {

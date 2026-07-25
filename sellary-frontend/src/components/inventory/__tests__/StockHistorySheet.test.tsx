@@ -91,3 +91,31 @@ describe('StockHistorySheet', () => {
     expect(await screen.findByText(/ещё не было движений/)).toBeInTheDocument();
   });
 });
+
+describe('StockHistorySheet inside the app shell', () => {
+  it('stays interactive when the shell it renders inside is made inert', async () => {
+    // Regression: the sheet is rendered inside <main id="main">, and it marks
+    // that element inert while open. Without a portal it inerted itself — the
+    // close button stopped dispatching clicks.
+    getLogs.mockResolvedValue({ data: [] });
+    const main = document.createElement('main');
+    main.id = 'main';
+    document.body.appendChild(main);
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const onClose = vi.fn();
+    render(
+      <QueryClientProvider client={client}>
+        <StockHistorySheet product={product} onClose={onClose} />
+      </QueryClientProvider>,
+      { container: main },
+    );
+
+    const closeButton = await screen.findByRole('button', { name: 'Закрыть' });
+    expect(main.contains(closeButton)).toBe(false);
+    await userEvent.click(closeButton);
+    expect(onClose).toHaveBeenCalled();
+
+    main.remove();
+  });
+});

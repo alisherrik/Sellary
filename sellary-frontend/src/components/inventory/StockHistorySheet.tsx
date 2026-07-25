@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
@@ -37,6 +38,12 @@ const formatQuantity = (value: number | string) => {
  */
 export default function StockHistorySheet({ product, onClose }: StockHistorySheetProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  // Rendered through a portal: this sheet lives inside the page tree, which is
+  // inside <main id="main">. Marking #main inert from in here made the sheet
+  // inert too — its own close button stopped dispatching clicks.
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const { data: logs = [], isLoading, isError, refetch } = useQuery<InventoryLog[]>({
     queryKey: ['inventoryLogs', product.id],
@@ -99,7 +106,11 @@ export default function StockHistorySheet({ product, onClose }: StockHistoryShee
     };
   }, []);
 
-  return (
+  if (!mounted) {
+    return null;
+  }
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50" aria-hidden="true" onClick={onClose} />
       <div
@@ -210,6 +221,7 @@ export default function StockHistorySheet({ product, onClose }: StockHistoryShee
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

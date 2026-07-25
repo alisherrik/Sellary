@@ -40,6 +40,8 @@ import {
   calculateDiscountFromEditedPrice,
   calculateCartTotals,
   formatEditableAmount,
+  toPricePrecision,
+  toQuantityPrecision,
 } from '@/lib/posPricing';
 
 type PosPaymentMethod = 'cash' | 'card' | 'mobile' | 'credit';
@@ -517,12 +519,15 @@ function POS() {
         product_id: item.product.id,
         // null = base unit; quantity & unit_price are in the chosen unit.
         product_unit_id: item.unit?.id ?? null,
-        quantity: item.quantity,
+        quantity: toQuantityPrecision(item.quantity),
         // The line's price adjustment IS the unit price — discount and markup
         // alike. Sending it separately as discount_amount made the server net
         // it into the line total and, via the sale-level discount, subtract it
         // a second time when computing what a refund owes.
-        unit_price: unitPrice - (item.discount || 0),
+        // Rounded at the boundary: 19.99 − 0.10 is 19.889999999999997 in
+        // IEEE-754, and the schema rejects anything past 4 decimals with a 422
+        // whose detail is an array react-hot-toast cannot render.
+        unit_price: toPricePrecision(unitPrice - (item.discount || 0)),
         tax_percent: Number(item.product.tax_percent),
         discount_amount: 0,
       };
@@ -601,7 +606,14 @@ function POS() {
         queryClient.invalidateQueries({ queryKey: ['currentShift'] });
         toast.error('Смена не открыта. Откройте смену, чтобы продолжить.');
       } else {
-        toast.error(detail || 'Не удалось завершить продажу');
+        // FastAPI's 422 detail is an array of dicts. Handing that to
+        // react-hot-toast puts objects where React expects children, which
+        // can take the whole Toaster — and the register — down.
+        toast.error(
+          typeof detail === 'string' && detail
+            ? detail
+            : 'Не удалось завершить продажу. Проверьте цены и количества в корзине.',
+        );
       }
     } finally {
       saleInFlight.current = false;
