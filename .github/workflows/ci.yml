@@ -27,6 +27,8 @@ jobs:
         run: python -m compileall api core models repositories schemas services main.py
       - name: Check module registry parity
         run: python ../scripts/check_module_parity.py
+      - name: Check migration pin
+        run: python ../scripts/check_migration_pin.py
       - name: Tests
         # The suite runs against in-memory SQLite, so no service container is
         # needed — but Settings defaults SELLARY_ENV to "production", which

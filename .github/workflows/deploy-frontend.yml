@@ -1,20 +1,21 @@
 name: Deploy Frontend (Railway)
 
-# Deploys the Next.js frontend to the Railway service "sellary-frontend" on
-# every push to main. (Netlify was retired 2026-07-25: account credits
-# exhausted, deploys blocked.) Requires one repo secret: RAILWAY_TOKEN
-# (Railway dashboard → Account/Project → Tokens). Until it is set the job
-# succeeds with a notice (no deploy), so it never blocks with a red X.
+# Deploys the Next.js frontend to the Railway service "sellary-frontend".
+# (Netlify was retired 2026-07-25: account credits exhausted, deploys blocked.)
+# Requires one repo secret: RAILWAY_TOKEN (Railway dashboard → Tokens).
+#
+# Runs only after CI goes green on main. `workflow_run` carries no `paths`
+# filter, so this fires on every green main build rather than only on frontend
+# changes — a redundant deploy is cheap, shipping on a red build is not.
 #
 # Manual alternative from a workstation with the Railway CLI linked:
 #   cd sellary-frontend && railway up --service sellary-frontend
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
-    paths:
-      - 'sellary-frontend/**'
-      - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch: {}
 
 concurrency:
@@ -24,8 +25,17 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # A manual dispatch is a deliberate act and deploys regardless; an automatic
+    # run ships only what CI proved.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@v4
+        with:
+          # workflow_run checks out the default branch tip by default; pin to the
+          # commit CI actually tested.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - name: Check Railway secret
         id: check
@@ -42,6 +52,9 @@ jobs:
       - name: Deploy to Railway
         if: steps.check.outputs.ok == 'true'
         working-directory: sellary-frontend
+        # No --detach: with it the step went green the moment the upload
+        # finished, so a failed Railway build left GitHub green and nobody knew.
+        timeout-minutes: 20
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: npx --yes @railway/cli@4 up --service sellary-frontend --detach
+        run: npx --yes @railway/cli@4 up --service sellary-frontend --ci
