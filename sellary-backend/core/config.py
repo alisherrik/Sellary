@@ -60,6 +60,7 @@ class Settings(BaseSettings):
         "http://192.168.1.108:3001",
         "http://192.168.1.108:3002",
         "https://sellary-client.netlify.app",
+        "https://sellary-frontend-production.up.railway.app",
         "http://localhost:1420",
         "http://127.0.0.1:1420",
         "tauri://localhost",
