@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
@@ -8,6 +8,18 @@ import { adminApi } from '@/lib/api';
 import type { ModuleKey, ModuleLevel, ModuleMap } from '@/lib/modules';
 import { useAuthStore } from '@/lib/store';
 import type { ManagedUser, ManagedUserMembershipSummary, UserRole } from '@/lib/types';
+
+import {
+  FormField,
+  ROLE_LABELS,
+  SettingsCard,
+  StatusBadge,
+  dangerButtonClass,
+  inputClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+  selectClass,
+} from './SettingsUI';
 
 const roleOptions: UserRole[] = ['admin', 'manager', 'cashier'];
 
@@ -39,6 +51,35 @@ function toDraft(modules: ModuleMap): ModuleDraft {
     shop: modules.shop ?? '',
     reports: modules.reports ?? '',
   };
+}
+
+/** A checkbox that reads as a row and takes a finger, not a pixel. */
+function CheckboxField({
+  id,
+  label,
+  checked,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className="inline-flex min-h-[44px] w-full cursor-pointer items-center gap-2.5 border border-[var(--erp-divider)] bg-white px-3 text-sm text-[var(--erp-text)] hover:border-[var(--erp-text)]"
+    >
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-[18px] w-[18px] shrink-0 accent-[var(--erp-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
+      />
+      {label}
+    </label>
+  );
 }
 
 function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
@@ -80,18 +121,16 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
   };
 
   if (isLoading) {
-    return <p className="text-sm text-slate-500">Загрузка доступа к модулям...</p>;
+    return <p className="text-sm text-[var(--erp-muted)]">Загрузка доступа к модулям…</p>;
   }
 
   if (isError || !data) {
     return (
-      <div className="flex items-center gap-3">
-        <p className="text-sm text-red-600">Не удалось загрузить доступы. Повторите попытку.</p>
-        <button
-          type="button"
-          onClick={() => refetch()}
-          className="border border-[var(--erp-divider)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-[var(--erp-text)] hover:border-[var(--erp-text)]"
-        >
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-sm font-semibold text-red-700">
+          Не удалось загрузить доступы. Повторите попытку.
+        </p>
+        <button type="button" onClick={() => refetch()} className={secondaryButtonClass}>
           Повторить
         </button>
       </div>
@@ -100,44 +139,61 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
 
   return (
     <div className="space-y-3">
-      <table className="min-w-full text-left text-sm">
-        <thead className="text-[var(--erp-muted)]">
-          <tr>
-            <th scope="col" className="py-1 pr-4 font-medium">Модуль</th>
-            <th scope="col" className="py-1 pr-4 font-medium">Нет</th>
-            <th scope="col" className="py-1 pr-4 font-medium">Сотрудник</th>
-            <th scope="col" className="py-1 pr-4 font-medium">Менеджер</th>
-          </tr>
-        </thead>
-        <tbody>
-          {MODULE_ROWS.map(({ key, label }) => (
-            <tr key={key} className="border-t border-[var(--erp-divider)]">
-              <th scope="row" className="py-2 pr-4 text-left font-normal">{label}</th>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <caption className="sr-only">Уровень доступа к каждому модулю</caption>
+          <thead>
+            <tr className="border-b border-[var(--erp-divider)]">
+              <th scope="col" className="py-2 pr-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--erp-muted)]">
+                Модуль
+              </th>
               {(['', 'user', 'manager'] as const).map((level) => (
-                <td key={level || 'none'} className="py-2 pr-4">
-                  {/* Column meaning lives in a <th> a radio can't reference, so
-                      each control names itself: "Склад: Менеджер". */}
-                  <input
-                    type="radio"
-                    name={`module-${membershipId}-${key}`}
-                    aria-label={`${label}: ${LEVEL_LABELS[level]}`}
-                    checked={draft[key] === level}
-                    onChange={() => setDraft((current) => ({ ...current, [key]: level }))}
-                    className="h-5 w-5 accent-[var(--erp-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
-                  />
-                </td>
+                <th
+                  key={level || 'none'}
+                  scope="col"
+                  className="py-2 pr-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--erp-muted)]"
+                >
+                  {LEVEL_LABELS[level]}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {MODULE_ROWS.map(({ key, label }) => (
+              <tr key={key} className="border-b border-[var(--erp-divider)] last:border-b-0">
+                <th scope="row" className="py-2 pr-4 text-left text-sm font-normal text-[var(--erp-text)]">
+                  {label}
+                </th>
+                {(['', 'user', 'manager'] as const).map((level) => (
+                  <td key={level || 'none'} className="pr-4">
+                    {/* The label carries no text — it exists to grow a 20px
+                        radio into a 44px target. Column meaning lives in a
+                        <th> a radio can't reference, so each control names
+                        itself: "Склад: Менеджер". */}
+                    <label className="flex min-h-[44px] cursor-pointer items-center">
+                      <input
+                        type="radio"
+                        name={`module-${membershipId}-${key}`}
+                        aria-label={`${label}: ${LEVEL_LABELS[level]}`}
+                        checked={draft[key] === level}
+                        onChange={() => setDraft((current) => ({ ...current, [key]: level }))}
+                        className="h-5 w-5 accent-[var(--erp-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
+                      />
+                    </label>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <button
         type="button"
         onClick={handleSave}
         disabled={saveMutation.isPending}
-        className="bg-[var(--erp-accent)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-white disabled:opacity-50"
+        className={primaryButtonClass}
       >
-        {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+        {saveMutation.isPending ? 'Сохранение…' : 'Сохранить доступ'}
       </button>
     </div>
   );
@@ -161,12 +217,16 @@ const emptyMembershipForm = {
 };
 
 export default function CompanyAdminSection() {
-  const { currentCompany } = useAuthStore();
+  const { currentCompany, user } = useAuthStore();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('');
   const [userForm, setUserForm] = useState(emptyUserForm);
   const [membershipForm, setMembershipForm] = useState(emptyMembershipForm);
   const [editingMembership, setEditingMembership] = useState<ManagedUserMembershipSummary | null>(null);
+  // Deactivating a member locks them out of the company, so it takes a
+  // second, explicit press rather than riding along with a role edit.
+  const [confirmDeactivation, setConfirmDeactivation] = useState(false);
   const [expandedModuleIds, setExpandedModuleIds] = useState<Set<number>>(new Set());
 
   const isCompanyAdmin = currentCompany?.role === 'admin';
@@ -193,8 +253,24 @@ export default function CompanyAdminSection() {
     void loadUsers();
   }, [loadUsers, currentCompany?.id]);
 
+  const visibleUsers = useMemo(() => {
+    const needle = filter.trim().toLowerCase();
+    if (!needle) return users;
+    return users.filter((candidate) =>
+      [candidate.full_name, candidate.username, candidate.email]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle)),
+    );
+  }, [filter, users]);
+
   if (!isCompanyAdmin) {
-    return null;
+    return (
+      <SettingsCard title="Сотрудники и доступ">
+        <p className="text-sm text-[var(--erp-muted)]">
+          Управлять сотрудниками может только администратор компании.
+        </p>
+      </SettingsCard>
+    );
   }
 
   const toggleModules = (membershipId: number) => {
@@ -207,6 +283,16 @@ export default function CompanyAdminSection() {
       }
       return next;
     });
+  };
+
+  const startEditing = (membership: ManagedUserMembershipSummary) => {
+    setConfirmDeactivation(false);
+    setEditingMembership(membership);
+  };
+
+  const cancelEditing = () => {
+    setConfirmDeactivation(false);
+    setEditingMembership(null);
   };
 
   const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -233,19 +319,14 @@ export default function CompanyAdminSection() {
     }
   };
 
-  const handleUpdateMembership = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!editingMembership) {
-      return;
-    }
-
+  const saveMembership = async (draft: ManagedUserMembershipSummary) => {
     try {
-      await adminApi.updateMembership(editingMembership.id, {
-        role: editingMembership.role,
-        is_default: editingMembership.is_default,
-        is_active: editingMembership.is_active,
+      await adminApi.updateMembership(draft.id, {
+        role: draft.role,
+        is_default: draft.is_default,
+        is_active: draft.is_active,
       });
-      setEditingMembership(null);
+      cancelEditing();
       toast.success('Участие обновлено.');
       await loadUsers();
     } catch (error: any) {
@@ -255,338 +336,418 @@ export default function CompanyAdminSection() {
     }
   };
 
+  const handleUpdateMembership = (
+    event: React.FormEvent<HTMLFormElement>,
+    original: ManagedUserMembershipSummary,
+  ) => {
+    event.preventDefault();
+    if (!editingMembership) {
+      return;
+    }
+
+    if (original.is_active && !editingMembership.is_active && !confirmDeactivation) {
+      setConfirmDeactivation(true);
+      return;
+    }
+
+    void saveMembership(editingMembership);
+  };
+
   return (
-    <section className="border-2 border-[var(--erp-divider)] bg-white p-5">
-      <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--erp-accent)]">
-          Администратор компании
-        </p>
-        <h2 className="mt-2 text-[22px] font-extrabold tracking-tight text-[var(--erp-text)]">Управление доступом команды</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Создавайте пользователей для этой компании или привязывайте существующего пользователя по имени пользователя или email.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <SettingsCard
+        title="Сотрудники компании"
+        description="Кто может входить в это рабочее пространство и на каком уровне."
+        actions={
+          <StatusBadge tone="idle">
+            {loading ? 'Загрузка' : `Всего: ${users.length}`}
+          </StatusBadge>
+        }
+      >
+        {loading ? (
+          <p className="text-sm text-[var(--erp-muted)]">Загрузка пользователей компании…</p>
+        ) : users.length === 0 ? (
+          <p className="text-sm text-[var(--erp-muted)]">
+            К этой компании пока не привязан ни один пользователь.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <div className="max-w-[22rem]">
+              <label htmlFor="member-filter" className="sr-only">
+                Поиск сотрудника
+              </label>
+              <input
+                id="member-filter"
+                type="search"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                placeholder="Поиск по имени или email"
+                className={inputClass}
+              />
+            </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <form onSubmit={handleCreateUser} className="space-y-3 border border-[var(--erp-divider)] p-4">
-          <h3 className="text-sm font-semibold text-[var(--erp-text)]">Создать пользователя</h3>
-          {/* Labels, not placeholders: a placeholder disappears on the first
-              keystroke and screen readers announce these fields as blank. */}
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-[var(--erp-muted)]">
-              Имя пользователя
-            </span>
-            <input
-              value={userForm.username}
-              onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))}
-              placeholder="Имя пользователя"
-              autoComplete="off"
-              autoCapitalize="none"
-              required
-              className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-[var(--erp-muted)]">Email</span>
-            <input
-              type="email"
-              value={userForm.email}
-              onChange={(event) => setUserForm((current) => ({ ...current, email: event.target.value }))}
-              placeholder="Email"
-              autoComplete="off"
-              required
-              className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-[var(--erp-muted)]">Полное имя</span>
-            <input
-              value={userForm.full_name}
-              onChange={(event) => setUserForm((current) => ({ ...current, full_name: event.target.value }))}
-              placeholder="Полное имя"
-              className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-[var(--erp-muted)]">Пароль</span>
-            <input
-              type="password"
-              value={userForm.password}
-              onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))}
-              placeholder="Пароль"
-              // new-password, or the browser offers to fill the admin's own.
-              autoComplete="new-password"
-              required
-              className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
-            />
-          </label>
-          <div className="grid grid-cols-3 gap-3">
-            <select
-              value={userForm.role}
-              onChange={(event) =>
-                setUserForm((current) => ({ ...current, role: event.target.value as UserRole }))
-              }
-              className="h-11 border border-[var(--erp-divider)] bg-white px-3 text-sm"
-            >
-              {roleOptions.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
-            <label className="inline-flex h-11 items-center gap-2 border border-[var(--erp-divider)] px-3 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={userForm.is_active}
-                onChange={(event) =>
-                  setUserForm((current) => ({ ...current, is_active: event.target.checked }))
-                }
-              />
-              Активен
-            </label>
-            <label className="inline-flex h-11 items-center gap-2 border border-[var(--erp-divider)] px-3 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={userForm.is_default}
-                onChange={(event) =>
-                  setUserForm((current) => ({ ...current, is_default: event.target.checked }))
-                }
-              />
-              По умолчанию
-            </label>
-          </div>
-          <button
-            type="submit"
-            className="inline-flex h-11 items-center justify-center bg-[var(--erp-accent)] px-4 text-sm font-semibold text-white transition hover:opacity-90"
-          >
-            Создать пользователя компании
-          </button>
-        </form>
-
-        <form onSubmit={handleAttachUser} className="space-y-3 border border-[var(--erp-divider)] p-4">
-          <h3 className="text-sm font-semibold text-[var(--erp-text)]">Привязать существующего пользователя</h3>
-          <input
-            value={membershipForm.identifier}
-            onChange={(event) =>
-              setMembershipForm((current) => ({ ...current, identifier: event.target.value }))
-            }
-            placeholder="Имя пользователя или email"
-            required
-            className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm"
-          />
-          <div className="grid grid-cols-3 gap-3">
-            <select
-              value={membershipForm.role}
-              onChange={(event) =>
-                setMembershipForm((current) => ({
-                  ...current,
-                  role: event.target.value as UserRole,
-                }))
-              }
-              className="h-11 border border-[var(--erp-divider)] bg-white px-3 text-sm"
-            >
-              {roleOptions.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
-            <label className="inline-flex h-11 items-center gap-2 border border-[var(--erp-divider)] px-3 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={membershipForm.is_active}
-                onChange={(event) =>
-                  setMembershipForm((current) => ({ ...current, is_active: event.target.checked }))
-                }
-              />
-              Активен
-            </label>
-            <label className="inline-flex h-11 items-center gap-2 border border-[var(--erp-divider)] px-3 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={membershipForm.is_default}
-                onChange={(event) =>
-                  setMembershipForm((current) => ({ ...current, is_default: event.target.checked }))
-                }
-              />
-              По умолчанию
-            </label>
-          </div>
-          <button
-            type="submit"
-            className="inline-flex h-11 items-center justify-center border border-[var(--erp-divider)] bg-white px-4 text-sm font-semibold text-[var(--erp-text)] transition hover:border-[var(--erp-text)]"
-          >
-            Привязать существующего пользователя
-          </button>
-        </form>
-      </div>
-
-      <div className="mt-5 overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-[var(--erp-surface)] text-[var(--erp-muted)]">
-            <tr>
-              <th className="px-3 py-2 font-medium">Пользователь</th>
-              <th className="px-3 py-2 font-medium">Email</th>
-              <th className="px-3 py-2 font-medium">Роль</th>
-              <th className="px-3 py-2 font-medium">По умолчанию</th>
-              <th className="px-3 py-2 font-medium">Статус</th>
-              <th className="px-3 py-2 font-medium">Действия</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="px-3 py-4 text-slate-500">
-                  Загрузка пользователей компании...
-                </td>
-              </tr>
-            ) : users.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-3 py-4 text-slate-500">
-                  К этой компании пока не привязан ни один пользователь.
-                </td>
-              </tr>
+            {visibleUsers.length === 0 ? (
+              <p className="text-sm text-[var(--erp-muted)]">
+                Никто не найден по запросу «{filter}».
+              </p>
             ) : (
-              users.map((user) => {
-                const membership = user.memberships[0];
-                const isEditing = editingMembership?.id === membership?.id;
+              <ul className="space-y-2">
+                {visibleUsers.map((member) => {
+                  const membership = member.memberships[0];
+                  const isEditing = Boolean(membership) && editingMembership?.id === membership.id;
+                  const isSelf = user?.id === member.id;
+                  const modulesOpen = Boolean(membership) && expandedModuleIds.has(membership.id);
 
-                return (
-                  <Fragment key={user.id}>
-                    <tr className="border-t border-[var(--erp-divider)]">
-                    <td className="px-3 py-3">{user.full_name || user.username}</td>
-                    <td className="px-3 py-3">{user.email}</td>
-                    <td className="px-3 py-3">
-                      {membership ? (
-                        isEditing ? (
-                          <select
-                            value={editingMembership.role}
-                            onChange={(event) =>
-                              setEditingMembership((current) =>
-                                current ? { ...current, role: event.target.value as UserRole } : current,
-                              )
-                            }
-                            className="h-10 border border-[var(--erp-divider)] bg-white px-3"
-                          >
-                            {roleOptions.map((role) => (
-                              <option key={role} value={role}>
-                                {role}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          membership.role
-                        )
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      {membership ? (
-                        isEditing ? (
-                          <input
-                            type="checkbox"
-                            checked={editingMembership.is_default}
-                            onChange={(event) =>
-                              setEditingMembership((current) =>
-                                current ? { ...current, is_default: event.target.checked } : current,
-                              )
-                            }
-                          />
-                        ) : membership.is_default ? (
-                          'Да'
-                        ) : (
-                          'Нет'
-                        )
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      {membership ? (
-                        isEditing ? (
-                          <input
-                            type="checkbox"
-                            checked={editingMembership.is_active}
-                            onChange={(event) =>
-                              setEditingMembership((current) =>
-                                current ? { ...current, is_active: event.target.checked } : current,
-                              )
-                            }
-                          />
-                        ) : membership.is_active ? (
-                          'Активен'
-                        ) : (
-                          'Неактивен'
-                        )
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      {membership ? (
-                        isEditing ? (
-                          <form onSubmit={handleUpdateMembership} className="flex gap-2">
-                            <button
-                              type="submit"
-                              className="bg-[var(--erp-accent)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-white"
+                  return (
+                    <li
+                      key={member.id}
+                      className="border border-[var(--erp-divider)] bg-white p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                        <div className="min-w-0">
+                          <p className="text-[15px] font-extrabold tracking-tight text-[var(--erp-text)]">
+                            {member.full_name || member.username}
+                          </p>
+                          <p className="mt-0.5 break-words text-[12px] text-[var(--erp-muted)]">
+                            {member.email} · @{member.username}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {isSelf ? <StatusBadge tone="idle">Это вы</StatusBadge> : null}
+                          {membership?.is_default ? (
+                            <StatusBadge tone="idle">По умолчанию</StatusBadge>
+                          ) : null}
+                          {membership ? (
+                            membership.is_active ? (
+                              <StatusBadge tone="ok">Активен</StatusBadge>
+                            ) : (
+                              <StatusBadge tone="danger">Неактивен</StatusBadge>
+                            )
+                          ) : (
+                            <StatusBadge tone="idle">Нет участия</StatusBadge>
+                          )}
+                        </div>
+                      </div>
+
+                      {!membership ? null : isEditing && editingMembership ? (
+                        <form
+                          onSubmit={(event) => handleUpdateMembership(event, membership)}
+                          className="mt-3 border-t border-[var(--erp-divider)] pt-3"
+                        >
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <FormField id={`role-${membership.id}`} label="Роль">
+                              <select
+                                id={`role-${membership.id}`}
+                                value={editingMembership.role}
+                                onChange={(event) =>
+                                  setEditingMembership((current) =>
+                                    current
+                                      ? { ...current, role: event.target.value as UserRole }
+                                      : current,
+                                  )
+                                }
+                                className={selectClass}
+                              >
+                                {roleOptions.map((role) => (
+                                  <option key={role} value={role}>
+                                    {ROLE_LABELS[role] ?? role}
+                                  </option>
+                                ))}
+                              </select>
+                            </FormField>
+                            <div className="flex items-end">
+                              <CheckboxField
+                                id={`default-${membership.id}`}
+                                label="Компания по умолчанию"
+                                checked={editingMembership.is_default}
+                                onChange={(next) =>
+                                  setEditingMembership((current) =>
+                                    current ? { ...current, is_default: next } : current,
+                                  )
+                                }
+                              />
+                            </div>
+                            <div className="flex items-end">
+                              <CheckboxField
+                                id={`active-${membership.id}`}
+                                label="Доступ разрешён"
+                                checked={editingMembership.is_active}
+                                onChange={(next) => {
+                                  setConfirmDeactivation(false);
+                                  setEditingMembership((current) =>
+                                    current ? { ...current, is_active: next } : current,
+                                  );
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {confirmDeactivation ? (
+                            <div
+                              role="alert"
+                              className="mt-3 border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-3"
                             >
-                              Сохранить
-                            </button>
+                              <p className="text-[13px] font-semibold text-[var(--erp-text)]">
+                                Отключить доступ для «{member.full_name || member.username}»?
+                              </p>
+                              <p className="mt-1 text-[12px] leading-snug text-[var(--erp-muted)]">
+                                {isSelf
+                                  ? 'Это ваша учётная запись — вы потеряете доступ к этой компании.'
+                                  : 'Сотрудник не сможет войти в эту компанию, пока доступ не вернут.'}
+                              </p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button type="submit" className={dangerButtonClass}>
+                                  Отключить доступ
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeactivation(false)}
+                                  className={secondaryButtonClass}
+                                >
+                                  Отмена
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button type="submit" className={primaryButtonClass}>
+                                Сохранить участие
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditing}
+                                className={secondaryButtonClass}
+                              >
+                                Отмена
+                              </button>
+                            </div>
+                          )}
+                        </form>
+                      ) : (
+                        <>
+                          <p className="mt-2 text-[13px] text-[var(--erp-muted)]">
+                            Роль:{' '}
+                            <span className="font-semibold text-[var(--erp-text)]">
+                              {ROLE_LABELS[membership.role] ?? membership.role}
+                            </span>
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2">
                             <button
                               type="button"
-                              onClick={() => setEditingMembership(null)}
-                              className="border border-[var(--erp-divider)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-[var(--erp-text)] hover:border-[var(--erp-text)]"
-                            >
-                              Отмена
-                            </button>
-                          </form>
-                        ) : (
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setEditingMembership(membership)}
-                              className="border border-[var(--erp-divider)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-[var(--erp-text)] hover:border-[var(--erp-text)]"
+                              onClick={() => startEditing(membership)}
+                              className={secondaryButtonClass}
                             >
                               Изменить участие
                             </button>
                             <button
                               type="button"
                               onClick={() => toggleModules(membership.id)}
-                              className="border border-[var(--erp-divider)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-[var(--erp-text)] hover:border-[var(--erp-text)]"
+                              aria-expanded={modulesOpen}
+                              aria-controls={`modules-${membership.id}`}
+                              className={secondaryButtonClass}
                             >
-                              {expandedModuleIds.has(membership.id)
-                                ? 'Скрыть модули'
-                                : 'Доступ к модулям'}
+                              {modulesOpen ? 'Скрыть модули' : 'Доступ к модулям'}
                             </button>
                           </div>
-                        )
-                      ) : (
-                        '—'
+                        </>
                       )}
-                    </td>
-                  </tr>
-                  {membership && expandedModuleIds.has(membership.id) && (
-                    <tr className="border-t border-[var(--erp-divider)] bg-[var(--erp-surface)]">
-                      <td colSpan={6} className="px-3 py-4">
-                        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--erp-muted)]">
-                          Доступ к модулям
-                        </p>
-                        {membership.role === 'admin' ? (
-                          <p className="text-sm text-slate-700">Полный доступ (администратор)</p>
-                        ) : (
-                          <MembershipModulesEditor membershipId={membership.id} />
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                  </Fragment>
-                );
-              })
+
+                      {membership && modulesOpen ? (
+                        <div
+                          id={`modules-${membership.id}`}
+                          className="mt-3 border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-4"
+                        >
+                          <h4 className="mb-3 text-[13px] font-extrabold text-[var(--erp-text)]">
+                            Доступ к модулям
+                          </h4>
+                          {membership.role === 'admin' ? (
+                            <p className="text-sm text-[var(--erp-text)]">
+                              Полный доступ ко всем модулям (администратор).
+                            </p>
+                          ) : (
+                            <MembershipModulesEditor membershipId={membership.id} />
+                          )}
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
             )}
-          </tbody>
-        </table>
-      </div>
-    </section>
+          </div>
+        )}
+      </SettingsCard>
+
+      <SettingsCard
+        title="Добавить сотрудника"
+        description="Создайте нового пользователя для этой компании или привяжите существующего по имени пользователя либо email."
+      >
+        <div className="grid gap-5 xl:grid-cols-2">
+          <form
+            onSubmit={handleCreateUser}
+            className="space-y-3 border border-[var(--erp-divider)] p-4"
+          >
+            <h4 className="text-[13px] font-extrabold text-[var(--erp-text)]">
+              Новый пользователь
+            </h4>
+            {/* Labels, not placeholders: a placeholder disappears on the first
+                keystroke and screen readers announce these fields as blank. */}
+            <FormField id="new-user-username" label="Имя пользователя">
+              <input
+                id="new-user-username"
+                value={userForm.username}
+                onChange={(event) =>
+                  setUserForm((current) => ({ ...current, username: event.target.value }))
+                }
+                autoComplete="off"
+                autoCapitalize="none"
+                required
+                className={inputClass}
+              />
+            </FormField>
+            <FormField id="new-user-email" label="Email">
+              <input
+                id="new-user-email"
+                type="email"
+                value={userForm.email}
+                onChange={(event) =>
+                  setUserForm((current) => ({ ...current, email: event.target.value }))
+                }
+                autoComplete="off"
+                required
+                className={inputClass}
+              />
+            </FormField>
+            <FormField id="new-user-fullname" label="Полное имя">
+              <input
+                id="new-user-fullname"
+                value={userForm.full_name}
+                onChange={(event) =>
+                  setUserForm((current) => ({ ...current, full_name: event.target.value }))
+                }
+                className={inputClass}
+              />
+            </FormField>
+            <FormField
+              id="new-user-password"
+              label="Пароль"
+              hint="Сотрудник войдёт с этим паролем — передайте его лично."
+            >
+              <input
+                id="new-user-password"
+                type="password"
+                value={userForm.password}
+                onChange={(event) =>
+                  setUserForm((current) => ({ ...current, password: event.target.value }))
+                }
+                // new-password, or the browser offers to fill the admin's own.
+                autoComplete="new-password"
+                aria-describedby="new-user-password-hint"
+                required
+                className={inputClass}
+              />
+            </FormField>
+            <FormField id="new-user-role" label="Роль">
+              <select
+                id="new-user-role"
+                value={userForm.role}
+                onChange={(event) =>
+                  setUserForm((current) => ({ ...current, role: event.target.value as UserRole }))
+                }
+                className={selectClass}
+              >
+                {roleOptions.map((role) => (
+                  <option key={role} value={role}>
+                    {ROLE_LABELS[role] ?? role}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <CheckboxField
+                id="new-user-active"
+                label="Доступ разрешён"
+                checked={userForm.is_active}
+                onChange={(next) => setUserForm((current) => ({ ...current, is_active: next }))}
+              />
+              <CheckboxField
+                id="new-user-default"
+                label="Компания по умолчанию"
+                checked={userForm.is_default}
+                onChange={(next) => setUserForm((current) => ({ ...current, is_default: next }))}
+              />
+            </div>
+            <button type="submit" className={`${primaryButtonClass} w-full sm:w-auto`}>
+              Создать пользователя компании
+            </button>
+          </form>
+
+          <form
+            onSubmit={handleAttachUser}
+            className="space-y-3 border border-[var(--erp-divider)] p-4"
+          >
+            <h4 className="text-[13px] font-extrabold text-[var(--erp-text)]">
+              Существующий пользователь
+            </h4>
+            <FormField
+              id="attach-identifier"
+              label="Имя пользователя или email"
+              hint="Учётная запись уже есть в Sellary — вы даёте ей доступ к этой компании."
+            >
+              <input
+                id="attach-identifier"
+                value={membershipForm.identifier}
+                onChange={(event) =>
+                  setMembershipForm((current) => ({ ...current, identifier: event.target.value }))
+                }
+                aria-describedby="attach-identifier-hint"
+                required
+                className={inputClass}
+              />
+            </FormField>
+            <FormField id="attach-role" label="Роль">
+              <select
+                id="attach-role"
+                value={membershipForm.role}
+                onChange={(event) =>
+                  setMembershipForm((current) => ({
+                    ...current,
+                    role: event.target.value as UserRole,
+                  }))
+                }
+                className={selectClass}
+              >
+                {roleOptions.map((role) => (
+                  <option key={role} value={role}>
+                    {ROLE_LABELS[role] ?? role}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <CheckboxField
+                id="attach-active"
+                label="Доступ разрешён"
+                checked={membershipForm.is_active}
+                onChange={(next) =>
+                  setMembershipForm((current) => ({ ...current, is_active: next }))
+                }
+              />
+              <CheckboxField
+                id="attach-default"
+                label="Компания по умолчанию"
+                checked={membershipForm.is_default}
+                onChange={(next) =>
+                  setMembershipForm((current) => ({ ...current, is_default: next }))
+                }
+              />
+            </div>
+            <button type="submit" className={`${secondaryButtonClass} w-full sm:w-auto`}>
+              Привязать существующего пользователя
+            </button>
+          </form>
+        </div>
+      </SettingsCard>
+    </div>
   );
 }

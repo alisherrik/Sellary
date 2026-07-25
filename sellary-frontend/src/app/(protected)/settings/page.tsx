@@ -1,242 +1,110 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
-import { BanknotesIcon, PrinterIcon, ServerIcon } from '@heroicons/react/24/outline';
-import { CheckCircleIcon } from '@heroicons/react/24/solid';
+import { useMemo, useState } from 'react';
+import {
+  BuildingOffice2Icon,
+  BuildingStorefrontIcon,
+  ServerStackIcon,
+  UsersIcon,
+} from '@heroicons/react/24/outline';
 
 import CompanyAdminSection from '@/components/settings/CompanyAdminSection';
+import CompanyProfileSection from '@/components/settings/CompanyProfileSection';
 import MarketplaceSettingsSection from '@/components/settings/MarketplaceSettingsSection';
-import { useServerHealth } from '@/providers/ServerHealthProvider';
-import { CURRENCIES, CurrencyCode, useSettingsStore } from '@/store/settingsStore';
+import SettingsNav, {
+  panelDomId,
+  tabDomId,
+  type SettingsSectionDef,
+} from '@/components/settings/SettingsNav';
+import SystemStatusSection from '@/components/settings/SystemStatusSection';
+import { useAuthStore } from '@/lib/store';
 
-function StatusBadge({
-  enabled,
-  activeLabel = 'Включено',
-  inactiveLabel = 'Отключено',
-}: {
-  enabled: boolean;
-  activeLabel?: string;
-  inactiveLabel?: string;
-}) {
-  return (
-    <span
-      className={`inline-flex px-2.5 py-1 text-xs font-medium ${
-        enabled ? 'bg-green-50 text-[var(--erp-success)]' : 'bg-gray-100 text-gray-600'
-      }`}
-    >
-      {enabled ? activeLabel : inactiveLabel}
-    </span>
-  );
-}
+const COMPANY: SettingsSectionDef = {
+  id: 'company',
+  label: 'Компания',
+  summary: 'Реквизиты рабочего пространства, валюта и печать чека.',
+  Icon: BuildingOffice2Icon,
+};
 
+const MARKETPLACE: SettingsSectionDef = {
+  id: 'marketplace',
+  label: 'Магазин',
+  summary: 'Витрина в Telegram-маркетплейсе и способы получения заказа.',
+  Icon: BuildingStorefrontIcon,
+};
+
+const TEAM: SettingsSectionDef = {
+  id: 'team',
+  label: 'Сотрудники',
+  summary: 'Кто работает в компании, с какой ролью и к каким модулям имеет доступ.',
+  Icon: UsersIcon,
+};
+
+const SYSTEM: SettingsSectionDef = {
+  id: 'system',
+  label: 'Система',
+  summary: 'Связь с сервером, версии и состав релиза.',
+  Icon: ServerStackIcon,
+};
+
+/**
+ * Settings is four separate jobs — company preferences, the storefront, staff
+ * access, and system status — so it is four panels behind one switcher rather
+ * than one long scroll. Every section is listed at once (a sticky column from
+ * `lg` up, a pinned scrolling strip on a phone) and any of them is one press
+ * away.
+ */
 export default function SettingsPage() {
-  const { currency, setCurrency, receiptPrintEnabled, setReceiptPrintEnabled } = useSettingsStore();
-  const { isServerReachable, isChecking } = useServerHealth();
-  const [backendVersion, setBackendVersion] = useState<string | null>(null);
+  const currentCompany = useAuthStore((state) => state.currentCompany);
+  const isAdmin = currentCompany?.role === 'admin';
 
-  const frontendVersion = process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0';
+  // Staff administration is admin-only; the tab would otherwise open onto a
+  // panel that has nothing to show.
+  const sections = useMemo(
+    () => (isAdmin ? [COMPANY, MARKETPLACE, TEAM, SYSTEM] : [COMPANY, MARKETPLACE, SYSTEM]),
+    [isAdmin],
+  );
 
-  useEffect(() => {
-    if (isServerReachable) {
-      fetch('/health', { method: 'GET' })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.version) {
-            setBackendVersion(data.version);
-          }
-        })
-        .catch(() => setBackendVersion(null));
-    }
-  }, [isServerReachable]);
-
-  const handleCurrencyChange = (code: CurrencyCode) => {
-    setCurrency(code);
-    toast.success(`Валюта изменена на ${CURRENCIES[code].name}.`);
-  };
-
-  const handleReceiptPrintToggle = () => {
-    const next = !receiptPrintEnabled;
-    setReceiptPrintEnabled(next);
-    toast.success(next ? 'Печать чека включена.' : 'Печать чека отключена.');
-  };
+  const [activeId, setActiveId] = useState(COMPANY.id);
+  const active = sections.find((section) => section.id === activeId) ?? sections[0];
 
   return (
-    <div className="h-full overflow-y-auto mobile-no-overscroll p-4 space-y-6">
-      <div>
-        <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Настройки</h2>
+    <div className="mx-auto w-full max-w-[1180px] px-4 py-5 lg:px-8 lg:py-8">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--erp-accent)] lg:tracking-[0.18em]">
+        Компания · {(currentCompany?.name || '').toUpperCase()}
       </div>
+      <h1 className="mt-1.5 text-[26px] font-extrabold tracking-tight text-[var(--erp-text)] lg:mt-2 lg:text-[34px]">
+        Настройки
+      </h1>
+      <p className="mt-1 max-w-[60ch] text-[13px] leading-snug text-[var(--erp-muted)] lg:text-[15px]">
+        Всё, что настраивается для этой компании: реквизиты и касса, витрина магазина,
+        сотрудники и состояние системы.
+      </p>
 
-      <section className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
-        <div className="border-b border-[var(--erp-divider)] p-4 sm:p-6">
-          <div className="flex items-center gap-2">
-            <BanknotesIcon className="h-5 w-5 text-gray-500" />
-            <h2 className="text-lg font-bold text-[var(--erp-text)]">Валюта</h2>
-          </div>
-          <p className="mt-1 text-sm text-gray-500">
-            Выберите валюту по умолчанию, используемую в ценах, отчётах и чеках.
+      <div className="mt-5 lg:mt-7 lg:grid lg:grid-cols-[228px_minmax(0,1fr)] lg:items-start lg:gap-8">
+        <SettingsNav sections={sections} activeId={active.id} onSelect={setActiveId} />
+
+        <div
+          key={active.id}
+          id={panelDomId(active.id)}
+          role="tabpanel"
+          aria-labelledby={tabDomId(active.id)}
+          tabIndex={0}
+          className="mt-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] lg:mt-0"
+        >
+          <h2 className="text-[19px] font-extrabold tracking-tight text-[var(--erp-text)]">
+            {active.label}
+          </h2>
+          <p className="mb-4 mt-1 max-w-[68ch] text-[13px] leading-snug text-[var(--erp-muted)]">
+            {active.summary}
           </p>
+
+          {active.id === COMPANY.id && <CompanyProfileSection />}
+          {active.id === MARKETPLACE.id && <MarketplaceSettingsSection />}
+          {active.id === TEAM.id && <CompanyAdminSection />}
+          {active.id === SYSTEM.id && <SystemStatusSection />}
         </div>
-
-        <div className="p-4 sm:p-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {(Object.values(CURRENCIES) as Array<(typeof CURRENCIES)[CurrencyCode]>).map((curr) => {
-              const isSelected = currency === curr.code;
-              return (
-                <button
-                  key={curr.code}
-                  onClick={() => handleCurrencyChange(curr.code)}
-                  className={`relative flex flex-col items-start border-2 p-4 transition-all ${
-                    isSelected
-                      ? 'border-[var(--erp-text)] bg-[var(--erp-surface)]'
-                      : 'border-[var(--erp-divider)] bg-white hover:border-[var(--erp-text)]'
-                  }`}
-                >
-                  {isSelected && (
-                    <div className="absolute right-2 top-2">
-                      <CheckCircleIcon className="h-5 w-5 text-[var(--erp-accent)]" />
-                    </div>
-                  )}
-
-                  <span className={`mb-2 text-2xl ${isSelected ? 'text-[var(--erp-accent)]' : 'text-[var(--erp-muted)]'}`}>
-                    {curr.symbol}
-                  </span>
-                  <span className="text-sm font-semibold text-[var(--erp-text)]">{curr.code}</span>
-                  <span className="mt-1 text-left text-xs text-gray-500">{curr.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
-        <div className="border-b border-[var(--erp-divider)] p-4 sm:p-6">
-          <div className="flex items-center gap-2">
-            <PrinterIcon className="h-5 w-5 text-gray-500" />
-            <h2 className="text-lg font-bold text-[var(--erp-text)]">Печать чека</h2>
-          </div>
-          <p className="mt-1 text-sm text-gray-500">
-            Управляйте печатью чека после продажи. Когда печать выключена — после
-            продажи ничего не печатается и не открывается окно «Сохранить как PDF».
-          </p>
-        </div>
-
-        <div className="p-4 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-[var(--erp-text)]">
-                Печатать чек после продажи
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Включите, когда подключён принтер. Чтобы чек печатался сразу, без
-                диалога и PDF: сделайте чековый принтер принтером по умолчанию в
-                Windows и запускайте Chrome с флагом{' '}
-                <code className="bg-gray-100 px-1 py-0.5 text-[11px]">
-                  --kiosk-printing
-                </code>
-                .
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={receiptPrintEnabled}
-              aria-label="Печатать чек после продажи"
-              onClick={handleReceiptPrintToggle}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] after:absolute after:-inset-y-2.5 after:inset-x-0 after:content-[""] ${
-                receiptPrintEnabled ? 'bg-[var(--erp-success)]' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                  receiptPrintEnabled ? 'translate-x-5' : 'translate-x-0.5'
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="mt-4">
-            <StatusBadge
-              enabled={receiptPrintEnabled}
-              activeLabel="Печать включена"
-              inactiveLabel="Печать отключена"
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
-        <div className="border-b border-[var(--erp-divider)] p-4 sm:p-6">
-          <div className="flex items-center gap-2">
-            <ServerIcon className="h-5 w-5 text-gray-500" />
-            <h2 className="text-lg font-bold text-[var(--erp-text)]">Статус релиза</h2>
-          </div>
-          <p className="mt-1 text-sm text-gray-500">
-            Быстрый обзор того, какие модули MVP доступны в данный момент.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 p-4 sm:p-6 md:grid-cols-2 xl:grid-cols-3">
-          <div className="border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-4">
-            <div className="text-sm font-medium text-[var(--erp-text)]">Backend</div>
-            <div className="mt-3">
-              {isChecking ? (
-                <StatusBadge enabled={false} activeLabel="В сети" inactiveLabel="Проверка" />
-              ) : (
-                <StatusBadge
-                  enabled={isServerReachable}
-                  activeLabel="В сети"
-                  inactiveLabel="Не в сети"
-                />
-              )}
-            </div>
-          </div>
-
-          <div className="border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-4">
-            <div className="text-sm font-medium text-[var(--erp-text)]">Розничная касса</div>
-            <div className="mt-3">
-              <StatusBadge enabled activeLabel="Активно" inactiveLabel="Отключено" />
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      <section className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
-        <div className="border-b border-[var(--erp-divider)] p-4 sm:p-6">
-          <div className="flex items-center gap-2">
-            <ServerIcon className="h-5 w-5 text-gray-500" />
-            <h2 className="text-lg font-bold text-[var(--erp-text)]">Версия</h2>
-          </div>
-          <p className="mt-1 text-sm text-gray-500">
-            Развёрнутые версии сервера и клиента.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 p-4 sm:p-6 md:grid-cols-2">
-          <div className="border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-4">
-            <div className="text-sm font-medium text-[var(--erp-text)]">Сервер</div>
-            <div className="mt-1 text-2xl font-extrabold text-[var(--erp-text)]">
-              {isServerReachable && backendVersion ? `v${backendVersion}` : '—'}
-            </div>
-            <div className="mt-1 text-xs text-gray-500">
-              {isChecking ? 'Проверка...' : isServerReachable ? 'Railway' : 'Недоступен'}
-            </div>
-          </div>
-
-          <div className="border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-4">
-            <div className="text-sm font-medium text-[var(--erp-text)]">Клиент</div>
-            <div className="mt-1 text-2xl font-extrabold text-[var(--erp-text)]">
-              v{frontendVersion}
-            </div>
-            <div className="mt-1 text-xs text-gray-500">Netlify</div>
-          </div>
-        </div>
-      </section>
-
-      <MarketplaceSettingsSection />
-      <CompanyAdminSection />
+      </div>
     </div>
   );
 }

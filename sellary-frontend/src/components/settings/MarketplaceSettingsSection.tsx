@@ -2,13 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { BuildingStorefrontIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
 import { companyApi } from '@/lib/api';
 import { queryKeys, useMarketplaceSettings } from '@/hooks/useQueries';
 import { useAuthStore } from '@/lib/store';
 import type { MarketplaceSettings, MarketplaceSettingsUpdate } from '@/lib/types';
+
+import {
+  FormField,
+  SettingsCard,
+  SettingsToggle,
+  StatusBadge,
+  inputClass,
+  primaryButtonClass,
+  textareaClass,
+} from './SettingsUI';
 
 type FormState = {
   is_marketplace_enabled: boolean;
@@ -17,6 +26,8 @@ type FormState = {
   supports_delivery: boolean;
   supports_pickup: boolean;
 };
+
+const DESCRIPTION_LIMIT = 500;
 
 const toForm = (s: MarketplaceSettings): FormState => ({
   is_marketplace_enabled: s.is_marketplace_enabled,
@@ -45,38 +56,6 @@ const buildPatch = (
     patch.supports_pickup = form.supports_pickup;
   return patch;
 };
-
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-sm font-medium text-gray-900">{label}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] after:absolute after:-inset-y-2.5 after:inset-x-0 after:content-[""] ${
-          checked ? 'bg-[var(--erp-accent)]' : 'bg-gray-400'
-        }`}
-      >
-        <span
-          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-            checked ? 'translate-x-5' : 'translate-x-0.5'
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
 
 export default function MarketplaceSettingsSection() {
   const { data: settings, isLoading } = useMarketplaceSettings();
@@ -114,102 +93,114 @@ export default function MarketplaceSettingsSection() {
     saveMutation.mutate(patch);
   };
 
+  if (isLoading || !form) {
+    return (
+      <SettingsCard title="Витрина" description="Как магазин выглядит в Telegram-маркетплейсе.">
+        <p className="text-sm text-[var(--erp-muted)]">Загрузка настроек…</p>
+      </SettingsCard>
+    );
+  }
+
+  const noPickupOption = !form.supports_delivery && !form.supports_pickup;
+
   return (
-    <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-      <div className="border-b border-gray-100 p-4 sm:p-6">
-        <div className="flex items-center gap-2">
-          <BuildingStorefrontIcon className="h-5 w-5 text-gray-500" />
-          <h2 className="text-lg font-semibold text-gray-900">Магазин в маркетплейсе</h2>
-        </div>
-        <p className="mt-1 text-sm text-gray-500">
-          Настройте витрину: включите магазин, добавьте логотип и описание, выберите
-          способы доставки.
-        </p>
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <SettingsCard
+        title="Витрина"
+        description="Как магазин выглядит в Telegram-маркетплейсе."
+        actions={
+          form.is_marketplace_enabled ? (
+            <StatusBadge tone="ok">Магазин открыт</StatusBadge>
+          ) : (
+            <StatusBadge tone="idle">Магазин закрыт</StatusBadge>
+          )
+        }
+      >
+        <div className="max-w-[46rem] space-y-4">
+          <SettingsToggle
+            label="Включить маркетплейс"
+            description="Пока выключено, покупатели не видят ваш магазин."
+            checked={form.is_marketplace_enabled}
+            onChange={(next) =>
+              setForm((f) => (f ? { ...f, is_marketplace_enabled: next } : f))
+            }
+          />
 
-      <div className="p-4 sm:p-6">
-        {isLoading || !form ? (
-          <p className="text-sm text-gray-500">Загрузка настроек…</p>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <Toggle
-              label="Включить маркетплейс"
-              checked={form.is_marketplace_enabled}
-              onChange={(next) =>
-                setForm((f) => (f ? { ...f, is_marketplace_enabled: next } : f))
+          <FormField
+            id="mp-logo"
+            label="Ссылка на логотип"
+            hint="Прямая ссылка на изображение — оно показывается в шапке магазина."
+          >
+            <input
+              id="mp-logo"
+              type="url"
+              value={form.logo_url}
+              onChange={(e) =>
+                setForm((f) => (f ? { ...f, logo_url: e.target.value } : f))
               }
+              placeholder="https://…"
+              aria-describedby="mp-logo-hint"
+              className={inputClass}
             />
+          </FormField>
 
-            <div>
-              <label
-                htmlFor="mp-logo"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Ссылка на логотип
-              </label>
-              <input
-                id="mp-logo"
-                type="url"
-                value={form.logo_url}
-                onChange={(e) =>
-                  setForm((f) => (f ? { ...f, logo_url: e.target.value } : f))
-                }
-                placeholder="https://…"
-                className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"
-              />
-            </div>
+          <FormField
+            id="mp-description"
+            label="Описание магазина"
+            hint={`${form.marketplace_description.length} из ${DESCRIPTION_LIMIT} символов`}
+          >
+            <textarea
+              id="mp-description"
+              rows={3}
+              maxLength={DESCRIPTION_LIMIT}
+              value={form.marketplace_description}
+              onChange={(e) =>
+                setForm((f) =>
+                  f ? { ...f, marketplace_description: e.target.value } : f,
+                )
+              }
+              placeholder="Коротко о вашем магазине"
+              aria-describedby="mp-description-hint"
+              className={textareaClass}
+            />
+          </FormField>
+        </div>
+      </SettingsCard>
 
-            <div>
-              <label
-                htmlFor="mp-description"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Описание магазина
-              </label>
-              <textarea
-                id="mp-description"
-                maxLength={500}
-                value={form.marketplace_description}
-                onChange={(e) =>
-                  setForm((f) =>
-                    f ? { ...f, marketplace_description: e.target.value } : f,
-                  )
-                }
-                placeholder="Коротко о вашем магазине"
-                className="h-20 w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm"
-              />
-            </div>
+      <SettingsCard
+        title="Способы получения"
+        description="Хотя бы один способ нужен, чтобы покупатель мог оформить заказ."
+      >
+        <div className="max-w-[46rem] space-y-3">
+          <SettingsToggle
+            label="Доставка"
+            description="Курьер везёт заказ по адресу покупателя."
+            checked={form.supports_delivery}
+            onChange={(next) =>
+              setForm((f) => (f ? { ...f, supports_delivery: next } : f))
+            }
+          />
+          <SettingsToggle
+            label="Самовывоз"
+            description="Покупатель забирает заказ в магазине."
+            checked={form.supports_pickup}
+            onChange={(next) =>
+              setForm((f) => (f ? { ...f, supports_pickup: next } : f))
+            }
+          />
+          {noPickupOption ? (
+            <p role="alert" className="text-[12px] font-semibold text-[var(--erp-warn)]">
+              Оба способа выключены — покупатели не смогут оформить заказ.
+            </p>
+          ) : null}
+        </div>
+      </SettingsCard>
 
-            <div className="space-y-3 rounded-xl border border-gray-200 p-4">
-              <p className="text-sm font-semibold text-gray-900">Способы получения</p>
-              <Toggle
-                label="Доставка"
-                checked={form.supports_delivery}
-                onChange={(next) =>
-                  setForm((f) => (f ? { ...f, supports_delivery: next } : f))
-                }
-              />
-              <Toggle
-                label="Самовывоз"
-                checked={form.supports_pickup}
-                onChange={(next) =>
-                  setForm((f) => (f ? { ...f, supports_pickup: next } : f))
-                }
-              />
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={saveMutation.isPending}
-                className="inline-flex h-11 items-center justify-center rounded-xl bg-[var(--erp-accent)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--erp-accent-strong)] disabled:opacity-50"
-              >
-                {saveMutation.isPending ? 'Сохранение…' : 'Сохранить'}
-              </button>
-            </div>
-          </form>
-        )}
+      <div className="flex justify-end">
+        <button type="submit" disabled={saveMutation.isPending} className={primaryButtonClass}>
+          {saveMutation.isPending ? 'Сохранение…' : 'Сохранить'}
+        </button>
       </div>
-    </section>
+    </form>
   );
 }
