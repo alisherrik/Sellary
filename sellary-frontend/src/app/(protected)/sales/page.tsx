@@ -179,9 +179,11 @@ function SalesHistory() {
   const debtPaymentKey = useIdempotencyKey();
   const returnPanelRef = useRef<HTMLDivElement>(null);
   const debtPanelRef = useRef<HTMLDivElement>(null);
+  const mobileDetailRef = useRef<HTMLDivElement>(null);
 
   useDialogFocus(returnPanelRef, showReturnModal, () => setShowReturnModal(false));
   useDialogFocus(debtPanelRef, showDebtPaymentModal, () => setShowDebtPaymentModal(false));
+  useDialogFocus(mobileDetailRef, showDetail, () => setShowDetail(false));
 
   const salesParams = useMemo(() => {
     const params: Record<string, string | number> = { limit: 200 };
@@ -1088,10 +1090,16 @@ function SalesHistory() {
       {/* Detail modal — mobile only */}
       {showDetail && selectedSale && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm lg:hidden">
-          <div className="max-h-[90vh] w-full overflow-hidden bg-white shadow-2xl">
+          <div
+            ref={mobileDetailRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-detail-title"
+            className="max-h-[90dvh] w-full overflow-hidden border-t-2 border-[var(--erp-divider)] bg-white shadow-2xl"
+          >
             <div className="flex items-center justify-between border-b border-[var(--erp-divider)] px-4 py-3">
               <div>
-                <h2 className="font-mono text-base font-bold text-[var(--erp-text)]">Чек #{selectedSale.id}</h2>
+                <h2 id="mobile-detail-title" className="font-mono text-base font-bold text-[var(--erp-text)]">Чек #{selectedSale.id}</h2>
                 <p className="text-[10px] text-[var(--erp-muted)]">{new Date(selectedSale.created_at).toLocaleString('ru-RU')}</p>
               </div>
               <button onClick={() => setShowDetail(false)} className="p-1 text-[var(--erp-muted)] hover:text-[var(--erp-text)]">
