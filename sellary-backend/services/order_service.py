@@ -40,6 +40,7 @@ from schemas.order import (
 from schemas.sale import PaymentMethod, SaleCreate, SaleItemCreate
 from services.sale_service import SaleService
 from services.tenant import resolve_company_id
+from repositories.company_module_repository import CompanyModuleRepository
 
 # Valid forward-only status transitions (order lifecycle).
 _VALID_TRANSITIONS = {
@@ -105,7 +106,11 @@ class OrderService:
 
         # Gate: the target company must have marketplace enabled.
         company = self.db.get(Company, company_id)
-        if company is None or not company.is_marketplace_enabled:
+        if (
+            company is None
+            or not company.is_marketplace_enabled
+            or not CompanyModuleRepository(self.db).has_module(company.id, "shop")
+        ):
             raise ValueError(
                 f"Company {company_id} is not available on the marketplace"
             )

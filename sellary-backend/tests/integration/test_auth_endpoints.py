@@ -252,13 +252,19 @@ class TestSessionModules:
     def test_me_returns_modules_for_cashier(self, client, cashier_headers):
         resp = client.get("/api/auth/me", headers=cashier_headers)
         assert resp.status_code == 200
-        assert resp.json()["modules"] == {"pos": "user"}
+        assert resp.json()["modules"] == {
+            "register": "user",
+            "sales": "user",
+            "customers": "user",
+        }
 
     def test_me_returns_all_manager_for_admin(self, client, admin_headers):
         resp = client.get("/api/auth/me", headers=admin_headers)
         assert resp.status_code == 200
         assert resp.json()["modules"] == {
-            "pos": "manager",
+            "register": "manager",
+            "sales": "manager",
+            "customers": "manager",
             "inventory": "manager",
             "purchasing": "manager",
             "shop": "manager",

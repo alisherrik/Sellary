@@ -19,15 +19,25 @@ export interface ModuleDef {
 // not list a page here that has no corresponding route.
 export const MODULE_NAV: ModuleDef[] = [
   {
-    key: 'pos',
+    key: 'register',
     label: 'Касса',
-    tagline: 'Продажи, чеки, смены, клиенты',
+    tagline: 'Продажи и смены',
     pages: [
       { label: 'Касса', href: '/pos' },
-      { label: 'История продаж', href: '/sales' },
       { label: 'Смена', href: '/shifts' },
-      { label: 'Клиенты', href: '/customers' },
     ],
+  },
+  {
+    key: 'sales',
+    label: 'Продажи',
+    tagline: 'История продаж, возвраты',
+    pages: [{ label: 'История продаж', href: '/sales' }],
+  },
+  {
+    key: 'customers',
+    label: 'Клиенты',
+    tagline: 'Долги и история клиентов',
+    pages: [{ label: 'Клиенты', href: '/customers' }],
   },
   {
     key: 'inventory',
@@ -77,7 +87,7 @@ export const MOBILE_MAX_TABS = 4;
 
 /**
  * Modules the current user may open, in the canonical MODULE_NAV order
- * (pos, inventory, purchasing, shop, reports, settings). `settings` is
+ * (register, sales, customers, inventory, purchasing, shop, reports, settings). `settings` is
  * included only for admins — mirrors the desktop rail/launcher and the
  * mobile shell's tab-bar + "Ещё" sheet, keeping module-visibility logic in
  * one place.

@@ -31,7 +31,7 @@ describe('MoreSheet', () => {
   });
 
   it('lists every granted module, grouped, including ones already visible as tabs', () => {
-    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
+    state.modules = { register: 'manager', sales: 'manager', customers: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
     state.isAdmin = false;
     render(<MoreSheet isOpen={true} onClose={vi.fn()} />);
     // pos fills one of the 4 tab slots, but still gets a full group here —

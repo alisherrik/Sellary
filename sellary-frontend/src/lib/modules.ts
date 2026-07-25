@@ -1,4 +1,11 @@
-export type ModuleKey = 'pos' | 'inventory' | 'purchasing' | 'shop' | 'reports';
+export type ModuleKey =
+  | 'register'
+  | 'sales'
+  | 'customers'
+  | 'inventory'
+  | 'purchasing'
+  | 'shop'
+  | 'reports';
 export type ModuleLevel = 'user' | 'manager';
 export type ModuleMap = Partial<Record<ModuleKey, ModuleLevel>>;
 

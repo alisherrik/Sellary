@@ -3,9 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from core.database import Base
-
-MODULES = ("pos", "inventory", "purchasing", "shop", "reports")
-LEVELS = ("user", "manager")
+from core.modules import LEVELS, MODULES  # noqa: F401  (re-exported for existing importers)
 
 
 class MembershipModuleAccess(Base):

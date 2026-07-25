@@ -23,6 +23,8 @@ import type {
   UserRole,
 } from '@/lib/types';
 import PlatformSettingsSection from './PlatformSettingsSection';
+import CompanyModulesEditor, { type BusinessType } from './CompanyModulesEditor';
+import type { ModuleKey } from '@/lib/modules';
 
 const roleOptions: UserRole[] = ['admin', 'manager', 'cashier'];
 
@@ -424,10 +426,62 @@ function CompaniesSection({
             {companies.map((company) => {
               const isEditing = editingCompany?.id === company.id;
               return (
-                <tr key={company.id} className="border-t border-slate-100">
-                  <td className="px-3 py-3">{isEditing ? <InlineInput value={editingCompany.name} onChange={(value) => onEditChange((current) => current ? { ...current, name: value } : current)} /> : company.name}</td>
-                  <td className="px-3 py-3">{isEditing ? <InlineInput value={editingCompany.slug} onChange={(value) => onEditChange((current) => current ? { ...current, slug: value } : current)} /> : company.slug}</td>
-                  <td className="px-3 py-3">{isEditing ? <Checkbox checked={editingCompany.is_active} onChange={(checked) => onEditChange((current) => current ? { ...current, is_active: checked } : current)} label="Активен" /> : company.is_active ? 'Активен' : 'Неактивен'}</td>
+                <CompanyRow key={company.id} company={company} isEditing={isEditing} editingCompany={editingCompany} onEditChange={onEditChange} onSave={onSave} onEnterCompany={onEnterCompany} />
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  );
+}
+
+function CompanyRow({
+  company,
+  isEditing,
+  editingCompany,
+  onEditChange,
+  onSave,
+  onEnterCompany,
+}: {
+  company: ManagedCompany;
+  isEditing: boolean;
+  editingCompany: ManagedCompany | null;
+  onEditChange: React.Dispatch<React.SetStateAction<ManagedCompany | null>>;
+  onSave: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
+  onEnterCompany: (companyId: number) => Promise<void>;
+}) {
+  const [modulesOpen, setModulesOpen] = useState(false);
+  const [moduleState, setModuleState] = useState<{
+    businessType: BusinessType | null;
+    modules: ModuleKey[];
+  } | null>(null);
+
+  // Loaded lazily so the company list stays one round trip.
+  useEffect(() => {
+    if (!modulesOpen) return;
+    let cancelled = false;
+    ownerApi
+      .getCompanyModules(company.id)
+      .then((response) => {
+        if (cancelled) return;
+        setModuleState({
+          businessType: (response.data.business_type as BusinessType | null) ?? null,
+          modules: response.data.modules as ModuleKey[],
+        });
+      })
+      .catch(() => toast.error('Не удалось загрузить модули компании.'));
+    return () => {
+      cancelled = true;
+    };
+  }, [modulesOpen, company.id]);
+
+  return (
+    <>
+                <tr className="border-t border-slate-100">
+                  <td className="px-3 py-3">{isEditing && editingCompany ? <InlineInput value={editingCompany.name} onChange={(value) => onEditChange((current) => current ? { ...current, name: value } : current)} /> : company.name}</td>
+                  <td className="px-3 py-3">{isEditing && editingCompany ? <InlineInput value={editingCompany.slug} onChange={(value) => onEditChange((current) => current ? { ...current, slug: value } : current)} /> : company.slug}</td>
+                  <td className="px-3 py-3">{isEditing && editingCompany ? <Checkbox checked={editingCompany.is_active} onChange={(checked) => onEditChange((current) => current ? { ...current, is_active: checked } : current)} label="Активен" /> : company.is_active ? 'Активен' : 'Неактивен'}</td>
                   <td className="px-3 py-3">
                     <div className="flex flex-wrap gap-2">
                       {isEditing ? (
@@ -446,15 +500,31 @@ function CompaniesSection({
                         <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                         Войти в компанию
                       </button>
+                      <ActionButton
+                        label={modulesOpen ? 'Скрыть модули' : 'Модули'}
+                        tone="secondary"
+                        type="button"
+                        onClick={() => setModulesOpen((open) => !open)}
+                      />
                     </div>
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </SectionCard>
+      {modulesOpen && moduleState && (
+        <tr className="border-t border-slate-100">
+          <td colSpan={4} className="px-3 py-3">
+            <CompanyModulesEditor
+              companyId={company.id}
+              initialBusinessType={moduleState.businessType}
+              initialModules={moduleState.modules}
+              onSave={async (payload) => {
+                await ownerApi.setCompanyModules(company.id, payload);
+                toast.success('Модули компании обновлены.');
+              }}
+            />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

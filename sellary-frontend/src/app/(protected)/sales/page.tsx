@@ -112,7 +112,7 @@ function SalesHistory() {
   const [debtPaymentSubmitting, setDebtPaymentSubmitting] = useState(false);
   const modules = useModules();
   // Returns/voids need pos:manager on the backend; admin's modules map carries all modules at manager.
-  const canManagePos = canAccessModule(modules, 'pos', 'manager');
+  const canManagePos = canAccessModule(modules, 'sales', 'manager');
   const debouncedSearch = useDebounce(searchInput, 300);
 
   const salesParams = useMemo(() => {
@@ -1249,7 +1249,7 @@ function SalesHistory() {
 
 export default function SalesPage() {
   return (
-    <ModuleGuard module="pos">
+    <ModuleGuard module="sales">
       <SalesHistory />
     </ModuleGuard>
   );

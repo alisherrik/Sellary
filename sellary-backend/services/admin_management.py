@@ -26,6 +26,8 @@ from schemas.admin import (
 )
 from schemas.user import CompanySession
 from services.auth_service import AuthService
+from core.modules import BUSINESS_TYPE_PRESETS
+from repositories.company_module_repository import CompanyModuleRepository
 
 
 class AdminManagementService:
@@ -146,8 +148,15 @@ class AdminManagementService:
             name=payload.name,
             slug=slug,
             is_active=payload.is_active,
+            business_type=payload.business_type,
         )
         self.db.add(company)
+        self.db.flush()
+        # The preset is a starting point — the owner edits the set afterwards.
+        if payload.business_type:
+            CompanyModuleRepository(self.db).set_modules(
+                company.id, list(BUSINESS_TYPE_PRESETS[payload.business_type])
+            )
         self.db.commit()
         self.db.refresh(company)
         return ManagedCompanyResponse.model_validate(company)
@@ -163,6 +172,8 @@ class AdminManagementService:
             company.slug = slug
         if "is_active" in updates:
             company.is_active = updates["is_active"]
+        if "business_type" in updates:
+            company.business_type = updates["business_type"]
 
         self.db.commit()
         self.db.refresh(company)
@@ -309,6 +320,12 @@ class AdminManagementService:
         membership = self._get_scoped_membership(membership_id, allowed_company_id)
         if membership.role == "admin":
             raise ValueError("Admin memberships have full access")
+        enabled = set(CompanyModuleRepository(self.db).enabled_modules(membership.company_id))
+        missing = [module for module in modules if module not in enabled]
+        if missing:
+            raise ValueError(
+                f"Company does not have these modules: {', '.join(sorted(missing))}"
+            )
         self.db.query(MembershipModuleAccess).filter(
             MembershipModuleAccess.membership_id == membership.id
         ).delete()
@@ -318,6 +335,28 @@ class AdminManagementService:
             )
         self.db.commit()
         return {"membership_id": membership.id, "modules": dict(modules)}
+
+    def get_company_modules(self, company_id: int) -> dict:
+        company = self._get_company(company_id)
+        return {
+            "company_id": company.id,
+            "business_type": company.business_type,
+            "modules": CompanyModuleRepository(self.db).enabled_modules(company.id),
+        }
+
+    def set_company_modules(
+        self, company_id: int, modules: list[str], business_type: str | None = None
+    ) -> dict:
+        company = self._get_company(company_id)
+        if business_type is not None:
+            company.business_type = business_type
+        ordered = CompanyModuleRepository(self.db).set_modules(company.id, modules)
+        self.db.commit()
+        return {
+            "company_id": company.id,
+            "business_type": company.business_type,
+            "modules": ordered,
+        }
 
     def _get_scoped_membership(self, membership_id: int, allowed_company_id: int) -> CompanyMembership:
         membership = (

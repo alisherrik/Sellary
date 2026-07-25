@@ -153,8 +153,24 @@ export const ownerApi = {
   ) => ownerClient.patch<ManagedUser>(`/owner/users/${id}`, data),
   getCompanies: (params?: { search?: string }) =>
     ownerClient.get<ManagedCompany[]>('/owner/companies', { params }),
-  createCompany: (data: { name: string; slug?: string; is_active?: boolean }) =>
-    ownerClient.post<ManagedCompany>('/owner/companies', data),
+  createCompany: (data: {
+    name: string;
+    slug?: string;
+    is_active?: boolean;
+    business_type?: string | null;
+  }) => ownerClient.post<ManagedCompany>('/owner/companies', data),
+  getCompanyModules: (companyId: number) =>
+    ownerClient.get<{ company_id: number; business_type: string | null; modules: string[] }>(
+      `/owner/companies/${companyId}/modules`,
+    ),
+  setCompanyModules: (
+    companyId: number,
+    payload: { business_type: string | null; modules: string[] },
+  ) =>
+    ownerClient.put<{ company_id: number; business_type: string | null; modules: string[] }>(
+      `/owner/companies/${companyId}/modules`,
+      payload,
+    ),
   updateCompany: (
     id: number,
     data: { name?: string; slug?: string; is_active?: boolean },

@@ -38,7 +38,7 @@ def get_customers(
     limit: int = Query(50, ge=1, le=200),
     search: Optional[str] = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("customers")),
 ):
     repo = CustomerRepository(db)
     ledger_service = CustomerLedgerService(db, auth.company_id)
@@ -52,7 +52,7 @@ def get_customers(
 def get_customer(
     customer_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("customers")),
 ):
     repo = CustomerRepository(db)
     customer = repo.get_by_id(auth.company_id, customer_id)
@@ -65,7 +65,7 @@ def get_customer(
 def get_customer_ledger(
     customer_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("customers")),
 ):
     try:
         return CustomerLedgerService(db, auth.company_id).get_customer_ledger(customer_id)
@@ -78,7 +78,7 @@ def record_customer_payment(
     customer_id: int,
     payment: CustomerPaymentCreate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("customers")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     endpoint = f"/api/customers/{customer_id}/payments"
@@ -130,7 +130,7 @@ def record_customer_payment(
 def create_customer(
     customer_create: CustomerCreate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("customers")),
 ):
     repo = CustomerRepository(db)
     if customer_create.phone and repo.get_by_phone(auth.company_id, customer_create.phone):
@@ -144,7 +144,7 @@ def update_customer(
     customer_id: int,
     customer_update: CustomerUpdate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("customers")),
 ):
     repo = CustomerRepository(db)
     customer = repo.get_by_id(auth.company_id, customer_id)
@@ -168,7 +168,7 @@ def update_customer(
 def delete_customer(
     customer_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos", "manager")),
+    auth: AuthContext = Depends(require_module("customers", "manager")),
 ):
     repo = CustomerRepository(db)
     if not repo.delete(auth.company_id, customer_id):

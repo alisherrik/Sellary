@@ -39,12 +39,12 @@ class TestRequireModule:
 
     def test_user_grant_passes_user_level(self, db_session, cashier_user, default_company):
         # backfill fixture already granted pos:user to cashier
-        checker = require_module("pos")
+        checker = require_module("register")
         auth = _ctx(db_session, cashier_user, default_company)
         assert checker(auth=auth, db=db_session) is auth
 
     def test_user_grant_fails_manager_level(self, db_session, cashier_user, default_company):
-        checker = require_module("pos", level="manager")
+        checker = require_module("register", level="manager")
         auth = _ctx(db_session, cashier_user, default_company)
         with pytest.raises(HTTPException) as exc:
             checker(auth=auth, db=db_session)
@@ -59,7 +59,7 @@ class TestRequireModule:
         with pytest.raises(ValueError):
             require_module("banking")
         with pytest.raises(ValueError):
-            require_module("pos", level="root")
+            require_module("register", level="root")
 
     def test_super_admin_membership_none_bypass(self, db_session, super_admin_user, default_company):
         # super-admin company entry has membership=None but role admin -> bypass
@@ -70,4 +70,4 @@ class TestRequireModule:
             token_payload={"super_admin_entry": True},
             effective_role="admin",
         )
-        assert require_module("pos")(auth=auth, db=db_session) is auth
+        assert require_module("register")(auth=auth, db=db_session) is auth

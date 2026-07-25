@@ -122,7 +122,9 @@ def test_password() -> str:
 @pytest.fixture
 def default_company(db_session: Session) -> Company:
     company_id = db_session.info["default_company_id"]
-    return db_session.get(Company, company_id)
+    company = db_session.get(Company, company_id)
+    _enable_all_company_modules(db_session, company)
+    return company
 
 
 @pytest.fixture
@@ -130,22 +132,47 @@ def secondary_company(db_session: Session) -> Company:
     company = Company(name="Second Company", slug="second-company", is_active=True)
     db_session.add(company)
     db_session.flush()
+    _enable_all_company_modules(db_session, company)
     return company
 
 
+def _enable_all_company_modules(db_session: Session, company: Company) -> None:
+    """Mirror the c0d1e2f3a4b5 backfill: a test company has every module.
+
+    Tests that care about a company *lacking* a module remove rows explicitly.
+    """
+    from core.modules import MODULES
+    from models.company_module import CompanyModule
+
+    existing = {
+        row[0]
+        for row in db_session.query(CompanyModule.module)
+        .filter(CompanyModule.company_id == company.id)
+        .all()
+    }
+    for module in MODULES:
+        if module not in existing:
+            db_session.add(CompanyModule(company_id=company.id, module=module))
+    db_session.flush()
+
+
 def _grant_modules_for_role(db_session: Session, membership: CompanyMembership) -> None:
-    """Mirror the b9c0d1e2f3a4 backfill: manager -> all modules manager,
-    other non-admin roles -> pos:user, admin -> nothing (bypass)."""
+    """Mirror the c0d1e2f3a4b5 state: manager -> all modules at manager,
+    other non-admin roles -> register/sales/customers at user (the old `pos`),
+    admin -> nothing (bypasses the membership layer)."""
+    from core.modules import MODULES
+
+    _enable_all_company_modules(db_session, membership.company)
     if membership.role == "admin":
         return
     if membership.role == "manager":
-        rows = [
-            MembershipModuleAccess(membership_id=membership.id, module=m, level="manager")
-            for m in MODULES
-        ]
+        grants = [(module, "manager") for module in MODULES]
     else:
-        rows = [MembershipModuleAccess(membership_id=membership.id, module="pos", level="user")]
-    db_session.add_all(rows)
+        grants = [(module, "user") for module in ("register", "sales", "customers")]
+    for module, level in grants:
+        db_session.add(
+            MembershipModuleAccess(membership_id=membership.id, module=module, level=level)
+        )
     db_session.flush()
 
 

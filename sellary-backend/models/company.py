@@ -13,6 +13,8 @@ class Company(Base):
     name = Column(String(150), nullable=False)
     slug = Column(String(150), unique=True, index=True, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    # Label only. Seeds the module preset in the owner panel; enforces nothing.
+    business_type = Column(String(30), nullable=True)
     # IANA name. Reports close the day on this clock, not the server's UTC one.
     timezone = Column(
         String(64),
@@ -38,6 +40,11 @@ class Company(Base):
 
     memberships = relationship(
         "CompanyMembership",
+        back_populates="company",
+        cascade="all, delete-orphan",
+    )
+    modules = relationship(
+        "CompanyModule",
         back_populates="company",
         cascade="all, delete-orphan",
     )
