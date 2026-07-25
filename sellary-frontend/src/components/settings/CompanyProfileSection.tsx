@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 
@@ -22,11 +23,29 @@ export default function CompanyProfileSection() {
   const currentCompany = useAuthStore((state) => state.currentCompany);
   const { currency, setCurrency, receiptPrintEnabled, setReceiptPrintEnabled } = useSettingsStore();
 
+  // Native radio arrow-navigation fires onChange on every step, so browsing
+  // UZS → USD → EUR used to stack three success toasts. The setting itself is
+  // local and instantly reversible; only the announcement waits for the value
+  // to settle.
+  const currencyToastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleCurrencyChange = (code: CurrencyCode) => {
     if (code === currency) return;
     setCurrency(code);
-    toast.success(`Валюта изменена на ${CURRENCIES[code].name}.`);
+    if (currencyToastRef.current) {
+      clearTimeout(currencyToastRef.current);
+    }
+    currencyToastRef.current = setTimeout(() => {
+      toast.success(`Валюта изменена на ${CURRENCIES[code].name}.`);
+    }, 600);
   };
+
+  useEffect(
+    () => () => {
+      if (currencyToastRef.current) clearTimeout(currencyToastRef.current);
+    },
+    [],
+  );
 
   const handleReceiptPrintToggle = (next: boolean) => {
     setReceiptPrintEnabled(next);

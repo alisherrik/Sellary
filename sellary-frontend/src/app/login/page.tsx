@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import {
@@ -53,11 +53,21 @@ export default function LoginPage() {
   const [selectingCompany, setSelectingCompany] = useState(false);
   const [pendingCompanies, setPendingCompanies] = useState<CompanySummary[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
+  // Step 1's form unmounts on advance, taking the focused submit button with
+  // it — focus fell to <body>, so a keyboard user had to Tab from the top of
+  // the document to reach the company list.
+  const companyStepHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const isChoosingCompany = useMemo(
     () => !accessToken && !!loginToken && pendingCompanies.length > 0,
     [accessToken, loginToken, pendingCompanies.length],
   );
+
+  useEffect(() => {
+    if (isChoosingCompany) {
+      companyStepHeadingRef.current?.focus();
+    }
+  }, [isChoosingCompany]);
 
   useEffect(() => {
     if (!hasHydrated) {
@@ -322,7 +332,11 @@ export default function LoginPage() {
             </>
           ) : (
             <>
-              <h1 className="mt-6 text-[32px] font-extrabold leading-tight tracking-tight">
+              <h1
+                ref={companyStepHeadingRef}
+                tabIndex={-1}
+                className="mt-6 text-[32px] font-extrabold leading-tight tracking-tight outline-none"
+              >
                 Выбор компании
               </h1>
               <p className="mt-2 max-w-[46ch] text-[13.5px] leading-relaxed text-[var(--erp-muted)]">
