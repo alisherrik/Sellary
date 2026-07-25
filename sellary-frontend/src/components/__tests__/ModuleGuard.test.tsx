@@ -10,9 +10,9 @@ vi.mock('@/lib/store', () => ({
 
 describe('ModuleGuard', () => {
   it('renders children when module granted', () => {
-    mockModules.current = { pos: 'user' };
+    mockModules.current = { register: 'user' };
     render(
-      <ModuleGuard module="pos">
+      <ModuleGuard module="register">
         <div>secret</div>
       </ModuleGuard>,
     );
@@ -31,9 +31,9 @@ describe('ModuleGuard', () => {
   });
 
   it('enforces level', () => {
-    mockModules.current = { pos: 'user' };
+    mockModules.current = { register: 'user' };
     render(
-      <ModuleGuard module="pos" level="manager">
+      <ModuleGuard module="register" level="manager">
         <div>secret</div>
       </ModuleGuard>,
     );

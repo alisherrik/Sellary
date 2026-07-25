@@ -4,8 +4,22 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from models.category import Category
+from sqlalchemy import exists
+
 from models.company import Company
+from models.company_module import CompanyModule
 from models.product import Product
+
+
+def _shop_module_enabled():
+    """A storefront exists only while the company holds the `shop` module.
+
+    Turning the module off closes the shop; it must read as "no such store",
+    not "forbidden", or a stranger learns the company is here.
+    """
+    return exists().where(
+        (CompanyModule.company_id == Company.id) & (CompanyModule.module == "shop")
+    )
 
 
 class ShopRepository:
@@ -29,6 +43,7 @@ class ShopRepository:
                 Product.is_published.is_(True),
                 Product.is_active.is_(True),
                 Company.is_marketplace_enabled.is_(True),
+                _shop_module_enabled(),
                 Company.is_active.is_(True),
             )
         )
@@ -66,6 +81,7 @@ class ShopRepository:
             self.db.query(Company)
             .filter(
                 Company.is_marketplace_enabled.is_(True),
+                _shop_module_enabled(),
                 Company.is_active.is_(True),
             )
             .order_by(Company.name)
@@ -78,6 +94,7 @@ class ShopRepository:
             .filter(
                 Company.slug == slug,
                 Company.is_marketplace_enabled.is_(True),
+                _shop_module_enabled(),
                 Company.is_active.is_(True),
             )
             .first()
@@ -101,6 +118,7 @@ class ShopRepository:
                 Product.is_published.is_(True),
                 Product.is_active.is_(True),
                 Company.is_marketplace_enabled.is_(True),
+                _shop_module_enabled(),
                 Company.is_active.is_(True),
             )
             .distinct()

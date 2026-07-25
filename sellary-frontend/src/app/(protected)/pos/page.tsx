@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { Squares2X2Icon } from '@heroicons/react/24/outline';
-import { useAuthStore, useCartStore, useUIStore } from '@/lib/store';
+import { useAuthStore, useCartStore, useModules, useUIStore } from '@/lib/store';
+import { canAccessModule } from '@/lib/modules';
 import { salesApi, productsApi, categoriesApi, customersApi, generateIdempotencyKey } from '@/lib/api';
 import { formatCurrency, hotkeyManager, printReceipt, registerHotkeys } from '@/lib/utils';
 import FilterMenu from '@/components/filters/FilterMenu';
@@ -102,6 +103,7 @@ function POS() {
   const hasOpenShift = useHasOpenShift();
   const { data: currentShift, isSuccess: shiftStatusKnown } = useCurrentShift();
   const { user } = useAuthStore();
+  const posModules = useModules();
   const queryClient = useQueryClient();
   const { cartPanelWidth, setCartPanelWidth } = useUIStore();
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -982,11 +984,13 @@ function POS() {
     </div>
   );
 
+  // A register-only company has no sales history and no customer base; the
+  // bar must not offer links that 403.
   const posNavLinks = [
-    { href: '/sales', label: 'История продаж' },
-    { href: '/shifts', label: 'Смена' },
-    { href: '/customers', label: 'Клиенты' },
-  ];
+    { href: '/sales', label: 'История продаж', module: 'sales' as const },
+    { href: '/shifts', label: 'Смена', module: 'register' as const },
+    { href: '/customers', label: 'Клиенты', module: 'customers' as const },
+  ].filter((link) => canAccessModule(posModules, link.module));
 
   const shiftPill = shiftStatusKnown && (
     currentShift ? (
@@ -1629,7 +1633,7 @@ function POS() {
 
 export default function POSPage() {
   return (
-    <ModuleGuard module="pos">
+    <ModuleGuard module="register">
       <POS />
     </ModuleGuard>
   );

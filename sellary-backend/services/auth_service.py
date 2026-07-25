@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from models.company import Company
 from models.company_membership import CompanyMembership
+from repositories.company_module_repository import CompanyModuleRepository
 from models.membership_module_access import MODULES, MembershipModuleAccess
 from repositories.user_repository import UserRepository
 from models.user import User
@@ -173,17 +174,21 @@ class AuthService:
             user=user,
         )
 
-    def _module_map(
-        self, membership: CompanyMembership | None, role: str
-    ) -> dict[str, str]:
-        """Resolve the module->level grant map for a membership.
+    def _company_modules(self, company_id: int) -> list[str]:
+        return CompanyModuleRepository(self.db).enabled_modules(company_id)
 
-        Admins bypass module gating entirely and are treated as manager on
-        every module. A missing membership (e.g. super-admin company entry
-        with no real CompanyMembership row) has no grants of its own.
+    def _module_map(
+        self, membership: CompanyMembership | None, role: str, company_id: int
+    ) -> dict[str, str]:
+        """Resolve the effective module->level map.
+
+        Effective access is the company's module set intersected with this
+        membership's grants. Admins bypass the membership layer — they are
+        manager on every module the company has — but never the company layer.
         """
+        enabled = set(self._company_modules(company_id))
         if role == "admin":
-            return {module: "manager" for module in MODULES}
+            return {module: "manager" for module in MODULES if module in enabled}
         if membership is None:
             return {}
         rows = (
@@ -191,7 +196,7 @@ class AuthService:
             .filter(MembershipModuleAccess.membership_id == membership.id)
             .all()
         )
-        return {row.module: row.level for row in rows}
+        return {row.module: row.level for row in rows if row.module in enabled}
 
     def create_company_session(self, user: User, company_id: int) -> CompanySession:
         membership = (
@@ -239,7 +244,8 @@ class AuthService:
             user=user,
             current_company=current_company,
             companies=companies,
-            modules=self._module_map(membership, membership.role),
+            modules=self._module_map(membership, membership.role, company_id),
+            company_modules=self._company_modules(company_id),
         )
 
     def create_super_admin_company_session(self, user: User, company: Company) -> CompanySession:
@@ -269,7 +275,8 @@ class AuthService:
             user=user,
             current_company=current_company,
             companies=[current_company],
-            modules=self._module_map(None, "admin"),
+            modules=self._module_map(None, "admin", company.id),
+            company_modules=self._company_modules(company.id),
         )
 
     def get_auth_session(
@@ -317,7 +324,8 @@ class AuthService:
 
         return AuthSession(
             user=user,
-            modules=self._module_map(membership, current_company.role),
+            modules=self._module_map(membership, current_company.role, current_company.id),
+            company_modules=self._company_modules(current_company.id),
             current_company=current_company,
             companies=companies,
         )

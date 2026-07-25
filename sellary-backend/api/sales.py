@@ -38,7 +38,7 @@ router = APIRouter(prefix="/sales", tags=["sales"])
 def create_sale(
     sale_create: SaleCreate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("sales")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     """
@@ -109,7 +109,7 @@ def get_sales(
     status_group: Optional[Literal["returns"]] = None,
     payment_method: Optional[PaymentMethod] = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("sales")),
 ):
     service = SaleService(db, auth.company_id)
     sales, total = service.get_all(
@@ -134,7 +134,7 @@ def get_sale_search_suggestions(
     q: str = Query(..., min_length=2, max_length=100),
     limit: int = Query(8, ge=1, le=10),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("sales")),
 ):
     return SaleService(db, auth.company_id).get_search_suggestions(q.strip(), limit)
 
@@ -152,7 +152,7 @@ def get_sales_summary(
     status_group: Optional[Literal["returns"]] = None,
     payment_method: Optional[PaymentMethod] = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("sales")),
 ):
     """Totals over the whole filtered history, for the KPI cards.
 
@@ -175,7 +175,7 @@ def get_sales_summary(
 def get_sale(
     sale_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("sales")),
 ):
     service = SaleService(db, auth.company_id)
     sale = service.get_by_id(sale_id)
@@ -188,7 +188,7 @@ def get_sale(
 def preview_sale_void(
     sale_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos", "manager")),
+    auth: AuthContext = Depends(require_module("sales", "manager")),
 ):
     """Preview the inventory impact of annulling a sale (pos manager).
 
@@ -209,7 +209,7 @@ def void_sale(
     sale_id: int,
     payload: VoidRequest,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos", "manager")),
+    auth: AuthContext = Depends(require_module("sales", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     """Annul (void) a completed sale (pos manager, idempotent).
@@ -273,7 +273,7 @@ def cancel_sale(
     sale_id: int,
     payload: VoidRequest,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos", "manager")),
+    auth: AuthContext = Depends(require_module("sales", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     """DEPRECATED — use ``POST /sales/{id}/void`` instead.
@@ -333,7 +333,7 @@ def return_sale(
     sale_id: int,
     return_data: SaleReturnCreate,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos", "manager")),
+    auth: AuthContext = Depends(require_module("sales", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     """
@@ -395,7 +395,7 @@ def return_sale(
 def get_sale_returns(
     sale_id: int,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_module("pos")),
+    auth: AuthContext = Depends(require_module("sales")),
 ):
     """
     Get all returns for a specific sale.

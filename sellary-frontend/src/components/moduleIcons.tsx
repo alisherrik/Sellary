@@ -1,5 +1,7 @@
 import {
+  ReceiptPercentIcon,
   ShoppingCartIcon,
+  UsersIcon,
   CubeIcon,
   TruckIcon,
   BuildingStorefrontIcon,
@@ -13,7 +15,9 @@ import type { ModuleKey } from '@/lib/modules';
 // hand-drawn SVGs from the prototype — same 24x24/stroke visual weight, and
 // consistent with icons already used elsewhere in the app (Layout, ShiftGate).
 export const MODULE_ICONS: Record<ModuleKey | 'settings', typeof ShoppingCartIcon> = {
-  pos: ShoppingCartIcon,
+  register: ShoppingCartIcon,
+  sales: ReceiptPercentIcon,
+  customers: UsersIcon,
   inventory: CubeIcon,
   purchasing: TruckIcon,
   shop: BuildingStorefrontIcon,

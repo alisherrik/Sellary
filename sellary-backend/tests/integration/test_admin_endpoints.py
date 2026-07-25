@@ -175,7 +175,11 @@ class TestMembershipModules:
         m_id = self._membership_id(db_session, cashier_user, default_company)
         resp = client.get(f"/api/admin/memberships/{m_id}/modules", headers=admin_headers)
         assert resp.status_code == 200
-        assert resp.json()["modules"] == {"pos": "user"}
+        assert resp.json()["modules"] == {
+            "register": "user",
+            "sales": "user",
+            "customers": "user",
+        }
 
     def test_put_replaces_grants(
         self, client, admin_headers, db_session, cashier_user, default_company
@@ -209,7 +213,7 @@ class TestMembershipModules:
         resp = client.put(
             f"/api/admin/memberships/{m_id}/modules",
             headers=admin_headers,
-            json={"modules": {"pos": "user"}},
+            json={"modules": {"register": "user"}},
         )
         assert resp.status_code == 400
 

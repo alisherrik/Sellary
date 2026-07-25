@@ -14,7 +14,9 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/lib/store', () => ({
   useModules: () => ({
-    pos: 'manager',
+    register: 'manager',
+    sales: 'manager',
+    customers: 'manager',
     inventory: 'manager',
     purchasing: 'manager',
     shop: 'manager',

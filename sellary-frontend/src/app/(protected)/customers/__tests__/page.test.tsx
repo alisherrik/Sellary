@@ -13,7 +13,7 @@ vi.mock('@/providers/ServerHealthProvider', () => ({
 vi.mock('@/lib/store', () => ({
   useAuthStore: (selector: any) =>
     selector({ currentCompany: { id: 1, role: 'admin' } }),
-  useModules: () => ({ pos: 'user' }),
+  useModules: () => ({ customers: 'user' }),
 }));
 
 vi.mock('@/lib/api', () => ({

@@ -25,6 +25,7 @@ from .order_item import OrderItem
 from .merchant_notify_link import MerchantNotifyLink
 from .platform_setting import PlatformSetting
 from .membership_module_access import MembershipModuleAccess
+from .company_module import CompanyModule
 
 __all__ = [
     "Company",
@@ -60,4 +61,5 @@ __all__ = [
     "MerchantNotifyLink",
     "PlatformSetting",
     "MembershipModuleAccess",
+    "CompanyModule",
 ]

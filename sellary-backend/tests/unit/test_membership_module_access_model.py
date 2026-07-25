@@ -15,7 +15,15 @@ class TestMembershipModuleAccessModel:
         )
 
     def test_module_and_level_constants(self):
-        assert MODULES == ("pos", "inventory", "purchasing", "shop", "reports")
+        assert MODULES == (
+            "register",
+            "sales",
+            "customers",
+            "inventory",
+            "purchasing",
+            "shop",
+            "reports",
+        )
         assert LEVELS == ("user", "manager")
 
     def test_create_grant(self, db_session, cashier_user, default_company):

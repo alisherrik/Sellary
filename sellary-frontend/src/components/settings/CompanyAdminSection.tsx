@@ -18,7 +18,9 @@ const LEVEL_LABELS: Record<'' | 'user' | 'manager', string> = {
 };
 
 const MODULE_ROWS: { key: ModuleKey; label: string }[] = [
-  { key: 'pos', label: 'Касса' },
+  { key: 'register', label: 'Касса' },
+  { key: 'sales', label: 'Продажи' },
+  { key: 'customers', label: 'Клиенты' },
   { key: 'inventory', label: 'Склад' },
   { key: 'purchasing', label: 'Закупки' },
   { key: 'shop', label: 'Магазин' },
@@ -29,7 +31,9 @@ type ModuleDraft = Record<ModuleKey, '' | ModuleLevel>;
 
 function toDraft(modules: ModuleMap): ModuleDraft {
   return {
-    pos: modules.pos ?? '',
+    register: modules.register ?? '',
+    sales: modules.sales ?? '',
+    customers: modules.customers ?? '',
     inventory: modules.inventory ?? '',
     purchasing: modules.purchasing ?? '',
     shop: modules.shop ?? '',

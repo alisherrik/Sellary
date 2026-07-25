@@ -5,6 +5,8 @@ from api.dependencies import OwnerContext, require_super_admin
 from core.database import get_db
 from core.rate_limiter import owner_login_rate_limiter
 from schemas.admin import (
+    CompanyModulesPayload,
+    CompanyModulesResponse,
     ManagedCompanyCreate,
     ManagedCompanyResponse,
     ManagedCompanyUpdate,
@@ -212,3 +214,33 @@ def update_platform_settings(
     service.update_from_payload(payload.model_dump())
     db.commit()
     return service.get_masked()
+
+
+@router.get("/companies/{company_id}/modules", response_model=CompanyModulesResponse)
+def get_company_modules(
+    company_id: int,
+    db: Session = Depends(get_db),
+    owner: OwnerContext = Depends(require_super_admin),
+):
+    del owner
+    try:
+        return AdminManagementService(db).get_company_modules(company_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.put("/companies/{company_id}/modules", response_model=CompanyModulesResponse)
+def set_company_modules(
+    company_id: int,
+    payload: CompanyModulesPayload,
+    db: Session = Depends(get_db),
+    owner: OwnerContext = Depends(require_super_admin),
+):
+    del owner
+    try:
+        return AdminManagementService(db).set_company_modules(
+            company_id, modules=payload.modules, business_type=payload.business_type
+        )
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))

@@ -14,7 +14,7 @@ import {
   setCurrentCompanyId,
   setLoginToken,
 } from './session';
-import type { ModuleMap } from './modules';
+import type { ModuleKey, ModuleMap } from './modules';
 import type { CartItem, CartUnit, CompanySession, CompanySummary, Product, User } from './types';
 
 interface LoginResult {
@@ -28,6 +28,8 @@ interface AuthState {
   companies: CompanySummary[];
   currentCompany: CompanySummary | null;
   modules: ModuleMap;
+  /** What the company has, regardless of this user's grants. */
+  companyModules: ModuleKey[];
   loginToken: string | null;
   accessToken: string | null;
   isAuthenticated: boolean;
@@ -45,6 +47,7 @@ const emptyAuthState = {
   companies: [],
   currentCompany: null,
   modules: {} as ModuleMap,
+  companyModules: [] as ModuleKey[],
   loginToken: null,
   accessToken: null,
   isAuthenticated: false,
@@ -64,6 +67,7 @@ const applyCompanySession = (
     companies: session.companies,
     currentCompany: session.current_company,
     modules: session.modules ?? {},
+        companyModules: session.company_modules ?? [],
     loginToken: null,
     accessToken: session.access_token,
     isAuthenticated: true,
@@ -88,6 +92,7 @@ export const useAuthStore = create<AuthState>()(
           companies: session.companies,
           currentCompany: null,
           modules: {},
+          companyModules: [],
           loginToken: session.login_token,
           accessToken: null,
           isAuthenticated: false,
@@ -147,6 +152,7 @@ export const useAuthStore = create<AuthState>()(
           companies: session.companies,
           currentCompany: session.current_company,
           modules: session.modules ?? {},
+        companyModules: session.company_modules ?? [],
           accessToken: activeToken,
           isAuthenticated: true,
           hasHydrated: true,
@@ -161,6 +167,7 @@ export const useAuthStore = create<AuthState>()(
         companies: state.companies,
         currentCompany: state.currentCompany,
         modules: state.modules,
+        companyModules: state.companyModules,
         loginToken: state.loginToken,
         accessToken: state.accessToken,
         isAuthenticated: state.isAuthenticated,
@@ -187,6 +194,7 @@ export const useAuthStore = create<AuthState>()(
 );
 
 export const useModules = () => useAuthStore((state) => state.modules);
+export const useCompanyModules = () => useAuthStore((state) => state.companyModules);
 
 interface Session {
   id: string;

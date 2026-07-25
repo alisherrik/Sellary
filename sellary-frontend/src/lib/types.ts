@@ -1,4 +1,4 @@
-import type { ModuleMap } from './modules';
+import type { ModuleKey, ModuleMap } from './modules';
 
 export type ProductType = 'item';
 export type GlobalUserRole = 'standard' | 'super_admin';
@@ -48,6 +48,7 @@ export interface CompanySession {
   current_company: CompanySummary;
   companies: CompanySummary[];
   modules?: ModuleMap;
+  company_modules?: ModuleKey[];
 }
 
 export interface AuthSession {
@@ -55,6 +56,7 @@ export interface AuthSession {
   current_company: CompanySummary;
   companies: CompanySummary[];
   modules?: ModuleMap;
+  company_modules?: ModuleKey[];
 }
 
 export interface OwnerLoginResponse {

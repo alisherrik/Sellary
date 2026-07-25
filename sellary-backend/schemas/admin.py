@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
@@ -83,11 +83,15 @@ class ManagedUserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+BusinessType = Literal["retail", "online", "warehouse", "kitchen", "production"]
+
+
 class ManagedCompanyResponse(BaseModel):
     id: int
     name: str
     slug: str
     is_active: bool
+    business_type: Optional[BusinessType] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -99,12 +103,14 @@ class ManagedCompanyCreate(BaseModel):
     name: str
     slug: Optional[str] = None
     is_active: bool = True
+    business_type: Optional[BusinessType] = None
 
 
 class ManagedCompanyUpdate(BaseModel):
     name: Optional[str] = None
     slug: Optional[str] = None
     is_active: Optional[bool] = None
+    business_type: Optional[BusinessType] = None
 
 
 class ManagedMembershipCompanySummary(BaseModel):
@@ -185,3 +191,14 @@ class MembershipModulesPayload(BaseModel):
 class MembershipModulesResponse(BaseModel):
     membership_id: int
     modules: dict[ModuleKey, ModuleLevel]
+
+
+class CompanyModulesPayload(BaseModel):
+    modules: list[ModuleKey]
+    business_type: Optional[BusinessType] = None
+
+
+class CompanyModulesResponse(BaseModel):
+    company_id: int
+    business_type: Optional[BusinessType] = None
+    modules: list[ModuleKey]

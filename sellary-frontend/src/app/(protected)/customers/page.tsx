@@ -357,7 +357,7 @@ function Customers() {
 
 export default function CustomersPage() {
   return (
-    <ModuleGuard module="pos">
+    <ModuleGuard module="customers">
       <Customers />
     </ModuleGuard>
   );

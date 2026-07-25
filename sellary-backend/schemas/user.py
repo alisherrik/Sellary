@@ -5,7 +5,9 @@ from pydantic import BaseModel, EmailStr
 
 GlobalUserRole = Literal["standard", "super_admin"]
 TenantUserRole = Literal["admin", "manager", "cashier"]
-ModuleKey = Literal["pos", "inventory", "purchasing", "shop", "reports"]
+ModuleKey = Literal[
+    "register", "sales", "customers", "inventory", "purchasing", "shop", "reports"
+]
 ModuleLevel = Literal["user", "manager"]
 
 
@@ -69,6 +71,8 @@ class CompanySession(BaseModel):
     current_company: CompanySummary
     companies: list[CompanySummary]
     modules: dict[ModuleKey, ModuleLevel] = {}
+    # What the company has, regardless of this user's grants.
+    company_modules: list[ModuleKey] = []
 
 
 class AuthSession(BaseModel):
@@ -76,6 +80,8 @@ class AuthSession(BaseModel):
     current_company: CompanySummary
     companies: list[CompanySummary]
     modules: dict[ModuleKey, ModuleLevel] = {}
+    # What the company has, regardless of this user's grants.
+    company_modules: list[ModuleKey] = []
 
 
 class TokenData(BaseModel):

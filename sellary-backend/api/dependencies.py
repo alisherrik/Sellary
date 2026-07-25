@@ -15,6 +15,7 @@ from models.company import Company
 from models.company_membership import CompanyMembership
 from models.membership_module_access import LEVELS, MODULES, MembershipModuleAccess
 from models.user import User
+from repositories.company_module_repository import CompanyModuleRepository
 from repositories.user_repository import UserRepository
 
 security = HTTPBearer()
@@ -239,6 +240,14 @@ def require_module(module: str, level: str = "user"):
         auth: AuthContext = Depends(get_auth_context),
         db: Session = Depends(get_db),
     ) -> AuthContext:
+        # Company layer first: `admin` bypasses the membership grant, never the
+        # company's own module set. A company that did not buy `shop` must be
+        # closed to its admin too.
+        if not CompanyModuleRepository(db).has_module(auth.company_id, module):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "module_not_enabled", "module": module},
+            )
         if auth.role == "admin":
             return auth
         grant = None

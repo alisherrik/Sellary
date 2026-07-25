@@ -22,14 +22,16 @@ vi.mock('@/lib/store', () => ({
 
 describe('BottomTabBar', () => {
   it('renders one tab per granted module, capped at 4, plus Ещё for the overflow', () => {
-    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
+    state.modules = { register: 'manager', sales: 'manager', customers: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
     state.isAdmin = false;
     render(<BottomTabBar onMoreClick={vi.fn()} />);
+    // First four in MODULE_NAV order.
     expect(screen.getByText('Касса')).toBeInTheDocument();
+    expect(screen.getByText('Продажи')).toBeInTheDocument();
+    expect(screen.getByText('Клиенты')).toBeInTheDocument();
     expect(screen.getByText('Склад')).toBeInTheDocument();
-    expect(screen.getByText('Закупки')).toBeInTheDocument();
-    expect(screen.getByText('Магазин')).toBeInTheDocument();
-    // 5th granted module (Отчеты) is folded into "Ещё", not its own tab.
+    // Everything past the cap is folded into "Ещё", not given its own tab.
+    expect(screen.queryByText('Закупки')).not.toBeInTheDocument();
     expect(screen.queryByText('Отчеты')).not.toBeInTheDocument();
     expect(screen.getByText('Ещё')).toBeInTheDocument();
   });
@@ -64,7 +66,7 @@ describe('BottomTabBar', () => {
   });
 
   it('highlights active tab based on pathname', () => {
-    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
+    state.modules = { register: 'manager', sales: 'manager', customers: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
     state.isAdmin = false;
     render(<BottomTabBar onMoreClick={vi.fn()} />);
     const posLink = screen.getByText('Касса').closest('a');
@@ -72,7 +74,7 @@ describe('BottomTabBar', () => {
   });
 
   it('marks the active tab with aria-current, not colour alone', () => {
-    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
+    state.modules = { register: 'manager', sales: 'manager', customers: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
     state.isAdmin = false;
     render(<BottomTabBar onMoreClick={vi.fn()} />);
     // usePathname is mocked to /pos for this suite.
@@ -81,7 +83,7 @@ describe('BottomTabBar', () => {
   });
 
   it('reports the sheet\'s open state on the "Ещё" trigger', () => {
-    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
+    state.modules = { register: 'manager', sales: 'manager', customers: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
     state.isAdmin = false;
     const { rerender } = render(<BottomTabBar onMoreClick={vi.fn()} />);
     const trigger = screen.getByRole('button', { name: 'Ещё' });
@@ -92,7 +94,7 @@ describe('BottomTabBar', () => {
   });
 
   it('calls onMoreClick when "Ещё" is clicked', async () => {
-    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
+    state.modules = { register: 'manager', sales: 'manager', customers: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
     state.isAdmin = false;
     const onMoreClick = vi.fn();
     render(<BottomTabBar onMoreClick={onMoreClick} />);
