@@ -36,10 +36,10 @@ jobs:
         env:
           SELLARY_ENV: test
           SECRET_KEY: ci-only-not-a-real-secret-0000000000000000000000000000000000
-        # --durations names the slowest tests instead of leaving a 40-minute
-        # step opaque; timeout-minutes turns a hang into a fast red instead of
-        # burning the 6-hour default.
-        timeout-minutes: 25
+        # --durations names the slowest tests instead of leaving an opaque step;
+        # timeout-minutes turns a hang into a fast red. The suite runs in ~35s on
+        # this runner, so 10 minutes is a wide margin, not a tight budget.
+        timeout-minutes: 10
         run: pytest tests/integration tests/unit -q -p no:cacheprovider --durations=15
 
   frontend:
