@@ -28,6 +28,14 @@ jobs:
       - name: Check module registry parity
         run: python ../scripts/check_module_parity.py
       - name: Tests
+        # The suite runs against in-memory SQLite, so no service container is
+        # needed — but Settings defaults SELLARY_ENV to "production", which
+        # hard-crashes on a weak SECRET_KEY before conftest can even import.
+        # CI is not production: name it, and hand it a throwaway key so the
+        # length check passes without a real secret in the repo.
+        env:
+          SELLARY_ENV: test
+          SECRET_KEY: ci-only-not-a-real-secret-0000000000000000000000000000000000
         run: pytest tests/integration tests/unit -q
 
   frontend:
