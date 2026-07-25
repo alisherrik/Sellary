@@ -108,6 +108,20 @@ function useIdempotencyKey() {
   return { take, reset };
 }
 
+/**
+ * What the cashier actually sold, in the unit they sold it in.
+ *
+ * `quantity` is base units by contract while `unit_price` is per *sold* unit,
+ * so pairing them rendered a box of 12 at 50 000 as "12 шт × 50 000" next to a
+ * line total of 50 000 — on the screen a manager reads before authorising a
+ * refund. The response carries sold_quantity and sold_unit_label for exactly
+ * this; they were being ignored.
+ */
+const soldAs = (item: SaleItem) => ({
+  quantity: item.sold_quantity ?? item.quantity,
+  unit: item.sold_unit_label ?? item.uom,
+});
+
 function SalesHistory() {
   const queryClient = useQueryClient();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -926,7 +940,7 @@ function SalesHistory() {
                             {item.product_name}
                           </p>
                           <p className="text-[11px] text-[var(--erp-muted)]">
-                            {item.quantity} {item.uom} × {formatCurrency(item.unit_price)}
+                            {soldAs(item).quantity} {soldAs(item).unit} × {formatCurrency(item.unit_price)}
                             {item.quantity_returned > 0 && (
                               <span className="ml-1 text-orange-600">({item.quantity_returned} возв.)</span>
                             )}
@@ -1046,7 +1060,7 @@ function SalesHistory() {
                   <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl bg-gray-50 p-2 text-xs dark:bg-gray-700">
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-gray-900 dark:text-white">{item.product_name}</p>
-                      <p className="text-[10px] text-gray-500">{item.quantity} {item.uom} × {formatCurrency(item.unit_price)}</p>
+                      <p className="text-[10px] text-[var(--erp-muted)]">{soldAs(item).quantity} {soldAs(item).unit} × {formatCurrency(item.unit_price)}</p>
                     </div>
                     <span className="font-medium tabular-nums text-gray-900 dark:text-white">{formatCurrency(item.total)}</span>
                   </div>
@@ -1228,8 +1242,13 @@ function SalesHistory() {
 
       {showDebtPaymentModal && selectedSale && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="w-full rounded-t-2xl bg-white p-4 shadow-2xl dark:bg-gray-800 sm:max-w-md sm:rounded-2xl">
-            <h2 className="text-lg font-black text-gray-900 dark:text-white">Оплата долга</h2>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="debt-payment-title"
+            className="w-full border-2 border-[var(--erp-divider)] bg-white p-4 shadow-2xl sm:max-w-md"
+          >
+            <h2 id="debt-payment-title" className="text-lg font-black text-[var(--erp-text)]">Оплата долга</h2>
             <p className="mt-1 text-sm text-gray-500">
               Чек #{selectedSale.id}
               {selectedSale.customer_name ? ` · ${selectedSale.customer_name}` : ''}

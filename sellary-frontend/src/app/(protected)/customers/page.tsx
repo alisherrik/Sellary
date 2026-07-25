@@ -343,9 +343,16 @@ function Customers() {
 
       {showPaymentModal && selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="w-full bg-white p-4 shadow-2xl sm:max-w-md">
-            <h2 className="text-lg font-black text-[var(--erp-text)]">Оплата долга</h2>
-            <p className="mt-1 text-sm text-gray-500">{selectedCustomer.name}</p>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customer-payment-title"
+            className="w-full border-2 border-[var(--erp-divider)] bg-white p-4 shadow-2xl sm:max-w-md"
+          >
+            <h2 id="customer-payment-title" className="text-lg font-black text-[var(--erp-text)]">
+              Оплата долга
+            </h2>
+            <p className="mt-1 text-sm text-[var(--erp-muted)]">{selectedCustomer.name}</p>
 
             <label className="mt-4 block text-sm font-medium text-gray-700">
               Сумма оплаты

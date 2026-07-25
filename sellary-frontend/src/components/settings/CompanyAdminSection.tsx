@@ -82,7 +82,14 @@ function CheckboxField({
   );
 }
 
-function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
+function MembershipModulesEditor({
+  membershipId,
+  onDirtyChange,
+}: {
+  membershipId: number;
+  /** Lets the parent refuse to collapse an editor holding unsaved grants. */
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<ModuleDraft>(() => toDraft({}));
 
@@ -97,6 +104,13 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
   useEffect(() => {
     if (data) setDraft(toDraft(data.modules));
   }, [data]);
+
+  useEffect(() => {
+    if (!data) return;
+    const saved = toDraft(data.modules);
+    const dirty = MODULE_ROWS.some(({ key }) => draft[key] !== saved[key]);
+    onDirtyChange?.(dirty);
+  }, [data, draft, onDirtyChange]);
 
   const saveMutation = useMutation({
     mutationFn: (modules: ModuleMap) => adminApi.updateMembershipModules(membershipId, modules),
@@ -277,10 +291,19 @@ export default function CompanyAdminSection() {
     );
   }
 
+  // Collapsing the editor unmounts it, and the draft lives inside. Without
+  // this an admin who set five radios and pressed "Скрыть модули" lost all of
+  // them, with no warning and no visible difference from a saved state.
+  const [dirtyModuleIds, setDirtyModuleIds] = useState<Set<number>>(new Set());
+
   const toggleModules = (membershipId: number) => {
     setExpandedModuleIds((current) => {
       const next = new Set(current);
       if (next.has(membershipId)) {
+        if (dirtyModuleIds.has(membershipId)) {
+          toast.error('Есть несохранённые изменения доступа. Сохраните или обновите страницу.');
+          return current;
+        }
         next.delete(membershipId);
       } else {
         next.add(membershipId);
@@ -581,7 +604,17 @@ export default function CompanyAdminSection() {
                               Полный доступ ко всем модулям (администратор).
                             </p>
                           ) : (
-                            <MembershipModulesEditor membershipId={membership.id} />
+                            <MembershipModulesEditor
+                              membershipId={membership.id}
+                              onDirtyChange={(dirty) =>
+                                setDirtyModuleIds((current) => {
+                                  const next = new Set(current);
+                                  if (dirty) next.add(membership.id);
+                                  else next.delete(membership.id);
+                                  return next;
+                                })
+                              }
+                            />
                           )}
                         </div>
                       ) : null}
