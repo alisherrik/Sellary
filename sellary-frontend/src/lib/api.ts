@@ -3,7 +3,12 @@
 import axios from 'axios';
 
 import { clearOwnerSession, getOwnerAccessToken } from './owner-session';
-import { clearStoredSession, getActiveAccessToken } from './session';
+import {
+  clearStoredSession,
+  getActiveAccessToken,
+  getCurrentCompanyId,
+  setAccessTokenForCompany,
+} from './session';
 import type { ModuleMap } from './modules';
 import type {
   AuthSession,
@@ -71,11 +76,51 @@ if (typeof window !== 'undefined') {
     (error) => Promise.reject(error),
   );
 
+  // A 401 used to mean "log out, now" — which is how a cashier ended up on the
+  // login screen mid-shift the moment a token aged out. Try the sliding-session
+  // refresh once first; only a refusal there is a real end of session.
+  let refreshInFlight: Promise<string | null> | null = null;
+
+  const renewSession = (): Promise<string | null> => {
+    if (!refreshInFlight) {
+      refreshInFlight = axios
+        .post<CompanySession>(
+          `${API_URL}/auth/refresh`,
+          {},
+          { headers: { Authorization: `Bearer ${getActiveAccessToken() ?? ''}` } },
+        )
+        .then((response) => {
+          const session = response.data;
+          setAccessTokenForCompany(session.current_company.id, session.access_token);
+          return session.access_token;
+        })
+        .catch(() => null)
+        .finally(() => {
+          refreshInFlight = null;
+        });
+    }
+    return refreshInFlight;
+  };
+
   api.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
+      const original = error.config;
+      const isRefreshCall = typeof original?.url === 'string' && original.url.includes('/auth/refresh');
+
+      if (error.response?.status === 401 && original && !original._retried && !isRefreshCall) {
+        original._retried = true;
+        const token = await renewSession();
+        if (token) {
+          original.headers = original.headers ?? {};
+          original.headers.Authorization = `Bearer ${token}`;
+          return api.request(original);
+        }
+      }
+
       if (error.response?.status === 401) {
-        clearStoredSession();
+        const companyId = getCurrentCompanyId();
+        clearStoredSession(companyId != null ? [companyId] : []);
         window.location.href = '/login';
       }
 
@@ -111,6 +156,7 @@ if (typeof window !== 'undefined') {
 }
 
 export const authApi = {
+  refresh: () => api.post<CompanySession>('/auth/refresh'),
   login: (username: string, password: string) =>
     api.post<LoginResponse>(`/auth/login?_t=${Date.now()}`, { username, password }),
   selectCompany: (companyId: number, loginToken: string) =>

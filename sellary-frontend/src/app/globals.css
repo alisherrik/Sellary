@@ -154,6 +154,20 @@
   padding-top: env(safe-area-inset-top, 0px);
 }
 
+@keyframes session-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(200%);
+  }
+}
+
+.animate-session-sweep {
+  animation: session-sweep 1.1s ease-in-out infinite;
+}
+
 /* Prevent pull-to-refresh and overscroll on mobile */
 .mobile-no-overscroll {
   overscroll-behavior: none;

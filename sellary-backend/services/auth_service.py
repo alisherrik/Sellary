@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 
@@ -198,7 +198,32 @@ class AuthService:
         )
         return {row.module: row.level for row in rows if row.module in enabled}
 
-    def create_company_session(self, user: User, company_id: int) -> CompanySession:
+    def refresh_session(self, auth) -> CompanySession:
+        """Re-issue the caller's session token without a new login.
+
+        Stateless by design — there is no refresh-token table. The caller proves
+        possession of a currently valid token; we mint another with the same
+        claims and the original `ses` (session start) carried forward, so the
+        session still dies SESSION_ABSOLUTE_MAX_DAYS after the real login no
+        matter how often it is renewed.
+        """
+        started = auth.token_payload.get("ses")
+        if started is not None:
+            age = datetime.now(timezone.utc) - datetime.fromtimestamp(started, tz=timezone.utc)
+            if age > timedelta(days=settings.SESSION_ABSOLUTE_MAX_DAYS):
+                raise ValueError("Session expired, please sign in again")
+
+        if auth.is_super_admin_company_entry:
+            return self.create_super_admin_company_session(
+                auth.user, auth.company, session_started=started
+            )
+        return self.create_company_session(
+            auth.user, auth.company_id, session_started=started
+        )
+
+    def create_company_session(
+        self, user: User, company_id: int, session_started: int | None = None
+    ) -> CompanySession:
         membership = (
             self.db.query(CompanyMembership)
             .filter(
@@ -231,6 +256,7 @@ class AuthService:
                 "company_id": membership.company_id,
                 "role": membership.role,
                 "global_role": user.global_role,
+                **({"ses": session_started} if session_started else {}),
             },
             expires_delta=access_token_expires,
         )
@@ -248,7 +274,9 @@ class AuthService:
             company_modules=self._company_modules(company_id),
         )
 
-    def create_super_admin_company_session(self, user: User, company: Company) -> CompanySession:
+    def create_super_admin_company_session(
+        self, user: User, company: Company, session_started: int | None = None
+    ) -> CompanySession:
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         current_company = CompanySummary(
             id=company.id,
@@ -266,6 +294,7 @@ class AuthService:
                 "role": "admin",
                 "global_role": user.global_role,
                 "super_admin_entry": True,
+                **({"ses": session_started} if session_started else {}),
             },
             expires_delta=access_token_expires,
         )

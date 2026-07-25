@@ -40,6 +40,7 @@ interface AuthState {
   acceptCompanySession: (session: CompanySession) => CompanySummary;
   logout: () => void;
   fetchSession: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const emptyAuthState = {
@@ -134,6 +135,21 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         clearStoredSession(get().companies.map((company) => company.id));
         set({ ...emptyAuthState, hasHydrated: true });
+      },
+
+      refreshSession: async () => {
+        // Slides the session forward so an active user never meets /login.
+        // Silent by design: a failure here is not worth interrupting anyone —
+        // the 401 interceptor is what ends a session that is genuinely over.
+        if (!(get().accessToken ?? getActiveAccessToken())) {
+          return;
+        }
+        try {
+          const response = await authApi.refresh();
+          applyCompanySession(set, response.data);
+        } catch {
+          /* ignored: the interceptor owns the end-of-session path */
+        }
       },
 
       fetchSession: async () => {

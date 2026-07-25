@@ -91,6 +91,20 @@ def switch_company(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
 
+@router.post("/refresh", response_model=CompanySession)
+def refresh(auth: AuthContext = Depends(get_auth_context), db: Session = Depends(get_db)):
+    """Renew a still-valid session so an active user is never thrown to /login.
+
+    Requires a valid access token — this is a sliding session, not a bearer
+    swap. The absolute cap lives in the token's `ses` claim, so nothing is
+    stored server-side.
+    """
+    try:
+        return AuthService(db).refresh_session(auth)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
+
+
 @router.get("/me", response_model=AuthSession)
 def get_me(auth: AuthContext = Depends(get_auth_context), db: Session = Depends(get_db)):
     auth_service = AuthService(db)

@@ -27,6 +27,9 @@ def create_access_token(
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    # `ses` is when this login began, carried forward by every refresh. It is
+    # what makes the absolute session cap possible without storing anything.
+    to_encode.setdefault("ses", int(datetime.now(timezone.utc).timestamp()))
     to_encode.update({"exp": expire, "token_type": token_type})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt

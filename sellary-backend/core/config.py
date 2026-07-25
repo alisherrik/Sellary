@@ -15,7 +15,13 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+    # A week, not a day. The register is used daily and a cashier being
+    # thrown to the login screen mid-shift is worse than the marginal risk of
+    # a longer-lived token — which /auth/refresh caps anyway (below).
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
+    # A session may be renewed by /auth/refresh, but never past this age from
+    # the original login. Stateless: the cap rides in the token's `ses` claim.
+    SESSION_ABSOLUTE_MAX_DAYS: int = 30
     LOGIN_TOKEN_EXPIRE_MINUTES: int = 10
     OWNER_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 

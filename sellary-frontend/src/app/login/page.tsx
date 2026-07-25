@@ -11,6 +11,7 @@ import {
   ShoppingBagIcon,
 } from '@heroicons/react/24/outline';
 
+import SessionSplash from '@/components/SessionSplash';
 import { useAuthStore } from '@/lib/store';
 import type { CompanySummary } from '@/lib/types';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
@@ -145,6 +146,12 @@ export default function LoginPage() {
         </div>
       </div>
     );
+  }
+
+  // Nothing renders until we know whether there is a session. Otherwise an
+  // already-signed-in user watched the login form appear and then vanish.
+  if (!hasHydrated || (accessToken && currentCompany)) {
+    return <SessionSplash label="Проверка сессии" />;
   }
 
   return (
