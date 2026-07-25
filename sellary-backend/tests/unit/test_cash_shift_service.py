@@ -158,7 +158,9 @@ class TestOpenCloseSnapshot:
     def test_close_records_discrepancy(self, db_session, cashier):
         svc = CashShiftService(db_session)
         shift = svc.open_shift(Decimal("50.00"), cashier.id)
-        sale(db_session, cashier, "100.00", at=shift.opened_at + timedelta(minutes=5))
+        # At the window start, not after it: close_shift ends the window at
+        # "now", so a sale timestamped in the future is genuinely outside it.
+        sale(db_session, cashier, "100.00", at=shift.opened_at)
         # Expected 150; cashier counts 145 → 5 short.
         closed = svc.close_shift(shift.id, Decimal("145.00"), None, cashier.id)
         assert closed.expected_cash == Decimal("150.00")
@@ -175,7 +177,7 @@ class TestOpenCloseSnapshot:
     def test_closed_totals_are_frozen(self, db_session, cashier):
         svc = CashShiftService(db_session)
         shift = svc.open_shift(Decimal("0.00"), cashier.id)
-        sale(db_session, cashier, "100.00", at=shift.opened_at + timedelta(minutes=1))
+        sale(db_session, cashier, "100.00", at=shift.opened_at)
         closed = svc.close_shift(shift.id, Decimal("100.00"), None, cashier.id)
         frozen = svc.totals_for(closed)
         # A sale arriving AFTER the close must not move the frozen number.

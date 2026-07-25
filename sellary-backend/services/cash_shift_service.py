@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -152,6 +152,19 @@ class CashShiftService:
             raise ShiftConflict("Смена уже открыта") from exc
         return shift
 
+    @staticmethod
+    def _now_like(reference: datetime) -> datetime:
+        """UTC now, matching `reference`'s awareness.
+
+        `datetime.now(tz=reference.tzinfo)` silently falls back to the local
+        wall clock when the reference is naive — which is what a driver that
+        drops tzinfo hands back. That turned the shift window into
+        [opened_at, local_now), five hours wide on a UTC+5 machine and empty on
+        a UTC one. Anchor on UTC and only shed the tzinfo to match.
+        """
+        now = datetime.now(timezone.utc)
+        return now if reference.tzinfo is not None else now.replace(tzinfo=None)
+
     def close_shift(self, shift_id: int, counted_cash: Decimal, notes: Optional[str], user_id: int) -> CashShift:
         shift = (
             self.db.query(CashShift)
@@ -164,7 +177,7 @@ class CashShiftService:
         if shift.status != CashShiftStatus.OPEN:
             raise ShiftConflict("Смена уже закрыта")
 
-        closed_at = datetime.now(tz=shift.opened_at.tzinfo)
+        closed_at = self._now_like(shift.opened_at)
         totals = self.compute_totals(shift.opened_at, closed_at, Decimal(shift.opening_cash))
 
         shift.status = CashShiftStatus.CLOSED
@@ -187,7 +200,7 @@ class CashShiftService:
         if shift is None or shift.status != CashShiftStatus.OPEN:
             raise ShiftConflict("Смена не открыта")
 
-        now = datetime.now(tz=shift.opened_at.tzinfo)
+        now = self._now_like(shift.opened_at)
         totals = self.compute_totals(shift.opened_at, now, Decimal(shift.opening_cash))
         snapshot = CashShiftSnapshot(
             company_id=self.company_id,
