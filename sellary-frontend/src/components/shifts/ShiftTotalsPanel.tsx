@@ -18,7 +18,7 @@ function Row({ label, value, bold = false, tone }: {
   tone?: 'short' | 'over';
 }) {
   const toneClass =
-    tone === 'short' ? 'text-[var(--erp-accent)]' : tone === 'over' ? 'text-[var(--erp-success)]' : '';
+    tone === 'short' ? 'text-[#dc2626]' : tone === 'over' ? 'text-[var(--erp-success)]' : '';
   return (
     <div className="flex items-center justify-between py-1 text-sm">
       <span className={`text-gray-600 ${bold ? 'font-semibold' : ''}`}>{label}</span>

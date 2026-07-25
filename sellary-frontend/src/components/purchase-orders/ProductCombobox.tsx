@@ -27,6 +27,7 @@ export default function ProductCombobox({
 }: ProductComboboxProps) {
   const id = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState(value?.name ?? '');
   const [options, setOptions] = useState<Product[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -90,6 +91,9 @@ export default function ProductCombobox({
     setQuery(product.name);
     setIsOpen(false);
     setCreating(false);
+    // Closing the create panel unmounted the button that had focus, dropping
+    // it to <body>; the next Tab restarted at the top of the document.
+    inputRef.current?.focus();
   };
 
   const trimmedQuery = query.trim();
@@ -106,6 +110,7 @@ export default function ProductCombobox({
       />
       <input
         id={id}
+        ref={inputRef}
         role="combobox"
         aria-label={label}
         aria-autocomplete="list"
@@ -151,7 +156,10 @@ export default function ProductCombobox({
           {creating ? (
             <QuickProductCreate
               initialName={trimmedQuery}
-              onCancel={() => setCreating(false)}
+              onCancel={() => {
+                setCreating(false);
+                inputRef.current?.focus();
+              }}
               onCreated={select}
             />
           ) : isLoading ? (

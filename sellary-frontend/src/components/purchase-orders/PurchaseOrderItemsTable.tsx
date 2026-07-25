@@ -57,8 +57,8 @@ function LineTotalInput({
         onTotalChange(event.target.value);
       }}
       onBlur={() => setDraft(null)}
-      className={`min-h-11 w-full rounded-md border bg-white px-3 text-right text-sm font-semibold tabular-nums text-gray-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 ${
-        hasError ? 'border-red-500' : 'border-gray-300'
+      className={`min-h-11 w-full border bg-white px-3 text-right text-sm font-semibold tabular-nums text-[var(--erp-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] ${
+        hasError ? 'border-[#dc2626]' : 'border-[var(--erp-divider)]'
       }`}
     />
   );
@@ -85,10 +85,11 @@ export default function PurchaseOrderItemsTable({
   };
 
   return (
-    // The six-column grid needs 758px. The editor's content column is 390px at
-    // 1024px, so the grid only switches on at xl and the wrapper scrolls rather
-    // than clipping the delete button off the row.
-    <div className="overflow-x-auto xl:overflow-visible">
+    // The six-column grid needs 758px and only turns on at xl, so the
+    // horizontal scroller belongs at xl too. Below it, any overflow rule here
+    // also forces overflow-y and clips the combobox popup — the one thing that
+    // must escape this box.
+    <div className="xl:overflow-x-auto">
       <div className="hidden min-w-[758px] grid-cols-[minmax(220px,1fr)_64px_110px_130px_130px_44px] gap-3 border-b border-gray-200 px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)] xl:grid">
         <span>Товар</span>
         <span>Ед.</span>
@@ -136,7 +137,7 @@ export default function PurchaseOrderItemsTable({
               className="grid gap-3 py-4 xl:min-w-[758px] xl:grid-cols-[minmax(220px,1fr)_64px_110px_130px_130px_44px] xl:items-start xl:px-3"
             >
               <div>
-                <span className="mb-1 block text-xs font-medium text-gray-600 xl:hidden">
+                <span className="mb-1 block text-xs font-medium text-[var(--erp-muted)] xl:hidden">
                   Товар
                 </span>
                 <ProductCombobox
@@ -180,12 +181,12 @@ export default function PurchaseOrderItemsTable({
               </div>
 
               <div className="pt-0 text-sm text-gray-600 sm:pt-3">
-                <span className="mr-2 text-xs font-medium text-gray-500 xl:hidden">Ед.</span>
+                <span className="mr-2 text-xs font-medium text-[var(--erp-muted)] xl:hidden">Ед.</span>
                 {product?.uom ?? '—'}
               </div>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-600 xl:hidden">
+                <span className="mb-1 block text-xs font-medium text-[var(--erp-muted)] xl:hidden">
                   Количество
                 </span>
                 <span className="sr-only">
@@ -205,8 +206,8 @@ export default function PurchaseOrderItemsTable({
                   onChange={(event) =>
                     updateRow(item.key, { quantity_ordered: event.target.value })
                   }
-                  className={`min-h-11 w-full rounded-md border bg-white px-3 text-right text-sm tabular-nums focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 ${
-                    rowErrors.quantity_ordered ? 'border-red-500' : 'border-gray-300'
+                  className={`min-h-11 w-full border bg-white px-3 text-right text-sm tabular-nums focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] ${
+                    rowErrors.quantity_ordered ? 'border-[#dc2626]' : 'border-[var(--erp-divider)]'
                   }`}
                 />
                 {rowErrors.quantity_ordered && (
@@ -217,7 +218,7 @@ export default function PurchaseOrderItemsTable({
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-600 xl:hidden">
+                <span className="mb-1 block text-xs font-medium text-[var(--erp-muted)] xl:hidden">
                   Цена
                 </span>
                 <input
@@ -230,8 +231,8 @@ export default function PurchaseOrderItemsTable({
                   aria-describedby={rowErrors.unit_cost ? `${item.key}-cost-error` : undefined}
                   value={item.unit_cost}
                   onChange={(event) => updateRow(item.key, { unit_cost: event.target.value })}
-                  className={`min-h-11 w-full rounded-md border bg-white px-3 text-right text-sm tabular-nums focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 ${
-                    rowErrors.unit_cost ? 'border-red-500' : 'border-gray-300'
+                  className={`min-h-11 w-full border bg-white px-3 text-right text-sm tabular-nums focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] ${
+                    rowErrors.unit_cost ? 'border-[#dc2626]' : 'border-[var(--erp-divider)]'
                   }`}
                 />
                 {rowErrors.unit_cost && (
@@ -242,7 +243,7 @@ export default function PurchaseOrderItemsTable({
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-600 xl:hidden">
+                <span className="mb-1 block text-xs font-medium text-[var(--erp-muted)] xl:hidden">
                   Сумма
                 </span>
                 <LineTotalInput

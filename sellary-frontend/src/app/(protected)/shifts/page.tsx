@@ -159,7 +159,7 @@ export default function ShiftsPage() {
                       <td className="px-4 py-3 text-gray-500">{formatDateTime(s.opened_at)}</td>
                       <td className="px-4 py-3 text-gray-500">{s.closed_at ? formatDateTime(s.closed_at) : '—'}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(revenue)}</td>
-                      <td className={`px-4 py-3 text-right tabular-nums ${disc < 0 ? 'text-[var(--erp-accent)]' : disc > 0 ? 'text-[var(--erp-success)]' : 'text-[var(--erp-muted)]'}`}>
+                      <td className={`px-4 py-3 text-right tabular-nums ${disc < 0 ? 'text-[#dc2626]' : disc > 0 ? 'text-[var(--erp-success)]' : 'text-[var(--erp-muted)]'}`}>
                         {formatCurrency(s.discrepancy ?? '0')}
                       </td>
                     </tr>

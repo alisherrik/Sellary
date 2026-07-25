@@ -8,10 +8,11 @@ import { useShift } from '@/hooks/useQueries';
 import { formatDateTime } from '@/lib/utils';
 import { ShiftTotalsPanel } from '@/components/shifts/ShiftTotalsPanel';
 import { CardSkeleton } from '@/components/skeletons';
+import QueryError from '@/components/ui/QueryError';
 
 export default function ShiftDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data: shift, isLoading } = useShift(Number(id));
+  const { data: shift, isLoading, isError, refetch } = useShift(Number(id));
 
   return (
     <div className="h-full overflow-y-auto mobile-no-overscroll p-4 space-y-4">
@@ -19,8 +20,12 @@ export default function ShiftDetailPage({ params }: { params: Promise<{ id: stri
         <ArrowLeftIcon className="h-4 w-4" /> К сменам
       </Link>
 
-      {isLoading || !shift ? (
+      {isLoading ? (
         <CardSkeleton />
+      ) : isError || !shift ? (
+        // `isLoading || !shift` spun forever on a 404 or a failed request: the
+        // query settles, the data never arrives, and the skeleton never leaves.
+        <QueryError what="смену" onRetry={() => void refetch()} />
       ) : (
         <>
           <div>
