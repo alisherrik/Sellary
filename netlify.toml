@@ -1,7 +1,10 @@
+# publish is resolved RELATIVE TO base by current netlify-cli 17.x (this
+# changed within the 17.x line — an absolute-style repo path doubles to
+# sellary-frontend/sellary-frontend/.next and the deploy fails).
 [build]
 base = "sellary-frontend"
 command = "npm run build"
-publish = "sellary-frontend/.next"
+publish = ".next"
 
 [build.environment]
 NODE_VERSION = "20"
