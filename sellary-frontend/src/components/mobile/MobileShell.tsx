@@ -97,9 +97,13 @@ export default function MobileShell({ children }: MobileShellProps) {
           </>
         }
       />
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+      <main
+        id="main"
+        data-shell-scroll
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
+      >
         {children}
-      </div>
+      </main>
       <BottomTabBar onMoreClick={() => setMoreOpen(true)} moreOpen={moreOpen} />
       <MoreSheet isOpen={moreOpen} onClose={() => setMoreOpen(false)} />
       {accountOpen && <MobileAccountSheet isOpen onClose={() => setAccountOpen(false)} />}

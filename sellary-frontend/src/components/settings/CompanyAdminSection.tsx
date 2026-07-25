@@ -11,6 +11,12 @@ import type { ManagedUser, ManagedUserMembershipSummary, UserRole } from '@/lib/
 
 const roleOptions: UserRole[] = ['admin', 'manager', 'cashier'];
 
+const LEVEL_LABELS: Record<'' | 'user' | 'manager', string> = {
+  '': 'Нет',
+  user: 'Сотрудник',
+  manager: 'Менеджер',
+};
+
 const MODULE_ROWS: { key: ModuleKey; label: string }[] = [
   { key: 'pos', label: 'Касса' },
   { key: 'inventory', label: 'Склад' },
@@ -80,7 +86,7 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
         <button
           type="button"
           onClick={() => refetch()}
-          className="border border-[var(--erp-divider)] px-3 py-2 text-xs font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)]"
+          className="border border-[var(--erp-divider)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-[var(--erp-text)] hover:border-[var(--erp-text)]"
         >
           Повторить
         </button>
@@ -91,25 +97,29 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
   return (
     <div className="space-y-3">
       <table className="min-w-full text-left text-sm">
-        <thead className="text-slate-500">
+        <thead className="text-[var(--erp-muted)]">
           <tr>
-            <th className="py-1 pr-4 font-medium">Модуль</th>
-            <th className="py-1 pr-4 font-medium">Нет</th>
-            <th className="py-1 pr-4 font-medium">Сотрудник</th>
-            <th className="py-1 pr-4 font-medium">Менеджер</th>
+            <th scope="col" className="py-1 pr-4 font-medium">Модуль</th>
+            <th scope="col" className="py-1 pr-4 font-medium">Нет</th>
+            <th scope="col" className="py-1 pr-4 font-medium">Сотрудник</th>
+            <th scope="col" className="py-1 pr-4 font-medium">Менеджер</th>
           </tr>
         </thead>
         <tbody>
           {MODULE_ROWS.map(({ key, label }) => (
             <tr key={key} className="border-t border-[var(--erp-divider)]">
-              <td className="py-2 pr-4">{label}</td>
+              <th scope="row" className="py-2 pr-4 text-left font-normal">{label}</th>
               {(['', 'user', 'manager'] as const).map((level) => (
                 <td key={level || 'none'} className="py-2 pr-4">
+                  {/* Column meaning lives in a <th> a radio can't reference, so
+                      each control names itself: "Склад: Менеджер". */}
                   <input
                     type="radio"
                     name={`module-${membershipId}-${key}`}
+                    aria-label={`${label}: ${LEVEL_LABELS[level]}`}
                     checked={draft[key] === level}
                     onChange={() => setDraft((current) => ({ ...current, [key]: level }))}
+                    className="h-5 w-5 accent-[var(--erp-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
                   />
                 </td>
               ))}
@@ -121,7 +131,7 @@ function MembershipModulesEditor({ membershipId }: { membershipId: number }) {
         type="button"
         onClick={handleSave}
         disabled={saveMutation.isPending}
-        className="bg-[var(--erp-accent)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+        className="bg-[var(--erp-accent)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-white disabled:opacity-50"
       >
         {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
       </button>
@@ -256,35 +266,56 @@ export default function CompanyAdminSection() {
       <div className="grid gap-4 lg:grid-cols-2">
         <form onSubmit={handleCreateUser} className="space-y-3 border border-[var(--erp-divider)] p-4">
           <h3 className="text-sm font-semibold text-[var(--erp-text)]">Создать пользователя</h3>
-          <input
-            value={userForm.username}
-            onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))}
-            placeholder="Имя пользователя"
-            required
-            className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm"
-          />
-          <input
-            type="email"
-            value={userForm.email}
-            onChange={(event) => setUserForm((current) => ({ ...current, email: event.target.value }))}
-            placeholder="Email"
-            required
-            className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm"
-          />
-          <input
-            value={userForm.full_name}
-            onChange={(event) => setUserForm((current) => ({ ...current, full_name: event.target.value }))}
-            placeholder="Полное имя"
-            className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm"
-          />
-          <input
-            type="password"
-            value={userForm.password}
-            onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))}
-            placeholder="Пароль"
-            required
-            className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm"
-          />
+          {/* Labels, not placeholders: a placeholder disappears on the first
+              keystroke and screen readers announce these fields as blank. */}
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-[var(--erp-muted)]">
+              Имя пользователя
+            </span>
+            <input
+              value={userForm.username}
+              onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))}
+              placeholder="Имя пользователя"
+              autoComplete="off"
+              autoCapitalize="none"
+              required
+              className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-[var(--erp-muted)]">Email</span>
+            <input
+              type="email"
+              value={userForm.email}
+              onChange={(event) => setUserForm((current) => ({ ...current, email: event.target.value }))}
+              placeholder="Email"
+              autoComplete="off"
+              required
+              className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-[var(--erp-muted)]">Полное имя</span>
+            <input
+              value={userForm.full_name}
+              onChange={(event) => setUserForm((current) => ({ ...current, full_name: event.target.value }))}
+              placeholder="Полное имя"
+              className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-[var(--erp-muted)]">Пароль</span>
+            <input
+              type="password"
+              value={userForm.password}
+              onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))}
+              placeholder="Пароль"
+              // new-password, or the browser offers to fill the admin's own.
+              autoComplete="new-password"
+              required
+              className="h-11 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+            />
+          </label>
           <div className="grid grid-cols-3 gap-3">
             <select
               value={userForm.role}
@@ -388,7 +419,7 @@ export default function CompanyAdminSection() {
 
       <div className="mt-5 overflow-x-auto">
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-[var(--erp-surface)] text-gray-400">
+          <thead className="bg-[var(--erp-surface)] text-[var(--erp-muted)]">
             <tr>
               <th className="px-3 py-2 font-medium">Пользователь</th>
               <th className="px-3 py-2 font-medium">Email</th>
@@ -494,14 +525,14 @@ export default function CompanyAdminSection() {
                           <form onSubmit={handleUpdateMembership} className="flex gap-2">
                             <button
                               type="submit"
-                              className="bg-[var(--erp-accent)] px-3 py-2 text-xs font-semibold text-white"
+                              className="bg-[var(--erp-accent)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-white"
                             >
                               Сохранить
                             </button>
                             <button
                               type="button"
                               onClick={() => setEditingMembership(null)}
-                              className="border border-[var(--erp-divider)] px-3 py-2 text-xs font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)]"
+                              className="border border-[var(--erp-divider)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-[var(--erp-text)] hover:border-[var(--erp-text)]"
                             >
                               Отмена
                             </button>
@@ -511,14 +542,14 @@ export default function CompanyAdminSection() {
                             <button
                               type="button"
                               onClick={() => setEditingMembership(membership)}
-                              className="border border-[var(--erp-divider)] px-3 py-2 text-xs font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)]"
+                              className="border border-[var(--erp-divider)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-[var(--erp-text)] hover:border-[var(--erp-text)]"
                             >
                               Изменить участие
                             </button>
                             <button
                               type="button"
                               onClick={() => toggleModules(membership.id)}
-                              className="border border-[var(--erp-divider)] px-3 py-2 text-xs font-semibold text-[var(--erp-text)] hover:border-[var(--erp-text)]"
+                              className="border border-[var(--erp-divider)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-[var(--erp-text)] hover:border-[var(--erp-text)]"
                             >
                               {expandedModuleIds.has(membership.id)
                                 ? 'Скрыть модули'
@@ -534,7 +565,7 @@ export default function CompanyAdminSection() {
                   {membership && expandedModuleIds.has(membership.id) && (
                     <tr className="border-t border-[var(--erp-divider)] bg-[var(--erp-surface)]">
                       <td colSpan={6} className="px-3 py-4">
-                        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--erp-muted)]">
                           Доступ к модулям
                         </p>
                         {membership.role === 'admin' ? (

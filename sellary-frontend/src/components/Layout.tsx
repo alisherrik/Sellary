@@ -52,6 +52,20 @@ export default function Layout({ children }: LayoutProps) {
     setSelectedCompanyId(currentCompany?.id ?? '');
   }, [currentCompany?.id]);
 
+  // The menu's only other dismissal is a click-catcher div no keyboard can reach.
+  useEffect(() => {
+    if (!accountMenuOpen) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAccountMenuOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [accountMenuOpen]);
+
   const handlePrefetch = useCallback(
     (href: string) => {
       const key = PREFETCH_BY_HREF[href];
@@ -146,8 +160,8 @@ export default function Layout({ children }: LayoutProps) {
             <span className="font-extrabold">{currentModule.label}</span>
             {currentPage && (
               <>
-                <span className="text-gray-300">/</span>
-                <span className="text-gray-500">{currentPage.label}</span>
+                <span aria-hidden="true" className="text-[var(--erp-divider)]">/</span>
+                <span className="text-[var(--erp-muted)]">{currentPage.label}</span>
               </>
             )}
           </div>
@@ -179,24 +193,37 @@ export default function Layout({ children }: LayoutProps) {
             <button
               type="button"
               onClick={() => setAccountMenuOpen((open) => !open)}
-              className="flex items-center gap-2.5"
+              aria-haspopup="menu"
+              aria-expanded={accountMenuOpen}
+              aria-label="Аккаунт"
+              className="flex min-h-[44px] items-center gap-2.5 px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
             >
               <div className="grid h-[34px] w-[34px] place-items-center bg-[var(--erp-accent)] text-sm font-extrabold text-white">
                 {user?.username?.[0]?.toUpperCase()}
               </div>
               <div className="text-left leading-tight">
                 <div className="text-[13px] font-semibold">{user?.full_name || user?.username}</div>
-                <div className="text-[11px] capitalize text-gray-500">{currentCompany?.role || ''}</div>
+                <div className="text-[11px] capitalize text-[var(--erp-muted)]">
+                  {currentCompany?.role || ''}
+                </div>
               </div>
             </button>
             {accountMenuOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setAccountMenuOpen(false)} />
-                <div className="absolute right-0 top-[calc(100%+6px)] z-20 min-w-[160px] border border-[var(--erp-divider)] bg-white shadow-md">
+                <div
+                  className="fixed inset-0 z-10"
+                  aria-hidden="true"
+                  onClick={() => setAccountMenuOpen(false)}
+                />
+                <div
+                  role="menu"
+                  className="absolute right-0 top-[calc(100%+6px)] z-20 min-w-[160px] border border-[var(--erp-divider)] bg-white shadow-md"
+                >
                   <button
                     type="button"
+                    role="menuitem"
                     onClick={handleLogout}
-                    className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm hover:bg-[var(--erp-surface)]"
+                    className="flex min-h-[44px] w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
                   >
                     <ArrowRightOnRectangleIcon className="h-4 w-4" />
                     Выйти
@@ -220,14 +247,21 @@ export default function Layout({ children }: LayoutProps) {
                 href={href}
                 prefetch={false}
                 title={def.label}
-                className={`flex w-16 flex-col items-center gap-1 py-2.5 text-center ${
+                aria-current={isActive ? 'page' : undefined}
+                className={`relative flex w-16 flex-col items-center gap-1 py-2.5 text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] ${
                   isActive
                     ? 'bg-white text-[var(--erp-accent)]'
                     : 'text-[var(--erp-text)] hover:bg-black/5'
                 }`}
               >
+                {isActive && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0 w-0.5 bg-[var(--erp-accent)]"
+                  />
+                )}
                 <Icon className="h-5 w-5" />
-                <span className="text-[9.5px] font-semibold tracking-tight">{def.label}</span>
+                <span className="text-[10px] font-semibold tracking-tight">{def.label}</span>
               </Link>
             );
           })}
@@ -246,7 +280,7 @@ export default function Layout({ children }: LayoutProps) {
                   const isActive = currentPage?.href === page.href;
                   const locked =
                     !isAdmin && page.managerOnly && currentModuleLevel !== 'manager';
-                  const className = `flex items-center justify-between px-2 py-2 text-left text-sm ${
+                  const className = `flex min-h-[40px] items-center justify-between px-2 py-2 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] ${
                     isActive
                       ? 'bg-[var(--erp-text)] text-white'
                       : locked
@@ -268,7 +302,10 @@ export default function Layout({ children }: LayoutProps) {
                       key={page.href}
                       href={page.href}
                       prefetch={false}
+                      aria-current={isActive ? 'page' : undefined}
                       onMouseEnter={() => handlePrefetch(page.href)}
+                      onFocus={() => handlePrefetch(page.href)}
+                      onTouchStart={() => handlePrefetch(page.href)}
                       className={className}
                     >
                       <span>{page.label}</span>
@@ -292,7 +329,9 @@ export default function Layout({ children }: LayoutProps) {
           </aside>
         )}
 
-        <main className="min-h-0 flex-1 overflow-y-auto bg-[var(--erp-bg)]">{children}</main>
+        <main id="main" className="min-h-0 flex-1 overflow-y-auto bg-[var(--erp-bg)]">
+          {children}
+        </main>
       </div>
     </div>
   );

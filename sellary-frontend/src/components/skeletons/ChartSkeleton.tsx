@@ -1,19 +1,23 @@
+// Fixed heights, not Math.random(): a random bar height renders differently on
+// the server and the client and produces a hydration mismatch on every load.
+const BAR_HEIGHTS = [45, 72, 38, 61, 84, 52, 67];
+
 export default function ChartSkeleton({ height = 300 }: { height?: number }) {
     return (
-        <div className="card animate-pulse">
-            <div className="card-header">
-                <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
+        <div className="animate-pulse border-2 border-[var(--erp-divider)] bg-white">
+            <div className="border-b border-[var(--erp-divider)] px-4 py-3">
+                <div className="h-5 w-1/4 bg-[var(--erp-surface)]"></div>
             </div>
-            <div className="card-body">
+            <div className="p-4">
                 <div
-                    className="bg-gray-100 dark:bg-gray-800 rounded flex items-end justify-around px-4 pb-4"
+                    className="flex items-end justify-around bg-[var(--erp-bg)] px-4 pb-4"
                     style={{ height }}
                 >
-                    {Array.from({ length: 7 }).map((_, i) => (
+                    {BAR_HEIGHTS.map((barHeight, i) => (
                         <div
                             key={i}
-                            className="bg-gray-200 dark:bg-gray-700 rounded-t w-8"
-                            style={{ height: `${30 + Math.random() * 60}%` }}
+                            className="w-8 bg-[var(--erp-surface)]"
+                            style={{ height: `${barHeight}%` }}
                         ></div>
                     ))}
                 </div>

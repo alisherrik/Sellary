@@ -9,6 +9,7 @@ import { customersApi, generateIdempotencyKey } from '@/lib/api';
 import { Customer } from '@/lib/types';
 import FilterMenu from '@/components/filters/FilterMenu';
 import { ModuleGuard } from '@/components/ModuleGuard';
+import QueryError from '@/components/ui/QueryError';
 import { formatCurrency } from '@/lib/utils';
 import { queryKeys, useCustomerLedger, useCustomers } from '@/hooks/useQueries';
 import { useAuthStore } from '@/lib/store';
@@ -39,7 +40,12 @@ function Customers() {
   const customerParams: Record<string, string | number> = { limit: 200 };
   if (debouncedSearch.trim()) customerParams.search = debouncedSearch.trim();
 
-  const { data: customers = [], isLoading: customersLoading } = useCustomers(customerParams);
+  const {
+    data: customers = [],
+    isLoading: customersLoading,
+    isError: customersError,
+    refetch: refetchCustomers,
+  } = useCustomers(customerParams);
   const visibleCustomers = useMemo(() => {
     if (debtFilter === 'debt') {
       return customers.filter((customer) => Number(customer.balance || 0) > 0);
@@ -125,7 +131,7 @@ function Customers() {
 
   return (
     <>
-      <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="flex h-full min-h-0 flex-col gap-4 p-4">
         <div className="flex-none">
           <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Клиенты</h2>
           <p className="mt-0.5 text-[13px] text-gray-500">Долги и история · {customers.length}</p>
@@ -136,7 +142,7 @@ function Customers() {
           <div className="border-b border-[var(--erp-divider)] p-3">
             <div className="flex items-center gap-2">
               <div className="relative min-w-0 flex-1">
-              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--erp-muted)]" />
               <input
                 type="search"
                 aria-label="Поиск клиентов"
@@ -149,7 +155,7 @@ function Customers() {
               <FilterMenu activeCount={activeFilterCount} onReset={resetAdvancedFilters}>
                 <div className="space-y-3">
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                       Баланс
                     </p>
                     <div className="grid gap-1 border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-1">
@@ -167,14 +173,14 @@ function Customers() {
                           }`}
                         >
                           <span>{tab.label}</span>
-                          <span aria-hidden="true" className="text-xs tabular-nums text-gray-400">
+                          <span aria-hidden="true" className="text-xs tabular-nums text-[var(--erp-muted)]">
                             {tab.count}
                           </span>
                         </button>
                       ))}
                     </div>
                   </div>
-                  <p className="text-xs tabular-nums text-gray-400">
+                  <p className="text-xs tabular-nums text-[var(--erp-muted)]">
                     Показано: {visibleCustomers.length} из {customers.length}
                   </p>
                 </div>
@@ -183,9 +189,11 @@ function Customers() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {customersLoading ? (
-              <div className="py-10 text-center text-sm text-gray-400">Загрузка клиентов…</div>
+              <div className="py-10 text-center text-sm text-[var(--erp-muted)]">Загрузка клиентов…</div>
+            ) : customersError ? (
+              <QueryError what="клиентов" onRetry={() => void refetchCustomers()} />
             ) : visibleCustomers.length === 0 ? (
-              <div className="py-10 text-center text-sm text-gray-400">
+              <div className="py-10 text-center text-sm text-[var(--erp-muted)]">
                 {hasFilters ? 'Клиенты не найдены' : 'Клиентов пока нет'}
               </div>
             ) : (
@@ -210,9 +218,9 @@ function Customers() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-bold text-[var(--erp-text)]">{customer.name}</p>
                         {customer.phone && <p className="text-xs text-gray-500">{customer.phone}</p>}
-                        {customer.description && <p className="truncate text-xs text-gray-400">{customer.description}</p>}
+                        {customer.description && <p className="truncate text-xs text-[var(--erp-muted)]">{customer.description}</p>}
                       </div>
-                      <span className={`shrink-0 font-black tabular-nums ${balance > 0 ? 'text-[var(--erp-accent)]' : 'text-gray-400'}`}>
+                      <span className={`shrink-0 font-black tabular-nums ${balance > 0 ? 'text-[var(--erp-accent)]' : 'text-[var(--erp-muted)]'}`}>
                         {formatCurrency(customer.balance || '0')}
                       </span>
                     </button>
@@ -227,7 +235,7 @@ function Customers() {
           {selectedCustomer ? (
             <div className="flex h-full min-h-0 flex-col">
               <div className="border-b border-[var(--erp-divider)] p-4">
-                <p className="text-xs uppercase tracking-wide text-gray-400">Выбранный клиент</p>
+                <p className="text-xs uppercase tracking-wide text-[var(--erp-muted)]">Выбранный клиент</p>
                 <h3 className="mt-1 text-lg font-black text-[var(--erp-text)]">{selectedCustomer.name}</h3>
                 {selectedCustomer.phone && <p className="text-sm text-gray-500">{selectedCustomer.phone}</p>}
                 <div className="mt-3 border border-[var(--erp-divider)] bg-red-50 p-3">
@@ -247,9 +255,9 @@ function Customers() {
               <div className="min-h-0 flex-1 overflow-y-auto p-4">
                 <p className="mb-3 text-sm font-bold text-[var(--erp-text)]">История долга</p>
                 {ledgerLoading ? (
-                  <p className="py-6 text-center text-sm text-gray-400">Загрузка истории…</p>
+                  <p className="py-6 text-center text-sm text-[var(--erp-muted)]">Загрузка истории…</p>
                 ) : !ledger || ledger.entries.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-gray-400">История пуста</p>
+                  <p className="py-6 text-center text-sm text-[var(--erp-muted)]">История пуста</p>
                 ) : (
                   <div className="space-y-2">
                     {ledger.entries.map((entry) => (
@@ -259,7 +267,7 @@ function Customers() {
                             <p className="truncate text-sm font-semibold text-[var(--erp-text)]">
                               {entry.description || entryLabels[entry.entry_type] || entry.entry_type}
                             </p>
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-[var(--erp-muted)]">
                               {entryLabels[entry.entry_type] || entry.entry_type}
                               {entry.sale_id ? ` · чек #${entry.sale_id}` : ''}
                             </p>
@@ -276,7 +284,7 @@ function Customers() {
               </div>
             </div>
           ) : (
-            <div className="p-10 text-center text-sm text-gray-400">Выберите клиента</div>
+            <div className="p-10 text-center text-sm text-[var(--erp-muted)]">Выберите клиента</div>
           )}
         </aside>
         </div>

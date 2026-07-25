@@ -64,8 +64,8 @@ function Toggle({
         aria-checked={checked}
         aria-label={label}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-          checked ? 'bg-blue-600' : 'bg-gray-300'
+        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] after:absolute after:-inset-y-2.5 after:inset-x-0 after:content-[""] ${
+          checked ? 'bg-[var(--erp-accent)]' : 'bg-gray-400'
         }`}
       >
         <span
@@ -202,7 +202,7 @@ export default function MarketplaceSettingsSection() {
               <button
                 type="submit"
                 disabled={saveMutation.isPending}
-                className="inline-flex h-11 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-[var(--erp-accent)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--erp-accent-strong)] disabled:opacity-50"
               >
                 {saveMutation.isPending ? 'Сохранение…' : 'Сохранить'}
               </button>

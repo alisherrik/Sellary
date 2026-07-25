@@ -508,7 +508,7 @@ function SalesHistory() {
 
   return (
     <>
-      <div className="flex h-full min-h-0 gap-4">
+      <div className="flex h-full min-h-0 gap-4 p-4">
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
           {/* Page header */}
           <div className="mb-3 flex flex-none items-end gap-4">
@@ -551,7 +551,7 @@ function SalesHistory() {
               <FilterMenu activeCount={activeFilterCount} onReset={resetAdvancedFilters}>
                 <div className="space-y-4">
                   <label className="block">
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                       Способ оплаты
                     </span>
                     <select
@@ -570,7 +570,7 @@ function SalesHistory() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                         Дата от
                       </span>
                       <input
@@ -582,7 +582,7 @@ function SalesHistory() {
                       />
                     </label>
                     <label className="block">
-                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                         Дата до
                       </span>
                       <input
@@ -595,7 +595,7 @@ function SalesHistory() {
                     </label>
                   </div>
 
-                  <p className="text-xs tabular-nums text-gray-400">
+                  <p className="text-xs tabular-nums text-[var(--erp-muted)]">
                     Показано: {visibleSales.length} из {total ?? sales.length}
                   </p>
                 </div>
@@ -619,7 +619,7 @@ function SalesHistory() {
               <p className="text-xl font-extrabold tabular-nums text-[var(--erp-text)] sm:text-2xl">{formatCurrency(totals.turnover)}</p>
               {/* The reports page headlines net revenue; showing it here too is
                   what lets an operator reconcile the two screens. */}
-              <p className="mt-1 text-[11px] tabular-nums text-gray-400">
+              <p className="mt-1 text-[11px] tabular-nums text-[var(--erp-muted)]">
                 чистая: {formatCurrency(totals.net)}
               </p>
               {/* Two distinct views of the same day, deliberately not merged:
@@ -654,7 +654,7 @@ function SalesHistory() {
                   <span className="font-semibold tabular-nums text-green-600 dark:text-green-400">{formatCurrency(totals.cash + totals.cashDebtPayments)}</span>
                 </div>
                 {totals.cashDebtPayments > 0 && (
-                  <div className="flex items-center justify-between text-[11px] text-gray-400">
+                  <div className="flex items-center justify-between text-[11px] text-[var(--erp-muted)]">
                     <span>· в т.ч. оплата долга</span>
                     <span className="tabular-nums">{formatCurrency(totals.cashDebtPayments)}</span>
                   </div>
@@ -681,7 +681,7 @@ function SalesHistory() {
             <div className="mb-3 border-2 border-[var(--erp-divider)] bg-white p-4">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-[13px] font-semibold text-[var(--erp-text)]">Оборот по часам</p>
-                <span className="text-[11px] text-gray-400">08:00 – 22:00</span>
+                <span className="text-[11px] text-[var(--erp-muted)]">08:00 – 22:00</span>
               </div>
               {/* No items-end here: it stops the columns stretching to h-20, so
                   the flex-1 bar box collapses to 0px and every bar renders as a
@@ -696,7 +696,7 @@ function SalesHistory() {
                         style={{ height: `${Math.max(b.value > 0 ? 6 : 0, (b.value / hourly.max) * 100)}%` }}
                       />
                     </div>
-                    <span className="text-[9px] tabular-nums text-gray-400">{b.hour}</span>
+                    <span className="text-[9px] tabular-nums text-[var(--erp-muted)]">{b.hour}</span>
                   </div>
                 ))}
               </div>
@@ -730,7 +730,7 @@ function SalesHistory() {
                               {getStatusText(sale.status)}
                             </span>
                           </div>
-                          <p className="mt-0.5 text-[11px] text-gray-400">
+                          <p className="mt-0.5 text-[11px] text-[var(--erp-muted)]">
                             {sale.cashier_name} · {new Date(sale.created_at).toLocaleString('ru-RU')}
                           </p>
                           <span className={`mt-1 inline-block px-2 py-0.5 text-[10px] ${chip.cls}`}>{chip.label}</span>
@@ -749,7 +749,7 @@ function SalesHistory() {
                 {/* Desktop table */}
                 <table className="hidden w-full text-sm sm:table">
                   <thead>
-                    <tr className="border-b-2 border-[var(--erp-divider)] text-[10.5px] uppercase tracking-wide text-gray-400">
+                    <tr className="border-b-2 border-[var(--erp-divider)] text-[10.5px] uppercase tracking-wide text-[var(--erp-muted)]">
                       <th className="px-4 py-3 text-left font-semibold">Чек</th>
                       <th className="px-4 py-3 text-left font-semibold">Время</th>
                       <th className="px-4 py-3 text-left font-semibold">Кассир</th>
@@ -772,7 +772,22 @@ function SalesHistory() {
                             active ? 'bg-[var(--erp-surface)]' : ''
                           }`}
                         >
-                          <td className="px-4 py-3 font-mono font-semibold text-[var(--erp-text)]">#{sale.id}</td>
+                          {/* The receipt number is the row's keyboard handle —
+                              a click-only <tr> made the whole history
+                              unreachable on a keyboard- and scanner-driven POS. */}
+                          <td className="px-4 py-3 font-mono font-semibold text-[var(--erp-text)]">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleViewSale(sale);
+                              }}
+                              aria-label={`Открыть чек №${sale.id}`}
+                              className="font-mono font-semibold text-[var(--erp-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
+                            >
+                              #{sale.id}
+                            </button>
+                          </td>
                           <td className="px-4 py-3 tabular-nums text-gray-500">
                             {new Date(sale.created_at).toLocaleString('ru-RU')}
                           </td>
@@ -827,7 +842,7 @@ function SalesHistory() {
             <div className="flex items-start gap-3 border-b border-[var(--erp-divider)] px-5 py-4">
               <div>
                 <h2 className="font-mono text-[17px] font-bold text-[var(--erp-text)]">Чек #{selectedSale.id}</h2>
-                <p className="text-[12px] text-gray-400">
+                <p className="text-[12px] text-[var(--erp-muted)]">
                   {new Date(selectedSale.created_at).toLocaleString('ru-RU')} · {selectedSale.cashier_name}
                 </p>
               </div>
@@ -836,7 +851,7 @@ function SalesHistory() {
               </span>
               <button
                 onClick={() => setShowDetail(false)}
-                className="p-1 text-gray-400 hover:text-[var(--erp-text)]"
+                className="p-1 text-[var(--erp-muted)] hover:text-[var(--erp-text)]"
               >
                 <XMarkIcon className="h-5 w-5" />
               </button>
@@ -875,12 +890,12 @@ function SalesHistory() {
                         <div className="min-w-0 flex-1">
                           <p
                             className={`truncate ${
-                              fullyAnnulled ? 'text-gray-400 line-through' : 'text-gray-800 dark:text-gray-100'
+                              fullyAnnulled ? 'text-[var(--erp-muted)] line-through' : 'text-gray-800 dark:text-gray-100'
                             }`}
                           >
                             {item.product_name}
                           </p>
-                          <p className="text-[11px] text-gray-400">
+                          <p className="text-[11px] text-[var(--erp-muted)]">
                             {item.quantity} {item.uom} × {formatCurrency(item.unit_price)}
                             {item.quantity_returned > 0 && (
                               <span className="ml-1 text-orange-600">({item.quantity_returned} возв.)</span>
@@ -920,9 +935,9 @@ function SalesHistory() {
               <div>
                 <p className="mb-2 text-[13px] font-semibold text-gray-900 dark:text-white">История возвратов</p>
                 {returnsLoading ? (
-                  <p className="py-3 text-center text-[13px] text-gray-400">Загрузка…</p>
+                  <p className="py-3 text-center text-[13px] text-[var(--erp-muted)]">Загрузка…</p>
                 ) : returns.length === 0 ? (
-                  <p className="py-3 text-center text-[13px] text-gray-400">Возвратов нет</p>
+                  <p className="py-3 text-center text-[13px] text-[var(--erp-muted)]">Возвратов нет</p>
                 ) : (
                   <div className="space-y-2">
                     {returns.map((ret) => (
@@ -974,9 +989,9 @@ function SalesHistory() {
             <div className="flex items-center justify-between border-b border-[var(--erp-divider)] px-4 py-3">
               <div>
                 <h2 className="font-mono text-base font-bold text-[var(--erp-text)]">Чек #{selectedSale.id}</h2>
-                <p className="text-[10px] text-gray-400">{new Date(selectedSale.created_at).toLocaleString('ru-RU')}</p>
+                <p className="text-[10px] text-[var(--erp-muted)]">{new Date(selectedSale.created_at).toLocaleString('ru-RU')}</p>
               </div>
-              <button onClick={() => setShowDetail(false)} className="p-1 text-gray-400 hover:text-[var(--erp-text)]">
+              <button onClick={() => setShowDetail(false)} className="p-1 text-[var(--erp-muted)] hover:text-[var(--erp-text)]">
                 <XMarkIcon className="h-5 w-5" />
               </button>
             </div>

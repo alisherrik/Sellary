@@ -102,8 +102,8 @@ export default function PurchaseOrderReceiveStage({
         </button>
       </div>
 
-      <div className="mt-5 overflow-hidden border-y border-gray-200">
-        <div className="hidden grid-cols-[minmax(220px,1fr)_100px_100px_100px_150px] gap-3 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 sm:grid">
+      <div className="mt-5 overflow-x-auto border-y border-gray-200">
+        <div className="hidden min-w-[750px] grid-cols-[minmax(220px,1fr)_100px_100px_100px_150px] gap-3 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)] xl:grid">
           <span>Товар</span>
           <span className="text-right">Заказано</span>
           <span className="text-right">Получено</span>
@@ -118,22 +118,22 @@ export default function PurchaseOrderReceiveStage({
             return (
               <div
                 key={item.id}
-                className="grid gap-3 px-4 py-4 text-sm sm:grid-cols-[minmax(220px,1fr)_100px_100px_100px_150px] sm:items-start"
+                className="grid gap-3 px-4 py-4 text-sm xl:min-w-[750px] xl:grid-cols-[minmax(220px,1fr)_100px_100px_100px_150px] xl:items-start"
               >
                 <div>
                   <p className="font-semibold text-gray-900">{name}</p>
                   <p className="text-xs text-gray-500">{item.product?.uom ?? 'ед.'}</p>
                 </div>
-                <p className="flex justify-between tabular-nums text-gray-700 sm:block sm:pt-3 sm:text-right">
-                  <span className="text-gray-500 sm:hidden">Заказано</span>
+                <p className="flex justify-between tabular-nums text-gray-700 xl:block xl:pt-3 xl:text-right">
+                  <span className="text-gray-500 xl:hidden">Заказано</span>
                   {item.quantity_ordered}
                 </p>
-                <p className="flex justify-between tabular-nums text-gray-700 sm:block sm:pt-3 sm:text-right">
-                  <span className="text-gray-500 sm:hidden">Получено</span>
+                <p className="flex justify-between tabular-nums text-gray-700 xl:block xl:pt-3 xl:text-right">
+                  <span className="text-gray-500 xl:hidden">Получено</span>
                   {item.quantity_received}
                 </p>
-                <p className="flex justify-between font-semibold tabular-nums text-gray-900 sm:block sm:pt-3 sm:text-right">
-                  <span className="font-normal text-gray-500 sm:hidden">Осталось</span>
+                <p className="flex justify-between font-semibold tabular-nums text-gray-900 xl:block xl:pt-3 xl:text-right">
+                  <span className="font-normal text-gray-500 xl:hidden">Осталось</span>
                   {remaining}
                 </p>
                 <div>
@@ -143,6 +143,7 @@ export default function PurchaseOrderReceiveStage({
                     </span>
                     <input
                       type="number"
+                      inputMode="decimal"
                       min="0"
                       max={remaining}
                       step="0.001"

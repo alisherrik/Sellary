@@ -79,7 +79,7 @@ export default function SalesSearch({
   return (
     <div className="relative min-w-0 flex-1 sm:max-w-md">
       <div className="relative">
-        <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--erp-muted)]" />
         <input
           ref={inputRef}
           role="combobox"
@@ -116,7 +116,7 @@ export default function SalesSearch({
                 setOpen(false);
                 inputRef.current?.focus();
               }}
-              className="p-1 text-gray-400 hover:text-[var(--erp-text)]"
+              className="p-1 text-[var(--erp-muted)] hover:text-[var(--erp-text)]"
             >
               <XMarkIcon className="h-4 w-4" />
             </button>
@@ -126,7 +126,7 @@ export default function SalesSearch({
 
       {showPanel && (
         <div className="absolute z-50 mt-2 w-full overflow-hidden border border-[var(--erp-divider)] bg-white shadow-xl">
-          <div className="border-b border-[var(--erp-divider)] px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+          <div className="border-b border-[var(--erp-divider)] px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-[var(--erp-muted)]">
             Возможно, вы искали
           </div>
           {isLoading ? (

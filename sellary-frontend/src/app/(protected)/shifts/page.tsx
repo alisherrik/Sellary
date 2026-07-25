@@ -122,18 +122,18 @@ export default function ShiftsPage() {
       <OpenShiftBlock />
 
       <div>
-        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Закрытые смены</h3>
+        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">Закрытые смены</h3>
         {isLoading ? (
           <TableSkeleton />
         ) : closedShifts.length === 0 ? (
-          <div className="border border-[var(--erp-divider)] bg-white p-4 text-sm text-gray-400">
+          <div className="border border-[var(--erp-divider)] bg-white p-4 text-sm text-[var(--erp-muted)]">
             Пока нет закрытых смен.
           </div>
         ) : (
           <div className="overflow-hidden border-2 border-[var(--erp-divider)] bg-white">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b-2 border-[var(--erp-divider)] text-left text-[10.5px] uppercase tracking-wide text-gray-400">
+                <tr className="border-b-2 border-[var(--erp-divider)] text-left text-[10.5px] uppercase tracking-wide text-[var(--erp-muted)]">
                   <th className="px-4 py-3">Смена</th>
                   <th className="px-4 py-3">Открыта</th>
                   <th className="px-4 py-3">Закрыта</th>
@@ -159,7 +159,7 @@ export default function ShiftsPage() {
                       <td className="px-4 py-3 text-gray-500">{formatDateTime(s.opened_at)}</td>
                       <td className="px-4 py-3 text-gray-500">{s.closed_at ? formatDateTime(s.closed_at) : '—'}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(revenue)}</td>
-                      <td className={`px-4 py-3 text-right tabular-nums ${disc < 0 ? 'text-[var(--erp-accent)]' : disc > 0 ? 'text-[var(--erp-success)]' : 'text-gray-400'}`}>
+                      <td className={`px-4 py-3 text-right tabular-nums ${disc < 0 ? 'text-[var(--erp-accent)]' : disc > 0 ? 'text-[var(--erp-success)]' : 'text-[var(--erp-muted)]'}`}>
                         {formatCurrency(s.discrepancy ?? '0')}
                       </td>
                     </tr>

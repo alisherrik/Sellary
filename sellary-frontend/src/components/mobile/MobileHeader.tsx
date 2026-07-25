@@ -19,8 +19,11 @@ export default function MobileHeader({
   leading,
   actions,
 }: MobileHeaderProps) {
+  // pt-safe: with viewport-fit=cover the status bar overlays the page, so the
+  // header insets itself or the title sits under the notch. Height is a
+  // minimum, not fixed, so the inset adds to it instead of eating the row.
   return (
-    <header className="flex h-[48px] shrink-0 items-center justify-between border-b-2 border-[var(--erp-divider)] bg-white pl-1 pr-1">
+    <header className="flex min-h-[48px] shrink-0 items-center justify-between border-b-2 border-[var(--erp-divider)] bg-white pl-1 pr-1 pt-safe">
       <div className="flex min-w-[44px] items-center">
         {showBack ? (
           <button

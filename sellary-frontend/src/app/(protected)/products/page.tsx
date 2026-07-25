@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 
 import { TableSkeleton } from '@/components/skeletons';
 import { ModuleGuard } from '@/components/ModuleGuard';
+import QueryError from '@/components/ui/QueryError';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useProducts } from '@/hooks/useQueries';
 import { categoriesApi, inventoryApi, productsApi } from '@/lib/api';
@@ -127,7 +128,7 @@ function Products() {
   if (debouncedSearch) params.search = debouncedSearch;
   if (selectedCategory) params.category_id = selectedCategory;
 
-  const { data: products = [], isLoading: loading } = useProducts(params);
+  const { data: products = [], isLoading: loading, isError, refetch } = useProducts(params);
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['categories', 'active'],
@@ -460,7 +461,7 @@ function Products() {
 
   return (
     <>
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-full min-h-0 flex-col p-4">
         {/* Page header */}
         <div className="mb-4 flex flex-none flex-wrap items-end gap-4">
           <div>
@@ -494,12 +495,12 @@ function Products() {
         {/* Category rail — desktop */}
         <aside className="hidden w-56 shrink-0 flex-col overflow-y-auto border border-[var(--erp-divider)] bg-white p-3 lg:flex">
           <div className="mb-2 flex items-center px-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Категории</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--erp-muted)]">Категории</span>
             <button
               type="button"
               onClick={() => setShowCategoryManager(true)}
               title="Управление категориями"
-              className="ml-auto p-1 text-gray-400 transition-colors hover:text-[var(--erp-accent)]"
+              className="ml-auto p-1 text-[var(--erp-muted)] transition-colors hover:text-[var(--erp-accent)]"
             >
               <Cog6ToothIcon className="h-4 w-4" />
             </button>
@@ -556,7 +557,7 @@ function Products() {
           <div className="mb-3 flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 sm:h-5 sm:w-5" />
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--erp-muted)] sm:h-5 sm:w-5" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -627,8 +628,12 @@ function Products() {
               <div className="p-4">
                 <TableSkeleton rows={6} columns={5} />
               </div>
+            ) : isError ? (
+              <div className="p-4">
+                <QueryError what="товары" onRetry={() => void refetch()} />
+              </div>
             ) : visibleProducts.length === 0 ? (
-              <div className="p-12 text-center text-gray-500">Товары не найдены</div>
+              <div className="p-12 text-center text-[var(--erp-muted)]">Товары не найдены</div>
             ) : (
               <div className="h-full overflow-y-auto">
                 {/* Mobile cards */}
@@ -645,7 +650,7 @@ function Products() {
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-[var(--erp-text)]">{product.name}</p>
                             {product.barcode && (
-                              <p className="font-mono text-[11px] text-gray-400">{product.barcode}</p>
+                              <p className="font-mono text-[11px] text-[var(--erp-muted)]">{product.barcode}</p>
                             )}
                           </div>
                           {product.category?.name && (
@@ -676,14 +681,14 @@ function Products() {
                             />
                             <button
                               onClick={() => handleEditProduct(product)}
-                              className="p-2 text-gray-400 hover:text-[var(--erp-text)]"
+                              className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-text)]"
                               aria-label="Редактировать"
                             >
                               <PencilIcon className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => handleDeleteProduct(product.id)}
-                              className="p-2 text-gray-400 hover:text-[var(--erp-accent)]"
+                              className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-accent)]"
                               aria-label="Удалить"
                             >
                               <TrashIcon className="h-4 w-4" />
@@ -701,7 +706,7 @@ function Products() {
                 {/* Desktop table */}
                 <table className="hidden w-full text-sm sm:table">
                   <thead>
-                    <tr className="border-b-2 border-[var(--erp-divider)] text-[10.5px] uppercase tracking-wide text-gray-400">
+                    <tr className="border-b-2 border-[var(--erp-divider)] text-[10.5px] uppercase tracking-wide text-[var(--erp-muted)]">
                       <th className="px-4 py-3 text-left font-semibold">Товар</th>
                       <th className="px-4 py-3 text-left font-semibold">Категория</th>
                       <th className="px-4 py-3 text-right font-semibold">Цена</th>
@@ -725,7 +730,7 @@ function Products() {
                           <td className="px-4 py-3">
                             <div className="font-semibold text-[var(--erp-text)]">{product.name}</div>
                             {product.barcode && (
-                              <div className="font-mono text-[11px] text-gray-400">{product.barcode}</div>
+                              <div className="font-mono text-[11px] text-[var(--erp-muted)]">{product.barcode}</div>
                             )}
                           </td>
                           <td className="px-4 py-3">
@@ -750,7 +755,7 @@ function Products() {
                           }`}>
                             {product.stock_quantity}
                             {product.stock_quantity > 0 && product.stock_quantity <= product.min_stock_level && ' ⚠'}
-                            <span className="ml-1 text-[11px] text-gray-400">{product.uom}</span>
+                            <span className="ml-1 text-[11px] text-[var(--erp-muted)]">{product.uom}</span>
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
@@ -772,11 +777,14 @@ function Products() {
                             />
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                            {/* The table starts at 640px, which includes every
+                                touch tablet — hover-only actions are invisible
+                                there and to keyboard users. */}
+                            <div className="flex justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                               <button
                                 type="button"
                                 onClick={() => handleEditProduct(product)}
-                                className="p-2 text-gray-400 hover:text-[var(--erp-text)]"
+                                className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-text)]"
                                 aria-label="Редактировать"
                               >
                                 <PencilIcon className="h-4 w-4" />
@@ -784,7 +792,7 @@ function Products() {
                               <button
                                 type="button"
                                 onClick={() => handleDeleteProduct(product.id)}
-                                className="p-2 text-gray-400 hover:text-[var(--erp-accent)]"
+                                className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-accent)]"
                                 aria-label="Удалить"
                               >
                                 <TrashIcon className="h-4 w-4" />
@@ -962,7 +970,7 @@ function Products() {
                         className="h-16 w-16 shrink-0 object-cover"
                       />
                     ) : (
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center bg-[var(--erp-surface)] text-[11px] text-gray-400">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center bg-[var(--erp-surface)] text-[11px] text-[var(--erp-muted)]">
                         Нет фото
                       </div>
                     )}
@@ -978,7 +986,7 @@ function Products() {
                           className="hidden"
                         />
                       </label>
-                      <p className="mt-1 text-[11px] text-gray-400">
+                      <p className="mt-1 text-[11px] text-[var(--erp-muted)]">
                         JPG или PNG, до 5&nbsp;МБ. Показывается покупателям в маркетплейсе.
                       </p>
                     </div>
@@ -1001,11 +1009,11 @@ function Products() {
                     Добавить
                   </button>
                 </div>
-                <p className="mb-2 text-[11px] leading-snug text-gray-400">
+                <p className="mb-2 text-[11px] leading-snug text-[var(--erp-muted)]">
                   Тот же остаток продаётся в разных единицах. Коэффициент — сколько «{formData.uom || 'ед.'}» в одной такой единице (напр.: «qop», коэффициент&nbsp;5 = 5&nbsp;{formData.uom || 'ед.'}).
                 </p>
                 {formUnits.length === 0 ? (
-                  <p className="text-[11px] text-gray-400">Нет доп. единиц — товар продаётся только в «{formData.uom || 'ед.'}».</p>
+                  <p className="text-[11px] text-[var(--erp-muted)]">Нет доп. единиц — товар продаётся только в «{formData.uom || 'ед.'}».</p>
                 ) : (
                   <div className="space-y-2">
                     {formUnits.map((row, index) => (
@@ -1040,7 +1048,7 @@ function Products() {
                           type="button"
                           onClick={() => setFormUnits((rows) => rows.filter((_, i) => i !== index))}
                           aria-label="Удалить единицу"
-                          className="col-span-2 flex h-9 items-center justify-center text-gray-400 hover:text-[var(--erp-accent)]"
+                          className="col-span-2 flex h-9 items-center justify-center text-[var(--erp-muted)] hover:text-[var(--erp-accent)]"
                         >
                           <TrashIcon className="h-4 w-4" />
                         </button>

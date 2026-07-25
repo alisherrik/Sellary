@@ -86,7 +86,7 @@ export default function ProductDrawer({ isOpen, onClose, onAddToCart }: ProductD
                         <XMarkIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
                     </button>
                     <div className="flex-1 relative">
-                        <MagnifyingGlassIcon className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                        <MagnifyingGlassIcon className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--erp-muted)]" />
                         <input
                             type="text"
                             value={searchQuery}
@@ -107,7 +107,7 @@ export default function ProductDrawer({ isOpen, onClose, onAddToCart }: ProductD
 
                     {/* Barcode input for desktop */}
                     <form onSubmit={handleBarcodeSubmit} className="w-40 sm:w-48 relative hidden sm:block">
-                        <QrCodeIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                        <QrCodeIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[var(--erp-muted)]" />
                         <input
                             ref={barcodeInputRef}
                             type="text"
@@ -123,7 +123,7 @@ export default function ProductDrawer({ isOpen, onClose, onAddToCart }: ProductD
                 {showBarcodeInput && (
                     <form onSubmit={handleBarcodeSubmit} className="sm:hidden px-3 py-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                         <div className="relative">
-                            <QrCodeIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <QrCodeIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--erp-muted)]" />
                             <input
                                 ref={barcodeInputRef}
                                 type="text"
@@ -207,7 +207,7 @@ export default function ProductDrawer({ isOpen, onClose, onAddToCart }: ProductD
                             ))
                         )}
                         {!loading && products.length === 0 && (
-                            <div className="col-span-full py-10 text-center text-gray-400 text-sm">
+                            <div className="col-span-full py-10 text-center text-[var(--erp-muted)] text-sm">
                                 Товары не найдены
                             </div>
                         )}

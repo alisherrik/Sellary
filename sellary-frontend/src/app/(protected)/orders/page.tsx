@@ -5,9 +5,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { ordersApi, generateIdempotencyKey } from '@/lib/api';
 import { ModuleGuard } from '@/components/ModuleGuard';
+import QueryError from '@/components/ui/QueryError';
 import { useOrders, useOrder } from '@/hooks/useQueries';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { Order, OrderStatus } from '@/lib/types';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import {
   STATUS_LABELS,
   STATUS_BADGE_CLASSES,
@@ -117,26 +119,32 @@ function Orders() {
   const tabs: TabKey[] = ['new', 'active', 'done', 'cancelled', 'all'];
 
   return (
-    <div className="flex h-full">
+    // `flex` alone collapsed the list to 0px whenever the w-full drawer was
+    // open on a phone: a non-wrapping row plus a 100%-basis sibling. Below md
+    // the list keeps the full width and the drawer becomes a real overlay.
+    <div className="flex h-full flex-col md:flex-row">
       {/* Left panel: filter tabs + list */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="border-b border-[var(--erp-divider)] bg-white px-4 pt-4">
           <h2 className="mb-3 text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Заказы</h2>
           <p className="-mt-2 mb-3 text-[13px] text-gray-500">Входящие из Telegram-магазина</p>
-          <div className="flex gap-1" role="tablist">
+          {/* Scrolls instead of clipping: five tabs need ~460px of min-content
+              and a phone gives 343px, so "Все" used to be silently amputated. */}
+          <div className="-mx-4 flex gap-1 overflow-x-auto scrollbar-hide px-4" role="tablist">
             {tabs.map((tab) => {
               const count = allOrders.filter((o) => matchesTab(o, tab)).length;
               const isActive = activeTab === tab;
               return (
                 <button
                   key={tab}
+                  type="button"
                   role="tab"
                   aria-selected={isActive}
                   onClick={() => setActiveTab(tab)}
-                  className={`flex items-center gap-1 px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`flex min-h-[44px] shrink-0 items-center gap-1 whitespace-nowrap px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] ${
                     isActive
                       ? 'border-b-2 border-[var(--erp-accent)] text-[var(--erp-text)]'
-                      : 'text-gray-500 hover:text-[var(--erp-text)]'
+                      : 'text-[var(--erp-muted)] hover:text-[var(--erp-text)]'
                   }`}
                 >
                   {TAB_LABELS[tab]}
@@ -145,7 +153,7 @@ function Orders() {
                       {pendingCount}
                     </span>
                   ) : (
-                    <span className="ml-1 text-xs text-gray-400">{count}</span>
+                    <span className="ml-1 text-xs text-[var(--erp-muted)]">{count}</span>
                   )}
                 </button>
               );
@@ -161,8 +169,11 @@ function Orders() {
               ))}
             </div>
           )}
-          {!listQuery.isLoading && filtered.length === 0 && (
-            <div className="py-12 text-center text-gray-500">Нет заказов</div>
+          {!listQuery.isLoading && listQuery.isError && (
+            <QueryError what="заказы" onRetry={() => void listQuery.refetch()} />
+          )}
+          {!listQuery.isLoading && !listQuery.isError && filtered.length === 0 && (
+            <div className="py-12 text-center text-[var(--erp-muted)]">Нет заказов</div>
           )}
           <div className="space-y-2">
             {filtered.map((o) => (
@@ -184,7 +195,7 @@ function Orders() {
                     {STATUS_LABELS[o.status]}
                   </span>
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
+                <div className="mt-1 flex items-center gap-3 text-xs text-[var(--erp-muted)]">
                   <span>{FULFILLMENT_LABELS[o.fulfillment_type]}</span>
                   <span>{formatCurrency(o.total_amount)}</span>
                   <span>{formatDate(o.created_at)}</span>
@@ -196,9 +207,16 @@ function Orders() {
         </div>
       </div>
 
-      {/* Right panel: detail drawer */}
+      {/* Right panel: detail drawer — a side panel from md up, a full-screen
+          overlay below it (the mobile shell offers no back button at this
+          depth, so the drawer must own its own dismissal). */}
       {selectedId !== null && (
-        <div className="flex w-full flex-col border-l border-[var(--erp-divider)] bg-white md:w-96 lg:w-[480px]">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Детали заказа"
+          className="fixed inset-0 z-40 flex w-full flex-col border-l border-[var(--erp-divider)] bg-white md:static md:z-auto md:w-96 lg:w-[480px]"
+        >
           {detailQuery.isLoading && (
             <div className="p-4">
               <div className="h-6 w-1/2 animate-pulse bg-gray-200" />
@@ -212,10 +230,12 @@ function Orders() {
                   Заказ #{order.order_number}
                 </h2>
                 <button
+                  type="button"
+                  aria-label="Закрыть заказ"
                   onClick={() => setSelectedId(null)}
-                  className="text-sm text-gray-400 hover:text-[var(--erp-text)]"
+                  className="-mr-2 grid h-11 w-11 shrink-0 place-items-center text-[var(--erp-muted)] hover:bg-[var(--erp-surface)] hover:text-[var(--erp-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
                 >
-                  ✕
+                  <XMarkIcon className="h-5 w-5" />
                 </button>
               </div>
 
@@ -320,7 +340,7 @@ function Orders() {
                 <h3 className="mb-2 text-sm font-semibold text-gray-700">Состав заказа</h3>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b-2 border-[var(--erp-divider)] text-left text-[10.5px] uppercase tracking-wide text-gray-400">
+                    <tr className="border-b-2 border-[var(--erp-divider)] text-left text-[10.5px] uppercase tracking-wide text-[var(--erp-muted)]">
                       <th className="pb-1 font-semibold">Товар</th>
                       <th className="pb-1 text-right font-semibold">Кол.</th>
                       <th className="pb-1 text-right font-semibold">Цена</th>

@@ -40,7 +40,7 @@ export default function ShiftDetailPage({ params }: { params: Promise<{ id: stri
 
           {shift.snapshots.length > 0 && (
             <div className="border border-[var(--erp-divider)] bg-white p-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Срезы</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)]">Срезы</p>
               <ul className="space-y-1 text-sm">
                 {shift.snapshots.map((snap) => (
                   <li key={snap.id} className="flex justify-between border-b border-[var(--erp-divider)] py-1 last:border-0">

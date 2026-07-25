@@ -149,7 +149,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-dvh min-h-screen bg-[radial-gradient(circle_at_top,_#dbeafe,_transparent_35%),linear-gradient(135deg,_#0f172a,_#1e293b_45%,_#111827)] px-4 py-10">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
+      <div className="mx-auto flex min-h-[calc(100dvh-5rem)] w-full max-w-5xl items-start justify-center sm:items-center">
         <div className="grid w-full overflow-hidden rounded-[32px] border border-white/10 bg-white shadow-2xl lg:grid-cols-[1.1fr_0.9fr]">
           <div className="hidden bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
             <div>
@@ -198,7 +198,12 @@ export default function LoginPage() {
                       value={username}
                       onChange={(event) => setUsername(event.target.value)}
                       required
-                      className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none transition focus:border-sky-500 focus:bg-white"
+                      autoFocus
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none transition focus:border-[var(--erp-accent)] focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--erp-accent)]"
                       placeholder="admin"
                     />
                   </label>
@@ -211,13 +216,15 @@ export default function LoginPage() {
                         onChange={(event) => setPassword(event.target.value)}
                         type={showPassword ? 'text' : 'password'}
                         required
-                        className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 pr-12 text-sm outline-none transition focus:border-sky-500 focus:bg-white"
+                        autoComplete="current-password"
+                        className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 pr-12 text-sm outline-none transition focus:border-[var(--erp-accent)] focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--erp-accent)]"
                         placeholder="••••••••"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword((value) => !value)}
-                        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-slate-700"
+                        aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 transition hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
                       >
                         {showPassword ? (
                           <EyeSlashIcon className="h-5 w-5" />
@@ -231,7 +238,7 @@ export default function LoginPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                    className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[var(--erp-accent)] text-sm font-semibold text-white transition hover:bg-[var(--erp-accent-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] disabled:cursor-not-allowed disabled:bg-slate-400"
                   >
                     {submitting ? 'Загрузка компаний...' : 'Продолжить'}
                   </button>
@@ -300,7 +307,7 @@ export default function LoginPage() {
                     <button
                       type="submit"
                       disabled={selectingCompany || selectedCompanyId === null}
-                      className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                      className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-[var(--erp-accent)] text-sm font-semibold text-white transition hover:bg-[var(--erp-accent-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] disabled:cursor-not-allowed disabled:bg-slate-400"
                     >
                       {selectingCompany ? 'Открытие компании...' : 'Открыть рабочее пространство'}
                     </button>

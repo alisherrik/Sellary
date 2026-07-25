@@ -85,8 +85,11 @@ export default function PurchaseOrderItemsTable({
   };
 
   return (
-    <div>
-      <div className="hidden grid-cols-[minmax(220px,1fr)_64px_110px_130px_130px_44px] gap-3 border-b border-gray-200 px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 sm:grid">
+    // The six-column grid needs 758px. The editor's content column is 390px at
+    // 1024px, so the grid only switches on at xl and the wrapper scrolls rather
+    // than clipping the delete button off the row.
+    <div className="overflow-x-auto">
+      <div className="hidden min-w-[758px] grid-cols-[minmax(220px,1fr)_64px_110px_130px_130px_44px] gap-3 border-b border-gray-200 px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)] xl:grid">
         <span>Товар</span>
         <span>Ед.</span>
         <span className="text-right">Количество</span>
@@ -130,10 +133,10 @@ export default function PurchaseOrderItemsTable({
             <div
               key={item.key}
               data-product-id={item.product_id || undefined}
-              className="grid gap-3 py-4 sm:grid-cols-[minmax(220px,1fr)_64px_110px_130px_130px_44px] sm:items-start sm:px-3"
+              className="grid gap-3 py-4 xl:min-w-[758px] xl:grid-cols-[minmax(220px,1fr)_64px_110px_130px_130px_44px] xl:items-start xl:px-3"
             >
               <div>
-                <span className="mb-1 block text-xs font-medium text-gray-600 sm:hidden">
+                <span className="mb-1 block text-xs font-medium text-gray-600 xl:hidden">
                   Товар
                 </span>
                 <ProductCombobox
@@ -177,12 +180,12 @@ export default function PurchaseOrderItemsTable({
               </div>
 
               <div className="pt-0 text-sm text-gray-600 sm:pt-3">
-                <span className="mr-2 text-xs font-medium text-gray-500 sm:hidden">Ед.</span>
+                <span className="mr-2 text-xs font-medium text-gray-500 xl:hidden">Ед.</span>
                 {product?.uom ?? '—'}
               </div>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-600 sm:hidden">
+                <span className="mb-1 block text-xs font-medium text-gray-600 xl:hidden">
                   Количество
                 </span>
                 <span className="sr-only">
@@ -190,6 +193,7 @@ export default function PurchaseOrderItemsTable({
                 </span>
                 <input
                   type="number"
+                  inputMode="decimal"
                   min="0"
                   step="0.001"
                   aria-label={`Количество, ${product?.name ?? `товар ${index + 1}`}`}
@@ -213,11 +217,12 @@ export default function PurchaseOrderItemsTable({
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-600 sm:hidden">
+                <span className="mb-1 block text-xs font-medium text-gray-600 xl:hidden">
                   Цена
                 </span>
                 <input
                   type="number"
+                  inputMode="decimal"
                   min="0"
                   step="0.0001"
                   aria-label={`Цена, ${product?.name ?? `товар ${index + 1}`}`}
@@ -237,7 +242,7 @@ export default function PurchaseOrderItemsTable({
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-600 sm:hidden">
+                <span className="mb-1 block text-xs font-medium text-gray-600 xl:hidden">
                   Сумма
                 </span>
                 <LineTotalInput
@@ -257,7 +262,7 @@ export default function PurchaseOrderItemsTable({
                 type="button"
                 aria-label={`Удалить ${product?.name ?? `товар ${index + 1}`}`}
                 onClick={() => removeRow(item.key)}
-                className="grid min-h-11 min-w-11 place-items-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                className="grid min-h-11 min-w-11 place-items-center rounded-md text-[var(--erp-muted)] hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
               >
                 <TrashIcon className="h-5 w-5" />
               </button>
