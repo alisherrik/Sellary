@@ -127,7 +127,9 @@ describe('Sales line-level annulment', () => {
     // The return modal opens in annulment mode.
     expect(await screen.findByRole('button', { name: 'Подтвердить аннулирование' })).toBeInTheDocument();
     // Quantity is fixed (no stepper) to the full outstanding amount.
-    expect(screen.getByText('2 шт.')).toBeInTheDocument();
+    // Counted in the unit the customer bought in, not in base units with a
+    // hardcoded "шт." — a box of 12 used to open the return as "12".
+    expect(screen.getByText('2 шт')).toBeInTheDocument();
 
     // A reason is required — the submit button is disabled until one is entered.
     const submit = screen.getByRole('button', { name: 'Подтвердить аннулирование' });

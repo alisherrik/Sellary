@@ -124,6 +124,26 @@ const soldAs = (item: SaleItem) => ({
   unit: item.sold_unit_label ?? item.uom,
 });
 
+/**
+ * The return modal counts in the unit the customer bought in.
+ *
+ * `quantity_returnable` is base units by contract, so a box of 12 sold as one
+ * box opened the return as "Доступно: 12" and stepped in twelfths — while the
+ * detail pane one screen earlier said "1 кор". The manager authorising the
+ * refund was reading two different numbers for the same thing. Display and
+ * stepping happen in sold units; the payload still goes out in base.
+ */
+const soldFactor = (item?: SaleItem) => {
+  const factor = Number(item?.sold_unit_factor ?? 1);
+  return Number.isFinite(factor) && factor > 0 ? factor : 1;
+};
+
+const toSoldUnits = (baseQuantity: number, item?: SaleItem) =>
+  Math.round((baseQuantity / soldFactor(item)) * 1000) / 1000;
+
+const toBaseUnits = (soldQuantity: number, item?: SaleItem) =>
+  Math.round(soldQuantity * soldFactor(item) * 1000) / 1000;
+
 function SalesHistory() {
   const queryClient = useQueryClient();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -1166,17 +1186,24 @@ function SalesHistory() {
                           <p className="truncate text-xs font-medium text-slate-800 dark:text-slate-200 sm:text-base">
                             {item.product_name}
                           </p>
-                          <p className="text-[10px] text-slate-500 sm:text-sm">Доступно: {rq.maxQuantity}</p>
+                          <p className="text-[10px] text-[var(--erp-muted)] sm:text-sm">
+                            Доступно: {toSoldUnits(rq.maxQuantity, item)} {soldAs(item).unit}
+                          </p>
                         </div>
                         {annulMode ? (
                           <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-200">
-                            {rq.quantity} шт.
+                            {toSoldUnits(rq.quantity, item)} {soldAs(item).unit}
                           </span>
                         ) : (
                           <div className="flex flex-shrink-0 items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => handleQuantityChange(rq.saleItemId, rq.quantity - 1)}
+                              onClick={() =>
+                                handleQuantityChange(
+                                  rq.saleItemId,
+                                  toBaseUnits(toSoldUnits(rq.quantity, item) - 1, item),
+                                )
+                              }
                               aria-label="Уменьшить количество"
                               className="flex h-11 w-11 items-center justify-center border border-[var(--erp-divider)] text-sm font-bold text-[var(--erp-text)] hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] disabled:opacity-40"
                               disabled={rq.quantity <= 0}
@@ -1186,20 +1213,30 @@ function SalesHistory() {
                             <input
                               type="number"
                               min={0}
-                              max={rq.maxQuantity}
-                              value={rq.quantity}
+                              max={toSoldUnits(rq.maxQuantity, item)}
+                              value={toSoldUnits(rq.quantity, item)}
                               step="any"
                               inputMode="decimal"
                               aria-label={`Количество к возврату: ${item.product_name}`}
                               // parseInt floored 1.5 kg to 1 while the field
                               // still showed 1.5 — a refund the cashier read
                               // and would not get.
-                              onChange={(e) => handleQuantityChange(rq.saleItemId, parseFloat(e.target.value) || 0)}
+                              onChange={(e) =>
+                                handleQuantityChange(
+                                  rq.saleItemId,
+                                  toBaseUnits(parseFloat(e.target.value) || 0, item),
+                                )
+                              }
                               className="min-h-11 w-16 border border-[var(--erp-divider)] bg-white text-center text-sm tabular-nums focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] sm:w-20"
                             />
                             <button
                               type="button"
-                              onClick={() => handleQuantityChange(rq.saleItemId, rq.quantity + 1)}
+                              onClick={() =>
+                                handleQuantityChange(
+                                  rq.saleItemId,
+                                  toBaseUnits(toSoldUnits(rq.quantity, item) + 1, item),
+                                )
+                              }
                               aria-label="Увеличить количество"
                               className="flex h-11 w-11 items-center justify-center border border-[var(--erp-divider)] text-sm font-bold text-[var(--erp-text)] hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] disabled:opacity-40"
                               disabled={rq.quantity >= rq.maxQuantity}

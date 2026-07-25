@@ -245,7 +245,11 @@ export default function CompanyAdminSection() {
   // Without this a double-press fired two POSTs; the second came back a
   // duplicate-key error, so the admin saw a red toast for an operation that
   // had in fact succeeded.
-  const [busy, setBusy] = useState(false);
+  // Keyed by operation: one shared boolean made saving a membership flip the
+  // create-user button's label to "Сохранение…", giving the admin progress
+  // feedback on a control they had not pressed.
+  const [busyOp, setBusyOp] = useState<'create' | 'attach' | 'membership' | null>(null);
+  const busy = busyOp !== null;
 
   const isCompanyAdmin = currentCompany?.role === 'admin';
 
@@ -340,7 +344,7 @@ export default function CompanyAdminSection() {
   const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy) return;
-    setBusy(true);
+    setBusyOp('create');
     try {
       await adminApi.createUser(userForm);
       setUserForm(emptyUserForm);
@@ -349,14 +353,14 @@ export default function CompanyAdminSection() {
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || error?.message || 'Не удалось создать пользователя.');
     } finally {
-      setBusy(false);
+      setBusyOp(null);
     }
   };
 
   const handleAttachUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy) return;
-    setBusy(true);
+    setBusyOp('attach');
     try {
       await adminApi.createMembership(membershipForm);
       setMembershipForm(emptyMembershipForm);
@@ -365,13 +369,13 @@ export default function CompanyAdminSection() {
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || error?.message || 'Не удалось привязать пользователя.');
     } finally {
-      setBusy(false);
+      setBusyOp(null);
     }
   };
 
   const saveMembership = async (draft: ManagedUserMembershipSummary) => {
     if (busy) return;
-    setBusy(true);
+    setBusyOp('membership');
     try {
       await adminApi.updateMembership(draft.id, {
         role: draft.role,
@@ -386,7 +390,7 @@ export default function CompanyAdminSection() {
         error?.response?.data?.detail || error?.message || 'Не удалось обновить участие.',
       );
     } finally {
-      setBusy(false);
+      setBusyOp(null);
     }
   };
 
@@ -735,7 +739,7 @@ export default function CompanyAdminSection() {
               />
             </div>
             <button type="submit" disabled={busy} className={`${primaryButtonClass} w-full sm:w-auto`}>
-              {busy ? 'Сохранение…' : 'Создать пользователя компании'}
+              {busyOp === 'create' ? 'Сохранение…' : 'Создать пользователя компании'}
             </button>
           </form>
 

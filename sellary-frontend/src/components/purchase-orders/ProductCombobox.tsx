@@ -147,6 +147,14 @@ export default function ProductCombobox({
         }`}
       />
 
+      {/* Typing a barcode used to be silent to a screen reader: the three
+          result states were plain paragraphs with no live region. */}
+      <span className="sr-only" role="status" aria-live="polite">
+        {isOpen && !isLoading && !requestError && options.length > 0
+          ? `Найдено ${options.length} товаров`
+          : ''}
+      </span>
+
       {isOpen && (
         <div
           id={`${id}-listbox`}
@@ -163,9 +171,9 @@ export default function ProductCombobox({
               onCreated={select}
             />
           ) : isLoading ? (
-            <p className="px-3 py-3 text-sm text-[var(--erp-muted)]">Загрузка...</p>
+            <p role="status" className="px-3 py-3 text-sm text-[var(--erp-muted)]">Загрузка…</p>
           ) : requestError ? (
-            <p className="px-3 py-3 text-sm text-red-600">{requestError}</p>
+            <p role="alert" className="px-3 py-3 text-sm text-[#dc2626]">{requestError}</p>
           ) : options.length ? (
             options.map((product, index) => (
               <button
@@ -205,7 +213,7 @@ export default function ProductCombobox({
               </button>
             ))
           ) : (
-            <p className="px-3 py-3 text-sm text-[var(--erp-muted)]">Товары не найдены</p>
+            <p role="status" className="px-3 py-3 text-sm text-[var(--erp-muted)]">Товары не найдены</p>
           )}
 
           {/* A delivery routinely contains something not yet in the catalogue.
