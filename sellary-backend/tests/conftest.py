@@ -39,6 +39,17 @@ from models.user import User
 from services.inventory_ledger_service import InventoryLedgerService
 
 
+# The fixtures hash a password for every user they create, and bcrypt's default
+# cost (12 rounds) is deliberate in production but ruinous here — it is what
+# turned the CI suite into a 40-minute step on a slow runner. Verification reads
+# the cost out of the hash, so cheap hashes verify exactly the same way. This is
+# test-only: core/security.py is untouched.
+import bcrypt as _bcrypt
+
+_real_gensalt = _bcrypt.gensalt
+_bcrypt.gensalt = lambda rounds=4, prefix=b"2b": _real_gensalt(4, prefix)
+
+
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
 TENANT_MODELS = (
