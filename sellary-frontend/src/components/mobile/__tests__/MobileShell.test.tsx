@@ -36,6 +36,22 @@ describe('MobileShell', () => {
     expect(screen.getByRole('heading', { name: 'Sellary' })).toBeInTheDocument();
   });
 
+  it.each([
+    ['/shifts', 'Смена'],
+    ['/orders', 'Заказы'],
+    ['/purchase-orders', 'Заказы поставщикам'],
+  ])('titles %s from the nav registry, not a private map', (pathname, title) => {
+    mockPathname.mockReturnValueOnce(pathname);
+    render(<MobileShell><div>Content</div></MobileShell>);
+    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
+  });
+
+  it('offers an account control and a launcher link out of the current module', () => {
+    render(<MobileShell><div>Content</div></MobileShell>);
+    expect(screen.getByLabelText('Аккаунт и компания')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByLabelText('Приложения')).toHaveAttribute('href', '/apps');
+  });
+
   it('renders children', () => {
     render(<MobileShell><div>Test Content</div></MobileShell>);
     const content = screen.getByText('Test Content');

@@ -71,6 +71,26 @@ describe('BottomTabBar', () => {
     expect(posLink).toBeInTheDocument();
   });
 
+  it('marks the active tab with aria-current, not colour alone', () => {
+    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
+    state.isAdmin = false;
+    render(<BottomTabBar onMoreClick={vi.fn()} />);
+    // usePathname is mocked to /pos for this suite.
+    expect(screen.getByText('Касса').closest('a')).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByText('Склад').closest('a')).not.toHaveAttribute('aria-current');
+  });
+
+  it('reports the sheet\'s open state on the "Ещё" trigger', () => {
+    state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
+    state.isAdmin = false;
+    const { rerender } = render(<BottomTabBar onMoreClick={vi.fn()} />);
+    const trigger = screen.getByRole('button', { name: 'Ещё' });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    rerender(<BottomTabBar onMoreClick={vi.fn()} moreOpen />);
+    expect(screen.getByRole('button', { name: 'Ещё' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('calls onMoreClick when "Ещё" is clicked', async () => {
     state.modules = { pos: 'manager', inventory: 'manager', purchasing: 'manager', shop: 'manager', reports: 'manager' };
     state.isAdmin = false;
