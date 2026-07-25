@@ -5,7 +5,18 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { EyeIcon, EyeSlashIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 
+import SessionSplash from '@/components/SessionSplash';
 import { useOwnerStore } from '@/lib/owner-store';
+
+// Deliberately identical to /login: same square hairline material, same tokens.
+// The owner panel is the same product's back door, not a second app.
+const FIELD_CLASS =
+  'h-11 w-full border border-[var(--erp-divider)] bg-[var(--erp-surface)] px-3 text-[14px] text-[var(--erp-text)] outline-none transition-colors hover:border-[var(--erp-muted)] focus:border-[var(--erp-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--erp-accent)]';
+
+const LABEL_CLASS = 'mb-1.5 block text-[13px] font-semibold text-[var(--erp-text)]';
+
+const PRIMARY_BUTTON_CLASS =
+  'inline-flex h-11 w-full items-center justify-center bg-[var(--erp-accent)] px-4 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--erp-accent-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] disabled:cursor-not-allowed disabled:bg-[var(--erp-divider)] disabled:text-[var(--erp-muted)]';
 
 export default function OwnerLoginPage() {
   const router = useRouter();
@@ -41,104 +52,125 @@ export default function OwnerLoginPage() {
   };
 
   if (!hasHydrated) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-300">
-        Восстановление сессии владельца...
-      </div>
-    );
+    return <SessionSplash label="Восстановление сессии владельца" />;
   }
 
   return (
-    <div className="min-h-dvh bg-[linear-gradient(135deg,_#020617,_#0f172a_45%,_#1d4ed8)] px-4 py-10">
-      <div className="mx-auto flex min-h-[calc(100dvh-5rem)] max-w-5xl items-start justify-center sm:items-center">
-        <div className="grid w-full overflow-hidden rounded-[32px] border border-white/10 bg-white shadow-2xl lg:grid-cols-[1fr_0.9fr]">
-          <div className="hidden bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
-            <div>
-              <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
-                <ShieldCheckIcon className="h-8 w-8" />
-              </div>
-              <h1 className="mt-8 text-4xl font-black tracking-tight">Владелец Sellary</h1>
-              <p className="mt-4 max-w-sm text-sm leading-7 text-slate-300">
-                Глобальное управление компаниями, участниками и вход только для владельца в сессии
-                арендаторов.
-              </p>
-            </div>
+    <div className="flex min-h-dvh flex-col bg-[var(--erp-bg)] text-[var(--erp-text)] lg:flex-row">
+      <aside className="flex flex-none flex-col border-b-2 border-[var(--erp-divider)] bg-[var(--erp-surface)] px-5 py-4 lg:w-[40%] lg:max-w-[520px] lg:border-b-0 lg:border-r-2 lg:px-12 lg:py-12">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="grid h-10 w-10 flex-none place-items-center bg-[var(--erp-accent)] lg:h-12 lg:w-12"
+          >
+            <ShieldCheckIcon className="h-5 w-5 text-white lg:h-6 lg:w-6" />
+          </span>
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-[19px] font-extrabold tracking-tight lg:text-[26px]">Sellary</span>
+            <span className="bg-[var(--erp-badge-bg)] px-2 py-0.5 text-[11px] font-semibold text-[var(--erp-badge-text)]">
+              Владелец
+            </span>
+          </span>
+        </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Доступ</p>
-              <p className="mt-3 text-sm leading-6 text-slate-200">
-                Этот вход предназначен для владельца приложения и не открывает сессию компании, пока
-                вы явно не войдёте в неё из панели.
-              </p>
-            </div>
+        <p className="my-auto hidden max-w-[26ch] py-10 text-[20px] font-semibold leading-snug tracking-tight lg:block">
+          Глобальное управление компаниями, участниками и вход только для владельца в сессии
+          арендаторов.
+        </p>
+
+        <div className="hidden border-t border-[var(--erp-divider)] pt-4 lg:block">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--erp-muted)]">
+            Доступ
+          </div>
+          <p className="mt-2 max-w-[44ch] text-[13px] leading-relaxed text-[var(--erp-muted)]">
+            Этот вход предназначен для владельца приложения и не открывает сессию компании, пока вы
+            явно не войдёте в неё из панели.
+          </p>
+        </div>
+      </aside>
+
+      <main
+        id="main"
+        className="flex flex-1 items-center justify-center px-4 py-10 sm:px-8 lg:justify-start lg:px-16"
+      >
+        <div className="w-full max-w-[400px]">
+          <div className="flex items-center gap-2.5">
+            <span aria-hidden="true" className="h-1.5 w-1.5 flex-none bg-[var(--erp-accent)]" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--erp-muted)]">
+              Доступ владельца
+            </span>
           </div>
 
-          <div className="p-6 sm:p-8 lg:p-10">
-            <div className="mb-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-600">
-                Доступ владельца
-              </p>
-              <h2 className="mt-2 text-3xl font-bold text-slate-900">Вход в панель управления</h2>
-              <p className="mt-2 text-sm text-slate-500">
-                Используйте учётные данные суперадминистратора из переменных окружения.
-              </p>
+          <h1 className="mt-6 text-[32px] font-extrabold leading-tight tracking-tight">
+            Вход в панель управления
+          </h1>
+          <p className="mt-2 max-w-[46ch] text-[13.5px] leading-relaxed text-[var(--erp-muted)]">
+            Используйте учётные данные суперадминистратора из переменных окружения.
+          </p>
+
+          <form
+            onSubmit={handleSubmit}
+            className="mt-7 flex flex-col gap-4"
+            aria-busy={submitting}
+          >
+            <div>
+              <label htmlFor="owner-username" className={LABEL_CLASS}>
+                Имя пользователя
+              </label>
+              <input
+                id="owner-username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                required
+                autoFocus
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className={FIELD_CLASS}
+                placeholder="owner"
+              />
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">Имя пользователя</span>
+            <div>
+              <label htmlFor="owner-password" className={LABEL_CLASS}>
+                Пароль
+              </label>
+              <div className="relative">
                 <input
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
+                  id="owner-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  type={showPassword ? 'text' : 'password'}
                   required
-                  autoFocus
-                  autoComplete="username"
+                  autoComplete="current-password"
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none transition focus:border-[var(--erp-accent)] focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--erp-accent)]"
-                  placeholder="owner"
+                  className={`${FIELD_CLASS} pr-12`}
+                  placeholder="••••••••"
                 />
-              </label>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[var(--erp-muted)] transition-colors hover:text-[var(--erp-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+                >
+                  {showPassword ? (
+                    <EyeSlashIcon className="h-5 w-5" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
 
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">Пароль</span>
-                <div className="relative">
-                  <input
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    autoComplete="current-password"
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 pr-12 text-sm outline-none transition focus:border-[var(--erp-accent)] focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--erp-accent)]"
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((value) => !value)}
-                    aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                    className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 transition hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
-                  >
-                    {showPassword ? (
-                      <EyeSlashIcon className="h-5 w-5" />
-                    ) : (
-                      <EyeIcon className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
-              </label>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[var(--erp-accent)] text-sm font-semibold text-white transition hover:bg-[var(--erp-accent-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] disabled:cursor-not-allowed disabled:bg-slate-400"
-              >
-                {submitting ? 'Вход...' : 'Войти'}
-              </button>
-            </form>
-          </div>
+            <button type="submit" disabled={submitting} className={`mt-2 ${PRIMARY_BUTTON_CLASS}`}>
+              {submitting ? 'Вход...' : 'Войти'}
+            </button>
+          </form>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

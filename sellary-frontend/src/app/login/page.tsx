@@ -16,6 +16,23 @@ import { useAuthStore } from '@/lib/store';
 import type { CompanySummary } from '@/lib/types';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 
+// Square and hairline-bordered — the same material logic as the cards and
+// header controls in the app shell this screen opens into. Fills come from
+// tokens rather than a literal white so the pages stay readable if the theme
+// toggle has put `.dark` on <html> before a logout returned the user here.
+const FIELD_CLASS =
+  'h-11 w-full border border-[var(--erp-divider)] bg-[var(--erp-surface)] px-3 text-[14px] text-[var(--erp-text)] outline-none transition-colors hover:border-[var(--erp-muted)] focus:border-[var(--erp-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--erp-accent)]';
+
+const LABEL_CLASS = 'mb-1.5 block text-[13px] font-semibold text-[var(--erp-text)]';
+
+const PRIMARY_BUTTON_CLASS =
+  'inline-flex h-11 items-center justify-center bg-[var(--erp-accent)] px-4 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--erp-accent-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] disabled:cursor-not-allowed disabled:bg-[var(--erp-divider)] disabled:text-[var(--erp-muted)]';
+
+const LOGIN_STEPS = [
+  { number: 1, label: 'Вход' },
+  { number: 2, label: 'Компания' },
+] as const;
+
 export default function LoginPage() {
   const router = useRouter();
   const { isServerReachable, isChecking } = useServerHealth();
@@ -113,33 +130,37 @@ export default function LoginPage() {
     }
   };
 
+  // Nothing renders until we know whether there is a session and whether the
+  // API is up. Otherwise an already-signed-in user watched the login form
+  // appear and then vanish.
   if (!hasHydrated || isChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-          <p className="mt-4 text-sm text-slate-300">
-            {!hasHydrated ? 'Восстановление сессии...' : 'Проверка соединения с сервером...'}
-          </p>
-        </div>
-      </div>
+      <SessionSplash
+        label={!hasHydrated ? 'Восстановление сессии' : 'Проверка соединения с сервером'}
+      />
     );
   }
 
   if (!isServerReachable) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
-        <div className="w-full max-w-md rounded-3xl border border-red-500/20 bg-white p-8 text-center shadow-2xl">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-            <ServerIcon className="h-8 w-8" />
+      <div className="flex min-h-dvh items-center justify-center bg-[var(--erp-bg)] px-4 py-10">
+        <div
+          id="main"
+          className="w-full max-w-[420px] border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-8 text-center"
+        >
+          <div className="mx-auto grid h-12 w-12 place-items-center border-2 border-[var(--erp-warn)] bg-[var(--erp-warn-bg)]">
+            <ServerIcon className="h-6 w-6 text-[var(--erp-warn)]" />
           </div>
-          <h1 className="mt-6 text-2xl font-bold text-slate-900">Сервер недоступен</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+          <h1 className="mt-5 text-[22px] font-extrabold tracking-tight text-[var(--erp-text)]">
+            Сервер недоступен
+          </h1>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--erp-muted)]">
             Вход отключён, пока сервер снова не станет доступен.
           </p>
           <button
+            type="button"
             onClick={() => window.location.reload()}
-            className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-700"
+            className={`mt-6 w-full ${PRIMARY_BUTTON_CLASS}`}
           >
             Повторить подключение
           </button>
@@ -148,131 +169,177 @@ export default function LoginPage() {
     );
   }
 
-  // Nothing renders until we know whether there is a session. Otherwise an
-  // already-signed-in user watched the login form appear and then vanish.
-  if (!hasHydrated || (accessToken && currentCompany)) {
+  if (accessToken && currentCompany) {
     return <SessionSplash label="Проверка сессии" />;
   }
 
+  const currentStep = isChoosingCompany ? 2 : 1;
+
   return (
-    <div className="min-h-dvh min-h-screen bg-[radial-gradient(circle_at_top,_#dbeafe,_transparent_35%),linear-gradient(135deg,_#0f172a,_#1e293b_45%,_#111827)] px-4 py-10">
-      <div className="mx-auto flex min-h-[calc(100dvh-5rem)] w-full max-w-5xl items-start justify-center sm:items-center">
-        <div className="grid w-full overflow-hidden rounded-[32px] border border-white/10 bg-white shadow-2xl lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="hidden bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
-            <div>
-              <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
-                <ShoppingBagIcon className="h-8 w-8" />
-              </div>
-              <h1 className="mt-8 text-4xl font-black tracking-tight">Sellary</h1>
-              <p className="mt-4 max-w-sm text-sm leading-7 text-slate-300">
-                POS-доступ с учётом компаний, чёткими границами сессий и быстрым переключением.
-              </p>
-            </div>
+    <div className="flex min-h-dvh flex-col bg-[var(--erp-bg)] text-[var(--erp-text)] lg:flex-row">
+      {/* Brand panel. Same fill and 2px rule as the module rail in the shell,
+          so signing in and landing on /apps is one continuous surface. */}
+      <aside className="flex flex-none flex-col border-b-2 border-[var(--erp-divider)] bg-[var(--erp-surface)] px-5 py-4 lg:w-[40%] lg:max-w-[520px] lg:border-b-0 lg:border-r-2 lg:px-12 lg:py-12">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="grid h-10 w-10 flex-none place-items-center bg-[var(--erp-accent)] lg:h-12 lg:w-12"
+          >
+            <ShoppingBagIcon className="h-5 w-5 text-white lg:h-6 lg:w-6" />
+          </span>
+          <span className="text-[19px] font-extrabold tracking-tight lg:text-[26px]">Sellary</span>
+        </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Правила сессии</p>
-              <p className="mt-3 text-sm leading-6 text-slate-200">
-                Один вход даёт доступ к нескольким компаниям. После входа выберите нужную
-                компанию, и Sellary ограничит всю сессию этой компанией.
-              </p>
-            </div>
+        <p className="my-auto hidden max-w-[26ch] py-10 text-[20px] font-semibold leading-snug tracking-tight lg:block">
+          POS-доступ с учётом компаний, чёткими границами сессий и быстрым переключением.
+        </p>
+
+        <div className="hidden border-t border-[var(--erp-divider)] pt-4 lg:block">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--erp-muted)]">
+            Правила сессии
           </div>
+          <p className="mt-2 max-w-[44ch] text-[13px] leading-relaxed text-[var(--erp-muted)]">
+            Один вход даёт доступ к нескольким компаниям. После входа выберите нужную компанию, и
+            Sellary ограничит всю сессию этой компанией.
+          </p>
+        </div>
+      </aside>
 
-          <div className="p-6 sm:p-8 lg:p-10">
-            <div className="mb-8 lg:hidden">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white">
-                <ShoppingBagIcon className="h-7 w-7" />
-              </div>
-              <h1 className="mt-4 text-3xl font-black text-slate-900">Sellary</h1>
-            </div>
+      <main
+        id="main"
+        className="flex flex-1 items-center justify-center px-4 py-10 sm:px-8 lg:justify-start lg:px-16"
+      >
+        <div className="w-full max-w-[400px]">
+          <ol className="flex items-center gap-2.5" aria-label="Этапы входа">
+            {LOGIN_STEPS.map((step, index) => {
+              const isCurrent = currentStep === step.number;
+              const isReached = currentStep >= step.number;
+              return (
+                <li
+                  key={step.number}
+                  aria-current={isCurrent ? 'step' : undefined}
+                  className="flex items-center gap-2.5"
+                >
+                  {index > 0 && (
+                    <span aria-hidden="true" className="h-px w-5 bg-[var(--erp-divider)]" />
+                  )}
+                  <span
+                    aria-hidden="true"
+                    className={`grid h-5 w-5 flex-none place-items-center text-[11px] font-extrabold ${
+                      isReached
+                        ? 'bg-[var(--erp-accent)] text-white'
+                        : 'border border-[var(--erp-divider)] text-[var(--erp-muted)]'
+                    }`}
+                  >
+                    {step.number}
+                  </span>
+                  <span
+                    className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${
+                      isCurrent ? 'text-[var(--erp-text)]' : 'text-[var(--erp-muted)]'
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
 
-            {!isChoosingCompany ? (
-              <>
-                <div className="mb-8">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-600">
-                    Шаг 1
-                  </p>
-                  <h2 className="mt-2 text-3xl font-bold text-slate-900">Вход</h2>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Введите данные для входа, чтобы загрузить компании, привязанные к вашему аккаунту.
-                  </p>
+          {!isChoosingCompany ? (
+            <>
+              <h1 className="mt-6 text-[32px] font-extrabold leading-tight tracking-tight">
+                Вход
+              </h1>
+              <p className="mt-2 max-w-[46ch] text-[13.5px] leading-relaxed text-[var(--erp-muted)]">
+                Введите данные для входа, чтобы загрузить компании, привязанные к вашему аккаунту.
+              </p>
+
+              <form
+                onSubmit={handleLogin}
+                className="mt-7 flex flex-col gap-4"
+                aria-busy={submitting}
+              >
+                <div>
+                  <label htmlFor="login-username" className={LABEL_CLASS}>
+                    Имя пользователя
+                  </label>
+                  <input
+                    id="login-username"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    required
+                    autoFocus
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className={FIELD_CLASS}
+                    placeholder="admin"
+                  />
                 </div>
 
-                <form onSubmit={handleLogin} className="space-y-5">
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">Имя пользователя</span>
+                <div>
+                  <label htmlFor="login-password" className={LABEL_CLASS}>
+                    Пароль
+                  </label>
+                  <div className="relative">
                     <input
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value)}
+                      id="login-password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      type={showPassword ? 'text' : 'password'}
                       required
-                      autoFocus
-                      autoComplete="username"
+                      autoComplete="current-password"
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
-                      className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none transition focus:border-[var(--erp-accent)] focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--erp-accent)]"
-                      placeholder="admin"
+                      className={`${FIELD_CLASS} pr-12`}
+                      placeholder="••••••••"
                     />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">Пароль</span>
-                    <div className="relative">
-                      <input
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        autoComplete="current-password"
-                        className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 pr-12 text-sm outline-none transition focus:border-[var(--erp-accent)] focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--erp-accent)]"
-                        placeholder="••••••••"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((value) => !value)}
-                        aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 transition hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
-                      >
-                        {showPassword ? (
-                          <EyeSlashIcon className="h-5 w-5" />
-                        ) : (
-                          <EyeIcon className="h-5 w-5" />
-                        )}
-                      </button>
-                    </div>
-                  </label>
-
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[var(--erp-accent)] text-sm font-semibold text-white transition hover:bg-[var(--erp-accent-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] disabled:cursor-not-allowed disabled:bg-slate-400"
-                  >
-                    {submitting ? 'Загрузка компаний...' : 'Продолжить'}
-                  </button>
-                </form>
-              </>
-            ) : (
-              <>
-                <div className="mb-8">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-600">
-                    Шаг 2
-                  </p>
-                  <h2 className="mt-2 text-3xl font-bold text-slate-900">Выбор компании</h2>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Ваши данные загружены. Выберите компанию для этой сессии.
-                  </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((value) => !value)}
+                      aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                      className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-[var(--erp-muted)] transition-colors hover:text-[var(--erp-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+                    >
+                      {showPassword ? (
+                        <EyeSlashIcon className="h-5 w-5" />
+                      ) : (
+                        <EyeIcon className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
-                <form onSubmit={handleCompanySelection} className="space-y-4">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className={`mt-2 w-full ${PRIMARY_BUTTON_CLASS}`}
+                >
+                  {submitting ? 'Загрузка компаний...' : 'Продолжить'}
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <h1 className="mt-6 text-[32px] font-extrabold leading-tight tracking-tight">
+                Выбор компании
+              </h1>
+              <p className="mt-2 max-w-[46ch] text-[13.5px] leading-relaxed text-[var(--erp-muted)]">
+                Ваши данные загружены. Выберите компанию для этой сессии.
+              </p>
+
+              <form onSubmit={handleCompanySelection} className="mt-7" aria-busy={selectingCompany}>
+                <div className="flex flex-col gap-2">
                   {pendingCompanies.map((company) => {
                     const checked = selectedCompanyId === company.id;
                     return (
                       <label
                         key={company.id}
-                        className={`flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition ${
+                        className={`flex min-h-[44px] cursor-pointer items-start gap-3 border bg-[var(--erp-surface)] p-3.5 transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-[var(--erp-accent)] ${
                           checked
-                            ? 'border-sky-500 bg-sky-50 shadow-sm'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
+                            ? 'border-[var(--erp-accent)] ring-1 ring-[var(--erp-accent)]'
+                            : 'border-[var(--erp-divider)] hover:border-[var(--erp-muted)]'
                         }`}
                       >
                         <input
@@ -281,50 +348,63 @@ export default function LoginPage() {
                           value={company.id}
                           checked={checked}
                           onChange={() => setSelectedCompanyId(company.id)}
-                          className="mt-1 h-4 w-4"
+                          className="mt-1 h-4 w-4 flex-none accent-[var(--erp-accent)]"
                         />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <BuildingOffice2Icon className="h-5 w-5 text-slate-500" />
-                            <p className="truncate text-sm font-semibold text-slate-900">
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2">
+                            <BuildingOffice2Icon
+                              aria-hidden="true"
+                              className="h-4 w-4 flex-none text-[var(--erp-muted)]"
+                            />
+                            <span className="truncate text-[14px] font-extrabold tracking-tight">
                               {company.name}
-                            </p>
-                          </div>
-                          <p className="mt-1 text-xs text-slate-500">{company.slug}</p>
-                          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-400">
-                            {company.role}
-                            {company.is_default ? ' • по умолчанию' : ''}
-                          </p>
-                        </div>
+                            </span>
+                          </span>
+                          <span className="mt-0.5 block text-[12.5px] text-[var(--erp-muted)]">
+                            {company.slug}
+                          </span>
+                          <span className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <span className="border border-[var(--erp-divider)] px-2 py-0.5 text-[11px] font-semibold capitalize text-[var(--erp-muted)]">
+                              {company.role}
+                            </span>
+                            {company.is_default && (
+                              <span className="bg-[var(--erp-badge-bg)] px-2 py-0.5 text-[11px] font-semibold text-[var(--erp-badge-text)]">
+                                По умолчанию
+                              </span>
+                            )}
+                          </span>
+                        </span>
                       </label>
                     );
                   })}
+                </div>
 
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPendingCompanies([]);
-                        setSelectedCompanyId(null);
-                      }}
-                      className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border border-slate-200 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Назад
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={selectingCompany || selectedCompanyId === null}
-                      className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-[var(--erp-accent)] text-sm font-semibold text-white transition hover:bg-[var(--erp-accent-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] disabled:cursor-not-allowed disabled:bg-slate-400"
-                    >
-                      {selectingCompany ? 'Открытие компании...' : 'Открыть рабочее пространство'}
-                    </button>
-                  </div>
-                </form>
-              </>
-            )}
-          </div>
+                {/* Primary first on a phone, back-then-forward on a wide
+                    screen — the tab order stays left-to-right either way. */}
+                <div className="mt-6 flex flex-col-reverse gap-2.5 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingCompanies([]);
+                      setSelectedCompanyId(null);
+                    }}
+                    className="inline-flex h-11 w-full items-center justify-center border border-[var(--erp-divider)] bg-[var(--erp-surface)] px-4 text-[14px] font-semibold text-[var(--erp-text)] transition-colors hover:border-[var(--erp-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] sm:w-28"
+                  >
+                    Назад
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={selectingCompany || selectedCompanyId === null}
+                    className={`w-full leading-tight sm:flex-1 ${PRIMARY_BUTTON_CLASS}`}
+                  >
+                    {selectingCompany ? 'Открытие компании...' : 'Открыть рабочее пространство'}
+                  </button>
+                </div>
+              </form>
+            </>
+          )}
         </div>
-      </div>
+      </main>
     </div>
   );
 }
