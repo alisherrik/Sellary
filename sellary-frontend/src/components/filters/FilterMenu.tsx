@@ -115,7 +115,7 @@ export default function FilterMenu({
                 type="button"
                 aria-label="Закрыть фильтры"
                 onClick={() => setOpen(false)}
-                className="p-1.5 text-gray-400 hover:bg-[var(--erp-surface)] hover:text-[var(--erp-text)]"
+                className="p-1.5 text-[var(--erp-muted)] hover:bg-[var(--erp-surface)] hover:text-[var(--erp-text)]"
               >
                 <XMarkIcon className="h-4 w-4" aria-hidden="true" />
               </button>

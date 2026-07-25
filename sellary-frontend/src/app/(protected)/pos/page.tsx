@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { Squares2X2Icon } from '@heroicons/react/24/outline';
 import { useAuthStore, useCartStore, useUIStore } from '@/lib/store';
-import { salesApi, productsApi, categoriesApi, customersApi } from '@/lib/api';
+import { salesApi, productsApi, categoriesApi, customersApi, generateIdempotencyKey } from '@/lib/api';
 import { formatCurrency, hotkeyManager, printReceipt, registerHotkeys } from '@/lib/utils';
 import FilterMenu from '@/components/filters/FilterMenu';
 import { ModuleGuard } from '@/components/ModuleGuard';
@@ -142,6 +142,10 @@ function POS() {
   const [maxPriceFilter, setMaxPriceFilter] = useState('');
   const [barcode, setBarcode] = useState('');
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  // Guards a double-submit within one tick; the key survives a failed attempt
+  // so a retry is the same sale to the server.
+  const saleInFlight = useRef(false);
+  const saleKeyRef = useRef<string | null>(null);
 
   const catalogParams: Record<string, string | number> = { limit: 100 };
   if (debouncedSearch) catalogParams.search = debouncedSearch;
@@ -458,6 +462,14 @@ function POS() {
   }, [quickCustomerName, quickCustomerPhone, quickCustomerDescription, queryClient]);
 
   const completeSale = useCallback(async () => {
+    // `loading` is state, so two calls in the same tick both see `false` —
+    // Enter can reach the pay button's onClick and the global hotkey in one
+    // dispatch. A ref closes in the same tick; the idempotency key below makes
+    // the server reject the second request even if one still slips through.
+    if (saleInFlight.current) {
+      return;
+    }
+
     if (items.length === 0) {
       toast.error('Корзина пуста');
       return;
@@ -488,6 +500,7 @@ function POS() {
       return;
     }
 
+    saleInFlight.current = true;
     setLoading(true);
 
     const saleItems = items.map((item) => {
@@ -523,12 +536,20 @@ function POS() {
 
     if (!isServerReachable) {
       toast.error('Нет связи с сервером. Проверьте подключение к интернету.');
+      saleInFlight.current = false;
       setLoading(false);
       return;
     }
 
+    // One key per checkout, not per request: a retry after a timeout must be
+    // recognised by the server as the same sale, not booked a second time.
+    if (!saleKeyRef.current) {
+      saleKeyRef.current = generateIdempotencyKey();
+    }
+
     try {
-      const { data: sale } = await salesApi.create(saleData);
+      const { data: sale } = await salesApi.create(saleData, saleKeyRef.current);
+      saleKeyRef.current = null;
       toast.success('Продажа завершена');
       // Refresh stock counts so the catalog reflects what was just sold.
       queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -564,6 +585,7 @@ function POS() {
         toast.error(detail || 'Не удалось завершить продажу');
       }
     } finally {
+      saleInFlight.current = false;
       setLoading(false);
     }
   }, [items, hasOverStock, paymentMethod, cardType, cashPayment.isSufficient, selectedCustomer, creditInitialPayment, creditPaymentMethod, isServerReachable, overallDiscount, resetCheckout, queryClient]);
@@ -598,6 +620,17 @@ function POS() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [showPaymentModal]);
 
+  // …and the mobile cart sheet, whose only other dismissal is a tap on the
+  // scrim — unreachable from a keyboard or a scanner.
+  useEffect(() => {
+    if (!showCartSheet) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowCartSheet(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showCartSheet]);
+
   const getSessionItemCount = (sessionItems: typeof items) =>
     sessionItems.reduce((sum, item) => sum + item.quantity, 0);
   const cartCount = getSessionItemCount(items);
@@ -613,7 +646,7 @@ function POS() {
           return (
             <div
               key={session.id}
-              className={`flex h-9 shrink-0 items-center rounded-xl transition-colors ${
+              className={`flex h-11 shrink-0 items-center rounded-xl transition-colors ${
                 isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'
               }`}
             >
@@ -639,7 +672,7 @@ function POS() {
                       deleteSession(session.id);
                     }
                   }}
-                  className={`mr-1 rounded-lg p-1 ${isActive ? 'text-white/80 hover:bg-white/20' : 'text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                  className={`mr-1 grid h-11 w-9 place-items-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--erp-accent)] ${isActive ? 'text-white/80 hover:bg-white/20' : 'text-[var(--erp-muted)] hover:bg-gray-200 dark:hover:bg-gray-600'}`}
                 >
                   <XMarkIcon className="h-4 w-4" />
                 </button>
@@ -652,7 +685,7 @@ function POS() {
           aria-label="Новая продажа"
           title="Новая продажа"
           onClick={createSession}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gray-900 text-white transition-colors hover:bg-gray-700 dark:bg-gray-600 dark:hover:bg-gray-500"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gray-900 text-white transition-colors hover:bg-gray-700 dark:bg-gray-600 dark:hover:bg-gray-500"
         >
           <PlusIcon className="h-5 w-5" />
         </button>
@@ -660,7 +693,7 @@ function POS() {
 
       <div className="flex items-center gap-2 px-5 pb-2 pt-4">
         <h2 className="text-[18px] font-extrabold text-gray-900 dark:text-white">Чек</h2>
-        <span className="ml-auto text-[13px] font-semibold text-gray-400">{cartCount} товаров</span>
+        <span className="ml-auto text-[13px] font-semibold text-[var(--erp-muted)]">{cartCount} товаров</span>
       </div>
 
       {/* Items */}
@@ -669,7 +702,7 @@ function POS() {
           <div className="flex h-full flex-col items-center justify-center text-center">
             <ShoppingBagIcon className="mb-3 h-16 w-16 text-gray-200 dark:text-gray-600" />
             <p className="text-sm font-medium text-gray-500 dark:text-gray-300">Корзина пуста</p>
-            <p className="text-xs text-gray-400">Нажмите на товар слева, чтобы добавить</p>
+            <p className="text-xs text-[var(--erp-muted)]">Нажмите на товар слева, чтобы добавить</p>
           </div>
         ) : (
           items.map((item) => {
@@ -706,9 +739,9 @@ function POS() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14px] font-bold text-gray-900 dark:text-white">{item.product.name}</p>
-                    <p className="text-[12px] text-gray-400">{formatCurrency(unitPrice)} / {unitLabel}</p>
+                    <p className="text-[12px] text-[var(--erp-muted)]">{formatCurrency(unitPrice)} / {unitLabel}</p>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -716,7 +749,7 @@ function POS() {
                         if (next <= 0) removeItem(key);
                         else updateQuantity(key, next);
                       }}
-                      className="grid h-8 w-8 place-items-center rounded-xl bg-white text-lg font-bold text-gray-600 shadow-sm dark:bg-gray-800 dark:text-gray-200"
+                      className="grid h-11 w-11 place-items-center rounded-xl bg-white text-lg font-bold text-gray-600 shadow-sm dark:bg-gray-800 dark:text-gray-200"
                     >
                       −
                     </button>
@@ -754,7 +787,7 @@ function POS() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                       }}
-                      className="w-10 rounded-lg border border-transparent bg-transparent text-center text-sm font-extrabold text-gray-900 focus:border-gray-200 focus:bg-white focus:outline-none dark:text-white dark:focus:bg-gray-800"
+                      className="w-10 rounded-lg border border-transparent bg-transparent text-center text-sm font-extrabold text-gray-900 focus:bg-white focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] dark:text-white dark:focus:bg-gray-800"
                     />
                     <button
                       type="button"
@@ -765,7 +798,7 @@ function POS() {
                           : undefined
                       }
                       onClick={() => updateQuantity(key, item.quantity + 1)}
-                      className="grid h-8 w-8 place-items-center rounded-xl bg-blue-600 text-lg font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-600"
+                      className="grid h-11 w-11 place-items-center rounded-xl bg-blue-600 text-lg font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-600"
                     >
                       +
                     </button>
@@ -774,7 +807,7 @@ function POS() {
 
                 {showUnitPicker && (
                   <div className="mt-2 flex items-center gap-2">
-                    <span className="text-[11px] text-gray-400">Ед.</span>
+                    <span className="text-[11px] text-[var(--erp-muted)]">Ед.</span>
                     <select
                       aria-label={`Единица измерения: ${item.product.name}`}
                       value={String(item.unit?.id ?? 'base')}
@@ -784,7 +817,7 @@ function POS() {
                         );
                         if (next) changeUnit(key, next);
                       }}
-                      className="h-8 flex-1 rounded-lg border border-gray-200 bg-white px-2 text-[12px] font-semibold text-gray-700 focus:border-blue-400 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                      className="h-11 flex-1 rounded-lg border border-gray-200 bg-white px-2 text-[12px] font-semibold text-gray-700 focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
                     >
                       {units.map((u) => (
                         <option key={String(u.id ?? 'base')} value={String(u.id ?? 'base')}>
@@ -796,7 +829,7 @@ function POS() {
                 )}
 
                 <div className="mt-2 flex items-center gap-2">
-                  <span className="text-[11px] text-gray-400">Цена</span>
+                  <span className="text-[11px] text-[var(--erp-muted)]">Цена</span>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -861,13 +894,13 @@ function POS() {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                     }}
-                    className="ml-auto w-24 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-right text-[14px] font-extrabold tabular-nums text-gray-900 focus:border-gray-200 focus:bg-white focus:outline-none dark:text-white dark:focus:bg-gray-800"
+                    className="ml-auto w-24 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-right text-[14px] font-extrabold tabular-nums text-gray-900 focus:bg-white focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] dark:text-white dark:focus:bg-gray-800"
                   />
                   <button
                     type="button"
                     aria-label={`Удалить ${item.product.name}`}
                     onClick={() => removeItem(key)}
-                    className="rounded-lg p-1.5 text-gray-400 hover:bg-white hover:text-red-600 dark:hover:bg-gray-800"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-[var(--erp-muted)] hover:bg-white hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--erp-accent)] dark:hover:bg-gray-800"
                   >
                     <TrashIcon className="h-4 w-4" />
                   </button>
@@ -897,7 +930,9 @@ function POS() {
         <div className="mb-1 flex justify-between text-[13px] text-gray-500"><span>Налог</span><span className="tabular-nums">{formatCurrency(tax)}</span></div>
         <div className="mb-3 flex items-end justify-between">
           <span className="font-bold text-gray-900 dark:text-white">Итого</span>
-          <span className="text-[28px] font-extrabold leading-none tabular-nums text-gray-900 dark:text-white">{formatCurrency(finalTotal)}</span>
+          {/* Money-Is-Blue: the same number is Register Blue on the mobile bar;
+              it must not be styled by a second law on the desktop panel. */}
+          <span className="text-[30px] font-black leading-none tabular-nums text-[var(--erp-accent)]">{formatCurrency(finalTotal)}</span>
         </div>
         {hasOverStock && (
           <div className="mb-3 rounded-xl bg-red-50 p-2.5 text-[12px] leading-snug text-red-700 dark:bg-red-900/20 dark:text-red-300">
@@ -934,8 +969,10 @@ function POS() {
                   ? 'Недостаточно товара на складе'
                   : undefined
             }
-            className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl text-[17px] font-extrabold text-white shadow-lg transition-all hover:brightness-105 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}
+            // Flat confirm green, not a gradient: white on #22c55e is 2.28:1,
+            // and 17px bold is below the large-text threshold, so AA needs 4.5.
+            // #15803d gives 5.02:1 and reads under store glare.
+            className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#15803d] text-[17px] font-extrabold text-white shadow-lg transition-colors hover:bg-[#166534] active:scale-[.99] disabled:cursor-not-allowed disabled:bg-gray-400 disabled:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
           >
             Оплатить →
             <kbd className="hidden rounded bg-white/20 px-1.5 py-0.5 text-[11px] font-semibold lg:inline">Enter</kbd>
@@ -1026,36 +1063,36 @@ function POS() {
       </div>
 
       {/* pb clears the fixed mobile cart bar so the last catalog row is reachable. */}
-      <div className="flex min-h-0 flex-1 gap-4 p-4 pb-[132px] lg:pb-4">
+      <div className="flex min-h-0 flex-1 gap-4 p-4 pb-[132px] md:pb-4">
         {/* Catalog */}
         <main className="flex min-w-0 flex-1 flex-col">
           {/* Search + barcode */}
           <div className="mb-3 flex flex-wrap items-center gap-2 sm:flex-nowrap">
             <div className="relative min-w-[220px] flex-1">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--erp-muted)]" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Поиск товара…"
-                className="h-11 w-full rounded-2xl border border-gray-200 bg-white pl-10 pr-3 text-sm shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-800"
+                className="h-11 w-full rounded-2xl border border-gray-200 bg-white pl-10 pr-3 text-sm shadow-sm outline-none focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] focus:border-[var(--erp-accent)] dark:border-gray-600 dark:bg-gray-800"
               />
             </div>
             <form onSubmit={handleBarcodeSubmit} className="relative w-40 sm:w-52">
-              <QrCodeIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <QrCodeIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--erp-muted)]" />
               <input
                 ref={barcodeInputRef}
                 type="text"
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
                 placeholder="Штрихкод"
-                className="h-11 w-full rounded-2xl border border-gray-200 bg-white pl-10 pr-3 font-mono text-sm shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-800"
+                className="h-11 w-full rounded-2xl border border-gray-200 bg-white pl-10 pr-3 font-mono text-sm shadow-sm outline-none focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] focus:border-[var(--erp-accent)] dark:border-gray-600 dark:bg-gray-800"
               />
             </form>
             <FilterMenu activeCount={activeCatalogFilterCount} onReset={resetCatalogFilters}>
               <div className="space-y-4">
                 <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                     Наличие
                   </p>
                   <div className="grid gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-900">
@@ -1073,7 +1110,7 @@ function POS() {
                         }`}
                       >
                         <span>{option.label}</span>
-                        <span aria-hidden="true" className="text-xs tabular-nums text-gray-400">
+                        <span aria-hidden="true" className="text-xs tabular-nums text-[var(--erp-muted)]">
                           {option.count}
                         </span>
                       </button>
@@ -1083,7 +1120,7 @@ function POS() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block">
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                       Цена от
                     </span>
                     <input
@@ -1092,11 +1129,11 @@ function POS() {
                       aria-label="Цена от"
                       value={minPriceFilter}
                       onChange={(event) => setMinPriceFilter(event.target.value)}
-                      className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                      className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] focus:border-[var(--erp-accent)] dark:border-gray-600 dark:bg-gray-900"
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                       Цена до
                     </span>
                     <input
@@ -1105,12 +1142,12 @@ function POS() {
                       aria-label="Цена до"
                       value={maxPriceFilter}
                       onChange={(event) => setMaxPriceFilter(event.target.value)}
-                      className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900"
+                      className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] focus:border-[var(--erp-accent)] dark:border-gray-600 dark:bg-gray-900"
                     />
                   </label>
                 </div>
 
-                <p className="text-xs tabular-nums text-gray-400">
+                <p className="text-xs tabular-nums text-[var(--erp-muted)]">
                   Показано: {visibleProducts.length} из {products.length}
                 </p>
               </div>
@@ -1122,7 +1159,7 @@ function POS() {
             <button
               type="button"
               onClick={() => setSelectedCategory(null)}
-              className={`h-9 shrink-0 rounded-xl px-4 text-[13px] font-bold transition-colors ${
+              className={`h-11 shrink-0 rounded-xl px-4 text-[13px] font-bold transition-colors ${
                 selectedCategory === null
                   ? 'bg-gray-900 text-white dark:bg-gray-600'
                   : 'border border-gray-200 bg-white text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'
@@ -1135,7 +1172,7 @@ function POS() {
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
-                className={`h-9 shrink-0 rounded-xl px-4 text-[13px] font-bold transition-colors ${
+                className={`h-11 shrink-0 rounded-xl px-4 text-[13px] font-bold transition-colors ${
                   selectedCategory === cat.id
                     ? 'bg-blue-600 text-white'
                     : 'border border-gray-200 bg-white text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'
@@ -1196,7 +1233,7 @@ function POS() {
                         </div>
                         <h3 className="line-clamp-2 text-[13px] font-bold leading-tight text-gray-900 dark:text-white">{product.name}</h3>
                         {product.category?.name && (
-                          <p className="truncate text-[11px] font-semibold text-gray-400">{product.category.name}</p>
+                          <p className="truncate text-[11px] font-semibold text-[var(--erp-muted)]">{product.category.name}</p>
                         )}
                         <div className="mt-1 text-[16px] font-extrabold tabular-nums text-gray-900 dark:text-white">
                           {formatCurrency(product.sell_price)}
@@ -1205,8 +1242,20 @@ function POS() {
                     );
                   })}
             </div>
+            {/* The products query is gated on server health, so an unreachable
+                API arrives here as an empty list — a cashier would rescan and
+                blame the barcode. Name the real cause. */}
             {!productsLoading && visibleProducts.length === 0 && (
-              <div className="py-16 text-center text-sm text-gray-400">Товары не найдены</div>
+              isServerReachable ? (
+                <div className="py-16 text-center text-sm text-[var(--erp-muted)]">Товары не найдены</div>
+              ) : (
+                <div role="alert" className="py-16 text-center">
+                  <p className="text-sm font-bold text-[var(--erp-warn)]">Нет связи с сервером</p>
+                  <p className="mt-1 text-sm text-[var(--erp-muted)]">
+                    Товары недоступны. Проверьте подключение к интернету.
+                  </p>
+                </div>
+              )
             )}
           </div>
         </main>
@@ -1217,7 +1266,7 @@ function POS() {
           aria-orientation="vertical"
           aria-label="Изменить ширину корзины"
           onPointerDown={handleResizeStart}
-          className="group hidden w-2 shrink-0 cursor-col-resize items-center justify-center lg:flex"
+          className="group hidden w-2 shrink-0 cursor-col-resize items-center justify-center md:flex"
         >
           <div className="h-12 w-1 rounded-full bg-gray-300 transition-colors group-hover:bg-blue-400 dark:bg-gray-600 dark:group-hover:bg-blue-500" />
         </div>
@@ -1225,7 +1274,7 @@ function POS() {
         {/* Cart — desktop aside */}
         <aside
           style={{ width: cartPanelWidth }}
-          className="hidden shrink-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 lg:block"
+          className="hidden shrink-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 md:block"
         >
           {cartPanel}
         </aside>
@@ -1238,7 +1287,7 @@ function POS() {
           Still opens the cart sheet on tap, same as before; the sheet's own
           Оплатить button drives the payment modal. */}
       <div
-        className="fixed inset-x-0 bottom-0 z-30 border-t-2 border-[var(--erp-divider)] bg-white p-3 lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 border-t-2 border-[var(--erp-divider)] bg-white p-3 md:hidden"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
       >
         <button
@@ -1262,9 +1311,22 @@ function POS() {
 
       {/* Mobile cart sheet */}
       {showCartSheet && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end lg:hidden">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowCartSheet(false)} />
-          <div className="relative max-h-[88vh] overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-gray-800">
+        <div className="fixed inset-0 z-40 flex flex-col justify-end md:hidden">
+          <div
+            className="absolute inset-0 touch-none bg-black/50 backdrop-blur-sm"
+            aria-hidden="true"
+            onClick={() => setShowCartSheet(false)}
+          />
+          {/* A definite height, not max-height: cartPanel is `h-full flex-col`
+              with an `overflow-y-auto` item list, and `h-full` against an
+              auto-height parent resolves to nothing — past ~4 lines the total
+              and Оплатить were clipped with no way to scroll to them. */}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Корзина"
+            className="relative flex h-[88dvh] flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-gray-800"
+          >
             {cartPanel}
           </div>
         </div>
@@ -1273,10 +1335,19 @@ function POS() {
       {/* Payment modal */}
       {showPaymentModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-          <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" onClick={() => setShowPaymentModal(false)} />
-          <div className="relative max-h-[90vh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl dark:bg-gray-800 sm:max-w-lg sm:rounded-3xl sm:p-6">
+          <div
+            className="absolute inset-0 touch-none bg-gray-900/60 backdrop-blur-sm"
+            aria-hidden="true"
+            onClick={() => setShowPaymentModal(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payment-modal-title"
+            className="relative max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl dark:bg-gray-800 sm:max-w-lg sm:rounded-3xl sm:p-6"
+          >
             <div className="mb-4 flex items-center justify-between sm:mb-6">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white sm:text-2xl">Оплата</h2>
+              <h2 id="payment-modal-title" className="text-lg font-bold text-gray-900 dark:text-white sm:text-2xl">Оплата</h2>
               <button
                 type="button"
                 aria-label="Закрыть"
@@ -1354,7 +1425,7 @@ function POS() {
                   inputMode="decimal"
                   value={cashReceived}
                   onChange={(event) => setCashReceived(event.target.value)}
-                  className="h-12 w-full rounded-xl border border-gray-300 bg-white px-4 text-right text-xl font-extrabold tabular-nums text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:ring-blue-900/40"
+                  className="h-12 w-full rounded-xl border border-gray-300 bg-white px-4 text-right text-xl font-extrabold tabular-nums text-gray-900 outline-none transition focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-[var(--erp-accent)] dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:ring-blue-900/40"
                 />
                 <div
                   className={`mt-3 flex items-center justify-between rounded-xl px-3 py-2 text-sm font-bold ${
@@ -1538,7 +1609,7 @@ function POS() {
             <button
               onClick={completeSale}
               disabled={loading || hasOverStock || (paymentMethod === 'cash' && !cashPayment.isSufficient) || (paymentMethod === 'credit' && (!selectedCustomer || !creditInitialPayment.isValid))}
-              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3 text-base font-bold text-white transition-all hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-400 sm:py-4 sm:text-xl"
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#15803d] py-3 text-base font-bold text-white transition-colors hover:bg-[#166534] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-400 sm:py-4 sm:text-xl"
             >
               {loading ? (
                 'Обработка...'

@@ -441,7 +441,7 @@ function CompaniesSection({
                       <button
                         type="button"
                         onClick={() => void onEnterCompany(company.id)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700"
+                        className="inline-flex items-center gap-1 rounded-lg bg-sky-50 inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-sky-700"
                       >
                         <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                         Войти в компанию
@@ -681,7 +681,7 @@ function PrimaryButton({ label }: { label: string }) {
   return (
     <button
       type="submit"
-      className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+      className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-[var(--erp-accent-strong)]"
     >
       {label}
     </button>
@@ -701,8 +701,8 @@ function ActionButton({
 }) {
   const className =
     tone === 'primary'
-      ? 'rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white'
-      : 'rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700';
+      ? 'rounded-lg bg-[var(--erp-accent)] inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-white'
+      : 'rounded-lg border border-slate-200 inline-flex min-h-[44px] items-center px-4 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] text-slate-700';
 
   return (
     <button type={type} onClick={onClick} className={className}>

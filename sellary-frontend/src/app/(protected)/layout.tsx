@@ -7,6 +7,7 @@ import Layout from '@/components/Layout';
 import MobileShell from '@/components/mobile/MobileShell';
 import { useAuthStore } from '@/lib/store';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { MOBILE_QUERY } from '@/lib/breakpoints';
 
 export default function ProtectedLayout({
   children,
@@ -15,8 +16,14 @@ export default function ProtectedLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { accessToken, isAuthenticated, hasHydrated, fetchSession } = useAuthStore();
-  const isMobile = useMediaQuery('(max-width: 767px)');
+  // Per-field selectors: destructuring the whole store re-renders the shell
+  // and every page under it on any auth write (fetchSession alone writes six
+  // keys on mount).
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const hasHydrated = useAuthStore((state) => state.hasHydrated);
+  const fetchSession = useAuthStore((state) => state.fetchSession);
+  const isMobile = useMediaQuery(MOBILE_QUERY);
 
   useEffect(() => {
     if (!hasHydrated) {
@@ -34,7 +41,7 @@ export default function ProtectedLayout({
 
   if (!hasHydrated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-500">
+      <div className="flex min-h-dvh items-center justify-center bg-[var(--erp-bg)] text-sm text-[var(--erp-muted)]">
         Restoring session...
       </div>
     );

@@ -8,18 +8,15 @@ export default function TableSkeleton({
   columns = 6,
 }: TableSkeletonProps) {
   return (
-    <div className="space-y-3" role="status" aria-label="Загрузка таблицы">
+    <div className="space-y-2" role="status" aria-label="Загрузка таблицы">
       {Array.from({ length: rows }).map((_, rowIndex) => (
         <div
           key={rowIndex}
-          className="grid animate-pulse gap-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-700 dark:bg-gray-800/60"
+          className="grid animate-pulse gap-3 border border-[var(--erp-divider)] bg-white p-3"
           style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
         >
           {Array.from({ length: columns }).map((_, colIndex) => (
-            <div
-              key={colIndex}
-              className="h-4 rounded bg-gray-200 dark:bg-gray-700"
-            />
+            <div key={colIndex} className="h-4 bg-[var(--erp-surface)]" />
           ))}
         </div>
       ))}

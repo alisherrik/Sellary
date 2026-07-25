@@ -90,7 +90,7 @@ export default function ProductCombobox({
         {label}
       </label>
       <MagnifyingGlassIcon
-        className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
+        className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--erp-muted)]"
         aria-hidden="true"
       />
       <input

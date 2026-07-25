@@ -42,11 +42,11 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
   return (
     <div className="space-y-4">
       <div className="border border-[var(--erp-divider)] bg-white p-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Выручка по оплате</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)]">Выручка по оплате</p>
         <Row label={METHOD_LABELS.cash} value={formatCurrency(totals.cash_sales)} />
         <Row label={METHOD_LABELS.card} value={formatCurrency(totals.card_sales)} />
         {cardEntries.map(([type, amount]) => (
-          <div key={type} className="flex items-center justify-between py-0.5 pl-4 text-xs text-gray-400">
+          <div key={type} className="flex items-center justify-between py-0.5 pl-4 text-xs text-[var(--erp-muted)]">
             <span>{CARD_LABELS[type] ?? type}</span>
             <span className="tabular-nums">{formatCurrency(amount)}</span>
           </div>
@@ -62,7 +62,7 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
 
       {(debtEntries.length > 0 || refundEntries.length > 0) && (
         <div className="border border-[var(--erp-divider)] bg-white p-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Прочие движения</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)]">Прочие движения</p>
           {debtEntries.map(([method, amount]) => (
             <Row key={`d-${method}`} label={`Оплата долга (${METHOD_LABELS[method] ?? method})`} value={`+${formatCurrency(amount)}`} />
           ))}
@@ -73,7 +73,7 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
       )}
 
       <div className="border border-[var(--erp-divider)] bg-white p-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Касса (наличные)</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)]">Касса (наличные)</p>
         <Row label="На начало" value={formatCurrency(shift.opening_cash)} />
         <Row label="Ожидается в кассе" value={formatCurrency(totals.expected_cash)} bold />
         {closed && (

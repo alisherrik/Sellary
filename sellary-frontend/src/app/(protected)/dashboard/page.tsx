@@ -72,7 +72,7 @@ function Dashboard() {
                     <stat.icon className="h-4 w-4 text-white sm:h-6 sm:w-6" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:text-[11px]">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--erp-muted)] sm:text-[11px]">
                       {stat.name}
                     </p>
                     <p className="truncate text-sm font-extrabold text-[var(--erp-text)] sm:text-2xl">
@@ -103,7 +103,7 @@ function Dashboard() {
                     {data.top_products.slice(0, 5).map((product: any, index: number) => (
                       <div key={product.product_id} className="flex items-center justify-between">
                         <div className="flex min-w-0 flex-1 items-center">
-                          <span className="mr-2 text-sm text-gray-400 sm:mr-3 sm:text-base">#{index + 1}</span>
+                          <span className="mr-2 text-sm text-[var(--erp-muted)] sm:mr-3 sm:text-base">#{index + 1}</span>
                           <div className="min-w-0">
                             <p className="truncate text-xs font-medium text-[var(--erp-text)] sm:text-base">
                               {product.product_name}
@@ -198,7 +198,7 @@ function Dashboard() {
                   <div className="hidden overflow-x-auto sm:block">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b-2 border-[var(--erp-divider)] text-left text-[10.5px] uppercase tracking-wide text-gray-400">
+                        <tr className="border-b-2 border-[var(--erp-divider)] text-left text-[10.5px] uppercase tracking-wide text-[var(--erp-muted)]">
                           <th className="pb-3 font-medium">Чек №</th>
                           <th className="pb-3 font-medium">Дата и время</th>
                           <th className="pb-3 font-medium">Сумма</th>

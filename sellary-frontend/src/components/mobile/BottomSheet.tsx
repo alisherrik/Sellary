@@ -68,14 +68,19 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  // The shell is h-dvh, so `body` never scrolls — locking it is a no-op. The
+  // real scroller is the shell's content <main>; lock that, and fall back to
+  // body for sheets opened outside the shell.
   useEffect(() => {
     if (!isOpen) {
       return;
     }
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const scroller =
+      document.querySelector<HTMLElement>('[data-shell-scroll]') ?? document.body;
+    const previousOverflow = scroller.style.overflow;
+    scroller.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = previousOverflow;
+      scroller.style.overflow = previousOverflow;
     };
   }, [isOpen]);
 
@@ -85,7 +90,11 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
 
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={onClose} aria-hidden="true" />
+      <div
+        className="absolute inset-0 touch-none overscroll-contain bg-black/50 animate-fade-in"
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <div
         ref={panelRef}
         role="dialog"

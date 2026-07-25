@@ -6,12 +6,13 @@ import type { ModuleKey } from '@/lib/modules';
 import { grantedModuleDefs } from '@/lib/moduleNav';
 import { MODULE_ICONS } from '@/components/moduleIcons';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { MOBILE_QUERY } from '@/lib/breakpoints';
 
 export default function AppsPage() {
-  const { currentCompany } = useAuthStore();
+  const currentCompany = useAuthStore((state) => state.currentCompany);
   const modules = useModules();
   const isAdmin = currentCompany?.role === 'admin';
-  const isMobile = useMediaQuery('(max-width: 767px)');
+  const isMobile = useMediaQuery(MOBILE_QUERY);
 
   const granted = grantedModuleDefs(modules, isAdmin);
   const cards = granted.map((def) => {

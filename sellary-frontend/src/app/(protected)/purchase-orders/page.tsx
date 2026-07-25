@@ -72,7 +72,7 @@ export default function PurchaseOrdersPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto max-w-7xl p-4">
       <header className="flex flex-wrap items-end gap-4">
         <div>
           <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Заказы поставщикам</h2>
@@ -92,7 +92,7 @@ export default function PurchaseOrdersPage() {
           <label className="relative block min-w-0 flex-1">
             <span className="sr-only">Поиск закупок</span>
             <MagnifyingGlassIcon
-              className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
+              className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--erp-muted)]"
               aria-hidden="true"
             />
             <input
@@ -108,7 +108,7 @@ export default function PurchaseOrdersPage() {
           <FilterMenu activeCount={activeFilterCount} onReset={resetAdvancedFilters}>
             <div className="space-y-4">
               <label className="block">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                   Статус
                 </span>
                 <select
@@ -128,7 +128,7 @@ export default function PurchaseOrdersPage() {
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                   Поставщик
                 </span>
                 <select
@@ -148,7 +148,7 @@ export default function PurchaseOrdersPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                     Дата от
                   </span>
                   <input
@@ -161,7 +161,7 @@ export default function PurchaseOrdersPage() {
                 </label>
 
                 <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                     Дата до
                   </span>
                   <input
@@ -263,7 +263,7 @@ export default function PurchaseOrdersPage() {
             <div className="hidden overflow-x-auto sm:block">
               <table className="w-full min-w-[760px] text-sm">
                 <thead>
-                  <tr className="border-b-2 border-[var(--erp-divider)] text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">
+                  <tr className="border-b-2 border-[var(--erp-divider)] text-left text-[10.5px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                     <th className="px-4 py-3">№</th>
                     <th className="px-4 py-3">Поставщик</th>
                     <th className="px-4 py-3">Дата</th>

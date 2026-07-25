@@ -15,6 +15,7 @@ import { suppliersApi } from '@/lib/api';
 import { Supplier } from '@/lib/types';
 import FilterMenu from '@/components/filters/FilterMenu';
 import { ModuleGuard } from '@/components/ModuleGuard';
+import QueryError from '@/components/ui/QueryError';
 import { TableSkeleton } from '@/components/skeletons';
 import { useSuppliers } from '@/hooks/useQueries';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -41,7 +42,7 @@ function Suppliers() {
   const params: Record<string, string | number> = { limit: 100 };
   if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
 
-  const { data: suppliers = [], isLoading: loading } = useSuppliers(params);
+  const { data: suppliers = [], isLoading: loading, isError, refetch } = useSuppliers(params);
   const visibleSuppliers = useMemo(() => {
     if (supplierFilter === 'with_terms') {
       return suppliers.filter((supplier) => Boolean(supplier.payment_terms?.trim()));
@@ -176,7 +177,7 @@ function Suppliers() {
         <div className="border border-[var(--erp-divider)] bg-white p-3 sm:p-4">
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 sm:h-5 sm:w-5" />
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--erp-muted)] sm:h-5 sm:w-5" />
               <input
                 type="search"
                 aria-label="Поиск поставщиков"
@@ -189,7 +190,7 @@ function Suppliers() {
             <FilterMenu activeCount={activeFilterCount} onReset={resetAdvancedFilters}>
               <div className="space-y-3">
                 <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                     Данные поставщика
                   </p>
                   <div className="grid gap-1 border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-1">
@@ -207,14 +208,14 @@ function Suppliers() {
                         }`}
                       >
                         <span>{tab.label}</span>
-                        <span aria-hidden="true" className="text-xs tabular-nums text-gray-400">
+                        <span aria-hidden="true" className="text-xs tabular-nums text-[var(--erp-muted)]">
                           {tab.count}
                         </span>
                       </button>
                     ))}
                   </div>
                 </div>
-                <p className="text-xs tabular-nums text-gray-400">
+                <p className="text-xs tabular-nums text-[var(--erp-muted)]">
                   Показано: {visibleSuppliers.length} из {suppliers.length}
                 </p>
               </div>
@@ -227,8 +228,10 @@ function Suppliers() {
             <div className="p-4">
               <TableSkeleton rows={5} columns={5} />
             </div>
+          ) : isError ? (
+            <QueryError what="поставщиков" onRetry={() => void refetch()} />
           ) : visibleSuppliers.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
+            <div className="p-8 text-center text-[var(--erp-muted)]">
               {hasFilters ? 'Поставщики не найдены' : 'Поставщиков пока нет'}
             </div>
           ) : (
@@ -257,10 +260,10 @@ function Suppliers() {
                       )}
                     </div>
                     <div className="mt-2 flex justify-end gap-1">
-                      <button onClick={() => handleEdit(supplier)} className="p-2 text-gray-400 hover:text-[var(--erp-text)]" aria-label="Редактировать">
+                      <button onClick={() => handleEdit(supplier)} className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-text)]" aria-label="Редактировать">
                         <PencilIcon className="h-4 w-4" />
                       </button>
-                      <button onClick={() => handleDelete(supplier.id)} className="p-2 text-gray-400 hover:text-[var(--erp-accent)]" aria-label="Удалить">
+                      <button onClick={() => handleDelete(supplier.id)} className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-accent)]" aria-label="Удалить">
                         <TrashIcon className="h-4 w-4" />
                       </button>
                     </div>
@@ -272,12 +275,12 @@ function Suppliers() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b-2 border-[var(--erp-divider)]">
-                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Наименование</th>
-                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Контакт</th>
-                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Email</th>
-                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Телефон</th>
-                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Условия</th>
-                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-gray-400">Действия</th>
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">Наименование</th>
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">Контакт</th>
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">Email</th>
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">Телефон</th>
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">Условия</th>
+                      <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">Действия</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--erp-divider)]">
@@ -292,13 +295,13 @@ function Suppliers() {
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleEdit(supplier)}
-                              className="p-2 text-gray-400 hover:text-[var(--erp-text)]"
+                              className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-text)]"
                             >
                               <PencilIcon className="h-5 w-5" />
                             </button>
                             <button
                               onClick={() => handleDelete(supplier.id)}
-                              className="p-2 text-gray-400 hover:text-[var(--erp-accent)]"
+                              className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-accent)]"
                             >
                               <TrashIcon className="h-5 w-5" />
                             </button>

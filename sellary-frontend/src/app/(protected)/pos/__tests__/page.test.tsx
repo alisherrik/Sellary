@@ -6,6 +6,8 @@ vi.mock('@/providers/ServerHealthProvider', () => ({
 
 vi.mock('@/lib/api', () => ({
   salesApi: { create: vi.fn() },
+  // The register mints one key per checkout so a retry is the same sale.
+  generateIdempotencyKey: vi.fn(() => 'test-idempotency-key'),
   customersApi: {
     getAll: vi.fn().mockResolvedValue({ data: [] }),
     create: vi.fn(),
@@ -300,6 +302,7 @@ describe('POS credit payment', () => {
           paid_amount: 40,
           initial_payment_method: 'mobile',
         }),
+        expect.any(String),
       ),
     );
     expect(vi.mocked(salesApi.create).mock.calls[0][0]).not.toHaveProperty('notes');

@@ -98,7 +98,7 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  <span className={`mb-2 text-2xl ${isSelected ? 'text-[var(--erp-accent)]' : 'text-gray-400'}`}>
+                  <span className={`mb-2 text-2xl ${isSelected ? 'text-[var(--erp-accent)]' : 'text-[var(--erp-muted)]'}`}>
                     {curr.symbol}
                   </span>
                   <span className="text-sm font-semibold text-[var(--erp-text)]">{curr.code}</span>
@@ -144,7 +144,7 @@ export default function SettingsPage() {
               aria-checked={receiptPrintEnabled}
               aria-label="Печатать чек после продажи"
               onClick={handleReceiptPrintToggle}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)] after:absolute after:-inset-y-2.5 after:inset-x-0 after:content-[""] ${
                 receiptPrintEnabled ? 'bg-[var(--erp-success)]' : 'bg-gray-300'
               }`}
             >

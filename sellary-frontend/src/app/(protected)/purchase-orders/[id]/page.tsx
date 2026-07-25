@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
@@ -14,7 +14,7 @@ import PurchaseOrderStepper, {
 } from '@/components/purchase-orders/PurchaseOrderStepper';
 import { getRemainingQuantity } from '@/features/purchase-orders/purchaseOrderForm';
 import { usePurchaseOrder } from '@/hooks/useQueries';
-import { purchaseOrdersApi } from '@/lib/api';
+import { purchaseOrdersApi, generateIdempotencyKey } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import type { ReceivePurchaseOrderPayload, VoidPreview } from '@/lib/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -35,6 +35,7 @@ export default function PurchaseOrderDetailPage() {
   const [voidItemId, setVoidItemId] = useState<number | null>(null);
   const [itemVoidLoading, setItemVoidLoading] = useState(false);
   const isAdmin = useAuthStore((state) => state.currentCompany?.role === 'admin');
+  const receiveKeyRef = useRef<string | null>(null);
 
   if (!validId) return <DetailError message="Некорректный номер закупки." />;
   if (orderQuery.isLoading) return <div className="h-72 animate-pulse bg-white" />;
@@ -272,11 +273,11 @@ export default function PurchaseOrderDetailPage() {
                     Number(item.quantity_received) > 0 &&
                     ['partially_received', 'received'].includes(order.status);
                   return (
-                    <tr key={item.id} className={item.is_voided ? 'bg-gray-50 text-gray-400' : undefined}>
+                    <tr key={item.id} className={item.is_voided ? 'bg-gray-50 text-[var(--erp-muted)]' : undefined}>
                       <td className="px-4 py-4">
                         <p
                           className={`font-semibold ${
-                            item.is_voided ? 'text-gray-400 line-through' : 'text-gray-900'
+                            item.is_voided ? 'text-[var(--erp-muted)] line-through' : 'text-gray-900'
                           }`}
                         >
                           {item.product?.name ?? `Товар #${item.product_id}`}
@@ -316,7 +317,7 @@ export default function PurchaseOrderDetailPage() {
                               Аннулировать позицию
                             </button>
                           ) : (
-                            <span className="text-xs text-gray-400">—</span>
+                            <span className="text-xs text-[var(--erp-muted)]">—</span>
                           )}
                         </td>
                       )}
@@ -338,7 +339,18 @@ export default function PurchaseOrderDetailPage() {
             <PurchaseOrderReceiveStage
               order={order}
               onReceive={async (payload: ReceivePurchaseOrderPayload) => {
-                const response = await purchaseOrdersApi.receive(order.id, payload);
+                // One key per quantity-set: the receive stage keeps the entered
+                // numbers and re-enables its button after a failure, so a retry
+                // after a server-side timeout must not book the goods twice.
+                if (!receiveKeyRef.current) {
+                  receiveKeyRef.current = generateIdempotencyKey();
+                }
+                const response = await purchaseOrdersApi.receive(
+                  order.id,
+                  payload,
+                  receiveKeyRef.current,
+                );
+                receiveKeyRef.current = null;
                 await refresh();
                 toast.success('Товары приняты');
                 return response.data;

@@ -96,14 +96,14 @@ function Reports() {
                     <stat.icon className="h-4 w-4 sm:h-6 sm:w-6" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:text-[11px]">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--erp-muted)] sm:text-[11px]">
                       {stat.name}
                     </p>
                     <p className="truncate text-sm font-extrabold text-[var(--erp-text)] sm:text-2xl">
                       {stat.value}
                     </p>
                     {stat.hint && (
-                      <p className="truncate text-[10px] text-gray-400" title={stat.hint}>
+                      <p className="truncate text-[10px] text-[var(--erp-muted)]" title={stat.hint}>
                         {stat.hint}
                       </p>
                     )}
@@ -114,7 +114,7 @@ function Reports() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr,1fr] sm:gap-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr] sm:gap-6">
               {salesLoading ? (
                 <div className="space-y-4">
                   <CardSkeleton />
@@ -155,7 +155,7 @@ function Reports() {
                       {topProducts.top_products.map((product, index) => (
                         <div key={product.product_id} className="flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="text-xs text-gray-400">#{index + 1}</div>
+                            <div className="text-xs text-[var(--erp-muted)]">#{index + 1}</div>
                             <div className="truncate font-medium text-[var(--erp-text)]">
                               {product.product_name}
                             </div>
