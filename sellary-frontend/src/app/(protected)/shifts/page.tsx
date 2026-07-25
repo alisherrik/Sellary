@@ -10,6 +10,7 @@ import { useCurrentShift, useShifts } from '@/hooks/useQueries';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { ShiftTotalsPanel } from '@/components/shifts/ShiftTotalsPanel';
 import { TableSkeleton } from '@/components/skeletons';
+import { ShiftGateBanner } from '@/components/shifts/ShiftGate';
 
 function OpenShiftBlock() {
   const { data: shift } = useCurrentShift();
@@ -43,11 +44,10 @@ function OpenShiftBlock() {
   });
 
   if (!shift) {
-    return (
-      <div className="border border-[var(--erp-divider)] bg-white p-4 text-sm text-gray-500">
-        Смена не открыта. Откройте смену на странице кассы, чтобы начать продажи.
-      </div>
-    );
+    // The page a manager opens to manage shifts used to tell them to go
+    // somewhere else to open one. The control already existed — it just was
+    // not mounted here.
+    return <ShiftGateBanner />;
   }
 
   return (

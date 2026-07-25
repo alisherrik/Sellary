@@ -14,6 +14,8 @@ const tenantKey = (companyId: number | null) => companyId ?? 'no-company';
 export const queryKeys = {
     dashboard: (companyId: number | null) => ['dashboard', tenantKey(companyId)] as const,
     products: (companyId: number | null, params?: any) => ['products', tenantKey(companyId), params] as const,
+    // Nested under 'products' so any product write refreshes the reorder list too.
+    lowStock: (companyId: number | null) => ['products', tenantKey(companyId), 'low-stock'] as const,
     sales: (companyId: number | null, params?: any) => ['sales', tenantKey(companyId), params] as const,
     // Nested under 'sales' on purpose: invalidateQueries({queryKey: ['sales']})
     // after a void or a return must refresh the totals too, or the cards would
@@ -104,6 +106,27 @@ export function useProducts(params?: any, options?: Partial<UseQueryOptions<Prod
         queryKey: queryKeys.products(companyId, params),
         queryFn: async () => {
             const response = await productsApi.getAll(params || { limit: 100 });
+            return response.data;
+        },
+        ...options,
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
+    });
+}
+
+/**
+ * The reorder list, computed by the server over the whole catalogue.
+ *
+ * The pages used to derive "low" and "out of stock" from whichever 100 products
+ * happened to be loaded, so past 100 SKUs the answer to "what do I reorder" was
+ * quietly wrong.
+ */
+export function useLowStockProducts(options?: Partial<UseQueryOptions<Product[]>>) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    return useQuery<Product[]>({
+        queryKey: queryKeys.lowStock(companyId),
+        queryFn: async () => {
+            const response = await productsApi.getLowStock();
             return response.data;
         },
         ...options,

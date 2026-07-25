@@ -16,7 +16,7 @@ import { ModuleGuard } from '@/components/ModuleGuard';
 import CategoryPicker from '@/components/categories/CategoryPicker';
 import QueryError from '@/components/ui/QueryError';
 import { useDebounce } from '@/hooks/useDebounce';
-import { useProducts } from '@/hooks/useQueries';
+import { useLowStockProducts, useProducts } from '@/hooks/useQueries';
 import { categoriesApi, inventoryApi, productsApi } from '@/lib/api';
 import { Category, Product } from '@/lib/types';
 import { formatCurrency, formatUnitPrice, toPriceInput } from '@/lib/utils';
@@ -143,19 +143,34 @@ function Products() {
 
   const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name));
 
+  // Reorder counts come from the server, over the whole catalogue. Deriving
+  // them from the 100 products this page happens to have loaded made "what do
+  // I reorder" quietly wrong for any shop past 100 SKUs.
+  const { data: lowStock = [] } = useLowStockProducts();
+
   const lowCount = useMemo(
-    () => products.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= p.min_stock_level).length,
-    [products],
+    () => lowStock.filter((p) => p.stock_quantity > 0).length,
+    [lowStock],
   );
-  const outCount = useMemo(() => products.filter((p) => p.stock_quantity === 0).length, [products]);
+  const outCount = useMemo(() => lowStock.filter((p) => p.stock_quantity === 0).length, [lowStock]);
 
   const visibleProducts = useMemo(() => {
+    // The status tabs read the server's list; search and category still narrow
+    // it, so a filtered view stays a filtered view.
+    const matchesFilters = (product: Product) =>
+      (!selectedCategory || product.category_id === selectedCategory) &&
+      (!debouncedSearch ||
+        product.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (product.barcode ?? '').toLowerCase().includes(debouncedSearch.toLowerCase()));
+
     if (statusFilter === 'low') {
-      return products.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= p.min_stock_level);
+      return lowStock.filter((p) => p.stock_quantity > 0).filter(matchesFilters);
     }
-    if (statusFilter === 'out') return products.filter((p) => p.stock_quantity === 0);
+    if (statusFilter === 'out') {
+      return lowStock.filter((p) => p.stock_quantity === 0).filter(matchesFilters);
+    }
     return products;
-  }, [products, statusFilter]);
+  }, [debouncedSearch, lowStock, products, selectedCategory, statusFilter]);
 
   const refreshCategoryData = async () => {
     await Promise.all([

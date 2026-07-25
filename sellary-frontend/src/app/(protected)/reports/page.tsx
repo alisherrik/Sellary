@@ -12,6 +12,7 @@ import {
   ShoppingBagIcon,
 } from '@heroicons/react/24/outline';
 import { useState } from 'react';
+import Link from 'next/link';
 
 const SalesChart = dynamic(() => import('@/components/reports/SalesChart'), {
   ssr: false,
@@ -173,6 +174,14 @@ function Reports() {
                           </div>
                         </div>
                       ))}
+                      <div className="border-t border-[var(--erp-divider)] pt-3">
+                        <Link
+                          href="/purchase-orders/new?from=low-stock"
+                          className="inline-flex min-h-[44px] items-center bg-[var(--erp-accent)] px-4 text-sm font-semibold text-white hover:bg-[var(--erp-accent-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
+                        >
+                          Создать закупку
+                        </Link>
+                      </div>
                     </div>
                   )}
                 </div>

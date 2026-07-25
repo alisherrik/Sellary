@@ -11,6 +11,7 @@ import {
   validatePurchaseOrderForm,
   type PurchaseOrderFormData,
   type PurchaseOrderFormErrors,
+  type PurchaseOrderItemInput,
 } from '@/features/purchase-orders/purchaseOrderForm';
 import type { Product, PurchaseOrder, PurchaseOrderPayload, Supplier } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
@@ -21,6 +22,8 @@ import PurchaseOrderSummary from './PurchaseOrderSummary';
 
 interface PurchaseOrderEditorProps {
   initialOrder?: PurchaseOrder;
+  /** Pre-filled lines for a draft started from somewhere else (e.g. the reorder list). */
+  initialItems?: PurchaseOrderItemInput[];
   suppliers: Supplier[];
   onSave: (payload: PurchaseOrderPayload, id?: number) => Promise<PurchaseOrder>;
   onSend: (id: number) => Promise<PurchaseOrder>;
@@ -32,15 +35,22 @@ const emptyErrors = (): PurchaseOrderFormErrors => ({ items: {} });
 
 export default function PurchaseOrderEditor({
   initialOrder,
+  initialItems,
   suppliers,
   onSave,
   onSend,
   onComplete,
   onCancel,
 }: PurchaseOrderEditorProps) {
-  const [form, setForm] = useState<PurchaseOrderFormData>(() =>
-    initialOrder ? mapPurchaseOrderToForm(initialOrder) : createEmptyPurchaseOrderForm(),
-  );
+  const [form, setForm] = useState<PurchaseOrderFormData>(() => {
+    if (initialOrder) {
+      return mapPurchaseOrderToForm(initialOrder);
+    }
+    const empty = createEmptyPurchaseOrderForm();
+    // Seeded lines mean the user arrived from the reorder list; they should
+    // land on a draft that already knows what they came to order.
+    return initialItems?.length ? { ...empty, items: initialItems } : empty;
+  });
   const [currentStep, setCurrentStep] = useState<PurchaseOrderStep>('supplier');
   const [errors, setErrors] = useState<PurchaseOrderFormErrors>(emptyErrors);
   const [requestError, setRequestError] = useState('');

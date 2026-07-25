@@ -288,7 +288,7 @@ export const productsApi = {
   create: (data: any) => api.post('/products', data),
   update: (id: number, data: any) => api.put(`/products/${id}`, data),
   delete: (id: number) => api.delete(`/products/${id}`),
-  getLowStock: () => api.get('/products/low-stock'),
+  getLowStock: () => api.get<Product[]>('/products/low-stock'),
   // Marketplace: upload a product image (multipart). Backend stores it on
   // Cloudinary and returns the updated product with image_url populated.
   uploadImage: (id: number, file: File) => {

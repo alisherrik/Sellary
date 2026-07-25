@@ -12,6 +12,7 @@ import { StatCardsSkeleton, CardSkeleton } from '@/components/skeletons';
 import { ModuleGuard } from '@/components/ModuleGuard';
 import { useDashboard } from '@/hooks/useQueries';
 import { formatCurrency, formatNumber } from '@/lib/utils';
+import Link from 'next/link';
 
 function Dashboard() {
   const { data, isLoading, error } = useDashboard();
@@ -153,6 +154,16 @@ function Dashboard() {
                       </div>
                     </div>
                   ))}
+                </div>
+                <div className="mt-4 border-t border-[var(--erp-divider)] pt-3">
+                  {/* The dashboard's job is to start this order, not just to
+                      name the problem and stop. */}
+                  <Link
+                    href="/purchase-orders/new?from=low-stock"
+                    className="inline-flex min-h-[44px] items-center bg-[var(--erp-accent)] px-4 text-sm font-semibold text-white hover:bg-[var(--erp-accent-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--erp-accent)]"
+                  >
+                    Создать закупку по этому списку
+                  </Link>
                 </div>
               </div>
             </div>
