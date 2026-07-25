@@ -467,15 +467,15 @@ function SalesHistory() {
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
           <div>
-            <p className="text-amber-700/70 dark:text-amber-300/70">Сумма</p>
+            <p className="text-[var(--erp-warn)]">Сумма</p>
             <p className="font-bold tabular-nums text-amber-900 dark:text-amber-100">{formatCurrency(sale.credit_amount || sale.total_amount)}</p>
           </div>
           <div>
-            <p className="text-amber-700/70 dark:text-amber-300/70">Оплачено</p>
+            <p className="text-[var(--erp-warn)]">Оплачено</p>
             <p className="font-bold tabular-nums text-green-700 dark:text-green-300">{formatCurrency(sale.credit_paid_amount || '0')}</p>
           </div>
           <div>
-            <p className="text-amber-700/70 dark:text-amber-300/70">Осталось по долгу</p>
+            <p className="text-[var(--erp-warn)]">Осталось по долгу</p>
             <p className="font-bold tabular-nums text-red-700 dark:text-red-300">{formatCurrency(sale.credit_remaining_amount || '0')}</p>
           </div>
         </div>
@@ -681,7 +681,7 @@ function SalesHistory() {
                 )}
                 <div className="mt-1 flex items-center justify-between border-t border-gray-100 pt-1 text-[11px] dark:border-gray-700">
                   <span className="text-gray-500 dark:text-gray-400">В кассе (наличными)</span>
-                  <span className="font-semibold tabular-nums text-green-600 dark:text-green-400">{formatCurrency(totals.cash + totals.cashDebtPayments)}</span>
+                  <span className="font-semibold tabular-nums text-[var(--erp-success)]">{formatCurrency(totals.cash + totals.cashDebtPayments)}</span>
                 </div>
                 {totals.cashDebtPayments > 0 && (
                   <div className="flex items-center justify-between text-[11px] text-[var(--erp-muted)]">

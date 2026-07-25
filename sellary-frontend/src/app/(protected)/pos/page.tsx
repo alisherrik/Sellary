@@ -66,18 +66,12 @@ const CREDIT_INITIAL_PAYMENT_METHODS = PAYMENT_METHODS.filter(
 
 // Soft per-category tint for the tile icon chip, keyed deterministically so a
 // category always reads the same colour.
-const tilePalette = [
-  'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300',
-  'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300',
-  'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300',
-  'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300',
-  'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300',
-  'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300',
-  'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300',
-  'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-300',
-];
-const tileColor = (id?: number | null) =>
-  id == null ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300' : tilePalette[id % tilePalette.length];
+// One neutral chip. The old palette assigned eight hues by `category_id % 8`,
+// which carries no meaning a cashier can use and breaks DESIGN.md's
+// Two-Accent Rule on the very screen the rule was written for.
+const tilePalette = ['bg-[var(--erp-surface)] text-[var(--erp-muted)]'];
+
+const tileColor = (_id?: number | null) => tilePalette[0];
 
 function POS() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -658,6 +652,53 @@ function POS() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [showCartSheet]);
 
+  // Both overlays declared role="dialog" and then left the cashier's focus
+  // behind them: Tab walked straight out into the catalog tiles. On a register
+  // PRODUCT.md calls keyboard- and scanner-first, that is the whole contract.
+  const paymentPanelRef = useRef<HTMLDivElement>(null);
+  const cartSheetRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const panel = showPaymentModal
+      ? paymentPanelRef.current
+      : showCartSheet
+        ? cartSheetRef.current
+        : null;
+    if (!panel) return;
+
+    const opener = document.activeElement as HTMLElement | null;
+    const focusables = () =>
+      Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+    // The cash field first when there is one — it is what the cashier types next.
+    const initial = panel.querySelector<HTMLElement>('input:not([disabled])') ?? focusables()[0];
+    initial?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const items = focusables();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      opener?.focus?.();
+    };
+  }, [showCartSheet, showPaymentModal]);
+
   const getSessionItemCount = (sessionItems: typeof items) =>
     sessionItems.reduce((sum, item) => sum + item.quantity, 0);
   const cartCount = getSessionItemCount(items);
@@ -1217,7 +1258,7 @@ function POS() {
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {productsLoading
                 ? Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} className="h-36 animate-pulse rounded-3xl border border-gray-100 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                    <div key={i} className="h-36 animate-pulse rounded-xl border border-gray-100 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
                       <div className="mb-3 h-10 w-10 rounded-2xl bg-gray-200 dark:bg-gray-700" />
                       <div className="mb-2 h-3 w-3/4 rounded bg-gray-200 dark:bg-gray-700" />
                       <div className="h-3 w-1/2 rounded bg-gray-200 dark:bg-gray-700" />
@@ -1242,7 +1283,7 @@ function POS() {
                               ? 'Весь доступный остаток уже в корзине'
                               : undefined
                         }
-                        className={`group relative flex h-36 flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg active:scale-95 dark:border-gray-700 dark:bg-gray-800 ${
+                        className={`group relative flex h-36 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm active:scale-95 dark:border-gray-700 dark:bg-gray-800 ${
                           cannotAdd ? 'cursor-not-allowed opacity-50 grayscale' : ''
                         }`}
                       >
@@ -1351,6 +1392,7 @@ function POS() {
               auto-height parent resolves to nothing — past ~4 lines the total
               and Оплатить were clipped with no way to scroll to them. */}
           <div
+            ref={cartSheetRef}
             role="dialog"
             aria-modal="true"
             aria-label="Корзина"
@@ -1370,10 +1412,11 @@ function POS() {
             onClick={() => setShowPaymentModal(false)}
           />
           <div
+            ref={paymentPanelRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="payment-modal-title"
-            className="relative max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl dark:bg-gray-800 sm:max-w-lg sm:rounded-3xl sm:p-6"
+            className="relative max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl dark:bg-gray-800 sm:max-w-lg sm:rounded-xl sm:p-6"
           >
             <div className="mb-4 flex items-center justify-between sm:mb-6">
               <h2 id="payment-modal-title" className="text-lg font-bold text-gray-900 dark:text-white sm:text-2xl">Оплата</h2>
@@ -1390,13 +1433,13 @@ function POS() {
             <div className="mb-4 rounded-2xl bg-gray-50 p-4 dark:bg-gray-900 sm:mb-6">
               <div className="flex items-center justify-between text-sm text-gray-500"><span>Подытог</span><span className="tabular-nums">{formatCurrency(subtotal)}</span></div>
               {itemDiscounts > 0 && (
-                <div className="mt-1 flex items-center justify-between text-sm text-green-600"><span>Скидки на товары</span><span className="tabular-nums">-{formatCurrency(itemDiscounts)}</span></div>
+                <div className="mt-1 flex items-center justify-between text-sm text-[var(--erp-success)]"><span>Скидки на товары</span><span className="tabular-nums">-{formatCurrency(itemDiscounts)}</span></div>
               )}
               {itemDiscounts < 0 && (
                 <div className="mt-1 flex items-center justify-between text-sm text-blue-600"><span>Наценки на товары</span><span className="tabular-nums">+{formatCurrency(Math.abs(itemDiscounts))}</span></div>
               )}
               {overallDiscount > 0 && (
-                <div className="mt-1 flex items-center justify-between text-sm text-green-600"><span>Общая скидка</span><span className="tabular-nums">-{formatCurrency(overallDiscount)}</span></div>
+                <div className="mt-1 flex items-center justify-between text-sm text-[var(--erp-success)]"><span>Общая скидка</span><span className="tabular-nums">-{formatCurrency(overallDiscount)}</span></div>
               )}
               {overallDiscount < 0 && (
                 <div className="mt-1 flex items-center justify-between text-sm text-blue-600"><span>Общая наценка</span><span className="tabular-nums">+{formatCurrency(Math.abs(overallDiscount))}</span></div>
