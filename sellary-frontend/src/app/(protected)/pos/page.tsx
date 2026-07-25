@@ -38,7 +38,7 @@ import {
   calculateCashPayment,
   calculateCreditInitialPayment,
   calculateDiscountFromEditedPrice,
-  calculatePosPricing,
+  calculateCartTotals,
   formatEditableAmount,
 } from '@/lib/posPricing';
 
@@ -336,10 +336,22 @@ function POS() {
     [activeSessionId],
   );
 
-  const subtotal = getSubtotal();
-  const tax = getTax();
-  const itemDiscounts = items.reduce((sum, item) => sum + (item.discount || 0), 0);
-  const pricing = calculatePosPricing({ subtotal, tax, itemDiscounts, overallDiscount });
+  // One rule for the money, shared with the payload below: a line's price edit
+  // is a per-unit adjustment, so it multiplies by quantity, and it reaches the
+  // server as the unit price rather than as a separate discount. See
+  // calculateCartTotals for what went wrong when it did not.
+  const pricing = calculateCartTotals(
+    items.map((item) => ({
+      quantity: item.quantity,
+      discount: item.discount,
+      taxPercent: Number(item.product.tax_percent),
+      unitPrice: Number(item.unit?.price ?? item.product.sell_price),
+    })),
+    overallDiscount,
+  );
+  const subtotal = pricing.subtotal;
+  const tax = pricing.tax;
+  const itemDiscounts = pricing.itemAdjustments;
   const finalTotal = pricing.finalTotal;
   const cashPayment = useMemo(
     () => calculateCashPayment(cashReceived, finalTotal),
@@ -507,22 +519,27 @@ function POS() {
 
     const saleItems = items.map((item) => {
       const unitPrice = Number(item.unit?.price ?? item.product.sell_price);
-      const hasMarkup = item.discount < 0;
       return {
         product_id: item.product.id,
         // null = base unit; quantity & unit_price are in the chosen unit.
         product_unit_id: item.unit?.id ?? null,
         quantity: item.quantity,
-        unit_price: hasMarkup ? unitPrice + Math.abs(item.discount) : unitPrice,
+        // The line's price adjustment IS the unit price — discount and markup
+        // alike. Sending it separately as discount_amount made the server net
+        // it into the line total and, via the sale-level discount, subtract it
+        // a second time when computing what a refund owes.
+        unit_price: unitPrice - (item.discount || 0),
         tax_percent: Number(item.product.tax_percent),
-        discount_amount: Math.max(0, item.discount || 0),
+        discount_amount: 0,
       };
     });
     const isCreditSale = paymentMethod === 'credit';
     const saleData: any = {
       items: saleItems,
       payment_method: paymentMethod,
-      discount_amount: Math.max(0, items.reduce((sum, item) => sum + Math.max(0, item.discount || 0), 0) + overallDiscount),
+      // Only the whole-sale discount: per-line adjustments already live in
+      // unit_price, and counting them here charged them twice.
+      discount_amount: Math.max(0, overallDiscount),
       ...(isCreditSale ? { customer_id: selectedCustomer!.id } : {}),
       ...(isCreditSale && creditInitialPayment.amount > 0
         ? {
@@ -578,6 +595,12 @@ function POS() {
         toast.error(
           'Недостаточно товара на складе. Количества обновлены — уменьшите количество в корзине или пополните запас через «Закупки».',
         );
+      } else if (error.response?.status === 409 && typeof detail === 'string' && detail.toLowerCase().includes('idempotency')) {
+        // The cart changed after a failed attempt, so the held key no longer
+        // describes this sale. Without clearing it every later attempt in this
+        // tab failed identically, with an untranslated server string.
+        saleKeyRef.current = null;
+        toast.error('Корзина изменилась после сбоя. Нажмите «Оплатить» ещё раз.');
       } else if (error.response?.status === 409 && typeof detail === 'string' && detail.includes('Смена')) {
         // The shift was closed elsewhere between load and checkout. Refresh the
         // gate so the banner reappears instead of leaving a dead pay button.
@@ -598,7 +621,9 @@ function POS() {
       handler: () => {
         if (showPaymentModal) {
           completeSale();
-        } else if (items.length > 0) {
+        } else if (items.length > 0 && hasOpenShift && !hasOverStock) {
+          // The pay button refuses without an open shift; the hotkey used to
+          // walk straight past it and meet a 409 after the cash was taken.
           openPaymentModal();
         }
       },
@@ -610,7 +635,7 @@ function POS() {
       handler: () => barcodeInputRef.current?.focus(),
       description: 'Фокус на штрихкод',
     });
-  }, [showPaymentModal, items.length, completeSale, openPaymentModal]);
+  }, [showPaymentModal, items.length, hasOpenShift, hasOverStock, completeSale, openPaymentModal]);
 
   // Esc closes the payment modal.
   useEffect(() => {

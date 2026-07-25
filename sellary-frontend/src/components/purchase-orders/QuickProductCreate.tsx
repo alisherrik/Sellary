@@ -89,7 +89,13 @@ export default function QuickProductCreate({
       className="p-3"
       onKeyDown={(event) => {
         // The purchase-order form is an ancestor; neither key may reach it.
+        // But preventDefault() on a button's Enter suppresses its click, so
+        // Enter on "Отмена" used to create the product instead of cancelling.
         if (event.key === 'Enter') {
+          const tag = (event.target as HTMLElement).tagName;
+          if (tag === 'BUTTON' || tag === 'SELECT' || tag === 'TEXTAREA') {
+            return;
+          }
           event.preventDefault();
           void submit();
         }

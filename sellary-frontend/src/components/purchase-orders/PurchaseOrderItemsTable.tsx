@@ -88,7 +88,7 @@ export default function PurchaseOrderItemsTable({
     // The six-column grid needs 758px. The editor's content column is 390px at
     // 1024px, so the grid only switches on at xl and the wrapper scrolls rather
     // than clipping the delete button off the row.
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto xl:overflow-visible">
       <div className="hidden min-w-[758px] grid-cols-[minmax(220px,1fr)_64px_110px_130px_130px_44px] gap-3 border-b border-gray-200 px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-[var(--erp-muted)] xl:grid">
         <span>Товар</span>
         <span>Ед.</span>

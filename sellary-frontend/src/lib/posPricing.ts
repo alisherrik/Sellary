@@ -86,3 +86,61 @@ export function calculatePosPricing({
     finalTotal,
   };
 }
+
+/**
+ * The register total, computed the way the server computes it.
+ *
+ * A per-line price edit is a change to the *unit* price — 100 → 90 on a line of
+ * three is a 30 discount, not a 10 one. The old math summed those edits once
+ * each, so the cart line read 270 while the Register Total read 290, and 290
+ * was charged. Worse, the same adjustment was sent both per item and again in
+ * the sale-level discount: the server nets an item discount into the line total
+ * *and* pro-rates the sale discount back onto every line, so a discounted sale
+ * refunded less than the customer paid.
+ *
+ * One rule now: the adjustment lives in the unit price, and travels to the
+ * server as the unit price. Subtotal, tax and total then follow from it on both
+ * sides, so the two cannot disagree — including on tax, which the server always
+ * charged on the adjusted base while the client taxed the original.
+ *
+ * `discount` on a cart line is per unit and signed: positive is a discount,
+ * negative a markup.
+ */
+export interface PricedCartLine {
+  quantity: number;
+  discount?: number;
+  taxPercent: number;
+  unitPrice: number;
+}
+
+export function calculateCartTotals(lines: PricedCartLine[], overallDiscount = 0) {
+  let subtotal = 0;
+  let tax = 0;
+  let itemAdjustments = 0;
+
+  for (const line of lines) {
+    const adjustment = line.discount || 0;
+    const adjustedUnitPrice = line.unitPrice - adjustment;
+    const lineSubtotal = roundMoney(adjustedUnitPrice * line.quantity);
+
+    subtotal += lineSubtotal;
+    tax += roundMoney((lineSubtotal * line.taxPercent) / 100);
+    itemAdjustments += roundMoney(adjustment * line.quantity);
+  }
+
+  subtotal = roundMoney(subtotal);
+  tax = roundMoney(tax);
+
+  const totalBeforeDiscount = roundMoney(subtotal + tax);
+  const finalTotal = roundMoney(Math.max(0, totalBeforeDiscount - overallDiscount));
+
+  return {
+    subtotal,
+    tax,
+    /** Positive when the lines were discounted, negative when marked up. Display only. */
+    itemAdjustments: roundMoney(itemAdjustments),
+    totalBeforeDiscount,
+    overallDiscount: roundMoney(overallDiscount),
+    finalTotal,
+  };
+}

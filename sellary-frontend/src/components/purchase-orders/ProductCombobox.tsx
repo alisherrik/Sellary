@@ -34,6 +34,8 @@ export default function ProductCombobox({
   const [requestError, setRequestError] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [creating, setCreating] = useState(false);
+  const creatingRef = useRef(false);
+  creatingRef.current = creating;
 
   useEffect(() => {
     setQuery(value?.name ?? '');
@@ -69,6 +71,9 @@ export default function ProductCombobox({
 
   useEffect(() => {
     const close = (event: MouseEvent) => {
+      // A half-typed new product must not be thrown away by a stray click —
+      // only the panel's own Отмена leaves that state.
+      if (creatingRef.current) return;
       if (!containerRef.current?.contains(event.target as Node)) setIsOpen(false);
     };
     document.addEventListener('mousedown', close);
@@ -132,8 +137,8 @@ export default function ProductCombobox({
           }
         }}
         placeholder="Название или штрихкод"
-        className={`min-h-11 w-full rounded-md border bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 ${
-          error ? 'border-red-500' : 'border-gray-300'
+        className={`min-h-11 w-full border bg-white py-2 pl-9 pr-3 text-sm text-[var(--erp-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] ${
+          error ? 'border-[#dc2626]' : 'border-[var(--erp-divider)]'
         }`}
       />
 
@@ -141,7 +146,7 @@ export default function ProductCombobox({
         <div
           id={`${id}-listbox`}
           role="listbox"
-          className="absolute z-30 mt-1 max-h-64 w-full min-w-72 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+          className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto border-2 border-[var(--erp-divider)] bg-white py-1 sm:min-w-72"
         >
           {creating ? (
             <QuickProductCreate
@@ -160,27 +165,33 @@ export default function ProductCombobox({
                 key={product.id}
                 type="button"
                 role="option"
+                // DOM focus stays in the input; the listbox is driven by
+                // aria-activedescendant. A tabbable option here landed keyboard
+                // users on an invisible control.
+                tabIndex={-1}
                 aria-selected={index === activeIndex}
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => select(product)}
                 className={`flex w-full items-center justify-between gap-4 px-3 py-2 text-left text-sm ${
-                  index === activeIndex ? 'bg-blue-50' : 'hover:bg-gray-50'
+                  index === activeIndex
+                    ? 'bg-[var(--erp-surface)] ring-1 ring-inset ring-[var(--erp-accent)]'
+                    : 'hover:bg-[var(--erp-surface)]'
                 }`}
               >
                 <span className="min-w-0">
-                  <span className="block truncate font-medium text-gray-900">
+                  <span className="block truncate font-medium text-[var(--erp-text)]">
                     {product.name}
                   </span>
-                  <span className="block text-xs text-gray-500">
+                  <span className="block text-xs text-[var(--erp-muted)]">
                     {[product.barcode, product.uom].filter(Boolean).join(' · ')}
                   </span>
                 </span>
                 <span className="shrink-0 text-right">
-                  <span className="block tabular-nums text-gray-700">
+                  <span className="block tabular-nums text-[var(--erp-text)]">
                     {formatCurrency(product.cost_price)}
                   </span>
                   {excludedProductIds.has(product.id) && (
-                    <span className="block text-xs text-red-600">Уже добавлен</span>
+                    <span className="block text-xs text-[#dc2626]">Уже добавлен</span>
                   )}
                 </span>
               </button>

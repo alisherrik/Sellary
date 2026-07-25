@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { MagnifyingGlassIcon, PencilIcon } from '@heroicons/react/24/outline';
@@ -25,6 +25,29 @@ const entryLabels: Record<string, string> = {
 
 type CustomerDebtFilter = 'all' | 'debt' | 'clear';
 
+/**
+ * One idempotency key per attempt at a thing, not per request.
+ *
+ * A key minted inside the submit handler is a new key on every press, so a
+ * request that timed out after the server had already committed came back as
+ * an unrelated one — and the refund, or the debt payment, was applied twice.
+ * The key is held for as long as the dialog is open and cleared only on
+ * success.
+ */
+function useIdempotencyKey() {
+  const keyRef = useRef<string | null>(null);
+  const take = () => {
+    if (!keyRef.current) {
+      keyRef.current = generateIdempotencyKey();
+    }
+    return keyRef.current;
+  };
+  const reset = () => {
+    keyRef.current = null;
+  };
+  return { take, reset };
+}
+
 function Customers() {
   const queryClient = useQueryClient();
   const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
@@ -39,6 +62,7 @@ function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
+  const paymentKey = useIdempotencyKey();
   const customerParams: Record<string, string | number> = { limit: 200 };
   if (debouncedSearch.trim()) customerParams.search = debouncedSearch.trim();
 
@@ -114,9 +138,12 @@ function Customers() {
           payment_method: paymentMethod,
           description: paymentDescription.trim() || undefined,
         },
-        generateIdempotencyKey(),
+        paymentKey.take(),
       );
       toast.success('Оплата долга сохранена');
+      // Only a success retires the key; a retry after a timeout must be the
+      // same payment, not a second one.
+      paymentKey.reset();
       setShowPaymentModal(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['customers'] }),

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import {
@@ -85,6 +85,29 @@ const debtStatusText = (status?: Sale['payment_status']) => {
   return labels[status || 'paid'] || status || 'Оплачено';
 };
 
+/**
+ * One idempotency key per attempt at a thing, not per request.
+ *
+ * A key minted inside the submit handler is a new key on every press, so a
+ * request that timed out after the server had already committed came back as
+ * an unrelated one — and the refund, or the debt payment, was applied twice.
+ * The key is held for as long as the dialog is open and cleared only on
+ * success.
+ */
+function useIdempotencyKey() {
+  const keyRef = useRef<string | null>(null);
+  const take = () => {
+    if (!keyRef.current) {
+      keyRef.current = generateIdempotencyKey();
+    }
+    return keyRef.current;
+  };
+  const reset = () => {
+    keyRef.current = null;
+  };
+  return { take, reset };
+}
+
 function SalesHistory() {
   const queryClient = useQueryClient();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -115,6 +138,8 @@ function SalesHistory() {
   // Returns/voids need pos:manager on the backend; admin's modules map carries all modules at manager.
   const canManagePos = canAccessModule(modules, 'sales', 'manager');
   const debouncedSearch = useDebounce(searchInput, 300);
+  const returnKey = useIdempotencyKey();
+  const debtPaymentKey = useIdempotencyKey();
 
   const salesParams = useMemo(() => {
     const params: Record<string, string | number> = { limit: 200 };
@@ -231,6 +256,9 @@ function SalesHistory() {
       salesApi.processReturn(data.saleId, data.payload, data.idempotencyKey),
     onSuccess: (_data, variables) => {
       toast.success(variables.annul ? 'Позиция аннулирована' : 'Возврат успешно оформлен');
+      // Only a success retires the key: a failed attempt must be retryable as
+      // the same operation, or a timeout refunds twice.
+      returnKey.reset();
       setShowReturnModal(false);
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -350,7 +378,7 @@ function SalesHistory() {
       ? `[Аннулирование позиции] ${returnNotes.trim()}`
       : returnNotes || undefined;
 
-    const idempotencyKey = generateIdempotencyKey();
+    const idempotencyKey = returnKey.take();
     returnMutation.mutate({
       saleId: selectedSale.id,
       payload: {
@@ -400,9 +428,10 @@ function SalesHistory() {
           payment_method: debtPaymentMethod,
           description: debtPaymentDescription.trim() || undefined,
         },
-        generateIdempotencyKey(),
+        debtPaymentKey.take(),
       );
       toast.success('Оплата долга сохранена');
+      debtPaymentKey.reset();
       setShowDebtPaymentModal(false);
       setShowDetail(false);
       await Promise.all([
