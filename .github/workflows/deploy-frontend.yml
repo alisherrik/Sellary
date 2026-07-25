@@ -1,17 +1,19 @@
-name: Deploy Frontend (Netlify)
+name: Deploy Frontend (Railway)
 
-# Netlify is not wired to auto-deploy on push, so deploy the Next.js frontend
-# here on every push to main. Mirrors the manual `npx netlify deploy --prod
-# --build`. Requires two repo secrets (Settings -> Secrets and variables ->
-# Actions): NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID. Until they are set the job
+# Deploys the Next.js frontend to the Railway service "sellary-frontend" on
+# every push to main. (Netlify was retired 2026-07-25: account credits
+# exhausted, deploys blocked.) Requires one repo secret: RAILWAY_TOKEN
+# (Railway dashboard → Account/Project → Tokens). Until it is set the job
 # succeeds with a notice (no deploy), so it never blocks with a red X.
+#
+# Manual alternative from a workstation with the Railway CLI linked:
+#   cd sellary-frontend && railway up --service sellary-frontend
 
 on:
   push:
     branches: [main]
     paths:
       - 'sellary-frontend/**'
-      - 'netlify.toml'
       - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch: {}
 
@@ -25,38 +27,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Netlify secrets
+      - name: Check Railway secret
         id: check
         env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
-            echo "::notice::NETLIFY_AUTH_TOKEN / NETLIFY_SITE_ID not set — skipping deploy. Add them in Settings → Secrets and variables → Actions."
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::notice::RAILWAY_TOKEN not set — skipping deploy. Add it in Settings → Secrets and variables → Actions."
             echo "ok=false" >> "$GITHUB_OUTPUT"
           else
             echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Setup Node
-        if: steps.check.outputs.ok == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: sellary-frontend/package-lock.json
-
-      - name: Install frontend dependencies
+      - name: Deploy to Railway
         if: steps.check.outputs.ok == 'true'
         working-directory: sellary-frontend
-        run: npm ci
-
-      - name: Deploy to Netlify (build + publish, prod)
-        if: steps.check.outputs.ok == 'true'
         env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-        # `--build` runs the Netlify build pipeline (netlify.toml: base
-        # sellary-frontend, @netlify/plugin-nextjs), so this matches a normal
-        # Netlify production deploy.
-        run: npx --yes netlify-cli@17 deploy --prod --build --message "CI deploy ${{ github.sha }}"
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: npx --yes @railway/cli@4 up --service sellary-frontend --detach
