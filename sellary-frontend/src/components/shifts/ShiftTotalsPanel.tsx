@@ -83,6 +83,9 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
   const cashDebt = num(totals.debt_payments_by_method?.cash);
   const cashRefunds = num(totals.refunds_by_method?.cash);
   const openingCash = num(shift.opening_cash);
+  const movements = totals.movements ?? [];
+  const movementsIn = num(totals.movements_in);
+  const movementsOut = num(totals.movements_out);
 
   return (
     <div className="space-y-4">
@@ -101,9 +104,9 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
         </div>
       </div>
 
-      {(debtEntries.length > 0 || refundEntries.length > 0) && (
+      {(debtEntries.length > 0 || refundEntries.length > 0 || movements.length > 0) && (
         <div className="border border-[var(--erp-divider)] bg-white p-4">
-          <SectionTitle note="Не входят в выручку смены: долг был продан раньше, возврат уменьшает прошлую продажу.">
+          <SectionTitle note="Не входят в выручку смены: долг был продан раньше, возврат уменьшает прошлую продажу, а внесения и изъятия — это не торговля.">
             Прочие движения денег
           </SectionTitle>
           {debtEntries.map(([method, amount]) => (
@@ -120,6 +123,14 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
               value={`−${formatMoney(amount)}`}
             />
           ))}
+          {movements.map((movement) => (
+            <Row
+              key={`m-${movement.id}`}
+              label={movement.reason_label}
+              hint={movement.note ?? undefined}
+              value={`${movement.direction === 'in' ? '+' : '−'}${formatMoney(movement.amount)}`}
+            />
+          ))}
         </div>
       )}
 
@@ -131,6 +142,8 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
         <Row label="Продажи наличными" value={`+${formatMoney(cashSales)}`} />
         {cashDebt !== 0 && <Row label="Оплата долга наличными" value={`+${formatMoney(cashDebt)}`} />}
         {cashRefunds !== 0 && <Row label="Возвраты наличными" value={`−${formatMoney(cashRefunds)}`} />}
+        {movementsIn !== 0 && <Row label="Внесения в кассу" value={`+${formatMoney(movementsIn)}`} />}
+        {movementsOut !== 0 && <Row label="Изъятия из кассы" value={`−${formatMoney(movementsOut)}`} />}
         <div className="mt-1 border-t border-[var(--erp-divider)] pt-1">
           <Row label="Ожидается в кассе" value={formatMoney(totals.expected_cash)} bold />
         </div>

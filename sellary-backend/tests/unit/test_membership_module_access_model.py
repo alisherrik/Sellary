@@ -23,6 +23,7 @@ class TestMembershipModuleAccessModel:
             "purchasing",
             "shop",
             "reports",
+            "finance",
         )
         assert LEVELS == ("user", "manager")
 

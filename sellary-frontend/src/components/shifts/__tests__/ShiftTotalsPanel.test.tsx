@@ -19,6 +19,9 @@ const totals: ShiftTotals = {
   debt_payments_by_method: { cash: '284.00' },
   refunds_by_method: {},
   sales_count: 43,
+  movements_in: '0.00',
+  movements_out: '0.00',
+  movements: [],
   expected_cash: '12583.12',
 };
 
@@ -116,5 +119,65 @@ describe('ShiftTotalsPanel', () => {
     render(<ShiftTotalsPanel shift={closed} totals={totals} />);
     expect(screen.getByText('Недостача')).toBeInTheDocument();
     expect(valueFor('Посчитано')).toContain('12 580,12');
+  });
+});
+
+describe('ShiftTotalsPanel · cash taken in and out', () => {
+  /**
+   * Before cash movements existed, every one of these showed up as a
+   * недостача or an излишек: the shop paid a supplier from the drawer and the
+   * shift called it missing money.
+   */
+  const withMovements = {
+    ...totals,
+    movements_in: '300.00',
+    movements_out: '150.00',
+    movements: [
+      {
+        id: 1,
+        direction: 'in' as const,
+        amount: '300.00',
+        reason: 'transfer_in',
+        reason_label: 'Перевод (приход)',
+        note: 'Снятие с карты',
+        created_at: '2026-07-26T10:00:00Z',
+      },
+      {
+        id: 2,
+        direction: 'out' as const,
+        amount: '150.00',
+        reason: 'supplier_payment',
+        reason_label: 'Оплата поставщику',
+        note: 'Оплата за хлеб',
+        created_at: '2026-07-26T14:00:00Z',
+      },
+    ],
+    expected_cash: '12733.12',
+  };
+
+  it('lists each movement with its reason and note', () => {
+    render(<ShiftTotalsPanel shift={openShift} totals={withMovements} />);
+    expect(screen.getByText('Оплата поставщику')).toBeInTheDocument();
+    expect(screen.getByText(/Оплата за хлеб/)).toBeInTheDocument();
+    expect(screen.getByText('Перевод (приход)')).toBeInTheDocument();
+  });
+
+  it('folds them into the drawer arithmetic', () => {
+    render(<ShiftTotalsPanel shift={openShift} totals={withMovements} />);
+    // 11 656.29 + 642.83 + 284.00 + 300.00 − 150.00 = 12 733.12
+    expect(valueFor('Внесения в кассу')).toContain('300,00');
+    expect(valueFor('Изъятия из кассы')).toContain('150,00');
+    expect(valueFor('Ожидается в кассе')).toContain('12 733,12');
+  });
+
+  it('says plainly that they are not revenue', () => {
+    render(<ShiftTotalsPanel shift={openShift} totals={withMovements} />);
+    expect(screen.getByText(/внесения и изъятия — это не торговля/)).toBeInTheDocument();
+  });
+
+  it('shows no movement rows when there were none', () => {
+    render(<ShiftTotalsPanel shift={openShift} totals={totals} />);
+    expect(screen.queryByText('Внесения в кассу')).not.toBeInTheDocument();
+    expect(screen.queryByText('Изъятия из кассы')).not.toBeInTheDocument();
   });
 });

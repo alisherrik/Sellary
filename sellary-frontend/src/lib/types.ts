@@ -280,7 +280,123 @@ export interface ShiftTotals {
   debt_payments_by_method: Record<string, string>;
   refunds_by_method: Record<string, string>;
   sales_count: number;
+  /** Deliberate cash in and out of the drawer during the shift. */
+  movements_in: string;
+  movements_out: string;
+  movements: ShiftMovement[];
   expected_cash: string;
+}
+
+export interface ShiftMovement {
+  id: number;
+  direction: 'in' | 'out';
+  amount: string;
+  reason: string;
+  reason_label: string;
+  note: string | null;
+  created_at: string;
+}
+
+// --- money accounts ---------------------------------------------------------
+
+export interface MoneyAccount {
+  id: number;
+  name: string;
+  is_till: boolean;
+  card_type: string | null;
+  balance: string;
+  opening_balance: string;
+  opening_at: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface MoneyOverview {
+  accounts: MoneyAccount[];
+  total: string;
+  cash_total: string;
+  noncash_total: string;
+}
+
+export interface MoneyMovement {
+  id: number;
+  account_id: number;
+  account_name: string;
+  direction: 'in' | 'out';
+  amount: string;
+  reason: string;
+  reason_label: string;
+  transfer_group: string | null;
+  note: string | null;
+  created_by_user_id: number;
+  created_by_name: string | null;
+  created_at: string;
+}
+
+export interface MovementReason {
+  value: string;
+  label: string;
+}
+
+export interface MovementReasons {
+  in: MovementReason[];
+  out: MovementReason[];
+}
+
+// --- purchase reports -------------------------------------------------------
+
+export interface PurchaseDayRow {
+  day: string;
+  spend: string;
+  receipts: number;
+}
+
+export interface PurchaseSummary {
+  total_spend: string;
+  receipts_count: number;
+  orders_count: number;
+  suppliers_count: number;
+  products_count: number;
+  lines_count: number;
+  average_receipt: string;
+  by_day: PurchaseDayRow[];
+}
+
+export interface PurchaseByProductRow {
+  product_id: number;
+  name: string;
+  uom: string | null;
+  quantity: string;
+  spend: string;
+  share_percent: string;
+  average_cost: string;
+  min_cost: string;
+  max_cost: string;
+  first_cost: string | null;
+  last_cost: string | null;
+  cost_change_percent: string | null;
+  current_cost_price: string;
+  current_sell_price: string;
+  deliveries: number;
+  last_received_at: string | null;
+}
+
+export interface PurchaseBySupplierRow {
+  supplier_id: number;
+  name: string;
+  spend: string;
+  share_percent: string;
+  receipts: number;
+  products: number;
+  last_received_at: string | null;
+}
+
+export interface OutstandingOrderRow {
+  order_id: number;
+  order_date: string | null;
+  supplier_name: string;
+  total_amount: string;
+  pending_lines: number;
 }
 
 export interface CashShiftSnapshot {

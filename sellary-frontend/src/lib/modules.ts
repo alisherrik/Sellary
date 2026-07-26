@@ -5,7 +5,8 @@ export type ModuleKey =
   | 'inventory'
   | 'purchasing'
   | 'shop'
-  | 'reports';
+  | 'reports'
+  | 'finance';
 export type ModuleLevel = 'user' | 'manager';
 export type ModuleMap = Partial<Record<ModuleKey, ModuleLevel>>;
 

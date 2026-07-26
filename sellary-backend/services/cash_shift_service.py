@@ -10,8 +10,10 @@ from models.cash_shift import CashShift, CashShiftSnapshot, CashShiftStatus
 from models.customer_ledger_entry import CustomerLedgerEntry, CustomerLedgerEntryType
 from models.sale import PaymentMethod, Sale
 from models.sale_return import SaleReturn
+from repositories.money_repository import MoneyRepository
 from repositories.sale_repository import NON_CANCELLED_STATUSES
-from schemas.cash_shift import ShiftTotals
+from schemas.cash_shift import ShiftMovement, ShiftTotals
+from services.money_service import REASON_LABELS as MOVEMENT_REASON_LABELS
 from services.tenant import resolve_company_id
 
 ZERO = Decimal("0.00")
@@ -108,10 +110,41 @@ class CashShiftService:
             key = method.value if hasattr(method, "value") else str(method or "cash")
             totals.refunds_by_method[key] = totals.refunds_by_method.get(key, ZERO) + (amount or ZERO)
 
+        # --- deliberate cash in and out of the drawer ---
+        # Change brought in, takings sent to the bank, a supplier paid in cash,
+        # card money withdrawn and put in the till. Before these existed the
+        # shift called every one of them a недостача or an излишек.
+        for movement in MoneyRepository(self.db).till_movements_between(
+            self.company_id, start, end
+        ):
+            amount = Decimal(movement.amount)
+            if movement.direction == "in":
+                totals.movements_in += amount
+            else:
+                totals.movements_out += amount
+            totals.movements.append(
+                ShiftMovement(
+                    id=movement.id,
+                    direction=movement.direction,
+                    amount=amount,
+                    reason=movement.reason,
+                    reason_label=MOVEMENT_REASON_LABELS.get(movement.reason, movement.reason),
+                    note=movement.note,
+                    created_at=movement.created_at,
+                )
+            )
+
         # --- expected cash: only cash movements touch the drawer ---
         cash_debt = totals.debt_payments_by_method.get("cash", ZERO)
         cash_refunds = totals.refunds_by_method.get("cash", ZERO)
-        totals.expected_cash = opening_cash + totals.cash_sales + cash_debt - cash_refunds
+        totals.expected_cash = (
+            opening_cash
+            + totals.cash_sales
+            + cash_debt
+            - cash_refunds
+            + totals.movements_in
+            - totals.movements_out
+        )
 
         return totals
 

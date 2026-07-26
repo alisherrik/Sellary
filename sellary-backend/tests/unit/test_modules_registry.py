@@ -6,7 +6,7 @@ from core.modules import BUSINESS_TYPE_PRESETS, LEVEL_RANK, LEVELS, MODULES
 
 
 class TestModuleRegistry:
-    def test_modules_are_the_seven_business_domains(self):
+    def test_modules_are_the_eight_business_domains(self):
         assert MODULES == (
             "register",
             "sales",
@@ -15,6 +15,7 @@ class TestModuleRegistry:
             "purchasing",
             "shop",
             "reports",
+            "finance",
         )
 
     def test_levels_rank_manager_above_user(self):
@@ -30,6 +31,12 @@ class TestModuleRegistry:
         # The whole point of the split: an online store has no till.
         assert "register" not in BUSINESS_TYPE_PRESETS["online"]
         assert "shop" in BUSINESS_TYPE_PRESETS["online"]
+
+    def test_every_preset_includes_finance(self):
+        # Any business that takes money has to record when it moves: cash to
+        # the bank, card takings withdrawn, a supplier paid.
+        for business_type, modules in BUSINESS_TYPE_PRESETS.items():
+            assert "finance" in modules, business_type
 
     def test_every_preset_includes_inventory(self):
         # Every vertical sells or moves stock.
@@ -60,11 +67,12 @@ class TestCompanyModulesMigrationConstants:
         assert set(migration.BASE_MODULES) <= set(MODULES)
         assert set(migration.POS_SPLIT) <= set(MODULES)
 
-    def test_backfill_covers_every_module_except_shop(self):
-        # shop stays conditional on is_marketplace_enabled; everything else is
-        # granted to every existing company so nobody loses a screen.
+    def test_backfill_covers_every_module_that_existed_then(self):
+        # shop stayed conditional on is_marketplace_enabled; everything else was
+        # granted to every existing company so nobody lost a screen. `finance`
+        # arrived later and is backfilled by its own migration, d1e2f3a4b5c6.
         migration = _load_migration()
-        assert set(migration.BASE_MODULES) == set(MODULES) - {"shop"}
+        assert set(migration.BASE_MODULES) == set(MODULES) - {"shop", "finance"}
 
     def test_pos_split_is_the_three_domains_that_replaced_it(self):
         migration = _load_migration()

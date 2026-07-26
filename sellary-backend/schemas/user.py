@@ -3,11 +3,14 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, EmailStr
 
+from core.modules import MODULES
+
 GlobalUserRole = Literal["standard", "super_admin"]
 TenantUserRole = Literal["admin", "manager", "cashier"]
-ModuleKey = Literal[
-    "register", "sales", "customers", "inventory", "purchasing", "shop", "reports"
-]
+# Derived from the registry rather than restated. Written out, this literal
+# silently rejected the eighth module the day it was added, and the failure
+# surfaced as a 500 on login rather than anywhere near the registry.
+ModuleKey = Literal[MODULES]  # type: ignore[valid-type]
 ModuleLevel = Literal["user", "manager"]
 
 

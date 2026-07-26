@@ -37,6 +37,7 @@ const MODULE_ROWS: { key: ModuleKey; label: string }[] = [
   { key: 'purchasing', label: 'Закупки' },
   { key: 'shop', label: 'Магазин' },
   { key: 'reports', label: 'Отчеты' },
+  { key: 'finance', label: 'Деньги' },
 ];
 
 type ModuleDraft = Record<ModuleKey, '' | ModuleLevel>;
@@ -50,6 +51,7 @@ function toDraft(modules: ModuleMap): ModuleDraft {
     purchasing: modules.purchasing ?? '',
     shop: modules.shop ?? '',
     reports: modules.reports ?? '',
+    finance: modules.finance ?? '',
   };
 }
 

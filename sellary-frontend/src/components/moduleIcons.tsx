@@ -6,6 +6,7 @@ import {
   TruckIcon,
   BuildingStorefrontIcon,
   ChartBarIcon,
+  BanknotesIcon,
   Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import type { ModuleKey } from '@/lib/modules';
@@ -22,5 +23,6 @@ export const MODULE_ICONS: Record<ModuleKey | 'settings', typeof ShoppingCartIco
   purchasing: TruckIcon,
   shop: BuildingStorefrontIcon,
   reports: ChartBarIcon,
+  finance: BanknotesIcon,
   settings: Cog6ToothIcon,
 };

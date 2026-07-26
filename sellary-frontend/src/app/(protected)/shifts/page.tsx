@@ -2,14 +2,15 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
-import { shiftsApi } from '@/lib/api';
+import { moneyApi, shiftsApi } from '@/lib/api';
 import { useCurrentShift, useShifts } from '@/hooks/useQueries';
 import { formatDateTime, formatMoney } from '@/lib/utils';
 import { ShiftTotalsPanel } from '@/components/shifts/ShiftTotalsPanel';
 import { CloseShiftForm } from '@/components/shifts/CloseShiftForm';
+import { MoneyDialog } from '@/components/finance/MoneyDialog';
 import { TableSkeleton } from '@/components/skeletons';
 import { ShiftGateBanner } from '@/components/shifts/ShiftGate';
 
@@ -17,11 +18,54 @@ function OpenShiftBlock() {
   const { data: shift } = useCurrentShift();
   const queryClient = useQueryClient();
   const [showClose, setShowClose] = useState(false);
+  const [tillDialog, setTillDialog] = useState<'in' | 'out' | null>(null);
+  const [tillError, setTillError] = useState<string | null>(null);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['currentShift'] });
     queryClient.invalidateQueries({ queryKey: ['shifts'] });
+    queryClient.invalidateQueries({ queryKey: ['money'] });
   };
+
+  // The till account and the reason list; the dialog needs both, and the
+  // cashier reaches this page far more often than /finance.
+  const accounts = useQuery({
+    queryKey: ['money', 'accounts'],
+    queryFn: async () => (await moneyApi.getAccounts()).data,
+  });
+  const reasons = useQuery({
+    queryKey: ['money', 'reasons'],
+    queryFn: async () => (await moneyApi.getReasons()).data,
+    staleTime: Infinity,
+  });
+  const till = accounts.data?.accounts.find((account) => account.is_till);
+
+  const tillMutation = useMutation({
+    mutationFn: (payload: {
+      accountId: number;
+      direction: 'in' | 'out';
+      amount: string;
+      reason: string;
+      note?: string;
+    }) =>
+      moneyApi.recordTill({
+        account_id: payload.accountId,
+        direction: payload.direction,
+        amount: payload.amount,
+        reason: payload.reason,
+        note: payload.note,
+      }),
+    onSuccess: () => {
+      toast.success('Движение записано');
+      setTillDialog(null);
+      setTillError(null);
+      invalidate();
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail;
+      setTillError(typeof detail === 'string' ? detail : 'Не удалось записать движение');
+    },
+  });
 
   const snapshotMutation = useMutation({
     mutationFn: () => shiftsApi.snapshot(shift!.id),
@@ -61,7 +105,25 @@ function OpenShiftBlock() {
             <p className="text-xs text-gray-500">c {formatDateTime(shift.opened_at)}</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              setTillError(null);
+              setTillDialog('in');
+            }}
+            className="h-9 border border-[var(--erp-divider)] bg-white px-4 text-sm font-medium text-[var(--erp-text)] hover:border-[var(--erp-text)]"
+          >
+            Внести
+          </button>
+          <button
+            onClick={() => {
+              setTillError(null);
+              setTillDialog('out');
+            }}
+            className="h-9 border border-[var(--erp-divider)] bg-white px-4 text-sm font-medium text-[var(--erp-text)] hover:border-[var(--erp-text)]"
+          >
+            Изъять
+          </button>
           <button
             onClick={() => snapshotMutation.mutate()}
             disabled={snapshotMutation.isPending}
@@ -87,6 +149,30 @@ function OpenShiftBlock() {
           submitting={closeMutation.isPending}
           onCancel={() => setShowClose(false)}
           onConfirm={(countedCash) => closeMutation.mutate(countedCash)}
+        />
+      )}
+
+      {tillDialog && till && (
+        <MoneyDialog
+          mode={tillDialog}
+          accounts={[till]}
+          reasons={reasons.data}
+          defaultAccountId={till.id}
+          submitting={tillMutation.isPending}
+          error={tillError}
+          onClose={() => {
+            setTillDialog(null);
+            setTillError(null);
+          }}
+          onSubmit={(payload) =>
+            tillMutation.mutate({
+              accountId: payload.accountId,
+              direction: payload.mode as 'in' | 'out',
+              amount: payload.amount,
+              reason: payload.reason!,
+              note: payload.note,
+            })
+          }
         />
       )}
     </div>

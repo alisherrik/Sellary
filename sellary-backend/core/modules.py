@@ -17,6 +17,7 @@ MODULES = (
     "purchasing",   # Поставщики, Заказы поставщикам
     "shop",         # Telegram-магазин, Заказы
     "reports",      # Дашборд, Аналитика
+    "finance",      # Счета (касса, банк), движения денег, переводы
 )
 
 LEVELS = ("user", "manager")
@@ -29,12 +30,15 @@ LEVEL_RANK = {"user": 1, "manager": 2}
 # `kitchen` and `production` are composed from modules that exist today. They
 # do not yet carry recipes, stations, BOMs or work orders — those arrive with
 # their own specs and extend the preset then.
+#
+# `finance` is in every preset: any business that takes money has to write down
+# when it moves — cash to the bank, card takings withdrawn, a supplier paid.
 BUSINESS_TYPE_PRESETS: dict[str, tuple[str, ...]] = {
-    "retail": ("register", "sales", "customers", "inventory", "purchasing", "reports"),
-    "online": ("sales", "customers", "inventory", "shop", "reports"),
-    "warehouse": ("inventory", "purchasing", "reports"),
-    "kitchen": ("register", "sales", "inventory", "purchasing", "reports"),
-    "production": ("sales", "customers", "inventory", "purchasing", "reports"),
+    "retail": ("register", "sales", "customers", "inventory", "purchasing", "reports", "finance"),
+    "online": ("sales", "customers", "inventory", "shop", "reports", "finance"),
+    "warehouse": ("inventory", "purchasing", "reports", "finance"),
+    "kitchen": ("register", "sales", "inventory", "purchasing", "reports", "finance"),
+    "production": ("sales", "customers", "inventory", "purchasing", "reports", "finance"),
 }
 
 BUSINESS_TYPES = tuple(BUSINESS_TYPE_PRESETS)

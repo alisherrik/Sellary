@@ -40,6 +40,14 @@ import type {
   OrderStatusAdvanceTarget,
   PlatformSettingsResponse,
   PlatformSettingsUpdatePayload,
+  MoneyOverview,
+  MoneyAccount,
+  MoneyMovement,
+  MovementReasons,
+  PurchaseSummary,
+  PurchaseByProductRow,
+  PurchaseBySupplierRow,
+  OutstandingOrderRow,
 } from './types';
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
@@ -360,6 +368,67 @@ export const shiftsApi = {
   close: (id: number, counted_cash: string, notes?: string) =>
     api.post<CashShift>(`/shifts/${id}/close`, { counted_cash, notes }),
   snapshot: (id: number) => api.post(`/shifts/${id}/snapshots`),
+};
+
+/**
+ * Money accounts: the till, the bank account behind each card type, a safe.
+ * Balances are computed server-side on every read, so there is nothing to
+ * invalidate beyond refetching.
+ */
+export const moneyApi = {
+  getAccounts: () => api.get<MoneyOverview>('/money/accounts'),
+  createAccount: (name: string, opening_balance: string) =>
+    api.post<MoneyAccount>('/money/accounts', { name, opening_balance }),
+  updateAccount: (id: number, payload: Partial<Pick<MoneyAccount, 'name' | 'is_active' | 'sort_order'>>) =>
+    api.patch<MoneyAccount>(`/money/accounts/${id}`, payload),
+  getReasons: () => api.get<MovementReasons>('/money/reasons'),
+  getMovements: (params?: {
+    account_id?: number;
+    start_date?: string;
+    end_date?: string;
+    limit?: number;
+    offset?: number;
+  }) => api.get<MoneyMovement[]>('/money/movements', { params }),
+  record: (payload: {
+    account_id: number;
+    direction: 'in' | 'out';
+    amount: string;
+    reason: string;
+    note?: string;
+  }) => api.post<MoneyMovement>('/money/movements', payload),
+  // Same operation, reached from the shift page by the cashier holding the
+  // drawer. Requires register:manager instead of finance:manager.
+  recordTill: (payload: {
+    account_id: number;
+    direction: 'in' | 'out';
+    amount: string;
+    reason: string;
+    note?: string;
+  }) => api.post<MoneyMovement>('/money/till', payload),
+  transfer: (payload: {
+    from_account_id: number;
+    to_account_id: number;
+    amount: string;
+    note?: string;
+  }) => api.post<MoneyMovement[]>('/money/transfers', payload),
+  correct: (payload: { account_id: number; actual_balance: string; note?: string }) =>
+    api.post<MoneyMovement | null>('/money/corrections', payload),
+};
+
+/** What the shop bought, from whom, at what price. Received goods only. */
+export const purchaseReportApi = {
+  summary: (params?: { start_date?: string; end_date?: string; days?: number; supplier_id?: number }) =>
+    api.get<PurchaseSummary>('/reports/purchases', { params }),
+  byProduct: (params?: {
+    start_date?: string;
+    end_date?: string;
+    days?: number;
+    supplier_id?: number;
+    limit?: number;
+  }) => api.get<PurchaseByProductRow[]>('/reports/purchases/by-product', { params }),
+  bySupplier: (params?: { start_date?: string; end_date?: string; days?: number }) =>
+    api.get<PurchaseBySupplierRow[]>('/reports/purchases/by-supplier', { params }),
+  outstanding: () => api.get<OutstandingOrderRow[]>('/reports/purchases/outstanding'),
 };
 
 export const categoriesApi = {

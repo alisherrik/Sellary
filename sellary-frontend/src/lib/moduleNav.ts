@@ -52,6 +52,7 @@ export const MODULE_NAV: ModuleDef[] = [
     pages: [
       { label: 'Поставщики', href: '/suppliers' },
       { label: 'Заказы поставщикам', href: '/purchase-orders' },
+      { label: 'Отчёт по закупкам', href: '/purchase-report' },
     ],
   },
   {
@@ -68,6 +69,12 @@ export const MODULE_NAV: ModuleDef[] = [
       { label: 'Дашборд', href: '/dashboard' },
       { label: 'Аналитика', href: '/reports' },
     ],
+  },
+  {
+    key: 'finance',
+    label: 'Деньги',
+    tagline: 'Счета, переводы, движения денег',
+    pages: [{ label: 'Счета и движения', href: '/finance' }],
   },
   {
     key: 'settings',
@@ -87,7 +94,8 @@ export const MOBILE_MAX_TABS = 4;
 
 /**
  * Modules the current user may open, in the canonical MODULE_NAV order
- * (register, sales, customers, inventory, purchasing, shop, reports, settings). `settings` is
+ * (register, sales, customers, inventory, purchasing, shop, reports, finance,
+ * settings). `settings` is
  * included only for admins — mirrors the desktop rail/launcher and the
  * mobile shell's tab-bar + "Ещё" sheet, keeping module-visibility logic in
  * one place.

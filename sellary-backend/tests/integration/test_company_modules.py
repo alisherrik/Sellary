@@ -153,6 +153,7 @@ class TestOwnerCompanyModuleEndpoints:
             "inventory",
             "shop",
             "reports",
+            "finance",
         ]
         assert "register" not in read.json()["modules"]
 

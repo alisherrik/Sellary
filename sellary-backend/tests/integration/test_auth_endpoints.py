@@ -269,6 +269,7 @@ class TestSessionModules:
             "purchasing": "manager",
             "shop": "manager",
             "reports": "manager",
+            "finance": "manager",
         }
 
     def test_select_company_returns_modules(

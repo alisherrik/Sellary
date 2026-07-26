@@ -5,6 +5,18 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+class ShiftMovement(BaseModel):
+    """One cash-in or cash-out recorded against the drawer during the shift."""
+
+    id: int
+    direction: str
+    amount: Decimal
+    reason: str
+    reason_label: str
+    note: Optional[str] = None
+    created_at: datetime
+
+
 class ShiftTotals(BaseModel):
     """Every till movement in a window, split by method. The single shape used
     for a live shift, a saved snapshot, and a closed shift's frozen totals."""
@@ -21,7 +33,15 @@ class ShiftTotals(BaseModel):
     # Refunds paid out during the shift, by method. Cash ones leave the till.
     refunds_by_method: Dict[str, Decimal] = Field(default_factory=dict)
     sales_count: int = 0
-    # opening_cash + cash_sales + cash debt repayments − cash refunds.
+    # Deliberate cash in and out of the drawer during the shift: change
+    # brought in, takings sent to the bank, a supplier paid, card money
+    # withdrawn and put in the till. Recorded as money_movements on the till
+    # account; see services/money_service.py.
+    movements_in: Decimal = Decimal("0.00")
+    movements_out: Decimal = Decimal("0.00")
+    movements: List[ShiftMovement] = Field(default_factory=list)
+    # opening_cash + cash_sales + cash debt repayments − cash refunds
+    # + movements_in − movements_out.
     expected_cash: Decimal = Decimal("0.00")
 
 

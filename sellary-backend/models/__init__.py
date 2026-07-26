@@ -26,6 +26,7 @@ from .merchant_notify_link import MerchantNotifyLink
 from .platform_setting import PlatformSetting
 from .membership_module_access import MembershipModuleAccess
 from .company_module import CompanyModule
+from .money_account import MoneyAccount, MoneyMovement
 
 __all__ = [
     "Company",
@@ -62,4 +63,6 @@ __all__ = [
     "PlatformSetting",
     "MembershipModuleAccess",
     "CompanyModule",
+    "MoneyAccount",
+    "MoneyMovement",
 ]
