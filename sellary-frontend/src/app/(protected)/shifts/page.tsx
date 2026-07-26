@@ -9,13 +9,13 @@ import { shiftsApi } from '@/lib/api';
 import { useCurrentShift, useShifts } from '@/hooks/useQueries';
 import { formatDateTime, formatMoney } from '@/lib/utils';
 import { ShiftTotalsPanel } from '@/components/shifts/ShiftTotalsPanel';
+import { CloseShiftForm } from '@/components/shifts/CloseShiftForm';
 import { TableSkeleton } from '@/components/skeletons';
 import { ShiftGateBanner } from '@/components/shifts/ShiftGate';
 
 function OpenShiftBlock() {
   const { data: shift } = useCurrentShift();
   const queryClient = useQueryClient();
-  const [countedCash, setCountedCash] = useState('');
   const [showClose, setShowClose] = useState(false);
 
   const invalidate = () => {
@@ -33,11 +33,10 @@ function OpenShiftBlock() {
   });
 
   const closeMutation = useMutation({
-    mutationFn: () => shiftsApi.close(shift!.id, countedCash || '0'),
+    mutationFn: (countedCash: string) => shiftsApi.close(shift!.id, countedCash),
     onSuccess: () => {
       toast.success('Смена закрыта');
       setShowClose(false);
-      setCountedCash('');
       invalidate();
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || 'Не удалось закрыть смену'),
@@ -82,28 +81,13 @@ function OpenShiftBlock() {
       <ShiftTotalsPanel shift={shift} totals={shift.totals} />
 
       {showClose && (
-        <div className="mt-3 flex flex-wrap items-end gap-2 border border-[var(--erp-divider)] bg-[var(--erp-surface)] p-3">
-          <div className="flex-1">
-            <label className="mb-1 block text-xs text-gray-500">Посчитанные наличные в кассе</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              autoFocus
-              value={countedCash}
-              onChange={(e) => setCountedCash(e.target.value)}
-              placeholder={String(shift.totals.expected_cash)}
-              className="h-9 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm"
-            />
-          </div>
-          <button
-            onClick={() => closeMutation.mutate()}
-            disabled={closeMutation.isPending || countedCash === ''}
-            className="h-9 bg-[var(--erp-accent)] px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
-          >
-            Подтвердить закрытие
-          </button>
-        </div>
+        <CloseShiftForm
+          shift={shift}
+          totals={shift.totals}
+          submitting={closeMutation.isPending}
+          onCancel={() => setShowClose(false)}
+          onConfirm={(countedCash) => closeMutation.mutate(countedCash)}
+        />
       )}
     </div>
   );

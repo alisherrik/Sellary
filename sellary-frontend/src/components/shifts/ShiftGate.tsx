@@ -6,7 +6,8 @@ import toast from 'react-hot-toast';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
 
 import { shiftsApi } from '@/lib/api';
-import { useCurrentShift } from '@/hooks/useQueries';
+import { useCurrentShift, useShifts } from '@/hooks/useQueries';
+import { formatMoney } from '@/lib/utils';
 
 /**
  * The POS shift gate. A sale needs an open till shift, so when none is open this
@@ -19,8 +20,13 @@ import { useCurrentShift } from '@/hooks/useQueries';
  */
 export function ShiftGateBanner() {
   const { data: shift, isSuccess } = useCurrentShift();
+  const { data: shifts = [] } = useShifts({ limit: 5 });
   const queryClient = useQueryClient();
-  const [openingCash, setOpeningCash] = useState('0');
+  // Empty, not '0'. The field defaulted to zero and the button accepted it, so
+  // one shift went into production opened at 0.00 — every cash figure it
+  // produced was measured from a starting point nobody had checked.
+  const [openingCash, setOpeningCash] = useState('');
+  const lastClosed = shifts.find((s) => s.status === 'closed' && s.counted_cash != null);
 
   const openMutation = useMutation({
     mutationFn: () => shiftsApi.open(openingCash || '0'),
@@ -48,22 +54,38 @@ export function ShiftGateBanner() {
             Смена не открыта
           </p>
           <p className="text-xs text-amber-700 dark:text-amber-300">
-            Чтобы продавать, откройте смену и укажите сумму наличных в кассе на начало.
+            Пересчитайте наличные в кассе и укажите сумму на начало — от неё
+            будет считаться вся смена.
           </p>
+          {lastClosed && (
+            <p className="mt-0.5 text-[11px] text-amber-700/80 dark:text-amber-300/80">
+              Смена №{lastClosed.shift_number} закрылась с{' '}
+              {formatMoney(lastClosed.counted_cash ?? '0')}.{' '}
+              <button
+                type="button"
+                onClick={() => setOpeningCash(String(lastClosed.counted_cash ?? '0'))}
+                className="font-semibold underline"
+              >
+                Подставить
+              </button>
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <input
             type="number"
             min="0"
             step="0.01"
+            inputMode="decimal"
             value={openingCash}
             onChange={(e) => setOpeningCash(e.target.value)}
             placeholder="Наличные в кассе"
-            className="h-11 w-32 rounded-lg border border-amber-300 bg-white px-3 text-sm dark:border-amber-700 dark:bg-gray-800"
+            aria-label="Наличные в кассе на начало смены"
+            className="h-11 w-32 rounded-lg border border-amber-300 bg-white px-3 text-sm tabular-nums dark:border-amber-700 dark:bg-gray-800"
           />
           <button
             onClick={() => openMutation.mutate()}
-            disabled={openMutation.isPending}
+            disabled={openMutation.isPending || openingCash.trim() === ''}
             className="h-11 shrink-0 rounded-lg bg-[var(--erp-accent)] px-4 text-sm font-medium text-white hover:bg-[var(--erp-accent-strong)] disabled:opacity-60"
           >
             Открыть смену
