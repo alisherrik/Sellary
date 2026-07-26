@@ -1,0 +1,4 @@
+# Per-shift breakdowns are built from live production data and name real
+# customers together with what they owe. They are handed over directly, never
+# committed.
+Смена №*.docx
