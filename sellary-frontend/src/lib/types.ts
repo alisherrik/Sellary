@@ -524,6 +524,8 @@ export interface VoidPreview {
   is_legacy: boolean;
   impacts: InventoryImpact[];
   blockers: ReversalBlocker[];
+  /** Why annulment is refused, when no dependent document is to blame. */
+  block_reason?: string | null;
 }
 
 export interface VoidResult {

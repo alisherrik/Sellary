@@ -74,6 +74,15 @@ export default function AnnulmentDialog({
               </div>
             )}
 
+            {preview.block_reason && (
+              // Without this the confirm button was simply disabled and the
+              // dialog said nothing — a dead end the user could only leave.
+              <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <h3 className="font-semibold">Аннулирование недоступно</h3>
+                <p className="mt-1">{preview.block_reason}</p>
+              </div>
+            )}
+
             {preview.blockers.length > 0 && (
               <div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
                 <h3 className="font-semibold">Сначала отмените связанные операции</h3>

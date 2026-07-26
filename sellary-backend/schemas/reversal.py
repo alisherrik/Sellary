@@ -52,6 +52,11 @@ class VoidPreview(BaseModel):
     is_legacy: bool
     impacts: list[InventoryImpact]
     blockers: list[ReversalBlocker]
+    # Why annulment is refused, when the reason is not a dependent document.
+    # `blockers` carries per-product conflicts; this carries the flat cases —
+    # today, a receipt that belongs to a shift already closed. Without it the
+    # dialog disables its button and gives the user nothing to act on.
+    block_reason: Optional[str] = None
 
 
 class VoidResult(BaseModel):

@@ -279,3 +279,102 @@ class TestPurchaseItemVoidEndpoints:
             headers={**admin_headers, "Idempotency-Key": "po-item-void-foreign-001"},
         )
         assert response.status_code == 404
+
+
+class TestVoidInsideAClosedShift:
+    """A closed shift freezes its totals, so its receipts must freeze too.
+
+    Production case (company 2, Смена №1): the shift closed showing 374.30 on
+    card and 677.71 on credit, then receipts 783 (card 8.00) and 716 (credit
+    1.00) were annulled an hour and four hours later. The shift page kept the
+    old figures while the sales history dropped them — a 9.00 gap with no
+    record of where it came from. Had either receipt been cash, the shift's
+    expected_cash — the number the cashier's till count is judged against —
+    would have been permanently wrong.
+    """
+
+    @staticmethod
+    def _close_shift_around(db_session, sale, company_id, user_id):
+        from datetime import timedelta
+
+        from models.cash_shift import CashShift, CashShiftStatus
+
+        shift = CashShift(
+            company_id=company_id,
+            shift_number=1,
+            status=CashShiftStatus.CLOSED,
+            opened_at=sale.created_at - timedelta(hours=1),
+            opened_by_user_id=user_id,
+            opening_cash=Decimal("100.00"),
+            closed_at=sale.created_at + timedelta(hours=1),
+            closed_by_user_id=user_id,
+            counted_cash=Decimal("133.00"),
+            expected_cash=Decimal("133.00"),
+            discrepancy=Decimal("0.00"),
+        )
+        db_session.add(shift)
+        db_session.flush()
+        return shift
+
+    def test_void_is_refused(
+        self, client, db_session, test_sale, default_company, admin_user, admin_headers
+    ):
+        self._close_shift_around(db_session, test_sale, default_company.id, admin_user.id)
+        response = client.post(
+            f"/api/sales/{test_sale.id}/void",
+            json={"reason": "Ошибка кассира"},
+            headers={**admin_headers, "Idempotency-Key": "sale-void-closed-shift-01"},
+        )
+        assert response.status_code == 409
+        assert "закрытой смене №1" in response.json()["detail"]
+        # The service refuses before touching anything, so there is nothing to
+        # assert about the row afterwards: the endpoint's rollback on conflict
+        # unwinds the test transaction along with it.
+
+    def test_preview_says_why(
+        self, client, db_session, test_sale, default_company, admin_user, admin_headers
+    ):
+        self._close_shift_around(db_session, test_sale, default_company.id, admin_user.id)
+        response = client.get(
+            f"/api/sales/{test_sale.id}/void-preview", headers=admin_headers
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["can_void"] is False
+        assert "закрытой смене №1" in body["block_reason"]
+
+    def test_a_sale_outside_any_closed_shift_still_voids(
+        self, client, db_session, test_sale, default_company, admin_user, admin_headers
+    ):
+        """The guard must not block ordinary annulment.
+
+        Sales predating the shift feature, and sales in the currently OPEN
+        shift, stay annullable — only a shift already closed is final.
+        """
+        from datetime import timedelta
+
+        from models.cash_shift import CashShift, CashShiftStatus
+
+        db_session.add(
+            CashShift(
+                company_id=default_company.id,
+                shift_number=1,
+                status=CashShiftStatus.CLOSED,
+                opened_at=test_sale.created_at - timedelta(days=3),
+                opened_by_user_id=admin_user.id,
+                opening_cash=Decimal("0.00"),
+                closed_at=test_sale.created_at - timedelta(days=2),
+                closed_by_user_id=admin_user.id,
+                counted_cash=Decimal("0.00"),
+                expected_cash=Decimal("0.00"),
+                discrepancy=Decimal("0.00"),
+            )
+        )
+        db_session.flush()
+
+        response = client.post(
+            f"/api/sales/{test_sale.id}/void",
+            json={"reason": "Вне закрытой смены"},
+            headers={**admin_headers, "Idempotency-Key": "sale-void-outside-shift-1"},
+        )
+        assert response.status_code == 200

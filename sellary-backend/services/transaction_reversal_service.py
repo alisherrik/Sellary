@@ -24,6 +24,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from core.state_machine import StateTransitionError, validate_sale_transition
+from models.cash_shift import CashShift, CashShiftStatus
 from models.inventory_layer import InventoryAllocation
 from models.purchase_order import PurchaseOrderStatus
 from models.purchase_receipt import PurchaseReceipt, PurchaseReceiptItem
@@ -90,6 +91,39 @@ class TransactionReversalService:
     # ------------------------------------------------------------------
     # Sale annulment
     # ------------------------------------------------------------------
+    def _closed_shift_containing(self, sale: Sale) -> Optional[CashShift]:
+        """The already-closed shift whose window holds this sale, if any.
+
+        A closed shift freezes its totals at the moment of closing, so a
+        receipt annulled afterwards silently drops out of the sales history
+        while the shift keeps counting it. On company 2's Смена №1 that opened
+        a 9.00 gap between the shift page and the receipts behind it; had the
+        receipt been a cash one, the closed shift's expected_cash — the number
+        the cashier was judged against — would have been wrong forever, with
+        nothing anywhere recording why.
+
+        A shift is a time window (there is no shift_id on a sale), so the sale
+        is matched by its own timestamp, exactly as the totals are.
+        """
+        return (
+            self.db.query(CashShift)
+            .filter(
+                CashShift.company_id == self.company_id,
+                CashShift.status == CashShiftStatus.CLOSED,
+                CashShift.opened_at <= sale.created_at,
+                CashShift.closed_at > sale.created_at,
+            )
+            .first()
+        )
+
+    @staticmethod
+    def _closed_shift_message(shift: CashShift) -> str:
+        return (
+            f"Чек относится к закрытой смене №{shift.shift_number}. "
+            "Итоги закрытой смены не пересчитываются, поэтому аннулировать чек "
+            "уже нельзя — оформите возврат: он попадёт в текущую смену."
+        )
+
     def preview_sale(self, sale_id: int) -> VoidPreview:
         """Compute the impact of annulling ``sale_id`` WITHOUT mutating anything.
 
@@ -102,9 +136,11 @@ class TransactionReversalService:
         if not sale:
             raise ValueError(f"Sale with id {sale_id} not found")
 
+        closed_shift = self._closed_shift_containing(sale)
         can_void = (
             not self._is_voided(sale)
             and sale.status in (SaleStatus.COMPLETED, SaleStatus.PARTIALLY_RETURNED)
+            and closed_shift is None
         )
         impacts: List[InventoryImpact] = []
         is_legacy = False
@@ -135,6 +171,9 @@ class TransactionReversalService:
             is_legacy=is_legacy,
             impacts=impacts,
             blockers=[],
+            block_reason=(
+                self._closed_shift_message(closed_shift) if closed_shift else None
+            ),
         )
 
     def void_sale(self, sale_id: int, reason: str, user_id: int) -> VoidResult:
@@ -153,6 +192,10 @@ class TransactionReversalService:
 
         if self._is_voided(sale):
             raise ReversalConflict("Продажа уже аннулирована.")
+
+        closed_shift = self._closed_shift_containing(sale)
+        if closed_shift is not None:
+            raise ReversalConflict(self._closed_shift_message(closed_shift))
 
         # CANCELLED is reachable from COMPLETED / PARTIALLY_RETURNED but not from
         # the terminal RETURNED/CANCELLED states. Surface that as a conflict.
