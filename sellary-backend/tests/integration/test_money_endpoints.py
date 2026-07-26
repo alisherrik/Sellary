@@ -41,8 +41,27 @@ class TestAccounts:
         body = _accounts(client, admin_headers)
         card_accounts = [a for a in body["accounts"] if a["card_type"] == "dc"]
         assert len(card_accounts) == 1
+        assert card_accounts[0]["name"] == "Банк · DC"
         # The sale's whole total landed on the bank, not in the drawer.
         assert Decimal(card_accounts[0]["balance"]) == Decimal("33.00")
+
+    def test_the_card_account_is_not_created_twice(
+        self, client, db_session, test_sale, admin_headers
+    ):
+        """`Sale.card_type` is an enum member, `MoneyAccount.card_type` a string.
+
+        If the two failed to compare, every read would decide the account was
+        missing and add another one.
+        """
+        from models.sale import PaymentMethod
+
+        test_sale.payment_method = PaymentMethod.CARD
+        test_sale.card_type = "dc"
+        db_session.flush()
+
+        _accounts(client, admin_headers)
+        body = _accounts(client, admin_headers)
+        assert len([a for a in body["accounts"] if a["card_type"] == "dc"]) == 1
 
     def test_a_cash_sale_lands_in_the_till(self, client, test_sale, admin_headers):
         body = _accounts(client, admin_headers)

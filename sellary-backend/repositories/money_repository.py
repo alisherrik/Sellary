@@ -20,6 +20,31 @@ from repositories.sale_repository import NON_CANCELLED_STATUSES
 ZERO = Decimal("0.00")
 
 
+def cash_refund_filter(cash: bool):
+    """Whether a refund left the drawer.
+
+    A module-level expression rather than an inline filter so a test can
+    compile it against the Postgres dialect. `refund_method` is a native
+    Postgres enum: the natural-looking `func.lower(coalesce(...))` works on the
+    SQLite test engine and then fails in production with `function
+    lower(paymentmethod) does not exist`.
+    """
+    is_cash = SaleReturn.refund_method == PaymentMethod.CASH
+    return is_cash if cash else ~is_cash
+
+
+def cash_payment_filter(cash: bool):
+    """Whether a debt repayment arrived in the drawer.
+
+    `customer_ledger_entries.payment_method` is a plain String(20) — free text
+    written by whatever recorded the payment — so it is normalised, not
+    compared to an enum. The asymmetry with `cash_refund_filter` is real and
+    deliberate.
+    """
+    method = func.lower(func.coalesce(CustomerLedgerEntry.payment_method, "cash"))
+    return method == "cash" if cash else method != "cash"
+
+
 class MoneyRepository:
     def __init__(self, db: Session):
         self.db = db
@@ -197,18 +222,16 @@ class MoneyRepository:
             CustomerLedgerEntry.company_id == company_id,
             CustomerLedgerEntry.entry_type == CustomerLedgerEntryType.PAYMENT.value,
             CustomerLedgerEntry.created_at >= since,
+            cash_payment_filter(bucket == "cash"),
         )
-        method = func.lower(func.coalesce(CustomerLedgerEntry.payment_method, "cash"))
-        query = query.filter(method == "cash") if bucket == "cash" else query.filter(method != "cash")
         return Decimal(query.scalar() or 0)
 
     def _sum_refunds(self, company_id: int, bucket: str, since) -> Decimal:
         query = self.db.query(func.coalesce(func.sum(SaleReturn.total_refund_amount), ZERO)).filter(
             SaleReturn.company_id == company_id,
             SaleReturn.created_at >= since,
+            cash_refund_filter(bucket == "cash"),
         )
-        method = func.lower(func.coalesce(SaleReturn.refund_method, "cash"))
-        query = query.filter(method == "cash") if bucket == "cash" else query.filter(method != "cash")
         return Decimal(query.scalar() or 0)
 
     # ------------------------------------------------------------- movements

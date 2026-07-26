@@ -26,7 +26,11 @@ from models.money_account import (
 )
 from models.sale import PaymentMethod, Sale
 from models.sale_return import SaleReturn
-from repositories.money_repository import MoneyRepository
+from repositories.money_repository import (
+    MoneyRepository,
+    cash_payment_filter,
+    cash_refund_filter,
+)
 from schemas.money import (
     BalanceCorrection,
     MoneyAccountOut,
@@ -100,13 +104,17 @@ class MoneyService:
             .all()
         }
         for card_type in sorted(used - known):
-            label = CARD_LABELS.get(card_type, card_type)
+            # `Sale.card_type` hands back a CardType member. It subclasses str,
+            # so the set arithmetic above matches the plain strings already
+            # stored — but `str()` on it is "CardType.DC", so the value is
+            # taken explicitly rather than left to whatever coerces it.
+            value = card_type.value if hasattr(card_type, "value") else str(card_type)
             self.db.add(
                 MoneyAccount(
                     company_id=self.company_id,
-                    name=f"Банк · {label}",
+                    name=f"Банк · {CARD_LABELS.get(value, value)}",
                     is_till=False,
-                    card_type=card_type,
+                    card_type=value,
                     sort_order=self.repo.next_sort_order(self.company_id),
                 )
             )
@@ -132,7 +140,7 @@ class MoneyService:
             self.db.query(SaleReturn.id)
             .filter(
                 SaleReturn.company_id == self.company_id,
-                func.lower(func.coalesce(SaleReturn.refund_method, "cash")) != "cash",
+                cash_refund_filter(cash=False),
             )
             .first()
         )
@@ -143,7 +151,7 @@ class MoneyService:
             .filter(
                 CustomerLedgerEntry.company_id == self.company_id,
                 CustomerLedgerEntry.entry_type == CustomerLedgerEntryType.PAYMENT.value,
-                func.lower(func.coalesce(CustomerLedgerEntry.payment_method, "cash")) != "cash",
+                cash_payment_filter(cash=False),
             )
             .first()
         )
