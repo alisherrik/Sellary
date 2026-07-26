@@ -54,7 +54,36 @@ jobs:
         working-directory: sellary-frontend
         # No --detach: with it the step went green the moment the upload
         # finished, so a failed Railway build left GitHub green and nobody knew.
+        #
+        # But `up --ci` also exits non-zero when it merely loses the build-log
+        # stream ("Failed to stream build logs"), and that has already marked a
+        # deployment red that Railway had in fact shipped. So a non-zero exit
+        # is treated as a question, not an answer: ask Railway what the latest
+        # deployment actually did, and fail only if it is not SUCCESS.
         timeout-minutes: 20
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: npx --yes @railway/cli@4 up --service sellary-frontend --ci
+        run: |
+          set +e
+          npx --yes @railway/cli@4 up --service sellary-frontend --ci
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            exit 0
+          fi
+
+          echo "::warning::railway up exited $code — checking what the deployment actually did"
+          # Railway may still be building; give it the same window the CLI had.
+          for attempt in $(seq 1 40); do
+            status=$(npx --yes @railway/cli@4 deployment list --service sellary-frontend 2>/dev/null \
+              | grep -oE '\| (SUCCESS|FAILED|CRASHED|BUILDING|DEPLOYING|INITIALIZING|QUEUED|REMOVED) \|' \
+              | head -1 | tr -d '| ')
+            echo "latest deployment: ${status:-unknown} (attempt $attempt)"
+            case "$status" in
+              SUCCESS) echo "::notice::Deployment succeeded; the CLI only lost the log stream."; exit 0 ;;
+              FAILED|CRASHED) echo "::error::Railway build ${status}."; exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Could not confirm the deployment status within the window."
+          exit 1
