@@ -22,6 +22,36 @@ export const formatCurrency = (amount: number | string): string => {
 };
 
 /**
+ * Format money for a column that is meant to be added up by eye.
+ *
+ * formatCurrency drops trailing zeros, so a till breakdown renders as
+ * `TJS 374.3` above `TJS 7` — two numbers whose decimal points do not line up
+ * and which read as "374 and a bit" and "seven". On a shift reconciliation the
+ * cashier is checking arithmetic, so every amount keeps both digits.
+ */
+export const formatMoney = (amount: number | string): string => {
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+  const currencyCode = useSettingsStore.getState().currency;
+  const currency = CURRENCIES[currencyCode];
+
+  try {
+    return new Intl.NumberFormat(currency.locale, {
+      style: 'currency',
+      currency: currency.code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(num);
+  } catch (e) {
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency',
+      currency: currency.code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(num);
+  }
+};
+
+/**
  * Format a per-unit price, which carries up to 4 decimals.
  *
  * formatCurrency caps at 2 — correct for money totals, but it would render a

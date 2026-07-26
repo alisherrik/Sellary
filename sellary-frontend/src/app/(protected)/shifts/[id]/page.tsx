@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 import { useShift } from '@/hooks/useQueries';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, formatMoney } from '@/lib/utils';
 import { ShiftTotalsPanel } from '@/components/shifts/ShiftTotalsPanel';
 import { CardSkeleton } from '@/components/skeletons';
 import QueryError from '@/components/ui/QueryError';
@@ -51,7 +51,7 @@ export default function ShiftDetailPage({ params }: { params: Promise<{ id: stri
                   <li key={snap.id} className="flex justify-between border-b border-[var(--erp-divider)] py-1 last:border-0">
                     <span className="text-gray-500">{formatDateTime(snap.taken_at)}</span>
                     <span className="tabular-nums text-gray-700">
-                      ожидалось {snap.totals.expected_cash}
+                      ожидалось {formatMoney(snap.totals.expected_cash)}
                     </span>
                   </li>
                 ))}
