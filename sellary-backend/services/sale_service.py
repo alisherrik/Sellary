@@ -22,6 +22,12 @@ from services.calculation_service import CalculationService
 from services.company_time import UTC, company_tz, to_local, utc_now
 from services.customer_ledger_service import CustomerLedgerService
 from services.inventory_ledger_service import InventoryLedgerService
+from services.sale_tender_service import (
+    build_payment_rows,
+    compose_tenders,
+    credit_amount,
+    dominant_method,
+)
 from services.sale_search_service import (
     STATIC_SEARCH_CANDIDATES,
     SearchCandidate,
@@ -308,8 +314,11 @@ class SaleService:
         if sale_create.paid_amount > total_amount:
             raise ValueError("Initial payment exceeds sale total")
 
-        if sale_create.payment_method.value == "credit" and not sale_create.customer_id:
-            raise ValueError("Customer is required for credit sales")
+        # Both request shapes — explicit tenders, or the older single method
+        # with an optional up-front payment — become the same list here, and it
+        # is that list, not the request, that the sale is written from.
+        tenders = compose_tenders(sale_create, total_amount)
+        dominant, dominant_card = dominant_method(tenders)
 
         if sale_create.customer_id:
             customer = self.customer_repo.get_by_id(
@@ -327,15 +336,20 @@ class SaleService:
             tax_amount=tax_amount,
             discount_amount=sale_create.discount_amount,
             total_amount=total_amount,
-            payment_method=sale_create.payment_method,
-            card_type=sale_create.card_type,
-            payment_status="unpaid" if sale_create.payment_method.value == "credit" else "paid",
+            payment_method=dominant,
+            card_type=dominant_card,
+            is_split=len(tenders) > 1,
+            payment_status="unpaid" if credit_amount(tenders) > 0 else "paid",
             status=SaleStatus.COMPLETED,
             notes=sale_create.notes,
             created_at=utc_now(),
         )
 
         sale = self.sale_repo.create(sale, items)
+
+        for row in build_payment_rows(self.company_id, sale.id, tenders):
+            self.db.add(row)
+        self.db.flush()
 
         # Consume each line's stock through the FIFO ledger. The ledger proves
         # availability (raising ValueError on oversell), decrements layers,
@@ -360,11 +374,17 @@ class SaleService:
                 consumption.value / item.quantity
             ).quantize(Decimal("0.01"))
 
-        self.customer_ledger.record_credit_sale(
-            sale,
-            cashier_id,
-            initial_payment_amount=sale_create.paid_amount,
-            initial_payment_method=sale_create.initial_payment_method,
+        # A credit sale settled in full at the till still belongs in the
+        # ledger: it is how the shop sees that this customer took goods on
+        # trust and cleared it the same minute. Only the request knows that —
+        # the tenders no longer carry a credit line once nothing is owed.
+        was_credit_request = (
+            credit_amount(tenders) > 0
+            or getattr(sale_create.payment_method, "value", sale_create.payment_method)
+            == "credit"
+        )
+        self.customer_ledger.record_credit_sale_tenders(
+            sale, cashier_id, tenders, is_credit_sale=was_credit_request
         )
         self.db.flush()
         return self._to_response(sale)
@@ -439,6 +459,15 @@ class SaleService:
             remaining_refundable_amount=remaining_refundable,
             payment_method=sale.payment_method,
             card_type=sale.card_type,
+            is_split=bool(getattr(sale, "is_split", False)),
+            payments=[
+                {
+                    "method": payment.method,
+                    "card_type": payment.card_type,
+                    "amount": payment.amount,
+                }
+                for payment in sale.payments
+            ],
             payment_status=sale.payment_status or "paid",
             credit_amount=credit_summary["amount"],
             credit_paid_amount=credit_summary["paid"],

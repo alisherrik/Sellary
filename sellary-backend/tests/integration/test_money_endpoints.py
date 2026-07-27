@@ -10,6 +10,31 @@ from decimal import Decimal
 import pytest
 
 
+def _retender(db_session, sale, method, card_type):
+    """Re-tender an existing sale, the way a differently-paid one would be.
+
+    `sales.payment_method` follows along because history and filters still read
+    it, but the tender row is the one that decides where the money went.
+    """
+    from models.sale_payment import SalePayment
+
+    db_session.query(SalePayment).filter(SalePayment.sale_id == sale.id).delete()
+    db_session.add(
+        SalePayment(
+            company_id=sale.company_id,
+            sale_id=sale.id,
+            method=method,
+            card_type=card_type,
+            amount=sale.total_amount,
+            sort_order=0,
+        )
+    )
+    sale.payment_method = method
+    sale.card_type = card_type
+    db_session.flush()
+    return sale
+
+
 def _accounts(client, headers):
     response = client.get("/api/money/accounts", headers=headers)
     assert response.status_code == 200, response.text
@@ -32,11 +57,12 @@ class TestAccounts:
     def test_a_card_sale_creates_that_card_s_account(
         self, client, db_session, test_sale, default_company, admin_headers
     ):
-        from models.sale import PaymentMethod
+        from models.sale import CardType, PaymentMethod
 
-        test_sale.payment_method = PaymentMethod.CARD
-        test_sale.card_type = "dc"
-        db_session.flush()
+        # The tender is what routes the money now, so that is what changes.
+        # Setting `payment_method` alone would leave the sale still tendered
+        # in cash, which is exactly the drift this table exists to prevent.
+        _retender(db_session, test_sale, PaymentMethod.CARD, CardType.DC)
 
         body = _accounts(client, admin_headers)
         card_accounts = [a for a in body["accounts"] if a["card_type"] == "dc"]
@@ -48,16 +74,15 @@ class TestAccounts:
     def test_the_card_account_is_not_created_twice(
         self, client, db_session, test_sale, admin_headers
     ):
-        """`Sale.card_type` is an enum member, `MoneyAccount.card_type` a string.
+        """`SalePayment.card_type` is an enum member, `MoneyAccount.card_type`
+        a string.
 
         If the two failed to compare, every read would decide the account was
         missing and add another one.
         """
-        from models.sale import PaymentMethod
+        from models.sale import CardType, PaymentMethod
 
-        test_sale.payment_method = PaymentMethod.CARD
-        test_sale.card_type = "dc"
-        db_session.flush()
+        _retender(db_session, test_sale, PaymentMethod.CARD, CardType.DC)
 
         _accounts(client, admin_headers)
         body = _accounts(client, admin_headers)
@@ -73,8 +98,7 @@ class TestAccounts:
     ):
         from models.sale import PaymentMethod
 
-        test_sale.payment_method = PaymentMethod.CREDIT
-        db_session.flush()
+        _retender(db_session, test_sale, PaymentMethod.CREDIT, None)
         body = _accounts(client, admin_headers)
         assert Decimal(body["total"]) == Decimal("0.00")
 

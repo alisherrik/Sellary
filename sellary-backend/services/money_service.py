@@ -25,6 +25,7 @@ from models.money_account import (
     MoneyMovement,
 )
 from models.sale import PaymentMethod, Sale
+from models.sale_payment import SalePayment
 from models.sale_return import SaleReturn
 from repositories.money_repository import (
     MoneyRepository,
@@ -96,16 +97,23 @@ class MoneyService:
             self.db.flush()
 
         known = {a.card_type for a in self.repo.accounts(self.company_id, include_inactive=True)}
+        # Read from the tenders: a sale paid partly on DC and partly on Эсхата
+        # names only one of them in `sales.card_type`, and the other bank would
+        # never get an account of its own.
         used = {
             row[0]
-            for row in self.db.query(Sale.card_type)
-            .filter(Sale.company_id == self.company_id, Sale.card_type.isnot(None))
+            for row in self.db.query(SalePayment.card_type)
+            .join(Sale, Sale.id == SalePayment.sale_id)
+            .filter(
+                Sale.company_id == self.company_id,
+                SalePayment.card_type.isnot(None),
+            )
             .distinct()
             .all()
         }
         for card_type in sorted(used - known):
-            # `Sale.card_type` hands back a CardType member. It subclasses str,
-            # so the set arithmetic above matches the plain strings already
+            # `card_type` hands back a CardType member. It subclasses str, so
+            # the set arithmetic above matches the plain strings already
             # stored — but `str()` on it is "CardType.DC", so the value is
             # taken explicitly rather than left to whatever coerces it.
             value = card_type.value if hasattr(card_type, "value") else str(card_type)
@@ -127,10 +135,11 @@ class MoneyService:
 
     def _has_unattributable_noncash(self) -> bool:
         mobile = (
-            self.db.query(Sale.id)
+            self.db.query(SalePayment.id)
+            .join(Sale, Sale.id == SalePayment.sale_id)
             .filter(
                 Sale.company_id == self.company_id,
-                Sale.payment_method == PaymentMethod.MOBILE,
+                SalePayment.method == PaymentMethod.MOBILE,
             )
             .first()
         )

@@ -112,7 +112,13 @@ def test_credit_sale_accepts_initial_partial_payment(
     assert ledger_response.status_code == 200
     ledger = ledger_response.json()
     assert ledger["balance"] == "20.00"
-    assert [entry["entry_type"] for entry in ledger["entries"]] == ["credit_sale", "payment"]
+    # Money taken at the till is a `sale_tender`, not a debt repayment — the
+    # same cash is already a tender on the sale, and the money reports read
+    # `payment` to mean "a debt was repaid today".
+    assert [entry["entry_type"] for entry in ledger["entries"]] == [
+        "credit_sale",
+        "sale_tender",
+    ]
     assert ledger["entries"][0]["amount"] == "30.00"
     assert ledger["entries"][1]["amount"] == "-10.00"
     assert ledger["entries"][1]["payment_method"] == "cash"

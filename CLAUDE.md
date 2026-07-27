@@ -75,6 +75,27 @@ These mutating endpoints **require** an `Idempotency-Key` header (16–64 chars)
 ### Frontend
 Next.js App Router with route groups: `(protected)/` (authenticated app pages), `login/`, and `owner/` (owner panel). Browser API calls go to `/api/*`, which a Next.js rewrite proxy forwards to the backend (`NEXT_PUBLIC_API_PROXY_TARGET`, default `http://127.0.0.1:8001`). State is split between Zustand stores (`src/lib/store.ts`, `src/lib/owner-store.ts`) and TanStack Query.
 
+### Split payment
+One sale can be settled with several tenders — 26 наличными + 10 DC + 10 Эсхата + 4 в долг.
+Each is a row in **`sale_payments`**, and that table is the truth about money: till
+balances, shift totals, the sales summary, the payment-method filter and the money
+accounts all read it. `sales.payment_method` survives as the **largest** tender plus a
+`sales.is_split` flag — display and backwards compatibility only, never a money figure.
+Never add a second channel for this fact; that is how `stock_quantity` drifted from its
+FIFO layers.
+
+`POST /api/sales` accepts either `payments: [...]` or the older scalar
+`payment_method`/`paid_amount` shape, never both — the offline cashier still speaks the
+old one. `services/sale_tender_service.py` turns both into the same tender list and is
+where the rules live (exact sum to the cent, one credit line, a customer for credit).
+Anything that creates a `Sale` must write tenders: today that is `SaleService.create`
+and `sync_service`, and tests use `add_sale_tenders` from `tests/conftest.py`.
+
+A credit sale's ledger keeps its old shape — `credit_sale` for the total plus offsetting
+rows for what was paid at the till — but those offsets are `entry_type='sale_tender'`,
+not `payment`. Money reports filter on `payment`, so the same cash is not counted both
+as a tender and as a debt repayment.
+
 ### MCP connector (`sellary-backend/mcp_server/`)
 An MCP server mounted in-process at `/mcp` (FastMCP 3.x), so Claude can read every
 report and record a batch purchase. Tools call the same `services/` layer the

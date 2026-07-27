@@ -17,6 +17,7 @@ from models.sale import CardType, PaymentMethod, Sale, SaleStatus
 from models.sale_return import SaleReturn
 from models.user import User
 from services.cash_shift_service import CashShiftService, ShiftConflict
+from tests.conftest import add_sale_tenders
 
 T0 = datetime(2026, 7, 16, 8, 0, tzinfo=timezone.utc)
 
@@ -48,7 +49,7 @@ def sale(db_session, cashier, total, method=PaymentMethod.CASH, card=None,
     )
     db_session.add(s)
     db_session.flush()
-    return s
+    return add_sale_tenders(db_session, s)
 
 
 def debt_payment(db_session, cashier, amount, method="cash", at=T0):

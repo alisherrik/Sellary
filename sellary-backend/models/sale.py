@@ -1,5 +1,5 @@
 from decimal import Decimal
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Enum as SQLEnum, Index, Text, text
+from sqlalchemy import Boolean, Column, Integer, String, Numeric, DateTime, ForeignKey, Enum as SQLEnum, Index, Text, text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.database import Base
@@ -72,6 +72,10 @@ class Sale(Base):
         default=SaleStatus.COMPLETED,
     )
     payment_status = Column(String(20), nullable=False, default="paid")
+    # True when the sale was settled with more than one tender. `payment_method`
+    # above then holds the largest of them — it is display and compatibility
+    # only, and `sale_payments` is what every money figure reads.
+    is_split = Column(Boolean, nullable=False, server_default=text("false"), default=False)
     notes = Column(String(500))
     voided_at = Column(DateTime(timezone=True))
     voided_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -86,6 +90,12 @@ class Sale(Base):
     customer = relationship("Customer", back_populates="sales")
     cashier = relationship("User", back_populates="sales", foreign_keys=[cashier_id])
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
+    payments = relationship(
+        "SalePayment",
+        back_populates="sale",
+        cascade="all, delete-orphan",
+        order_by="SalePayment.sort_order",
+    )
     returns = relationship("SaleReturn", back_populates="sale", cascade="all, delete-orphan")
     customer_ledger_entries = relationship("CustomerLedgerEntry", back_populates="sale")
     voided_by_user = relationship(

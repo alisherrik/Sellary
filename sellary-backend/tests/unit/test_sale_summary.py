@@ -16,6 +16,7 @@ from models.sale import PaymentMethod, Sale, SaleStatus
 from models.sale_return import SaleReturn
 from models.user import User
 from services.sale_service import SaleService
+from tests.conftest import add_sale_tenders
 
 
 @pytest.fixture
@@ -50,7 +51,7 @@ def make_sale(
     )
     db_session.add(sale)
     db_session.flush()
-    return sale
+    return add_sale_tenders(db_session, sale)
 
 
 class TestSalesSummary:

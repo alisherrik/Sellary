@@ -9,8 +9,15 @@ from schemas.sale import PaymentMethod
 
 
 class CustomerLedgerEntryType(str, Enum):
+    """Mirrors models.customer_ledger_entry.CustomerLedgerEntryType.
+
+    Keep the two in step: a member missing here turns into a response
+    validation error, which the ledger route reports as a 404.
+    """
+
     CREDIT_SALE = "credit_sale"
     PAYMENT = "payment"
+    SALE_TENDER = "sale_tender"
     RETURN_ADJUSTMENT = "return_adjustment"
     CANCEL_ADJUSTMENT = "cancel_adjustment"
 

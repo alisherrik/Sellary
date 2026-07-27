@@ -96,9 +96,14 @@ def test_credit_sale_with_initial_partial_payment_records_remaining_debt(
         .order_by(CustomerLedgerEntry.id.asc())
         .all()
     )
+    # The money handed over at the till is a `sale_tender`, not a `payment`.
+    # It offsets the debt identically, but it is already counted once as a
+    # tender on the sale, and every money report reads `payment` to mean "a
+    # debt was repaid" — leaving it as one would put the same cash in the
+    # shift twice.
     assert [entry.entry_type for entry in entries] == [
         CustomerLedgerEntryType.CREDIT_SALE,
-        CustomerLedgerEntryType.PAYMENT,
+        CustomerLedgerEntryType.SALE_TENDER,
     ]
     assert entries[0].amount == Decimal("30.00")
     assert entries[1].amount == Decimal("-10.00")

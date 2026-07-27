@@ -1,8 +1,9 @@
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import String, case, cast, func, or_, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, aliased, joinedload
 from models.sale import PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
+from models.sale_payment import SalePayment
 from models.sale_return import SaleReturn
 from models.customer_ledger_entry import CustomerLedgerEntry, CustomerLedgerEntryType
 from models.product import Product
@@ -98,7 +99,24 @@ class SaleRepository:
         if status:
             query = query.filter(Sale.status == status)
         if payment_method:
-            query = query.filter(Sale.payment_method == payment_method)
+            # "Show me card sales" must include a split sale that had a card
+            # leg, even though its `payment_method` column names whichever
+            # tender happened to be largest.
+            #
+            # Aliased and explicitly correlated: the by-method query this
+            # filter is shared with already selects from sale_payments, and an
+            # uncorrelated subquery against the same table auto-correlates
+            # both sides away and leaves the SELECT with no FROM clause.
+            tender = aliased(SalePayment)
+            query = query.filter(
+                select(tender.id)
+                .where(
+                    tender.sale_id == Sale.id,
+                    tender.method == payment_method,
+                )
+                .correlate(Sale)
+                .exists()
+            )
         if status_group == "returns":
             query = query.filter(
                 Sale.status.in_([SaleStatus.RETURNED, SaleStatus.PARTIALLY_RETURNED])
@@ -270,12 +288,16 @@ class SaleRepository:
         # show what actually landed in the drawer (наличные) apart from карта and
         # в долг. Same filters, same non-cancelled set — the parts add back up to
         # `turnover`, which is what lets a cashier reconcile the till.
+        # Summed over tenders, not over sales. A sale settled with 26 наличными,
+        # 10 DC, 10 Эсхата and 4 в долг contributes to three of these buckets;
+        # attributing its whole 50 to one method would overstate that method and
+        # lose the rest.
         by_method = {"cash": Decimal("0.00"), "card": Decimal("0.00"),
                      "mobile": Decimal("0.00"), "credit": Decimal("0.00")}
         method_query = self.db.query(
-            Sale.payment_method,
-            func.coalesce(func.sum(Sale.total_amount), Decimal("0.00")),
-        )
+            SalePayment.method,
+            func.coalesce(func.sum(SalePayment.amount), Decimal("0.00")),
+        ).join(Sale, Sale.id == SalePayment.sale_id)
         method_query = self._apply_filters(
             method_query,
             company_id,
@@ -289,7 +311,7 @@ class SaleRepository:
         )
         method_query = method_query.filter(
             Sale.status.in_(NON_CANCELLED_STATUSES)
-        ).group_by(Sale.payment_method)
+        ).group_by(SalePayment.method)
         for method, amount in method_query.all():
             key = method.value if hasattr(method, "value") else str(method or "")
             if key in by_method:

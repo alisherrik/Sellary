@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from models.cash_shift import CashShift, CashShiftSnapshot, CashShiftStatus
 from models.customer_ledger_entry import CustomerLedgerEntry, CustomerLedgerEntryType
 from models.sale import PaymentMethod, Sale
+from models.sale_payment import SalePayment
 from models.sale_return import SaleReturn
 from repositories.money_repository import MoneyRepository
 from repositories.sale_repository import NON_CANCELLED_STATUSES
@@ -42,24 +43,36 @@ class CashShiftService:
         """
         totals = ShiftTotals(expected_cash=opening_cash)
 
-        # --- sales, grouped by (payment_method, card_type) ---
+        # --- sales, grouped by tender ---
+        # One sale can appear in several buckets. It is the tenders that hit
+        # the drawer, not the sale: 26 наличными from a 50 sale is 26 of cash
+        # in this shift, and the other 24 belongs to the card and the tab.
         sale_q = self.db.query(
-            Sale.payment_method,
-            Sale.card_type,
-            func.count(Sale.id),
-            func.coalesce(func.sum(Sale.total_amount), ZERO),
-        ).filter(
+            SalePayment.method,
+            SalePayment.card_type,
+            func.coalesce(func.sum(SalePayment.amount), ZERO),
+        ).join(Sale, Sale.id == SalePayment.sale_id).filter(
             Sale.company_id == self.company_id,
             Sale.status.in_(NON_CANCELLED_STATUSES),
             Sale.created_at >= start,
         )
         if end is not None:
             sale_q = sale_q.filter(Sale.created_at < end)
-        sale_q = sale_q.group_by(Sale.payment_method, Sale.card_type)
+        sale_q = sale_q.group_by(SalePayment.method, SalePayment.card_type)
 
-        for method, card_type, count, amount in sale_q.all():
+        # Counted separately: a split sale is one sale, however many tenders it
+        # took, and summing the grouped counts above would multiply it.
+        count_q = self.db.query(func.count(Sale.id)).filter(
+            Sale.company_id == self.company_id,
+            Sale.status.in_(NON_CANCELLED_STATUSES),
+            Sale.created_at >= start,
+        )
+        if end is not None:
+            count_q = count_q.filter(Sale.created_at < end)
+        totals.sales_count = count_q.scalar() or 0
+
+        for method, card_type, amount in sale_q.all():
             amount = amount or ZERO
-            totals.sales_count += count or 0
             if method == PaymentMethod.CASH:
                 totals.cash_sales += amount
             elif method == PaymentMethod.CARD:

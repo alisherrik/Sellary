@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 from models.customer_ledger_entry import CustomerLedgerEntry, CustomerLedgerEntryType
 from models.money_account import MoneyAccount, MoneyMovement
 from models.sale import PaymentMethod, Sale
+from models.sale_payment import SalePayment
 from models.sale_return import SaleReturn
 from repositories.sale_repository import NON_CANCELLED_STATUSES
 
@@ -155,13 +156,17 @@ class MoneyRepository:
         # The group-by enumerates which (method, card type) pairs exist; the sum
         # is taken per account afterwards, because each account counts from its
         # own `opening_at` and those differ.
+        # Read per tender, not per sale: a sale settled 26 наличными and 10 on a
+        # DC card puts 26 in the drawer and 10 on the DC account, and routing
+        # its whole 50 by a single column would credit one of them twice over.
         combinations = (
-            self.db.query(Sale.payment_method, Sale.card_type)
+            self.db.query(SalePayment.method, SalePayment.card_type)
+            .join(Sale, Sale.id == SalePayment.sale_id)
             .filter(
                 Sale.company_id == company_id,
                 Sale.status.in_(NON_CANCELLED_STATUSES),
             )
-            .group_by(Sale.payment_method, Sale.card_type)
+            .group_by(SalePayment.method, SalePayment.card_type)
             .all()
         )
         for method, card_type in combinations:
@@ -202,16 +207,20 @@ class MoneyRepository:
             yield "noncash", other
 
     def _sum_sales(self, company_id: int, method, card_type, since) -> Decimal:
-        query = self.db.query(func.coalesce(func.sum(Sale.total_amount), ZERO)).filter(
-            Sale.company_id == company_id,
-            Sale.status.in_(NON_CANCELLED_STATUSES),
-            Sale.payment_method == method,
-            Sale.created_at >= since,
+        query = (
+            self.db.query(func.coalesce(func.sum(SalePayment.amount), ZERO))
+            .join(Sale, Sale.id == SalePayment.sale_id)
+            .filter(
+                Sale.company_id == company_id,
+                Sale.status.in_(NON_CANCELLED_STATUSES),
+                SalePayment.method == method,
+                Sale.created_at >= since,
+            )
         )
         query = (
-            query.filter(Sale.card_type.is_(None))
+            query.filter(SalePayment.card_type.is_(None))
             if card_type is None
-            else query.filter(Sale.card_type == card_type)
+            else query.filter(SalePayment.card_type == card_type)
         )
         return Decimal(query.scalar() or 0)
 

@@ -32,6 +32,7 @@ from schemas.sync import (
 )
 from services.customer_ledger_service import CustomerLedgerService
 from services.inventory_ledger_service import InventoryLedgerService
+from services.sale_tender_service import build_payment_rows, tenders_from_scalars
 
 
 SYNC_ENDPOINT = "/api/sync/sales"
@@ -370,6 +371,28 @@ class SyncService:
         try:
             with self.db.begin_nested():
                 created_sale = self.sale_repo.create(sale, items)
+
+                # An offline sale needs its tender rows as much as an online
+                # one: they are what the till balance, the shift and the sales
+                # summary read. Without them a synced sale would be invisible
+                # to every money report.
+                initial_for_tenders = (
+                    pm_map[sale_create.initial_payment_method.lower()]
+                    if sale_create.initial_payment_method
+                    else None
+                )
+                tenders = tenders_from_scalars(
+                    method=payment_method,
+                    card_type=card_type,
+                    total=total_amount,
+                    paid_amount=sale_create.paid_amount,
+                    initial_method=initial_for_tenders,
+                )
+                created_sale.is_split = len(tenders) > 1
+                for row in build_payment_rows(company.id, created_sale.id, tenders):
+                    self.db.add(row)
+                self.db.flush()
+
                 for item in items:
                     product = product_map[item.product_id]
                     consumption = ledger.consume_fifo(
@@ -406,16 +429,11 @@ class SyncService:
                         )
 
                 if payment_method == PaymentMethod.CREDIT:
-                    initial_method = (
-                        pm_map[sale_create.initial_payment_method.lower()]
-                        if sale_create.initial_payment_method
-                        else None
-                    )
-                    CustomerLedgerService(self.db, company.id).record_credit_sale(
+                    CustomerLedgerService(self.db, company.id).record_credit_sale_tenders(
                         created_sale,
                         user.id,
-                        initial_payment_amount=sale_create.paid_amount,
-                        initial_payment_method=initial_method,
+                        tenders,
+                        is_credit_sale=True,
                     )
         except ValueError as exc:
             # Genuinely bad rows only (e.g. negative total). Oversell no longer

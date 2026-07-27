@@ -24,6 +24,8 @@ import {
   CreditCardIcon,
   DevicePhoneMobileIcon,
   DocumentTextIcon,
+} from '@heroicons/react/24/outline';
+import {
   XMarkIcon,
   ShoppingBagIcon,
   ArchiveBoxXMarkIcon,
@@ -31,6 +33,12 @@ import {
   MagnifyingGlassIcon,
   QrCodeIcon,
 } from '@heroicons/react/24/outline';
+import SplitPaymentPanel, {
+  evaluateSplit,
+  newTender,
+  toPaymentsPayload,
+  type SplitTender,
+} from '@/components/pos/SplitPaymentPanel';
 
 import toast from 'react-hot-toast';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
@@ -44,7 +52,9 @@ import {
   toQuantityPrecision,
 } from '@/lib/posPricing';
 
-type PosPaymentMethod = 'cash' | 'card' | 'mobile' | 'credit';
+// `mixed` is a checkout mode, not a payment method the server stores: it sends
+// a `payments` list and the server files the sale under its largest tender.
+type PosPaymentMethod = 'cash' | 'card' | 'mobile' | 'credit' | 'mixed';
 type CreditInitialPaymentMethod = 'cash' | 'card' | 'mobile';
 type PosStockFilter = 'all' | 'available' | 'low' | 'out';
 
@@ -53,6 +63,7 @@ const PAYMENT_METHODS = [
   { id: 'card', label: 'Карта', Icon: CreditCardIcon },
   { id: 'mobile', label: 'Мобильный', Icon: DevicePhoneMobileIcon },
   { id: 'credit', label: 'В долг', Icon: DocumentTextIcon },
+  { id: 'mixed', label: 'Смешанная', Icon: Squares2X2Icon },
 ] as const;
 
 const CARD_TYPES = [
@@ -63,7 +74,7 @@ const CARD_TYPES = [
 
 const CREDIT_INITIAL_PAYMENT_METHODS = PAYMENT_METHODS.filter(
   (method): method is Extract<(typeof PAYMENT_METHODS)[number], { id: CreditInitialPaymentMethod }> =>
-    method.id !== 'credit',
+    method.id !== 'credit' && method.id !== 'mixed',
 );
 
 // Soft per-category tint for the tile icon chip, keyed deterministically so a
@@ -94,6 +105,7 @@ function POS() {
   const [cashReceived, setCashReceived] = useState('');
   const [creditPaidAmount, setCreditPaidAmount] = useState('');
   const [creditPaymentMethod, setCreditPaymentMethod] = useState<CreditInitialPaymentMethod>('cash');
+  const [splitTenders, setSplitTenders] = useState<SplitTender[]>(() => [newTender('cash')]);
   const [loading, setLoading] = useState(false);
   const [totalEdit, setTotalEdit] = useState<string | null>(null);
   const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
@@ -364,6 +376,10 @@ function POS() {
     () => calculateCreditInitialPayment(creditPaidAmount, finalTotal),
     [creditPaidAmount, finalTotal],
   );
+  const splitState = useMemo(
+    () => evaluateSplit(splitTenders, finalTotal, Boolean(selectedCustomer)),
+    [splitTenders, finalTotal, selectedCustomer],
+  );
   const openPaymentModal = useCallback(() => {
     setCashReceived(formatEditableAmount(finalTotal));
     setShowPaymentModal(true);
@@ -517,6 +533,11 @@ function POS() {
       return;
     }
 
+    if (paymentMethod === 'mixed' && !splitState.isValid) {
+      toast.error(splitState.problems[0] ?? 'Проверьте способы оплаты');
+      return;
+    }
+
     saleInFlight.current = true;
     setLoading(true);
 
@@ -540,23 +561,31 @@ function POS() {
       };
     });
     const isCreditSale = paymentMethod === 'credit';
+    const isSplitSale = paymentMethod === 'mixed';
     const saleData: any = {
       items: saleItems,
-      payment_method: paymentMethod,
       // Only the whole-sale discount: per-line adjustments already live in
       // unit_price, and counting them here charged them twice.
       discount_amount: Math.max(0, overallDiscount),
-      ...(isCreditSale ? { customer_id: selectedCustomer!.id } : {}),
-      ...(isCreditSale && creditInitialPayment.amount > 0
-        ? {
-            paid_amount: creditInitialPayment.amount,
-            initial_payment_method: creditPaymentMethod,
-          }
-        : {}),
     };
 
-    if (paymentMethod === 'card' && cardType) {
-      saleData.card_type = cardType;
+    if (isSplitSale) {
+      // The two request shapes are mutually exclusive — sending `payments`
+      // alongside `payment_method` is a contradiction the server refuses.
+      saleData.payments = toPaymentsPayload(splitTenders);
+      if (selectedCustomer) saleData.customer_id = selectedCustomer.id;
+    } else {
+      saleData.payment_method = paymentMethod;
+      if (isCreditSale) {
+        saleData.customer_id = selectedCustomer!.id;
+        if (creditInitialPayment.amount > 0) {
+          saleData.paid_amount = creditInitialPayment.amount;
+          saleData.initial_payment_method = creditPaymentMethod;
+        }
+      }
+      if (paymentMethod === 'card' && cardType) {
+        saleData.card_type = cardType;
+      }
     }
 
     if (!isServerReachable) {
@@ -626,7 +655,7 @@ function POS() {
       saleInFlight.current = false;
       setLoading(false);
     }
-  }, [items, hasOverStock, paymentMethod, cardType, cashPayment.isSufficient, selectedCustomer, creditInitialPayment, creditPaymentMethod, isServerReachable, overallDiscount, resetCheckout, queryClient]);
+  }, [items, hasOverStock, paymentMethod, cardType, cashPayment.isSufficient, selectedCustomer, creditInitialPayment, creditPaymentMethod, splitTenders, splitState, isServerReachable, overallDiscount, resetCheckout, queryClient]);
 
   useEffect(() => {
     hotkeyManager.register({
@@ -1481,12 +1510,22 @@ function POS() {
                     onClick={() => {
                       setPaymentMethod(id);
                       if (id !== 'card') setCardType(null);
-                      if (id !== 'credit') {
+                      if (id !== 'credit' && id !== 'mixed') {
                         setSelectedCustomer(null);
+                      }
+                      if (id !== 'credit') {
                         setCreditPaidAmount('');
                         setCreditPaymentMethod('cash');
                       }
                       if (id === 'cash') setCashReceived(formatEditableAmount(finalTotal));
+                      if (id === 'mixed') {
+                        // Start with the whole amount on one line: most splits
+                        // are "this much cash, the rest on a card", and typing
+                        // over a filled field beats typing into an empty one.
+                        setSplitTenders([
+                          { ...newTender('cash'), amount: finalTotal.toFixed(2) },
+                        ]);
+                      }
                     }}
                     className={`relative flex min-h-[44px] flex-col items-center justify-center rounded-xl border-2 p-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:p-4 ${
                       selected
@@ -1558,7 +1597,19 @@ function POS() {
               </div>
             )}
 
-            {paymentMethod === 'credit' && (
+            {paymentMethod === 'mixed' && (
+              <SplitPaymentPanel
+                tenders={splitTenders}
+                onChange={setSplitTenders}
+                total={finalTotal}
+                state={splitState}
+              />
+            )}
+
+            {/* A mixed sale with a debt line needs a client just as much as a
+                pure в-долг one, so the picker follows the debt, not the mode. */}
+            {(paymentMethod === 'credit' ||
+              (paymentMethod === 'mixed' && splitState.hasCredit)) && (
               <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-900/10 sm:mb-6">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div>
@@ -1636,6 +1687,9 @@ function POS() {
                   {creatingCustomer ? 'Создание...' : 'Создать клиента'}
                 </button>
 
+                {/* Only the pure в-долг mode has a single "paid now" figure;
+                    a mixed sale states each tender in the panel above. */}
+                {paymentMethod === 'credit' && (
                 <div className="mt-4 border-t border-amber-200 pt-4 dark:border-amber-900/40">
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
                     Оплачено сейчас
@@ -1694,12 +1748,13 @@ function POS() {
                     </p>
                   )}
                 </div>
+                )}
               </div>
             )}
 
             <button
               onClick={completeSale}
-              disabled={loading || hasOverStock || (paymentMethod === 'cash' && !cashPayment.isSufficient) || (paymentMethod === 'credit' && (!selectedCustomer || !creditInitialPayment.isValid))}
+              disabled={loading || hasOverStock || (paymentMethod === 'cash' && !cashPayment.isSufficient) || (paymentMethod === 'credit' && (!selectedCustomer || !creditInitialPayment.isValid)) || (paymentMethod === 'mixed' && !splitState.isValid)}
               className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#15803d] py-3 text-base font-bold text-white transition-colors hover:bg-[#166534] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-400 sm:py-4 sm:text-xl"
             >
               {loading ? (

@@ -721,6 +721,11 @@ def test_sale(
     db_session.add(sale_item)
     db_session.flush()
 
+    # The tender rows a real sale would carry. Every money report reads these
+    # rather than `sales.payment_method`, so without them this sale exists but
+    # its money does not.
+    add_sale_tenders(db_session, sale)
+
     # Consume the sold units through the FIFO ledger so layers/allocations and
     # the product balance stay consistent with the new invariants.
     ledger = InventoryLedgerService(db_session, test_product.company_id)
@@ -903,3 +908,35 @@ def create_auth_headers(username: str, user_id: int, company_id: int, role: str)
         expires_delta=timedelta(minutes=30),
     )
     return {"Authorization": f"Bearer {token}"}
+
+
+def add_sale_tenders(db_session, sale, tenders=None):
+    """Give a hand-built Sale the tender rows a real one would have.
+
+    Production writes `sale_payments` on every path that creates a sale, and
+    the money reports — till balances, shift totals, the sales summary — read
+    those rows rather than `sales.payment_method`. A fixture that inserts a
+    Sale directly has to do the same or it is invisible to all of them.
+
+    `tenders` is an optional list of (method, card_type, amount); the default
+    is the whole total on the sale's own method, which is what an unsplit sale
+    looks like.
+    """
+    from models.sale_payment import SalePayment
+
+    if tenders is None:
+        tenders = [(sale.payment_method, sale.card_type, sale.total_amount)]
+
+    for order, (method, card_type, amount) in enumerate(tenders):
+        db_session.add(
+            SalePayment(
+                company_id=sale.company_id,
+                sale_id=sale.id,
+                method=method,
+                card_type=card_type,
+                amount=amount,
+                sort_order=order,
+            )
+        )
+    db_session.flush()
+    return sale

@@ -6,6 +6,7 @@ from .product import Product
 from .product_unit import ProductUnit
 from .sale import Sale, SaleStatus
 from .sale_item import SaleItem
+from .sale_payment import SalePayment
 from .sale_return import SaleReturn, SaleReturnItem
 from .customer import Customer
 from .customer_ledger_entry import CustomerLedgerEntry
@@ -39,6 +40,7 @@ __all__ = [
     "Sale",
     "SaleStatus",
     "SaleItem",
+    "SalePayment",
     "SaleReturn",
     "SaleReturnItem",
     "Customer",

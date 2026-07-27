@@ -11,6 +11,13 @@ from core.database import Base
 class CustomerLedgerEntryType(str, enum.Enum):
     CREDIT_SALE = "credit_sale"
     PAYMENT = "payment"
+    # Money handed over at the till as part of the sale itself, not a later
+    # repayment. It offsets the debt exactly as a payment does, so the balance
+    # is unchanged, but it is NOT a debt repayment: the same money is already
+    # recorded as a tender in `sale_payments`, and counting it in both places
+    # would put it in the shift twice. Every money reader filters on
+    # `payment`, so a distinct type keeps them right without touching them.
+    SALE_TENDER = "sale_tender"
     RETURN_ADJUSTMENT = "return_adjustment"
     CANCEL_ADJUSTMENT = "cancel_adjustment"
 

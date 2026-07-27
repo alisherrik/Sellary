@@ -14,6 +14,7 @@ from models.product import Product
 from models.category import Category
 from models.customer import Customer
 from models.user import User
+from tests.conftest import add_sale_tenders
 from core.security import get_password_hash
 
 
@@ -974,7 +975,8 @@ class TestSalesSummaryEndpoint:
             created_at=datetime(2026, 7, 10, 12, 0),
         )
         db_session.add(sale)
-        return sale
+        db_session.flush()
+        return add_sale_tenders(db_session, sale)
 
     def test_summary_route_is_not_shadowed_by_the_sale_id_route(
         self, client: TestClient, db_session, cashier_user, cashier_headers
