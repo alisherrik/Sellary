@@ -98,6 +98,9 @@ A return settles the debt first. `sale_returns.credit_refund_amount` is how much
 
 ### MCP connector
 
+Gated on the `ai` module — in no business-type preset, checked on every tool call (not just at connect time, since access tokens live a day), and the OAuth company step hides companies without it. Settings → «ИИ-коннектор» (`api/mcp.py`, `services/mcp_admin_service.py`) gives the URL to copy, lists connected agents and revokes one by striking its refresh token.
+
+
 `sellary-backend/mcp_server/` is an MCP server mounted in-process at `/mcp` (FastMCP 3.x). Tools call `services/`, never repositories — a tool is the MCP equivalent of a router. Auth is OAuth 2.1 (PKCE + Dynamic Client Registration) with Sellary as both authorization and resource server; `/authorize` parks the request in a signed transaction and hands the browser to `login → company → consent`. The access token is the ordinary company-scoped JWT plus `mcp: true`, so a web-session token is refused at `/mcp`. Discovery documents are served from the **origin root**, not under the mount. Reports are read-only; the only write is `purchase_preview` → `purchase_commit`, where the commit executes only the signed draft the preview issued. Requires `MCP_PUBLIC_BASE_URL`; in production the connector disables itself if it is unset.
 
 ### Frontend routing

@@ -31,6 +31,8 @@ const MODULE_LABELS: { key: ModuleKey; label: string }[] = [
   { key: 'purchasing', label: 'Закупки' },
   { key: 'shop', label: 'Магазин' },
   { key: 'reports', label: 'Отчеты' },
+  { key: 'finance', label: 'Деньги' },
+  { key: 'ai', label: 'ИИ-коннектор (MCP)' },
 ];
 
 interface CompanyModulesEditorProps {

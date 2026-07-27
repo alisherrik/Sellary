@@ -18,6 +18,7 @@ MODULES = (
     "shop",         # Telegram-магазин, Заказы
     "reports",      # Дашборд, Аналитика
     "finance",      # Счета (касса, банк), движения денег, переводы
+    "ai",           # ИИ-коннектор (MCP): подключённые агенты, доступ к данным
 )
 
 LEVELS = ("user", "manager")
@@ -33,6 +34,11 @@ LEVEL_RANK = {"user": 1, "manager": 2}
 #
 # `finance` is in every preset: any business that takes money has to write down
 # when it moves — cash to the bank, card takings withdrawn, a supplier paid.
+#
+# `ai` is not in any preset. It hands a third party a live door into the
+# company's data, so it is switched on deliberately rather than arriving with a
+# business type. Switching it off closes that door immediately, including for
+# tokens already issued.
 BUSINESS_TYPE_PRESETS: dict[str, tuple[str, ...]] = {
     "retail": ("register", "sales", "customers", "inventory", "purchasing", "reports", "finance"),
     "online": ("sales", "customers", "inventory", "shop", "reports", "finance"),

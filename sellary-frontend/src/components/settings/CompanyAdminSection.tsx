@@ -38,6 +38,7 @@ const MODULE_ROWS: { key: ModuleKey; label: string }[] = [
   { key: 'shop', label: 'Магазин' },
   { key: 'reports', label: 'Отчеты' },
   { key: 'finance', label: 'Деньги' },
+  { key: 'ai', label: 'ИИ-коннектор (MCP)' },
 ];
 
 type ModuleDraft = Record<ModuleKey, '' | ModuleLevel>;
@@ -52,6 +53,7 @@ function toDraft(modules: ModuleMap): ModuleDraft {
     shop: modules.shop ?? '',
     reports: modules.reports ?? '',
     finance: modules.finance ?? '',
+    ai: modules.ai ?? '',
   };
 }
 

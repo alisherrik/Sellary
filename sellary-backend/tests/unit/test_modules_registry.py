@@ -6,7 +6,7 @@ from core.modules import BUSINESS_TYPE_PRESETS, LEVEL_RANK, LEVELS, MODULES
 
 
 class TestModuleRegistry:
-    def test_modules_are_the_eight_business_domains(self):
+    def test_modules_are_the_business_domains(self):
         assert MODULES == (
             "register",
             "sales",
@@ -16,7 +16,16 @@ class TestModuleRegistry:
             "shop",
             "reports",
             "finance",
+            "ai",
         )
+
+    def test_the_connector_is_in_no_preset(self):
+        """`ai` opens a live door into the data for a third party.
+
+        It is switched on deliberately, never handed over with a business type.
+        """
+        for modules in BUSINESS_TYPE_PRESETS.values():
+            assert "ai" not in modules
 
     def test_levels_rank_manager_above_user(self):
         assert LEVELS == ("user", "manager")
@@ -70,9 +79,11 @@ class TestCompanyModulesMigrationConstants:
     def test_backfill_covers_every_module_that_existed_then(self):
         # shop stayed conditional on is_marketplace_enabled; everything else was
         # granted to every existing company so nobody lost a screen. `finance`
-        # arrived later and is backfilled by its own migration, d1e2f3a4b5c6.
+        # arrived later and is backfilled by its own migration, d1e2f3a4b5c6;
+        # `ai` by b5c6d7e8f9a0, and only for companies that had actually
+        # connected an agent.
         migration = _load_migration()
-        assert set(migration.BASE_MODULES) == set(MODULES) - {"shop", "finance"}
+        assert set(migration.BASE_MODULES) == set(MODULES) - {"shop", "finance", "ai"}
 
     def test_pos_split_is_the_three_domains_that_replaced_it(self):
         migration = _load_migration()

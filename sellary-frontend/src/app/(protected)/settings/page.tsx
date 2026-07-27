@@ -4,10 +4,12 @@ import { useMemo, useState } from 'react';
 import {
   BuildingOffice2Icon,
   BuildingStorefrontIcon,
+  CpuChipIcon,
   ServerStackIcon,
   UsersIcon,
 } from '@heroicons/react/24/outline';
 
+import AiConnectorSection from '@/components/settings/AiConnectorSection';
 import CompanyAdminSection from '@/components/settings/CompanyAdminSection';
 import CompanyProfileSection from '@/components/settings/CompanyProfileSection';
 import MarketplaceSettingsSection from '@/components/settings/MarketplaceSettingsSection';
@@ -17,7 +19,8 @@ import SettingsNav, {
   type SettingsSectionDef,
 } from '@/components/settings/SettingsNav';
 import SystemStatusSection from '@/components/settings/SystemStatusSection';
-import { useAuthStore } from '@/lib/store';
+import { useAuthStore, useModules } from '@/lib/store';
+import { canAccessModule } from '@/lib/modules';
 
 const COMPANY: SettingsSectionDef = {
   id: 'company',
@@ -40,6 +43,13 @@ const TEAM: SettingsSectionDef = {
   Icon: UsersIcon,
 };
 
+const AI: SettingsSectionDef = {
+  id: 'ai',
+  label: 'ИИ-коннектор',
+  summary: 'Подключение Claude и других агентов: адрес, кто подключён, отзыв доступа.',
+  Icon: CpuChipIcon,
+};
+
 const SYSTEM: SettingsSectionDef = {
   id: 'system',
   label: 'Система',
@@ -57,13 +67,18 @@ const SYSTEM: SettingsSectionDef = {
 export default function SettingsPage() {
   const currentCompany = useAuthStore((state) => state.currentCompany);
   const isAdmin = currentCompany?.role === 'admin';
+  const modules = useModules();
 
   // Staff administration is admin-only; the tab would otherwise open onto a
-  // panel that has nothing to show.
-  const sections = useMemo(
-    () => (isAdmin ? [COMPANY, MARKETPLACE, TEAM, SYSTEM] : [COMPANY, MARKETPLACE, SYSTEM]),
-    [isAdmin],
-  );
+  // panel that has nothing to show. The connector tab follows its module: with
+  // `ai` off there is no address to copy and nobody to list, so the tab would
+  // open onto a 403.
+  const sections = useMemo(() => {
+    const list = isAdmin ? [COMPANY, MARKETPLACE, TEAM] : [COMPANY, MARKETPLACE];
+    if (canAccessModule(modules, 'ai')) list.push(AI);
+    list.push(SYSTEM);
+    return list;
+  }, [isAdmin, modules]);
 
   const [activeId, setActiveId] = useState(COMPANY.id);
   const active = sections.find((section) => section.id === activeId) ?? sections[0];
@@ -108,6 +123,7 @@ export default function SettingsPage() {
               {section.id === COMPANY.id && <CompanyProfileSection />}
               {section.id === MARKETPLACE.id && <MarketplaceSettingsSection />}
               {section.id === TEAM.id && <CompanyAdminSection />}
+              {section.id === AI.id && <AiConnectorSection />}
               {section.id === SYSTEM.id && <SystemStatusSection />}
             </div>
           ))}

@@ -107,6 +107,15 @@ debt and paid the amount out — the shop giving back more than it took.
 `remaining_refundable_amount` are unaffected.
 
 ### MCP connector (`sellary-backend/mcp_server/`)
+Gated on the **`ai` module**, like every other domain. It is in no business-type
+preset — it opens a live door into the company's data, so it is switched on
+deliberately. `mcp_session()` checks it on **every tool call**, not just at connect
+time: access tokens live a day, and a switch that only stopped new connections
+would leave the door open until they expired. The OAuth company step hides
+companies without it. Settings → «ИИ-коннектор» (`api/mcp.py`,
+`services/mcp_admin_service.py`) shows the URL to copy and who is connected, and
+revokes one agent by striking its refresh token.
+
 An MCP server mounted in-process at `/mcp` (FastMCP 3.x), so Claude can read every
 report and record a batch purchase. Tools call the same `services/` layer the
 routers call — a tool is the MCP equivalent of a router and holds no business logic.

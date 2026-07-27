@@ -30,7 +30,10 @@ from repositories.company_module_repository import CompanyModuleRepository
 
 logger = logging.getLogger(__name__)
 
+CONNECTOR_MODULE = "ai"
+
 MODULE_LABELS_RU = {
+    "ai": "ИИ-коннектор",
     "register": "Касса",
     "sales": "Продажи",
     "customers": "Клиенты",
@@ -86,13 +89,25 @@ def _resolve(db: Session) -> McpAuth:
     if not membership.user.is_active:
         raise ToolError("Учётная запись отключена.")
 
-    return McpAuth(
+    auth = McpAuth(
         user=membership.user,
         company=membership.company,
         membership=membership,
         role=membership.role,
         scopes=list(token.scopes or []),
     )
+
+    # The connector's own switch, checked on every call rather than only at
+    # connect time. Turning it off has to shut the door on tokens that were
+    # already issued — a switch that only stops *new* connections is not a
+    # switch, and the tokens live for a day.
+    if not CompanyModuleRepository(db).has_module(auth.company_id, CONNECTOR_MODULE):
+        raise ToolError(
+            "ИИ-коннектор отключён для этой компании. "
+            "Включить его может владелец в настройках модулей."
+        )
+
+    return auth
 
 
 @contextmanager

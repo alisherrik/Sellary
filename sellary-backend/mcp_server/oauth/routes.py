@@ -17,7 +17,9 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from core.database import SessionLocal
+from mcp_server.context import CONNECTOR_MODULE
 from mcp_server.oauth import store, templates
+from repositories.company_module_repository import CompanyModuleRepository
 from mcp_server.oauth.transaction import (
     TransactionError,
     decode_txn,
@@ -34,9 +36,17 @@ def _error(message: str, status: int = 400) -> HTMLResponse:
 
 
 def _companies_for(db, user_id: int) -> list[dict]:
+    """The user's companies that may be connected at all.
+
+    A company without the `ai` module is left out rather than shown and
+    refused: offering a choice that cannot work is worse than not offering it,
+    and the login page has no room to explain why.
+    """
+    repo = CompanyModuleRepository(db)
     return [
         {"id": company.id, "name": company.name}
         for company in AuthService(db).get_companies_for_user(user_id)
+        if repo.has_module(company.id, CONNECTOR_MODULE)
     ]
 
 
@@ -112,7 +122,16 @@ async def login_submit(request: Request) -> Response:
 
         companies = _companies_for(db, user.id)
         if not companies:
-            return _error("У этого пользователя нет доступа ни к одной компании.", 403)
+            # Distinguish "you belong to nothing" from "the connector is off",
+            # because the second one has an answer the user can act on.
+            belongs_to_any = bool(AuthService(db).get_companies_for_user(user.id))
+            return _error(
+                "ИИ-коннектор не подключён ни для одной из ваших компаний. "
+                "Включить его может владелец в настройках модулей."
+                if belongs_to_any
+                else "У этого пользователя нет доступа ни к одной компании.",
+                403,
+            )
 
         next_txn = with_values(
             payload, user_id=user.id, user_label=user.full_name or user.username

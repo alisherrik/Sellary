@@ -13,6 +13,7 @@ from .owner import router as owner_router
 from .sync import router as sync_router
 from .device_auth import router as device_auth_router
 from .cash_shifts import router as cash_shifts_router
+from .mcp import router as mcp_connector_router
 from .money import router as money_router
 from .company import router as company_router
 from .shop import router as shop_router
@@ -36,6 +37,7 @@ __all__ = [
     "sync_router",
     "device_auth_router",
     "cash_shifts_router",
+    "mcp_connector_router",
     "money_router",
     "company_router",
     "shop_router",

@@ -6,7 +6,10 @@ export type ModuleKey =
   | 'purchasing'
   | 'shop'
   | 'reports'
-  | 'finance';
+  | 'finance'
+  // ИИ-коннектор (MCP). Mirrors core/modules.py — scripts/check_module_parity.py
+  // fails CI if the two drift.
+  | 'ai';
 export type ModuleLevel = 'user' | 'manager';
 export type ModuleMap = Partial<Record<ModuleKey, ModuleLevel>>;
 
