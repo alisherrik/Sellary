@@ -131,21 +131,45 @@ split 10/10 between DC and Эсхата, and 4 in credit — from one sale.
 
 ## Returns
 
-The owner did not pick a rule, so this is ours, and it is the one that changes
-the least: **the debt goes first.**
+**The debt goes first.** Implemented — see below.
 
-A return against a split sale reduces the sale's outstanding credit before any
-money is handed back. Only what is left after that is refunded, and the cashier
-chooses the method for it from the tenders the sale actually used — which is
-what the return flow already asks for today, just constrained to a sensible
-list.
+A return reduces the sale's outstanding credit before any money is handed back,
+and only what is left is refunded. The cashier still chooses how to hand that
+remainder over, which is what the return flow already asked for.
 
 The reasoning: refunding cash while the customer still owes you for the same
 sale is how a shop ends up chasing a debt it has already paid out on. It also
 keeps the drawer untouched in the common case, so the shift still reconciles.
 
-This is a starting rule, not a principle. If it turns out shops want the money
-back proportionally, that is a change to one function.
+### What the two halves are worth
+
+Before this, a return did two independent things — it wrote the debt down by up
+to the refunded amount, and it recorded the *whole* refunded amount as money
+leaving the till. Nothing compared them. On the worked example returned in
+full, the shop paid out 50 in cash on a sale that had brought in 46 and was
+owed 4, and cancelled the 4 as well.
+
+It needed the cashier to pick a money refund method on a sale that owed money.
+That was always possible — a pure в-долг sale had the same hole — but a split
+sale invites it, because the screen says «Наличные» and gives no hint that part
+of it is on the tab.
+
+`sale_returns.credit_refund_amount` closes it. It records the part the debt
+absorbed; `CashShiftService` and `MoneyRepository._sum_refunds` both read
+`total_refund_amount - credit_refund_amount`, so a written-off debt never
+leaves an account. `total_refund_amount` still means the value of the goods
+returned, so turnover and `remaining_refundable_amount` are untouched.
+
+A child table mirroring `sale_payments` was considered and rejected: the fault
+was not "we cannot record several refund methods", it was "the debt half is
+also paid out". One column says exactly that, and the cashier keeps the freedom
+to hand money back however suits — refunding a card purchase in cash is a real
+thing shops do.
+
+Existing rows are backfilled to zero. They are accurate accounts of what
+actually happened: if 50 in cash did leave the drawer, the balance being 50
+lighter is correct, and rewriting history would move figures the owner has
+already reconciled against.
 
 ## Migration
 

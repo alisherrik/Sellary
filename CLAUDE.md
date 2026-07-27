@@ -96,6 +96,16 @@ rows for what was paid at the till — but those offsets are `entry_type='sale_t
 not `payment`. Money reports filter on `payment`, so the same cash is not counted both
 as a tender and as a debt repayment.
 
+### Refunds and debt
+A return settles the customer's **debt first**. `sale_returns.credit_refund_amount`
+records how much the debt absorbed; the money that actually changed hands is
+`total_refund_amount - credit_refund_amount`, and that is what
+`CashShiftService` and `MoneyRepository._sum_refunds` must use. Counting the whole
+refund as money is how a return on a sale that still owed money both cancelled the
+debt and paid the amount out — the shop giving back more than it took.
+`total_refund_amount` stays the value of the goods returned, so turnover and
+`remaining_refundable_amount` are unaffected.
+
 ### MCP connector (`sellary-backend/mcp_server/`)
 An MCP server mounted in-process at `/mcp` (FastMCP 3.x), so Claude can read every
 report and record a batch purchase. Tools call the same `services/` layer the

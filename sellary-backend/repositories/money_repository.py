@@ -236,7 +236,17 @@ class MoneyRepository:
         return Decimal(query.scalar() or 0)
 
     def _sum_refunds(self, company_id: int, bucket: str, since) -> Decimal:
-        query = self.db.query(func.coalesce(func.sum(SaleReturn.total_refund_amount), ZERO)).filter(
+        # Net of the part written off the customer's debt: that never left an
+        # account, so subtracting it from one would invent money going out.
+        query = self.db.query(
+            func.coalesce(
+                func.sum(
+                    SaleReturn.total_refund_amount
+                    - func.coalesce(SaleReturn.credit_refund_amount, ZERO)
+                ),
+                ZERO,
+            )
+        ).filter(
             SaleReturn.company_id == company_id,
             SaleReturn.created_at >= since,
             cash_refund_filter(bucket == "cash"),

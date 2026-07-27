@@ -167,11 +167,26 @@ class SaleReturnService:
                     reference_id=sale_id,
                 )
 
+        # The debt comes first, and what it absorbs is not money.
+        #
+        # Both halves of a refund used to take the whole amount: the debt was
+        # written down by up to the refund, and the same refund was recorded as
+        # cash leaving the till. On a sale that still owed money the shop
+        # therefore gave back more than it ever took — 50 out of the drawer on
+        # a sale that had brought in 46 and was owed 4.
+        credit_refund = self.customer_ledger.record_return_adjustment(
+            sale,
+            total_refund,
+            user_id,
+            description=f"Возврат по продаже #{sale_id}",
+        )
+
         sale_return = SaleReturn(
             company_id=self.company_id,
             sale_id=sale_id,
             user_id=user_id,
             total_refund_amount=total_refund,
+            credit_refund_amount=credit_refund,
             refund_method=return_data.refund_method,
             notes=return_data.notes,
         )
@@ -188,12 +203,6 @@ class SaleReturnService:
             if all_fully_returned
             else SaleStatus.PARTIALLY_RETURNED
         )
-        self.customer_ledger.record_return_adjustment(
-            sale,
-            total_refund,
-            user_id,
-            description=f"Возврат по продаже #{sale_id}",
-        )
         self.db.flush()
         return self._to_response(sale_return)
 
@@ -205,12 +214,22 @@ class SaleReturnService:
         return [self._to_response(sale_return) for sale_return in returns]
 
     def _to_response(self, sale_return: SaleReturn) -> SaleReturnResponse:
+        # Not `or 0`: Decimal("0.00") is falsy, so that would turn a stored
+        # zero into an unscaled Decimal(0) and serialise it as "0".
+        stored = sale_return.credit_refund_amount
+        credit_refund = Decimal(stored if stored is not None else 0).quantize(
+            Decimal("0.01")
+        )
         return SaleReturnResponse(
             id=sale_return.id,
             sale_id=sale_return.sale_id,
             user_id=sale_return.user_id,
             user_name=sale_return.user.full_name or sale_return.user.username,
             total_refund_amount=sale_return.total_refund_amount,
+            credit_refund_amount=credit_refund,
+            money_refund_amount=(
+                Decimal(sale_return.total_refund_amount) - credit_refund
+            ).quantize(Decimal("0.01")),
             refund_method=sale_return.refund_method,
             notes=sale_return.notes,
             created_at=sale_return.created_at,

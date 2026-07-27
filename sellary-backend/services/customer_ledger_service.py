@@ -189,21 +189,27 @@ class CustomerLedgerService:
         amount: Decimal,
         user_id: int,
         description: str | None = None,
-    ) -> CustomerLedgerEntry | None:
+    ) -> Decimal:
+        """Write a return off the customer's debt, and say how much that was.
+
+        The caller needs the number back: whatever went against the debt must
+        NOT also be handed over as money, and only this function knows how much
+        of the refund the debt could absorb.
+        """
         # Not gated on `payment_method`: a split sale files itself under its
         # largest tender, so a 50 sale with 4 on the tab reads as "cash" and
         # this would have returned the goods while leaving the 4 owed forever.
         # `sale_credit_summary` returns zero when there is no debt, which is
         # the check that actually belongs here.
         if not sale.customer_id:
-            return None
+            return ZERO
         adjustment = min(
             Decimal(amount).quantize(Decimal("0.01")),
             self.sale_credit_summary(sale)["remaining"],
         )
         if adjustment <= ZERO:
-            return None
-        entry = self._add_entry(
+            return ZERO
+        self._add_entry(
             customer_id=sale.customer_id,
             sale_id=sale.id,
             entry_type=CustomerLedgerEntryType.RETURN_ADJUSTMENT,
@@ -213,7 +219,7 @@ class CustomerLedgerService:
             description=description or f"Возврат по продаже #{sale.id}",
         )
         self._refresh_sale_payment_status(sale)
-        return entry
+        return adjustment
 
     def record_cancel_adjustment(
         self,

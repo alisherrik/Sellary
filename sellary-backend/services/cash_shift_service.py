@@ -107,10 +107,18 @@ class CashShiftService:
             )
 
         # --- refunds, by method (money leaving the till) ---
+        # Net of what the customer's debt absorbed: that part was settled by
+        # cancelling what they owed, so it never left the drawer.
         ref_q = (
             self.db.query(
                 SaleReturn.refund_method,
-                func.coalesce(func.sum(SaleReturn.total_refund_amount), ZERO),
+                func.coalesce(
+                    func.sum(
+                        SaleReturn.total_refund_amount
+                        - func.coalesce(SaleReturn.credit_refund_amount, ZERO)
+                    ),
+                    ZERO,
+                ),
             )
             .filter(
                 SaleReturn.company_id == self.company_id,

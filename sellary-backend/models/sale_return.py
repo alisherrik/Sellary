@@ -25,6 +25,14 @@ class SaleReturn(Base):
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     total_refund_amount = Column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
+    # How much of the refund was settled by writing off the customer's debt
+    # rather than handing money over. Money that actually left is
+    # `total_refund_amount - credit_refund_amount`; without the distinction a
+    # return against a sale that still owed money both cancelled the debt and
+    # paid the whole amount out.
+    credit_refund_amount = Column(
+        Numeric(12, 2), nullable=False, server_default="0.00", default=Decimal("0.00")
+    )
     refund_method = Column(
         SQLEnum(
             PaymentMethod,

@@ -39,7 +39,13 @@ class SaleReturnResponse(BaseModel):
     sale_id: int
     user_id: int
     user_name: str
+    # The value of the goods that came back.
     total_refund_amount: Decimal
+    # Of that, how much was settled by cancelling the customer's debt...
+    credit_refund_amount: Decimal = Decimal("0.00")
+    # ...and how much actually changed hands. The two add up to the total.
+    money_refund_amount: Decimal = Decimal("0.00")
+    # How the money half was handed back. Meaningless when it is zero.
     refund_method: PaymentMethod
     notes: Optional[str]
     created_at: datetime

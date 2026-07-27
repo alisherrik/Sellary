@@ -465,14 +465,39 @@ function SalesHistory() {
   };
 
   const creditRemaining = (sale: Sale | null) => Number(sale?.credit_remaining_amount || 0);
+  // Matched on the debt itself, not on `payment_method`. A split sale files
+  // itself under its largest tender, so one settled 26 наличными with 4 on the
+  // tab reads as "cash" — and this button, the only way to take that 4, would
+  // never have appeared.
   const canAcceptDebtPayment = (sale: Sale | null) =>
     Boolean(
       sale &&
-        sale.payment_method === 'credit' &&
         sale.customer_id &&
         sale.status !== 'cancelled' &&
         creditRemaining(sale) > 0,
     );
+
+  // What a return would do, before it is sent. The server settles the debt
+  // first and only hands over what is left; showing that here is what stops a
+  // cashier counting out money the debt has already absorbed.
+  const refundPreview = useMemo(() => {
+    if (!selectedSale) {
+      return { total: 0, credit: 0, money: 0 };
+    }
+    const total = returnQuantities.reduce((sum, rq) => {
+      if (rq.quantity <= 0) return sum;
+      const item = selectedSale.items?.find((i) => i.id === rq.saleItemId);
+      if (!item || Number(item.quantity) <= 0) return sum;
+      // Pro-rata on the line, matching how the server values a part return.
+      return sum + (Number(item.total) * rq.quantity) / Number(item.quantity);
+    }, 0);
+    const credit = Math.min(total, creditRemaining(selectedSale));
+    return {
+      total,
+      credit,
+      money: Math.max(0, total - credit),
+    };
+  }, [selectedSale, returnQuantities]);
 
   const openDebtPaymentModal = (sale: Sale) => {
     setSelectedSale(sale);
@@ -1287,13 +1312,42 @@ function SalesHistory() {
                 )}
               </div>
 
+              {refundPreview.credit > 0 && (
+                <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-900/10 sm:mb-4">
+                  <p className="text-xs font-bold text-amber-900 dark:text-amber-100 sm:text-sm">
+                    Часть возврата спишется с долга
+                  </p>
+                  <dl className="mt-2 space-y-1 text-xs sm:text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-slate-600 dark:text-slate-300">Возвращается товара на</dt>
+                      <dd className="font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                        {formatCurrency(refundPreview.total)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-slate-600 dark:text-slate-300">Спишется с долга</dt>
+                      <dd className="font-semibold tabular-nums text-amber-800 dark:text-amber-200">
+                        {formatCurrency(refundPreview.credit)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between border-t border-amber-200 pt-1 dark:border-amber-900/40">
+                      <dt className="font-bold text-slate-800 dark:text-slate-100">Выдать деньгами</dt>
+                      <dd className="font-black tabular-nums text-slate-900 dark:text-white">
+                        {formatCurrency(refundPreview.money)}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
+
               <div className="mb-3 sm:mb-4">
                 <label className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300 sm:text-sm">
-                  Способ возврата
+                  {refundPreview.credit > 0 ? 'Чем выдать деньги' : 'Способ возврата'}
                 </label>
                 <select
                   value={refundMethod}
                   onChange={(e) => setRefundMethod(e.target.value)}
+                  disabled={refundPreview.credit > 0 && refundPreview.money === 0}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 sm:px-4 sm:py-2.5 sm:text-base"
                 >
                   {refundMethods.map((method) => (
