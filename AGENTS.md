@@ -88,6 +88,10 @@ Required header `Idempotency-Key` (16-64 chars) on:
 - `POST /api/inventory/adjust`
 - `POST /api/purchase-orders/{id}/receive`
 
+### MCP connector
+
+`sellary-backend/mcp_server/` is an MCP server mounted in-process at `/mcp` (FastMCP 3.x). Tools call `services/`, never repositories — a tool is the MCP equivalent of a router. Auth is OAuth 2.1 (PKCE + Dynamic Client Registration) with Sellary as both authorization and resource server; `/authorize` parks the request in a signed transaction and hands the browser to `login → company → consent`. The access token is the ordinary company-scoped JWT plus `mcp: true`, so a web-session token is refused at `/mcp`. Discovery documents are served from the **origin root**, not under the mount. Reports are read-only; the only write is `purchase_preview` → `purchase_commit`, where the commit executes only the signed draft the preview issued. Requires `MCP_PUBLIC_BASE_URL`; in production the connector disables itself if it is unset.
+
 ### Frontend routing
 
 Next.js App Router with route groups: `(protected)/` for authenticated pages, `login/` and `owner/login/` for auth. API requests go through Next.js rewrite proxy (`/api/*` → backend).
@@ -110,5 +114,6 @@ Next.js App Router with route groups: `(protected)/` for authenticated pages, `l
 - `sellary-backend/TESTING_GUIDE.md` — test fixtures, conventions
 - `DOCUMENTATION.md` — full system docs, API endpoints, schema
 - `BUSINESS_LOGIC_GUIDE.md` — business logic in Russian
+- `docs/MCP_CONNECTOR_GUIDE.md` — connecting Sellary to Claude, written for the shop owner (Russian)
 - `ISSUE_TASKS.md` — P0/P1/P2 task backlog
 - `Suggestion.md` — MVP scope recommendations (Uzbek)

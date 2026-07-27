@@ -75,6 +75,25 @@ These mutating endpoints **require** an `Idempotency-Key` header (16–64 chars)
 ### Frontend
 Next.js App Router with route groups: `(protected)/` (authenticated app pages), `login/`, and `owner/` (owner panel). Browser API calls go to `/api/*`, which a Next.js rewrite proxy forwards to the backend (`NEXT_PUBLIC_API_PROXY_TARGET`, default `http://127.0.0.1:8001`). State is split between Zustand stores (`src/lib/store.ts`, `src/lib/owner-store.ts`) and TanStack Query.
 
+### MCP connector (`sellary-backend/mcp_server/`)
+An MCP server mounted in-process at `/mcp` (FastMCP 3.x), so Claude can read every
+report and record a batch purchase. Tools call the same `services/` layer the
+routers call — a tool is the MCP equivalent of a router and holds no business logic.
+
+Auth is OAuth 2.1 with PKCE and Dynamic Client Registration, with Sellary acting as
+both authorization and resource server (`mcp_server/oauth/`). `/authorize` parks the
+request in a signed transaction and hands the browser to `login → company → consent`
+(server-rendered Russian pages), which mints the code. The access token is the
+ordinary company-scoped JWT plus an `mcp: true` claim, so a web-session token is
+rejected at `/mcp` and an MCP token carries no more authority than its owner's login.
+Discovery documents are served from the **origin root**, not under the mount.
+
+Reports are read-only. The only write is the two-phase purchase: `purchase_preview`
+resolves a delivery against the catalogue and returns a signed `draft_token` without
+writing; `purchase_commit` executes only what that token carries, guarded by the
+existing `idempotency_keys` table. Required env var: `MCP_PUBLIC_BASE_URL` (the public
+https origin) — in production the connector disables itself if it is unset.
+
 ### Tauri cashier — offline-first sync
 The cashier app is a local-first POS. It keeps a local SQLite catalog and an **outbox** of sales (`src/lib/db.ts`), and reconciles with the server via the backend's sync endpoints:
 - `GET /api/sync/bootstrap` — pull products/categories into the offline catalog
@@ -102,4 +121,6 @@ The cashier app is a local-first POS. It keeps a local SQLite catalog and an **o
 - `sellary-backend/RUNBOOK.md` — tenant tables, multi-company operations
 - `sellary-backend/TESTING_GUIDE.md` — test fixtures and conventions
 - `BUSINESS_LOGIC_GUIDE.md` — business rules (Russian)
+- `docs/MCP_CONNECTOR_GUIDE.md` — connecting Sellary to Claude, for the shop owner (Russian)
+- `docs/superpowers/specs/2026-07-27-sellary-mcp-server-design.md` — MCP design; the plan sits alongside it in `plans/`
 - `ISSUE_TASKS.md` — P0/P1/P2 backlog; `Suggestion.md` — MVP scope notes (Uzbek)

@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -43,8 +44,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+def _startup() -> None:
     ensure_customer_credit_schema()
     db = SessionLocal()
     try:
@@ -52,16 +52,56 @@ async def lifespan(app: FastAPI):
         db.commit()
     finally:
         db.close()
-    yield
+
+
+def _make_lifespan(mcp_app):
+    """Our own startup, plus the MCP session manager when it is mounted.
+
+    The MCP ASGI app carries a lifespan of its own that must run for streamable
+    HTTP sessions to work. Replacing ours with theirs would drop
+    `ensure_super_admin` and break bootstrap, so both run.
+    """
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        _startup()
+        if mcp_app is None:
+            yield
+            return
+        async with mcp_app.lifespan(app):
+            yield
+
+    return lifespan
+
+
+def _build_mcp():
+    """The MCP connector, or nothing if it is disabled or fails to load.
+
+    A broken connector must not take the register down with it: the POS is the
+    business, the connector is a convenience.
+    """
+    if not settings.MCP_ENABLED:
+        return None, []
+    try:
+        from mcp_server.server import build_mcp_app, well_known_routes
+
+        return build_mcp_app(), well_known_routes()
+    except Exception:  # pragma: no cover - defensive
+        logging.getLogger(__name__).exception(
+            "MCP connector failed to initialise; continuing without it"
+        )
+        return None, []
 
 
 def create_app() -> FastAPI:
+    mcp_app, mcp_well_known = _build_mcp()
+
     app = FastAPI(
         title=settings.PROJECT_NAME,
         version=settings.VERSION,
         docs_url="/docs",
         redoc_url="/redoc",
-        lifespan=lifespan,
+        lifespan=_make_lifespan(mcp_app),
     )
 
     app.add_middleware(
@@ -101,6 +141,21 @@ def create_app() -> FastAPI:
     app.include_router(shop_orders_router, prefix=settings.API_V1_STR)
     app.include_router(orders_router, prefix=settings.API_V1_STR)
     app.include_router(telegram_webhook_router, prefix=settings.API_V1_STR)
+
+    if mcp_app is not None:
+        # Discovery documents belong at the origin root — that is where OAuth
+        # clients look for them — while the operational endpoints live under
+        # the mount. Serving the metadata from under /mcp is the quiet failure
+        # where a connector never manages to authenticate.
+        for route in mcp_well_known:
+            app.router.routes.append(route)
+
+        # Exact `/mcp` first, then the mount for everything beneath it — the
+        # mount alone cannot serve the bare path (see ExactPathRoute).
+        from mcp_server.server import ExactPathRoute
+
+        app.router.routes.append(ExactPathRoute("/mcp", mcp_app))
+        app.mount("/mcp", mcp_app)
 
     return app
 

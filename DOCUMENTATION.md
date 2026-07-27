@@ -464,6 +464,54 @@ Module access: business endpoints are gated per module (`pos`: sales/shifts/cust
 
 Requires company-scoped `access_token`.
 
+### MCP Connector (`/mcp`)
+
+An MCP server mounted in-process, so Claude (or any MCP client) can read reports
+and record a batch purchase conversationally. Owner-facing instructions live in
+`docs/MCP_CONNECTOR_GUIDE.md`; the design is in
+`docs/superpowers/specs/2026-07-27-sellary-mcp-server-design.md`.
+
+**Connector URL:** `<origin>/mcp` — e.g. `https://sellary-production-30ec.up.railway.app/mcp`
+
+**Auth:** OAuth 2.1 with PKCE (S256) and Dynamic Client Registration. Sellary is
+both the authorization and the resource server. Discovery lives at the origin
+root; the operational endpoints sit under the mount.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/.well-known/oauth-protected-resource/mcp` | Resource metadata (RFC 9728) |
+| GET | `/.well-known/oauth-authorization-server/mcp` | Authorization server metadata (RFC 8414) |
+| POST | `/mcp/register` | Dynamic client registration (RFC 7591) |
+| GET | `/mcp/authorize` | Starts login → company → consent |
+| POST | `/mcp/token` | Code or refresh token → tokens |
+| POST | `/mcp/revoke` | Revocation |
+| POST | `/mcp` | The MCP endpoint (streamable HTTP) |
+
+The issued access token is the ordinary company-scoped JWT with an `mcp: true`
+claim. A web-session token is refused at `/mcp`; an MCP token carries no more
+authority than its owner's normal login, and every tool re-checks the company's
+module set and the member's grant.
+
+**Tools (17).** Reports: `get_dashboard`, `get_sales_summary`, `get_daily_sales`,
+`get_profit_report`, `get_top_products`. Purchasing: `get_purchase_summary`,
+`get_purchases_by_supplier`, `get_purchases_by_product`, `get_outstanding_orders`,
+`list_suppliers`. Register: `get_current_shift`, `list_shifts`. Inventory:
+`search_products`, `get_low_stock`. Finance: `get_money_accounts`. Writing:
+`purchase_preview` → `purchase_commit`.
+
+Everything except the purchase pair is read-only. `purchase_preview` resolves a
+delivery against the catalogue and returns a signed 15-minute `draft_token`
+without writing; `purchase_commit` executes only what that token carries, guarded
+by the existing `idempotency_keys` table, so a repeated confirmation cannot buy
+the delivery twice. Sales, returns and voids are deliberately absent.
+
+Report tools take a named `period` (`today`, `last_month`, `last_30_days`,
+`custom`, …) resolved on `companies.timezone`.
+
+Configuration: `MCP_PUBLIC_BASE_URL` (required in production — the connector
+disables itself if it is left at the localhost default), `MCP_ENABLED`,
+`MCP_ACCESS_TOKEN_EXPIRE_MINUTES`, `MCP_REFRESH_TOKEN_EXPIRE_DAYS`.
+
 ---
 
 ## Limitations & What's NOT Included

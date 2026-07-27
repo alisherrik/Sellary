@@ -27,6 +27,7 @@ from .platform_setting import PlatformSetting
 from .membership_module_access import MembershipModuleAccess
 from .company_module import CompanyModule
 from .money_account import MoneyAccount, MoneyMovement
+from .oauth import OAuthAuthCode, OAuthClient, OAuthRefreshToken
 
 __all__ = [
     "Company",
@@ -65,4 +66,7 @@ __all__ = [
     "CompanyModule",
     "MoneyAccount",
     "MoneyMovement",
+    "OAuthClient",
+    "OAuthAuthCode",
+    "OAuthRefreshToken",
 ]

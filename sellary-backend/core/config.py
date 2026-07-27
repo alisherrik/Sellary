@@ -75,6 +75,17 @@ class Settings(BaseSettings):
     ]
     BACKEND_CORS_ORIGINS_RAW: str = ""
 
+    # MCP connector (Claude / any MCP client). The public origin this backend is
+    # reachable at — OAuth metadata, redirect URLs and the resource identifier
+    # are all built from it, so a wrong value breaks the connect flow silently.
+    # No trailing slash.
+    MCP_PUBLIC_BASE_URL: str = "http://127.0.0.1:8001"
+    MCP_ENABLED: bool = True
+    # A connector token sits in a third party's storage, so it lives shorter
+    # than the 7-day web session. Refresh keeps the connection alive.
+    MCP_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+    MCP_REFRESH_TOKEN_EXPIRE_DAYS: int = 60
+
     # Pagination
     DEFAULT_PAGE_SIZE: int = 50
     MAX_PAGE_SIZE: int = 200
@@ -127,6 +138,21 @@ class Settings(BaseSettings):
                 RuntimeWarning,
                 stacklevel=2,
             )
+
+        # OAuth metadata, redirect URLs and the token audience are all built
+        # from this origin. Left at the localhost default in production it
+        # would advertise endpoints no client can reach, so the connector is
+        # switched off rather than published broken.
+        if self.MCP_ENABLED and is_prod:
+            host = self.MCP_PUBLIC_BASE_URL
+            if "127.0.0.1" in host or "localhost" in host or not host.startswith("https://"):
+                self.MCP_ENABLED = False
+                warnings.warn(
+                    "MCP connector disabled: MCP_PUBLIC_BASE_URL must be the "
+                    f"public https origin of this backend (got '{host}').",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
 
         if self.SYNC_ALLOW_OVERSELL:
             warnings.warn(
