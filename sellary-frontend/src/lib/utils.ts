@@ -131,10 +131,22 @@ export const printReceipt = (sale: any): void => {
   const cardLabels: Record<string, string> = {
     alif: 'Alif', eskhata: 'Эсхата', dc: 'DC',
   };
-  const paymentLabel =
-    sale.payment_method === 'card' && sale.card_type
-      ? `${paymentLabels.card} (${cardLabels[sale.card_type] ?? sale.card_type})`
-      : paymentLabels[sale.payment_method] ?? sale.payment_method;
+  const tenderLabel = (method: string, cardType?: string | null) =>
+    method === 'card' && cardType
+      ? `${paymentLabels.card} (${cardLabels[cardType] ?? cardType})`
+      : paymentLabels[method] ?? method;
+
+  // A split sale is named tender by tender, with the amounts. The receipt is
+  // the copy the customer keeps: printing «Наличные» on a sale settled 26
+  // наличными, 10 DC, 10 Эсхата and 4 в долг misstates what they handed over
+  // and what they still owe.
+  const tenders: Array<{ method: string; card_type?: string | null; amount: string }> =
+    sale.is_split && Array.isArray(sale.payments) ? sale.payments : [];
+  const paymentLabel = tenders.length
+    ? tenders
+        .map((t) => `${tenderLabel(t.method, t.card_type)} — ${formatCurrency(t.amount)}`)
+        .join('<br>')
+    : tenderLabel(sale.payment_method, sale.card_type);
 
   const itemsHtml = sale.items
     .map(

@@ -231,6 +231,13 @@ export interface SaleItem {
   can_return: boolean;
 }
 
+/** One tender in a sale: 26 наличными, 10 картой DC, 4 в долг. */
+export interface SalePayment {
+  method: 'cash' | 'card' | 'mobile' | 'credit';
+  card_type?: 'alif' | 'eskhata' | 'dc' | null;
+  amount: string;
+}
+
 export interface Sale {
   id: number;
   customer_id?: number;
@@ -243,8 +250,13 @@ export interface Sale {
   total_amount: string;
   refunded_amount?: string;
   remaining_refundable_amount?: string;
+  // The LARGEST tender when the sale was split. `payments` below is what the
+  // customer actually handed over; this field exists for display and for
+  // anything written before split payments.
   payment_method: 'cash' | 'card' | 'mobile' | 'credit';
   card_type?: 'alif' | 'eskhata' | 'dc';
+  is_split?: boolean;
+  payments?: SalePayment[];
   payment_status?: 'paid' | 'unpaid' | 'partial' | 'settled';
   credit_amount?: string;
   credit_paid_amount?: string;

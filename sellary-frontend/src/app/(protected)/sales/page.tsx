@@ -17,7 +17,7 @@ import FilterMenu from '@/components/filters/FilterMenu';
 import { ModuleGuard } from '@/components/ModuleGuard';
 import QueryError from '@/components/ui/QueryError';
 import AnnulmentDialog from '@/components/transactions/AnnulmentDialog';
-import { Sale, SaleItem, VoidPreview } from '@/lib/types';
+import { Sale, SaleItem, SalePayment, VoidPreview } from '@/lib/types';
 import { useModules } from '@/lib/store';
 import { canAccessModule } from '@/lib/modules';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -55,8 +55,38 @@ interface ReturnQuantity {
 type StatusFilter = 'all' | 'completed' | 'returns' | 'cancelled';
 type PaymentFilter = 'all' | Sale['payment_method'];
 
+const CARD_LABELS: Record<string, string> = { alif: 'Alif', eskhata: 'Eskhata', dc: 'DC' };
+const METHOD_LABELS: Record<string, string> = {
+  cash: 'Наличные',
+  card: 'Карта',
+  mobile: 'Мобильный',
+  credit: 'В долг',
+};
+
+/** "Наличные", "Карта DC", "В долг" — one tender named in full. */
+const tenderLabel = (payment: SalePayment) =>
+  payment.method === 'card'
+    ? `Карта ${payment.card_type ? CARD_LABELS[payment.card_type] ?? payment.card_type : ''}`.trim()
+    : METHOD_LABELS[payment.method] ?? payment.method;
+
+const splitTenders = (sale: Sale): SalePayment[] =>
+  sale.is_split && sale.payments?.length ? sale.payments : [];
+
 const paymentChip = (sale: Sale) => {
-  const cardLabels: Record<string, string> = { alif: 'Alif', eskhata: 'Eskhata', dc: 'DC' };
+  const cardLabels = CARD_LABELS;
+  // A split sale must not masquerade as its largest tender. Showing
+  // «Наличные» for 26 наличными + 10 DC + 10 Эсхата + 4 в долг is how a
+  // cashier refunds the wrong way and how the till stops reconciling.
+  const tenders = splitTenders(sale);
+  if (tenders.length > 0) {
+    return {
+      label: `🧩 Смешанная · ${tenders.length}`,
+      cls: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200',
+      title: tenders
+        .map((t) => `${tenderLabel(t)}: ${formatCurrency(t.amount)}`)
+        .join('\n'),
+    };
+  }
   if (sale.payment_method === 'credit') {
     return {
       label: '🧾 В долг',
@@ -877,7 +907,7 @@ function SalesHistory() {
                           <p className="mt-0.5 text-[11px] text-[var(--erp-muted)]">
                             {sale.cashier_name} · {new Date(sale.created_at).toLocaleString('ru-RU')}
                           </p>
-                          <span className={`mt-1 inline-block px-2 py-0.5 text-[10px] ${chip.cls}`}>{chip.label}</span>
+                          <span title={chip.title} className={`mt-1 inline-block px-2 py-0.5 text-[10px] ${chip.cls}`}>{chip.label}</span>
                         </div>
                         <div className="text-right">
                           <p className="font-bold tabular-nums text-[var(--erp-text)]">{formatCurrency(sale.total_amount)}</p>
@@ -938,7 +968,7 @@ function SalesHistory() {
                           <td className="px-4 py-3 text-gray-700">{sale.cashier_name}</td>
                           <td className="px-4 py-3 text-right tabular-nums text-gray-500">{sale.items?.length ?? 0}</td>
                           <td className="px-4 py-3">
-                            <span className={`px-2 py-0.5 text-[11px] font-medium ${chip.cls}`}>{chip.label}</span>
+                            <span title={chip.title} className={`px-2 py-0.5 text-[11px] font-medium ${chip.cls}`}>{chip.label}</span>
                           </td>
                           <td className="px-4 py-3 text-right font-semibold tabular-nums text-[var(--erp-text)]">
                             {formatCurrency(sale.total_amount)}
@@ -1072,6 +1102,15 @@ function SalesHistory() {
                 <div className="mt-1 flex justify-between text-[13px] text-gray-500"><span>Налог</span><span className="tabular-nums">{formatCurrency(selectedSale.tax_amount)}</span></div>
                 <div className="mt-2 flex justify-between border-t border-gray-100 pt-2 text-[13px] font-semibold text-gray-900 dark:border-gray-700 dark:text-white"><span>Итого</span><span className="tabular-nums">{formatCurrency(selectedSale.total_amount)}</span></div>
                 <div className="mt-1 flex justify-between text-[13px] text-gray-500"><span>Оплата</span><span>{paymentChip(selectedSale).label}</span></div>
+                {splitTenders(selectedSale).map((tender, index) => (
+                  <div
+                    key={`${tender.method}-${tender.card_type ?? ''}-${index}`}
+                    className="mt-1 flex justify-between pl-3 text-[13px] text-gray-500"
+                  >
+                    <span>· {tenderLabel(tender)}</span>
+                    <span className="tabular-nums">{formatCurrency(tender.amount)}</span>
+                  </div>
+                ))}
               </div>
 
               {renderCreditDebtSummary(selectedSale)}
