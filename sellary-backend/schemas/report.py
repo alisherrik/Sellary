@@ -34,6 +34,10 @@ class ProfitReport(BaseModel):
     profit: Decimal
     profit_margin_percent: Decimal
     sales_count: int
+    # Spoilage sits beside profit, not inside it: `profit` keeps the meaning
+    # every existing caller (frontend, MCP get_profit_report) already reads.
+    write_off_cost: Decimal = Decimal("0.00")
+    profit_after_write_offs: Decimal = Decimal("0.00")
 
 
 class TopProductItem(BaseModel):
