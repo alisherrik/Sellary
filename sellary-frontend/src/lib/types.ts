@@ -463,8 +463,12 @@ export interface SalesSummary {
   card: string;
   mobile: string;
   credit: string;
-  // Cash collected against в-долг sales in the window. The drawer is
-  // `cash + cash_debt_payments`; the debt still owed is `credit - cash_debt_payments`.
+  // Cash collected against в-долг sales in the window; the debt still owed is
+  // `credit - cash_debt_payments`. NOT a drawer balance and never to be shown
+  // as one — `cash + cash_debt_payments` is cash that PASSED THROUGH the till
+  // over the window, which is a different quantity from what is in it now. How
+  // much is in the drawer is answered by the till MoneyAccount alone (Деньги,
+  // and the shift's «Ожидается в кассе», which reads the same figure).
   cash_debt_payments: string;
 }
 

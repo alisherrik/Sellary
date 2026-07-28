@@ -285,7 +285,6 @@ function SalesHistory() {
       card: Number(summary?.card ?? 0),
       mobile: Number(summary?.mobile ?? 0),
       credit: Number(summary?.credit ?? 0),
-      cashDebtPayments: Number(summary?.cash_debt_payments ?? 0),
     }),
     [summary],
   );
@@ -790,14 +789,16 @@ function SalesHistory() {
               <p className="mt-1 text-[11px] tabular-nums text-[var(--erp-muted)]">
                 чистая: {formatCurrency(totals.net)}
               </p>
-              {/* Two distinct views of the same day, deliberately not merged:
-                  1) turnover split by method (Наличные+Карта+В долг === Оборот) —
-                     these are SALES, so none can go negative;
-                  2) «В кассе» — the physical drawer, which is cash sales PLUS долг
-                     collected in cash. It can legitimately exceed Оборот when old
-                     debt is repaid today, which is exactly why the two differ.
-                  Folding погашение into a «в долг остаток» made that line go
-                  negative on a filtered day and Касса overtake Оборот. */}
+              {/* Turnover split by method: Наличные + Карта + В долг === Оборот.
+                  These are SALES, so none can go negative.
+
+                  There was a «В кассе (наличными)» line here — cash tenders plus
+                  долг collected in cash. It read as the drawer's balance and was
+                  not: over 90 days it said 13 828.43 while the drawer held
+                  14 124.36, and the shop owner spent a morning trying to work
+                  out which screen to believe. How much cash there is now is
+                  answered in one place, Деньги and Смена. This page answers how
+                  much was sold in a period, and nothing else. */}
               <div className="mt-2 space-y-0.5 border-t border-gray-100 pt-2 dark:border-gray-700">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-gray-500 dark:text-gray-400">Наличные</span>
@@ -815,16 +816,6 @@ function SalesHistory() {
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="text-gray-500 dark:text-gray-400">Онлайн</span>
                     <span className="tabular-nums text-gray-600 dark:text-gray-300">{formatCurrency(totals.mobile)}</span>
-                  </div>
-                )}
-                <div className="mt-1 flex items-center justify-between border-t border-gray-100 pt-1 text-[11px] dark:border-gray-700">
-                  <span className="text-gray-500 dark:text-gray-400">В кассе (наличными)</span>
-                  <span className="font-semibold tabular-nums text-[var(--erp-success)]">{formatCurrency(totals.cash + totals.cashDebtPayments)}</span>
-                </div>
-                {totals.cashDebtPayments > 0 && (
-                  <div className="flex items-center justify-between text-[11px] text-[var(--erp-muted)]">
-                    <span>· в т.ч. оплата долга</span>
-                    <span className="tabular-nums">{formatCurrency(totals.cashDebtPayments)}</span>
                   </div>
                 )}
               </div>

@@ -224,6 +224,18 @@ describe('Sales history smart search', () => {
     expect(screen.getAllByText(/88/).length).toBeGreaterThan(0);
   });
 
+  it('does not answer how much cash is in the drawer', async () => {
+    // It used to, as «В кассе (наличными)» — cash tenders plus долг collected in
+    // cash over the window. That is cash which PASSED THROUGH the till, not what
+    // is in it: it read 13 828.43 while the drawer held 14 124.36, and the shop
+    // owner had two plausible screens and no way to tell which was the money.
+    // The drawer is answered in one place — Деньги and the shift, which now read
+    // the same till account.
+    renderPage();
+    expect(screen.queryByText(/В кассе/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/оплата долга/)).not.toBeInTheDocument();
+  });
+
   it('renders hourly bars from the server buckets at a visible height', () => {
     vi.mocked(useSalesSummary).mockReturnValue(
       summaryResult({
