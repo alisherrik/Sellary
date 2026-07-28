@@ -296,6 +296,13 @@ export interface ShiftTotals {
   movements_in: string;
   movements_out: string;
   movements: ShiftMovement[];
+  /**
+   * Cash in the drawer this shift's own window cannot account for — usually an
+   * offline sale that synced in after its shift had closed. Kept as its own
+   * line so «Ожидается в кассе» can equal the Касса balance on the money page
+   * without the arithmetic above it appearing to be wrong.
+   */
+  late_arrivals: string;
   expected_cash: string;
 }
 
@@ -784,4 +791,64 @@ export interface InventoryLog {
   reference_type?: string | null;
   reference_id?: number | null;
   created_at: string;
+}
+
+// Taking goods off the shelf. Two independent axes: `reason_code` says why the
+// goods are unsellable, `disposition` says where they went. A supplier return
+// moves no money — it records that the goods left and who took them.
+export type WriteOffDisposition = 'disposed' | 'returned_to_supplier';
+
+export type WriteOffReason =
+  | 'spoiled'
+  | 'damaged'
+  | 'defective'
+  | 'expired'
+  | 'lost'
+  | 'shortage'
+  | 'internal_use';
+
+export interface WriteOffItem {
+  id: number;
+  product_id: number;
+  product_name: string;
+  product_unit_id: number | null;
+  unit_name: string | null;
+  unit_quantity: string;
+  quantity: string;
+  unit_cost: string;
+  line_cost: string;
+}
+
+export interface WriteOff {
+  id: number;
+  disposition: WriteOffDisposition;
+  reason_code: WriteOffReason;
+  supplier_id: number | null;
+  supplier_name: string | null;
+  notes: string | null;
+  total_cost: string;
+  created_by_user_id: number;
+  created_by_name: string | null;
+  created_at: string;
+  items: WriteOffItem[];
+}
+
+export interface WriteOffListResponse {
+  items: WriteOff[];
+  total: number;
+}
+
+export interface WriteOffSummaryBucket {
+  key: string;
+  total_cost: string;
+  document_count: number;
+}
+
+export interface WriteOffSummary {
+  period_start: string;
+  period_end: string;
+  total_cost: string;
+  document_count: number;
+  by_reason: WriteOffSummaryBucket[];
+  by_disposition: WriteOffSummaryBucket[];
 }
