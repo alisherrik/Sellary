@@ -29,6 +29,7 @@ from .membership_module_access import MembershipModuleAccess
 from .company_module import CompanyModule
 from .money_account import MoneyAccount, MoneyMovement
 from .oauth import OAuthAuthCode, OAuthClient, OAuthRefreshToken
+from .stock_write_off import StockWriteOff, StockWriteOffItem
 
 __all__ = [
     "Company",
@@ -71,4 +72,6 @@ __all__ = [
     "OAuthClient",
     "OAuthAuthCode",
     "OAuthRefreshToken",
+    "StockWriteOff",
+    "StockWriteOffItem",
 ]

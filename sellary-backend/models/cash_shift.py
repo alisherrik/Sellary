@@ -38,6 +38,12 @@ class CashShift(Base):
     offline sale land in the right shift purely by its timestamp. The computed
     totals are frozen onto the row at close (`closing_totals`) so a sale that
     syncs in afterwards can never rewrite a closed shift's numbers.
+
+    The shift does NOT own the cash figure. The till `MoneyAccount` does, and
+    `expected_cash` is read from it — see `CashShiftService.compute_totals`. A
+    physical count is written as a `MoneyMovement` rather than stored as a
+    second opinion, so `opening_cash` and `counted_cash` are what somebody
+    counted and the account stays the one answer to what the drawer holds.
     """
 
     __tablename__ = "cash_shifts"

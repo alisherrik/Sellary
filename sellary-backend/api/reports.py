@@ -21,17 +21,10 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 def _default_range(service: ReportService, start_date, end_date, days: int):
     """Fill in a missing range as the last `days` local business days.
 
-    Anchored on the company's clock — `datetime.now()` here would anchor on the
-    server's UTC day and cut the range at the wrong boundary.
+    The rule itself lives on ReportService so other routers (the write-off
+    summary) share one company-clock range instead of hand-rolling a second.
     """
-    tz = service.tz()
-    if not end_date:
-        _, end_date = service.local_day_bounds()
-    if not start_date:
-        start_date, _ = service.local_day_bounds(
-            datetime.now(tz).date() - timedelta(days=days)
-        )
-    return start_date, end_date
+    return service.default_range(start_date, end_date, days)
 
 
 @router.get("/dashboard", response_model=DashboardWidgets)

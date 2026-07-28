@@ -48,6 +48,9 @@ import type {
   PurchaseByProductRow,
   PurchaseBySupplierRow,
   OutstandingOrderRow,
+  WriteOff,
+  WriteOffListResponse,
+  WriteOffSummary,
 } from './types';
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/$/, '');
@@ -350,6 +353,25 @@ export const inventoryApi = {
   },
   getLogs: (params?: any) => api.get('/inventory/logs', { params }),
   getValuation: () => api.get('/inventory/valuation'),
+};
+
+/**
+ * Write-offs: spoiled or broken goods leaving the shelf as a document, either
+ * thrown away or handed back to the supplier. Creating one is manager-level and
+ * carries an idempotency key like every other stock-moving call.
+ */
+export const writeOffsApi = {
+  list: (params?: Record<string, unknown>) =>
+    api.get<WriteOffListResponse>('/write-offs', { params }),
+  getById: (id: number) => api.get<WriteOff>(`/write-offs/${id}`),
+  getSummary: (params?: Record<string, unknown>) =>
+    api.get<WriteOffSummary>('/write-offs/summary', { params }),
+  create: (data: unknown, idempotencyKey?: string) => {
+    const key = idempotencyKey || generateIdempotencyKey();
+    return api.post<WriteOff>('/write-offs', data, {
+      headers: { 'Idempotency-Key': key },
+    });
+  },
 };
 
 export const reportsApi = {

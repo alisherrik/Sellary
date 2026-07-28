@@ -15,6 +15,7 @@ from api import (
     products_router,
     sales_router,
     inventory_router,
+    write_offs_router,
     reports_router,
     categories_router,
     customers_router,
@@ -126,6 +127,7 @@ def create_app() -> FastAPI:
     app.include_router(products_router, prefix=settings.API_V1_STR)
     app.include_router(sales_router, prefix=settings.API_V1_STR)
     app.include_router(inventory_router, prefix=settings.API_V1_STR)
+    app.include_router(write_offs_router, prefix=settings.API_V1_STR)
     app.include_router(reports_router, prefix=settings.API_V1_STR)
     app.include_router(categories_router, prefix=settings.API_V1_STR)
     app.include_router(customers_router, prefix=settings.API_V1_STR)

@@ -22,6 +22,7 @@ const totals: ShiftTotals = {
   movements_in: '0.00',
   movements_out: '0.00',
   movements: [],
+  late_arrivals: '0.00',
   expected_cash: '12583.12',
 };
 
@@ -106,6 +107,28 @@ describe('ShiftTotalsPanel', () => {
     );
     expect(valueFor('Возвраты наличными')).toContain('4,70');
     expect(valueFor('Ожидается в кассе')).toContain('12 578,42');
+  });
+
+  /**
+   * The real Смена №7 of company 2: the money page said 14 124.36 and the
+   * shift said 13 784.62, and nothing on either screen explained the 339.74.
+   * Most of it was offline sales that synced in after their own shift had
+   * closed — cash genuinely in the drawer, invisible to this window.
+   */
+  it('names the cash the window cannot see instead of letting the totals disagree', () => {
+    render(
+      <ShiftTotalsPanel
+        shift={openShift}
+        totals={{ ...totals, late_arrivals: '339.74', expected_cash: '12922.86' }}
+      />,
+    );
+    expect(valueFor('Продажи прошлых смен')).toContain('339,74');
+    expect(valueFor('Ожидается в кассе')).toContain('12 922,86');
+  });
+
+  it('keeps the row out of the way when the window explains everything', () => {
+    render(<ShiftTotalsPanel shift={openShift} totals={totals} />);
+    expect(screen.queryByText('Продажи прошлых смен')).not.toBeInTheDocument();
   });
 
   it('names a shortfall and an overage rather than calling both a discrepancy', () => {

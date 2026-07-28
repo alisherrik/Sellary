@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import List
 from zoneinfo import ZoneInfo
@@ -13,6 +13,7 @@ from models.sale_return import SaleReturn
 from repositories.inventory_repository import InventoryRepository
 from repositories.product_repository import ProductRepository
 from repositories.sale_repository import NON_CANCELLED_STATUSES, SaleRepository
+from repositories.stock_write_off_repository import StockWriteOffRepository
 from schemas.report import (
     DailySalesData,
     DailySalesReport,
@@ -42,6 +43,21 @@ class ReportService:
 
     def local_day_bounds(self, day=None) -> tuple[datetime, datetime]:
         return local_day_bounds(self.tz(), day)
+
+    def default_range(self, start_date, end_date, days: int) -> tuple[datetime, datetime]:
+        """Fill in a missing range as the last `days` local business days.
+
+        Anchored on the company's clock — `datetime.now()` here would anchor on
+        the server's UTC day and cut the range at the wrong boundary.
+        """
+        tz = self.tz()
+        if not end_date:
+            _, end_date = self.local_day_bounds()
+        if not start_date:
+            start_date, _ = self.local_day_bounds(
+                datetime.now(tz).date() - timedelta(days=days)
+            )
+        return start_date, end_date
 
     def _net_revenue_subquery(self):
         return self.sale_repo.refund_totals_subquery(self.company_id)
@@ -228,6 +244,10 @@ class ReportService:
             or 0
         )
 
+        write_off_cost = StockWriteOffRepository(self.db).total_cost(
+            self.company_id, start_date, end_date
+        )
+
         return ProfitReport(
             period_start=start_date.isoformat(),
             period_end=end_date.isoformat(),
@@ -236,6 +256,8 @@ class ReportService:
             profit=profit,
             profit_margin_percent=profit_margin.quantize(Decimal("0.01")),
             sales_count=sales_count,
+            write_off_cost=write_off_cost,
+            profit_after_write_offs=profit - write_off_cost,
         )
 
     def get_top_products(

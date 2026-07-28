@@ -8,12 +8,14 @@ from sqlalchemy.orm import Session
 
 from models.cash_shift import CashShift, CashShiftSnapshot, CashShiftStatus
 from models.customer_ledger_entry import CustomerLedgerEntry, CustomerLedgerEntryType
+from models.money_account import MoneyMovement
 from models.sale import PaymentMethod, Sale
 from models.sale_payment import SalePayment
 from models.sale_return import SaleReturn
 from repositories.money_repository import MoneyRepository
 from repositories.sale_repository import NON_CANCELLED_STATUSES
 from schemas.cash_shift import ShiftMovement, ShiftTotals
+from services.company_time import utc_now
 from services.money_service import REASON_LABELS as MOVEMENT_REASON_LABELS
 from services.tenant import resolve_company_id
 
@@ -32,7 +34,11 @@ class CashShiftService:
     # ------------------------------------------------------------------ totals
 
     def compute_totals(
-        self, start: datetime, end: Optional[datetime], opening_cash: Decimal
+        self,
+        start: datetime,
+        end: Optional[datetime],
+        opening_cash: Decimal,
+        till_balance: Optional[Decimal] = None,
     ) -> ShiftTotals:
         """Everything that hit the till in [start, end), split by method.
 
@@ -40,6 +46,12 @@ class CashShiftService:
         `end=None` means "up to now" (an open shift). Sales, refunds and debt
         repayments are matched by their own timestamp, which is why a sale that
         syncs in late still lands in the correct shift.
+
+        `till_balance` is the money account's own figure, as of now. Pass it
+        whenever the window ends now — a live shift, a snapshot, a close — and
+        it becomes `expected_cash`, with whatever the window could not explain
+        surfacing as `late_arrivals`. Leave it out for a historical window,
+        where a balance taken now would answer a different question.
         """
         totals = ShiftTotals(expected_cash=opening_cash)
 
@@ -167,6 +179,15 @@ class CashShiftService:
             - totals.movements_out
         )
 
+        # The till account is the drawer's ledger; this window is a view of
+        # part of it. Where they disagree the account is right — it has seen
+        # every document, including the ones that arrived after their own shift
+        # had closed — so the difference is named and added rather than left to
+        # split the two screens apart.
+        if till_balance is not None:
+            totals.late_arrivals = (till_balance - totals.expected_cash).quantize(ZERO)
+            totals.expected_cash = till_balance
+
         return totals
 
     # -------------------------------------------------------------- operations
@@ -190,12 +211,24 @@ class CashShiftService:
             .filter(CashShift.company_id == self.company_id)
             .scalar()
         ) + 1
+        # The shift starts from the drawer's ledger, not from a typed number.
+        # `opening_cash` is what the cashier counted; where it disagrees, the
+        # difference is recorded below as a movement the owner can see, instead
+        # of quietly becoming the offset between two screens.
+        ledger = MoneyRepository(self.db).till_balance(self.company_id)
         shift = CashShift(
             company_id=self.company_id,
             shift_number=next_number,
             status=CashShiftStatus.OPEN,
             opened_by_user_id=user_id,
-            opening_cash=opening_cash,
+            # Stamped here rather than by `func.now()`: the previous shift's
+            # closing correction is written at its `closed_at` from the same
+            # Python clock, and it has to fall strictly before this window.
+            # `func.now()` is transaction-start on Postgres and second-resolution
+            # on SQLite, either of which can hand back an earlier instant and
+            # pull that correction into this shift.
+            opened_at=utc_now(),
+            opening_cash=opening_cash if ledger is None else ledger,
         )
         self.db.add(shift)
         try:
@@ -204,7 +237,49 @@ class CashShiftService:
             # The partial unique index fired: another open shift already exists.
             self.db.rollback()
             raise ShiftConflict("Смена уже открыта") from exc
+
+        if ledger is not None and opening_cash != ledger:
+            # Timestamped at `opened_at`, so it falls inside this shift's own
+            # window: the panel shows «начало 100 + пересчёт 30» and the total
+            # still comes to what was counted.
+            self._record_count(
+                opening_cash - ledger,
+                shift.opened_at,
+                f"Смена №{shift.shift_number}: пересчёт при приёме кассы",
+                user_id,
+            )
         return shift
+
+    def _record_count(
+        self, difference: Decimal, at: datetime, note: str, user_id: int
+    ) -> Optional[MoneyMovement]:
+        """Write a physical count's disagreement with the ledger as a movement.
+
+        Same shape as «Сверить» on the money page (`MoneyService.correct_balance`)
+        — deliberately, because it is the same act. Written directly rather than
+        through that service: its `_guard_till_shift` refuses a till movement
+        outside an open shift, and closing a shift is exactly the moment that
+        guard is about to stop applying.
+        """
+        difference = difference.quantize(ZERO)
+        if difference == 0:
+            return None
+        till = MoneyRepository(self.db).till(self.company_id)
+        if till is None:
+            return None
+        movement = MoneyMovement(
+            company_id=self.company_id,
+            account_id=till.id,
+            direction="in" if difference > 0 else "out",
+            amount=abs(difference),
+            reason="adjustment_in" if difference > 0 else "adjustment_out",
+            note=note,
+            created_by_user_id=user_id,
+            created_at=at,
+        )
+        self.db.add(movement)
+        self.db.flush()
+        return movement
 
     @staticmethod
     def _now_like(reference: datetime) -> datetime:
@@ -232,7 +307,24 @@ class CashShiftService:
             raise ShiftConflict("Смена уже закрыта")
 
         closed_at = self._now_like(shift.opened_at)
-        totals = self.compute_totals(shift.opened_at, closed_at, Decimal(shift.opening_cash))
+        # Read before the count below is written, or the correction would
+        # reconcile against itself.
+        ledger = MoneyRepository(self.db).till_balance(self.company_id)
+        totals = self.compute_totals(
+            shift.opened_at, closed_at, Decimal(shift.opening_cash), ledger
+        )
+
+        # Timestamped at `closed_at`: the window is [opened_at, closed_at), so
+        # the correction lands after the shift it settles. A cashier's
+        # недостача must not quietly cancel itself inside the numbers they are
+        # being judged against.
+        if ledger is not None:
+            self._record_count(
+                counted_cash - ledger,
+                closed_at,
+                f"Смена №{shift.shift_number}: пересчёт при закрытии",
+                user_id,
+            )
 
         shift.status = CashShiftStatus.CLOSED
         shift.closed_at = closed_at
@@ -255,7 +347,12 @@ class CashShiftService:
             raise ShiftConflict("Смена не открыта")
 
         now = self._now_like(shift.opened_at)
-        totals = self.compute_totals(shift.opened_at, now, Decimal(shift.opening_cash))
+        totals = self.compute_totals(
+            shift.opened_at,
+            now,
+            Decimal(shift.opening_cash),
+            MoneyRepository(self.db).till_balance(self.company_id),
+        )
         snapshot = CashShiftSnapshot(
             company_id=self.company_id,
             shift_id=shift.id,
@@ -270,4 +367,9 @@ class CashShiftService:
         """Live totals for an open shift; the frozen close for a closed one."""
         if shift.status == CashShiftStatus.CLOSED and shift.closing_totals:
             return ShiftTotals.model_validate(shift.closing_totals)
-        return self.compute_totals(shift.opened_at, None, Decimal(shift.opening_cash))
+        return self.compute_totals(
+            shift.opened_at,
+            None,
+            Decimal(shift.opening_cash),
+            MoneyRepository(self.db).till_balance(self.company_id),
+        )

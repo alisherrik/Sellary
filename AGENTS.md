@@ -96,6 +96,36 @@ One sale, several tenders (26 наличными + 10 DC + 10 Эсхата + 4 �
 
 A return settles the debt first. `sale_returns.credit_refund_amount` is how much the debt absorbed; money that actually moved is `total_refund_amount - credit_refund_amount`, and that is what `CashShiftService.compute_totals` and `MoneyRepository._sum_refunds` use. `total_refund_amount` still means the value of the goods returned, so turnover and `remaining_refundable_amount` are unchanged. Never gate debt logic on `sales.payment_method` — a split sale files itself under its largest tender.
 
+### The drawer has one balance
+
+The till `MoneyAccount` owns the cash figure. The shift's «Ожидается в кассе» is read from `MoneyRepository.till_balance`, and whatever the shift's own window cannot explain is surfaced as the `late_arrivals` line rather than left to split the two screens apart — in production they drifted 339.74 (offline sales syncing into already-frozen `closing_totals`, reversed debt payments, and hand-typed count corrections the money page never heard about).
+
+A physical count is a document: `open_shift` and `close_shift` write the difference from the ledger as a `MoneyMovement` (`adjustment_in`/`adjustment_out`), stamped at `opened_at` (inside the new window) and at `closed_at` (outside the window it settles). `opening_cash` and `counted_cash` are what somebody counted, never a balance. `open_shift` stamps `opened_at` with `utc_now()`, not `func.now()`, so the previous close's correction cannot fall inside the new shift.
+
+### Write-offs and supplier returns
+Spoiled, broken or defective goods leave the shelf as a `stock_write_offs`
+document with lines — not as a quantity nudge. Two independent axes:
+`reason_code` (why the goods are unsellable) and `disposition` (`disposed` or
+`returned_to_supplier`). Keeping them separate is what lets the report say
+«порча 400, из них 250 вернули поставщику».
+
+`StockWriteOffService` calls the same `consume_fifo` a sale does and never
+touches `stock_quantity` itself. Cost is whatever the ledger actually consumed,
+frozen into `line_cost` / `total_cost` — never `quantity * cost_price`, because
+the layers that fed the document may be gone tomorrow. `allow_oversell` is not
+passed: writing off stock that is not there is a data error, not a historical
+fact the way an offline sale is.
+
+**A supplier return moves no money.** `suppliers` has no balance and
+`purchase_orders` has no `paid_amount`, so there is nothing to reduce; the
+return records that the goods left and who took them. If the supplier actually
+refunds cash, that is an ordinary movement on the Finance page. Do not invent a
+supplier ledger to make a return "balance".
+
+Write-offs never enter turnover. The profit report carries them as
+`write_off_cost` and `profit_after_write_offs` beside an unchanged `profit`, so
+existing callers (frontend, MCP `get_profit_report`) keep their meaning.
+
 ### MCP connector
 
 Gated on the `ai` module — in no business-type preset, checked on every tool call (not just at connect time, since access tokens live a day), and the OAuth company step hides companies without it. Settings → «ИИ-коннектор» (`api/mcp.py`, `services/mcp_admin_service.py`) gives the URL to copy, lists connected agents and revokes one by striking its refresh token.

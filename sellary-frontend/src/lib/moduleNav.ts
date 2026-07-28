@@ -43,7 +43,10 @@ export const MODULE_NAV: ModuleDef[] = [
     key: 'inventory',
     label: 'Склад',
     tagline: 'Товары, категории, инвентаризация',
-    pages: [{ label: 'Товары', href: '/products' }],
+    pages: [
+      { label: 'Товары', href: '/products' },
+      { label: 'Списания', href: '/write-offs' },
+    ],
   },
   {
     key: 'purchasing',

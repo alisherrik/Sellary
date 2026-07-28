@@ -37,11 +37,12 @@ describe('BottomTabBar', () => {
   });
 
   it('hides "Ещё" when granted modules fit within 4 tabs and none have secondary pages', () => {
-    // inventory and shop are both single-page modules — nothing for a sheet to hold.
-    state.modules = { inventory: 'user', shop: 'user' };
+    // customers and shop are both single-page modules — nothing for a sheet to
+    // hold. (Not inventory: it carries Товары and Списания.)
+    state.modules = { customers: 'user', shop: 'user' };
     state.isAdmin = false;
     render(<BottomTabBar onMoreClick={vi.fn()} />);
-    expect(screen.getByText('Склад')).toBeInTheDocument();
+    expect(screen.getByText('Клиенты')).toBeInTheDocument();
     expect(screen.getByText('Магазин')).toBeInTheDocument();
     expect(screen.queryByText('Ещё')).not.toBeInTheDocument();
   });
@@ -58,7 +59,7 @@ describe('BottomTabBar', () => {
   });
 
   it('adds a Настройки tab for admins without showing "Ещё" when nothing overflows', () => {
-    state.modules = { inventory: 'manager', shop: 'manager' };
+    state.modules = { customers: 'manager', shop: 'manager' };
     state.isAdmin = true;
     render(<BottomTabBar onMoreClick={vi.fn()} />);
     expect(screen.getByText('Настройки')).toBeInTheDocument();

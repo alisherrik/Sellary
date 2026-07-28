@@ -3,6 +3,7 @@ from .admin import router as admin_router
 from .products import router as products_router
 from .sales import router as sales_router
 from .inventory import router as inventory_router
+from .stock_write_offs import router as write_offs_router
 from .reports import router as reports_router
 from .categories import router as categories_router
 from .customers import router as customers_router
@@ -27,6 +28,7 @@ __all__ = [
     "products_router",
     "sales_router",
     "inventory_router",
+    "write_offs_router",
     "reports_router",
     "categories_router",
     "customers_router",

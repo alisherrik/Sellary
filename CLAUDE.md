@@ -106,6 +106,55 @@ debt and paid the amount out — the shop giving back more than it took.
 `total_refund_amount` stays the value of the goods returned, so turnover and
 `remaining_refundable_amount` are unaffected.
 
+### The drawer has one balance
+The till `MoneyAccount` is the truth about how much cash there is. The shift's
+«Ожидается в кассе» is **read from it** — `CashShiftService.compute_totals` takes
+`till_balance` and whatever its own window cannot explain becomes the named
+`late_arrivals` line, instead of quietly becoming the offset between two screens.
+That offset reached 339.74 in production: `526.49` of offline sales that synced in
+after their shift had closed (frozen `closing_totals` never saw them), less
+`130.00` of debt payments later reversed, less `56.75` of hand-typed count
+corrections the money page was never told about.
+
+A physical count is therefore a **document, not a second opinion**. `open_shift`
+and `close_shift` write the difference between what was counted and what the
+ledger says as a `MoneyMovement` (`adjustment_in`/`adjustment_out`) — the same act
+as «Сверить» on the money page, and written directly because `_guard_till_shift`
+refuses a till movement at exactly the moment a shift is closing. `opening_cash`
+and `counted_cash` stay what somebody counted; they are never a balance.
+
+The open correction is stamped at `opened_at` (inside the new window, so the panel
+still adds up); the close correction at `closed_at` (outside the window it settles,
+so a недостача cannot cancel itself inside the numbers the cashier is judged
+against). `open_shift` stamps `opened_at` from `utc_now()` rather than `func.now()`
+for that ordering — `func.now()` is transaction-start on Postgres and
+second-resolution on SQLite, and either can pull the previous close's correction
+into the new shift.
+
+### Write-offs and supplier returns
+Spoiled, broken or defective goods leave the shelf as a `stock_write_offs`
+document with lines — not as a quantity nudge. Two independent axes:
+`reason_code` (why the goods are unsellable) and `disposition` (`disposed` or
+`returned_to_supplier`). Keeping them separate is what lets the report say
+«порча 400, из них 250 вернули поставщику».
+
+`StockWriteOffService` calls the same `consume_fifo` a sale does and never
+touches `stock_quantity` itself. Cost is whatever the ledger actually consumed,
+frozen into `line_cost` / `total_cost` — never `quantity * cost_price`, because
+the layers that fed the document may be gone tomorrow. `allow_oversell` is not
+passed: writing off stock that is not there is a data error, not a historical
+fact the way an offline sale is.
+
+**A supplier return moves no money.** `suppliers` has no balance and
+`purchase_orders` has no `paid_amount`, so there is nothing to reduce; the
+return records that the goods left and who took them. If the supplier actually
+refunds cash, that is an ordinary movement on the Finance page. Do not invent a
+supplier ledger to make a return "balance".
+
+Write-offs never enter turnover. The profit report carries them as
+`write_off_cost` and `profit_after_write_offs` beside an unchanged `profit`, so
+existing callers (frontend, MCP `get_profit_report`) keep their meaning.
+
 ### MCP connector (`sellary-backend/mcp_server/`)
 Gated on the **`ai` module**, like every other domain. It is in no business-type
 preset — it opens a live door into the company's data, so it is switched on
