@@ -112,8 +112,12 @@ describe('ShiftTotalsPanel', () => {
   /**
    * The real Смена №7 of company 2: the money page said 14 124.36 and the
    * shift said 13 784.62, and nothing on either screen explained the 339.74.
-   * Most of it was offline sales that synced in after their own shift had
-   * closed — cash genuinely in the drawer, invisible to this window.
+   * It was three things, which is why the row is not named after any one of
+   * them: 526.49 of offline sales that synced in after their own shift had
+   * closed, less 130.00 of debt payments reversed since, less 56.75 of counts
+   * typed at earlier opens and closes that the money page never heard about.
+   * Calling the row «Продажи прошлых смен» was true of the largest part and
+   * wrong about the rest, and the shop owner asked what the number was.
    */
   it('names the cash the window cannot see instead of letting the totals disagree', () => {
     render(
@@ -122,13 +126,13 @@ describe('ShiftTotalsPanel', () => {
         totals={{ ...totals, late_arrivals: '339.74', expected_cash: '12922.86' }}
       />,
     );
-    expect(valueFor('Продажи прошлых смен')).toContain('339,74');
+    expect(valueFor('Из прошлых смен')).toContain('339,74');
     expect(valueFor('Ожидается в кассе')).toContain('12 922,86');
   });
 
   it('keeps the row out of the way when the window explains everything', () => {
     render(<ShiftTotalsPanel shift={openShift} totals={totals} />);
-    expect(screen.queryByText('Продажи прошлых смен')).not.toBeInTheDocument();
+    expect(screen.queryByText('Из прошлых смен')).not.toBeInTheDocument();
   });
 
   it('names a shortfall and an overage rather than calling both a discrepancy', () => {
