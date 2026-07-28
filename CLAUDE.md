@@ -111,20 +111,25 @@ The till `MoneyAccount` is the truth about how much cash there is. The shift's
 «Ожидается в кассе» is **read from it** — `CashShiftService.compute_totals` takes
 `till_balance` and whatever its own window cannot explain becomes the named
 `late_arrivals` line, instead of quietly becoming the offset between two screens.
-That offset reached 339.74 in production: `526.49` from split sales, less
-`130.00` of debt payments later reversed, less `56.75` of hand-typed count
-corrections the money page was never told about.
+That offset reached 339.74 in production, and naming it is what made it
+findable: **396.49 of it was a bug in the data** — see below — and the rest was
+`56.75` of hand-typed count corrections the money page was never told about.
 
-The 526.49 is worth understanding, because it will happen again. **A closed
-shift's `closing_totals` are a snapshot of whatever formula the code had that
-day, and fixing a money formula does not reach back into them.** Shift 1 froze
-`cash_sales = 2599.98`; recomputing the same window today gives `3110.47`, and
-`2599.98` is exactly `sum(sales.total_amount) WHERE payment_method='cash'` — the
-pre-split-payment formula, which files a mixed-tender receipt under its largest
-tender alone. So a 50 sale settled 26 наличными + 24 on a card was booked as
-either 50 of cash or none of it. The cash was in the drawer the whole time; the
-report could not see it. Expect a residual after any change to how money is
-counted, and read it as the old code's error, not as money appearing.
+The 396.49 is the lesson. `f3a4b5c6d7e8` backfilled `sale_payments` from the
+ledger and took the paid leg of a credit sale from every `entry_type='payment'`
+row, believing those to be money handed over at the counter. A customer settling
+up three days later is recorded identically. So a 304.00 sale в долг with 100.00
+paid at the till and 204.00 brought back later got one cash tender of 304.00
+dated at the sale, and the 204.00 counted twice — as a cash sale that day and as
+the repayment it was. 46 sales, 1066.64 double-counted. `d7e8f9a0b1c2` rebuilds
+those tenders from the `sale_tender` ledger rows.
+
+Two rules fall out of it. **A `payment` ledger row does not say when the money
+arrived relative to the sale** — only `sale_tender` means "handed over at the
+counter", which is why the two types exist. And a backfill that checks its own
+arithmetic can still be wrong: step 6 of that migration verified the tenders sum
+to the sale total, which they did; they were simply the wrong tenders. Reconcile
+a derived figure against something independent — here, the drawer.
 
 A physical count is therefore a **document, not a second opinion**. `open_shift`
 and `close_shift` write the difference between what was counted and what the
