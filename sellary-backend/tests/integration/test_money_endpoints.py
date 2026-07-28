@@ -35,6 +35,17 @@ def _retender(db_session, sale, method, card_type):
     return sale
 
 
+def _backdate_till(db_session, till_id: int) -> None:
+    from datetime import timedelta
+
+    from models.money_account import MoneyAccount
+    from services.company_time import utc_now
+
+    till = db_session.query(MoneyAccount).filter(MoneyAccount.id == till_id).one()
+    till.opening_at = utc_now() - timedelta(days=1)
+    db_session.flush()
+
+
 def _accounts(client, headers):
     response = client.get("/api/money/accounts", headers=headers)
     assert response.status_code == 200, response.text
@@ -387,6 +398,59 @@ class TestCorrections:
         )
         assert response.status_code == 200
         assert response.json() is None
+
+
+class TestCreditCashIsCountedOnce:
+    """Cash taken at the till and cash brought back later are different money.
+
+    A credit sale settled partly at the till writes a tender for that part and
+    a `sale_tender` ledger row beside it; when the customer returns with the
+    rest, that is a `payment`. The drawer must add up to what actually crossed
+    the counter — a shop with 46 such sales had 1066.64 counted twice, because
+    a backfill read every `payment` row on a credit sale as money handed over
+    at the moment of sale.
+    """
+
+    def test_a_credit_sale_repaid_later_adds_its_cash_once(
+        self, client, db_session, admin_headers, cashier_headers, test_customer, test_product
+    ):
+        till_id = _till_id(client, admin_headers)
+        # Back-date the drawer so the balance counts everything this test writes.
+        # `opening_at` lands in the same second here, and the SQLite test engine
+        # stores a server-defaulted timestamp without microseconds while binding
+        # the comparison value with them — so `created_at >= opening_at` compares
+        # '…10:30:59' against '…10:30:59.000000' as strings and loses. Postgres
+        # compares timestamps, not text, and does not care.
+        _backdate_till(db_session, till_id)
+        before = next(
+            a for a in _accounts(client, admin_headers)["accounts"] if a["id"] == till_id
+        )
+
+        sale = client.post(
+            "/api/sales",
+            json={
+                "customer_id": test_customer.id,
+                "items": [{"product_id": test_product.id, "quantity": 1, "unit_price": "30.00"}],
+                "payment_method": "credit",
+                "paid_amount": "10.00",
+                "initial_payment_method": "cash",
+            },
+            headers={**cashier_headers, "Idempotency-Key": "credit-cash-once-0001"},
+        )
+        assert sale.status_code == 201, sale.text
+
+        repaid = client.post(
+            f"/api/customers/{test_customer.id}/payments",
+            json={"amount": "20.00", "payment_method": "cash"},
+            headers={**cashier_headers, "Idempotency-Key": "credit-cash-once-0002"},
+        )
+        assert repaid.status_code == 201, repaid.text
+
+        after = next(
+            a for a in _accounts(client, admin_headers)["accounts"] if a["id"] == till_id
+        )
+        # 10 at the till plus 20 brought back — thirty somoni, once.
+        assert Decimal(after["balance"]) - Decimal(before["balance"]) == Decimal("30.00")
 
 
 class TestReportsAreUntouched:
