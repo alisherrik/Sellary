@@ -455,6 +455,18 @@ Module access: business endpoints are gated per module (`pos`: sales/shifts/cust
 | GET | `/api/inventory/logs` | Stock change history |
 | GET | `/api/inventory/valuation` | Current inventory value |
 
+### Write-offs (списания)
+Spoiled or broken goods leaving the shelf as a document, either thrown away
+(`disposed`) or handed back to a supplier (`returned_to_supplier`). A return
+records no money movement. Cost is the real FIFO cost consumed.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/write-offs` | Create an act (manager; `Idempotency-Key` required) |
+| GET | `/api/write-offs` | List acts, filtered by date/disposition/reason/supplier |
+| GET | `/api/write-offs/summary` | Cost for the period, grouped by reason and disposition |
+| GET | `/api/write-offs/{id}` | One act with its lines |
+
 ### Sync (Tauri Cashier)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
