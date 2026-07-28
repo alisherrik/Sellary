@@ -180,14 +180,16 @@ Turnover is untouched: a write-off is not a sale and never enters
 breakdowns by `reason_code` and by `disposition`, over the company timezone —
 reusing the same period helper the other reports use, never hand-rolled dates.
 
-The profit report gains two fields and changes none:
+The profit report (`ProfitReport`: `revenue`, `cost`, `profit`,
+`profit_margin_percent`, `sales_count`) gains two fields and changes none:
 
 - `write_off_cost` — the period's total write-off cost.
-- `net_profit_after_losses` = existing net profit − `write_off_cost`.
+- `profit_after_write_offs` = `profit` − `write_off_cost`.
 
-`gross_profit` and `net_profit` keep their current meaning and value, so
-existing frontend pages and the MCP `get_profit_report` tool do not break. The
-UI shows the loss as its own line rather than folding it silently into profit.
+`revenue`, `cost`, `profit` and `profit_margin_percent` keep their current
+meaning and value, so existing frontend pages and the MCP `get_profit_report`
+tool do not break. The UI shows the loss as its own line rather than folding it
+silently into profit.
 
 ## Frontend
 
