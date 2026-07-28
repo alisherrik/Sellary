@@ -180,10 +180,10 @@ class CashShiftService:
         )
 
         # The till account is the drawer's ledger; this window is a view of
-        # part of it. Where they disagree the account is right — it has seen
-        # every document, including the ones that arrived after their own shift
-        # had closed — so the difference is named and added rather than left to
-        # split the two screens apart.
+        # part of it. Where they disagree the account is right — it is computed
+        # from the documents by today's code, while a closed shift's totals were
+        # frozen by whatever code ran that day — so the difference is named and
+        # added rather than left to split the two screens apart.
         if till_balance is not None:
             totals.late_arrivals = (till_balance - totals.expected_cash).quantize(ZERO)
             totals.expected_cash = till_balance

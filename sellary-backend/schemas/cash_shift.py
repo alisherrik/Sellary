@@ -40,11 +40,13 @@ class ShiftTotals(BaseModel):
     movements_in: Decimal = Decimal("0.00")
     movements_out: Decimal = Decimal("0.00")
     movements: List[ShiftMovement] = Field(default_factory=list)
-    # Cash the drawer holds that this shift's own window cannot account for —
-    # almost always an offline sale that synced in after the shift it belongs
-    # to had already closed. Shown as its own line rather than folded into the
-    # total, so the arithmetic on screen still adds up and a cashier is not
-    # charged with a излишек that was never theirs.
+    # Cash the drawer holds that this shift's own window cannot account for.
+    # Usually a closed shift whose `closing_totals` were frozen by an older
+    # formula: a money fix does not reach back into them, so recomputing that
+    # window today gives a different figure and the difference lands here.
+    # Shown as its own line rather than folded into the total, so the
+    # arithmetic on screen still adds up and a cashier is not charged with a
+    # излишек that was never theirs.
     late_arrivals: Decimal = Decimal("0.00")
     # opening_cash + cash_sales + cash debt repayments − cash refunds
     # + movements_in − movements_out + late_arrivals. Equal to the till

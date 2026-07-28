@@ -113,11 +113,11 @@ describe('ShiftTotalsPanel', () => {
    * The real Смена №7 of company 2: the money page said 14 124.36 and the
    * shift said 13 784.62, and nothing on either screen explained the 339.74.
    * It was three things, which is why the row is not named after any one of
-   * them: 526.49 of offline sales that synced in after their own shift had
-   * closed, less 130.00 of debt payments reversed since, less 56.75 of counts
-   * typed at earlier opens and closes that the money page never heard about.
-   * Calling the row «Продажи прошлых смен» was true of the largest part and
-   * wrong about the rest, and the shop owner asked what the number was.
+   * them: 526.49 frozen into closed shifts by the pre-split-payment formula
+   * (which booked a mixed-tender receipt under its largest tender alone), less
+   * 130.00 of debt payments reversed since, less 56.75 of counts typed at
+   * earlier opens and closes that the money page never heard about. None of it
+   * was money arriving — the cash had been in the drawer all along.
    */
   it('names the cash the window cannot see instead of letting the totals disagree', () => {
     render(

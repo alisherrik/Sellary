@@ -98,7 +98,9 @@ A return settles the debt first. `sale_returns.credit_refund_amount` is how much
 
 ### The drawer has one balance
 
-The till `MoneyAccount` owns the cash figure. The shift's «Ожидается в кассе» is read from `MoneyRepository.till_balance`, and whatever the shift's own window cannot explain is surfaced as the `late_arrivals` line rather than left to split the two screens apart — in production they drifted 339.74 (offline sales syncing into already-frozen `closing_totals`, reversed debt payments, and hand-typed count corrections the money page never heard about).
+The till `MoneyAccount` owns the cash figure. The shift's «Ожидается в кассе» is read from `MoneyRepository.till_balance`, and whatever the shift's own window cannot explain is surfaced as the `late_arrivals` line rather than left to split the two screens apart — in production they drifted 339.74.
+
+A closed shift's `closing_totals` are a snapshot of the formula the code had that day, and fixing a money formula never reaches back into them. 526.49 of that 339.74 was exactly this: shift 1 froze `cash_sales = 2599.98`, which is `sum(sales.total_amount) WHERE payment_method='cash'` — the pre-split-payment formula, booking a mixed-tender receipt under its largest tender alone. Recomputed today the window gives 3110.47. The cash was always in the drawer. Expect a residual after any change to how money is counted, and read it as the old code's error rather than as money appearing from nowhere.
 
 A physical count is a document: `open_shift` and `close_shift` write the difference from the ledger as a `MoneyMovement` (`adjustment_in`/`adjustment_out`), stamped at `opened_at` (inside the new window) and at `closed_at` (outside the window it settles). `opening_cash` and `counted_cash` are what somebody counted, never a balance. `open_shift` stamps `opened_at` with `utc_now()`, not `func.now()`, so the previous close's correction cannot fall inside the new shift.
 

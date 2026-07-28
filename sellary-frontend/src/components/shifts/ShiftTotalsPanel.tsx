@@ -151,7 +151,7 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
         {lateArrivals !== 0 && (
           <Row
             label="Из прошлых смен"
-            hint="· поздние продажи и старые сверки — эти деньги уже в ящике"
+            hint="· уточнения по закрытым сменам — эти деньги уже в ящике"
             value={`${lateArrivals > 0 ? '+' : '−'}${formatMoney(Math.abs(lateArrivals))}`}
           />
         )}

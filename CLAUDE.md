@@ -111,10 +111,20 @@ The till `MoneyAccount` is the truth about how much cash there is. The shift's
 «Ожидается в кассе» is **read from it** — `CashShiftService.compute_totals` takes
 `till_balance` and whatever its own window cannot explain becomes the named
 `late_arrivals` line, instead of quietly becoming the offset between two screens.
-That offset reached 339.74 in production: `526.49` of offline sales that synced in
-after their shift had closed (frozen `closing_totals` never saw them), less
+That offset reached 339.74 in production: `526.49` from split sales, less
 `130.00` of debt payments later reversed, less `56.75` of hand-typed count
 corrections the money page was never told about.
+
+The 526.49 is worth understanding, because it will happen again. **A closed
+shift's `closing_totals` are a snapshot of whatever formula the code had that
+day, and fixing a money formula does not reach back into them.** Shift 1 froze
+`cash_sales = 2599.98`; recomputing the same window today gives `3110.47`, and
+`2599.98` is exactly `sum(sales.total_amount) WHERE payment_method='cash'` — the
+pre-split-payment formula, which files a mixed-tender receipt under its largest
+tender alone. So a 50 sale settled 26 наличными + 24 on a card was booked as
+either 50 of cash or none of it. The cash was in the drawer the whole time; the
+report could not see it. Expect a residual after any change to how money is
+counted, and read it as the old code's error, not as money appearing.
 
 A physical count is therefore a **document, not a second opinion**. `open_shift`
 and `close_shift` write the difference between what was counted and what the

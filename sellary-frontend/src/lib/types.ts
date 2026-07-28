@@ -297,10 +297,11 @@ export interface ShiftTotals {
   movements_out: string;
   movements: ShiftMovement[];
   /**
-   * Cash in the drawer this shift's own window cannot account for — usually an
-   * offline sale that synced in after its shift had closed. Kept as its own
-   * line so «Ожидается в кассе» can equal the Касса balance on the money page
-   * without the arithmetic above it appearing to be wrong.
+   * Cash in the drawer this shift's own window cannot account for — usually a
+   * closed shift whose totals were frozen by an older formula, since fixing how
+   * money is counted never reaches back into them. Kept as its own line so
+   * «Ожидается в кассе» can equal the Касса balance on the money page without
+   * the arithmetic above it appearing to be wrong.
    */
   late_arrivals: string;
   expected_cash: string;
