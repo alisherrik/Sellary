@@ -253,6 +253,19 @@ class MoneyRepository:
         )
         return Decimal(query.scalar() or 0)
 
+    def till_balance(self, company_id: int) -> Optional[Decimal]:
+        """What the drawer holds according to the documents.
+
+        The single answer to "how much cash is there", shared by the money page
+        and by the shift's «Ожидается в кассе». `None` when the company has no
+        till account yet — then the shift falls back to its own window
+        arithmetic, which is all there is to go on.
+        """
+        till = self.till(company_id)
+        if till is None:
+            return None
+        return self.balances(company_id, [till]).get(till.id, ZERO)
+
     # ------------------------------------------------------------- movements
 
     def movements(

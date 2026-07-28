@@ -175,6 +175,27 @@ class TestMovements:
         assert totals["movements"][0]["reason_label"] == "Оплата поставщику"
         assert totals["movements"][0]["note"] == "Оплата за хлеб"
 
+    def test_the_two_screens_report_the_same_drawer(self, client, admin_headers):
+        """«Ожидается в кассе» on the shift IS «Касса» on the money page.
+
+        In production they drifted 339.74 apart and each looked plausible on
+        its own. One number, read from one place, or the shop owner has to
+        decide which of two screens to believe.
+        """
+        client.post(
+            "/api/money/till",
+            json={
+                "account_id": _till_id(client, admin_headers),
+                "direction": "in",
+                "amount": "42.00",
+                "reason": "owner_deposit",
+            },
+            headers=admin_headers,
+        )
+        shift = client.get("/api/shifts/current", headers=admin_headers).json()
+        money = client.get("/api/money/accounts", headers=admin_headers).json()
+        assert Decimal(shift["totals"]["expected_cash"]) == Decimal(money["cash_total"])
+
     def test_cash_brought_in_raises_the_expected_drawer(self, client, admin_headers):
         till_id = _till_id(client, admin_headers)
         before = Decimal(

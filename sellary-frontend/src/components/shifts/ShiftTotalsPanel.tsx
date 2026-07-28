@@ -82,6 +82,10 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
   // debt repayment by card never passes through the till either.
   const cashDebt = num(totals.debt_payments_by_method?.cash);
   const cashRefunds = num(totals.refunds_by_method?.cash);
+  // The residual between this window's arithmetic and the drawer's own ledger.
+  // Zero on a healthy shift; shown only when it isn't, so the lines above and
+  // «Ожидается в кассе» never silently fail to add up.
+  const lateArrivals = num(totals.late_arrivals);
   const openingCash = num(shift.opening_cash);
   const movements = totals.movements ?? [];
   const movementsIn = num(totals.movements_in);
@@ -144,6 +148,13 @@ export function ShiftTotalsPanel({ shift, totals }: { shift: CashShift; totals: 
         {cashRefunds !== 0 && <Row label="Возвраты наличными" value={`−${formatMoney(cashRefunds)}`} />}
         {movementsIn !== 0 && <Row label="Внесения в кассу" value={`+${formatMoney(movementsIn)}`} />}
         {movementsOut !== 0 && <Row label="Изъятия из кассы" value={`−${formatMoney(movementsOut)}`} />}
+        {lateArrivals !== 0 && (
+          <Row
+            label="Продажи прошлых смен"
+            hint="· пришли с кассы позже, деньги уже в ящике"
+            value={`${lateArrivals > 0 ? '+' : '−'}${formatMoney(Math.abs(lateArrivals))}`}
+          />
+        )}
         <div className="mt-1 border-t border-[var(--erp-divider)] pt-1">
           <Row label="Ожидается в кассе" value={formatMoney(totals.expected_cash)} bold />
         </div>

@@ -13,9 +13,11 @@ from core.security import get_password_hash
 from models.cash_shift import CashShiftStatus
 from models.customer import Customer
 from models.customer_ledger_entry import CustomerLedgerEntry
+from models.money_account import MoneyAccount
 from models.sale import CardType, PaymentMethod, Sale, SaleStatus
 from models.sale_return import SaleReturn
 from models.user import User
+from repositories.money_repository import MoneyRepository
 from services.cash_shift_service import CashShiftService, ShiftConflict
 from tests.conftest import add_sale_tenders
 
@@ -33,6 +35,31 @@ def cashier(db_session):
     db_session.add(u)
     db_session.flush()
     return u
+
+
+@pytest.fixture
+def till(db_session):
+    """The drawer as a money account. Production always has one.
+
+    Opened long before T0 so every sale a test writes counts towards its
+    balance — `MoneyRepository.balances` ignores anything older than
+    `opening_at`.
+    """
+    account = MoneyAccount(
+        company_id=db_session.info["default_company_id"],
+        name="Касса",
+        is_till=True,
+        opening_balance=Decimal("100.00"),
+        opening_at=T0 - timedelta(days=30),
+        sort_order=0,
+    )
+    db_session.add(account)
+    db_session.flush()
+    return account
+
+
+def till_balance(db_session, service):
+    return MoneyRepository(db_session).till_balance(service.company_id)
 
 
 def sale(db_session, cashier, total, method=PaymentMethod.CASH, card=None,
@@ -192,3 +219,80 @@ class TestOpenCloseSnapshot:
         svc.take_snapshot(shift.id, cashier.id)
         assert svc.get_current() is not None
         assert shift.status == CashShiftStatus.OPEN
+
+
+class TestTheDrawerHasOneBalance:
+    """«Ожидается в кассе» on the shift and «Касса» on the money page are the
+    same figure, and a physical count is a document rather than a second
+    opinion. Two independent answers to "how much is in the drawer" is how they
+    drifted 339.74 apart in production."""
+
+    def test_a_count_at_open_becomes_a_movement(self, db_session, cashier, till):
+        svc = CashShiftService(db_session)
+        # The ledger says 100; the cashier counts 130.
+        shift = svc.open_shift(Decimal("130.00"), cashier.id)
+        # The shift starts from the ledger, and the 30 the cashier found is
+        # recorded as what it is — a correction someone can see and question.
+        assert shift.opening_cash == Decimal("100.00")
+        totals = svc.totals_for(shift)
+        assert totals.movements_in == Decimal("30.00")
+        assert totals.expected_cash == Decimal("130.00")
+        assert till_balance(db_session, svc) == Decimal("130.00")
+
+    def test_an_agreeing_count_writes_nothing(self, db_session, cashier, till):
+        svc = CashShiftService(db_session)
+        shift = svc.open_shift(Decimal("100.00"), cashier.id)
+        assert svc.totals_for(shift).movements == []
+
+    def test_expected_cash_follows_the_till_account(self, db_session, cashier, till):
+        svc = CashShiftService(db_session)
+        shift = svc.open_shift(Decimal("100.00"), cashier.id)
+        sale(db_session, cashier, "40.00", at=shift.opened_at)
+        totals = svc.totals_for(shift)
+        assert totals.expected_cash == till_balance(db_session, svc) == Decimal("140.00")
+        assert totals.late_arrivals == Decimal("0.00")
+
+    def test_a_sale_that_synced_in_late_shows_as_a_residual(self, db_session, cashier, till):
+        svc = CashShiftService(db_session)
+        shift = svc.open_shift(Decimal("100.00"), cashier.id)
+        # An offline sale from before this shift opened, synced in afterwards.
+        # Its cash is in the drawer; the shift's own window cannot see it.
+        sale(db_session, cashier, "20.00", at=shift.opened_at - timedelta(hours=1))
+        totals = svc.totals_for(shift)
+        assert totals.cash_sales == Decimal("0.00")
+        assert totals.late_arrivals == Decimal("20.00")
+        assert totals.expected_cash == till_balance(db_session, svc) == Decimal("120.00")
+
+    def test_close_writes_the_count_as_a_movement(self, db_session, cashier, till):
+        svc = CashShiftService(db_session)
+        shift = svc.open_shift(Decimal("100.00"), cashier.id)
+        sale(db_session, cashier, "40.00", at=shift.opened_at)
+        closed = svc.close_shift(shift.id, Decimal("135.00"), None, cashier.id)
+        assert closed.expected_cash == Decimal("140.00")
+        assert closed.discrepancy == Decimal("-5.00")
+        # The drawer's ledger now says what was physically counted.
+        assert till_balance(db_session, svc) == Decimal("135.00")
+        # The correction sits after the window it closed, so the frozen totals
+        # of that shift do not absorb their own недостача.
+        assert svc.totals_for(closed).expected_cash == Decimal("140.00")
+
+    def test_the_next_shift_opens_already_reconciled(self, db_session, cashier, till):
+        svc = CashShiftService(db_session)
+        first = svc.open_shift(Decimal("100.00"), cashier.id)
+        svc.close_shift(first.id, Decimal("135.00"), None, cashier.id)
+        second = svc.open_shift(Decimal("135.00"), cashier.id)
+        assert second.opening_cash == Decimal("135.00")
+        totals = svc.totals_for(second)
+        assert totals.movements == []
+        assert totals.expected_cash == till_balance(db_session, svc) == Decimal("135.00")
+
+    def test_without_a_till_account_the_window_still_answers(self, db_session, cashier):
+        # No money account yet — a company created before the accounts were
+        # seeded. The shift falls back to its own arithmetic rather than 0.
+        svc = CashShiftService(db_session)
+        shift = svc.open_shift(Decimal("50.00"), cashier.id)
+        sale(db_session, cashier, "10.00", at=shift.opened_at)
+        totals = svc.totals_for(shift)
+        assert shift.opening_cash == Decimal("50.00")
+        assert totals.expected_cash == Decimal("60.00")
+        assert totals.late_arrivals == Decimal("0.00")
