@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { Squares2X2Icon } from '@heroicons/react/24/outline';
+import { QuestionMarkCircleIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
+import { helpUrlFor } from '@/lib/help';
 import { useAuthStore, useCartStore, useModules, useUIStore } from '@/lib/store';
 import { canAccessModule } from '@/lib/modules';
 import { salesApi, productsApi, categoriesApi, customersApi, generateIdempotencyKey } from '@/lib/api';
@@ -1152,6 +1153,19 @@ function POS() {
           </div>
           <div className="ml-auto flex items-center gap-3 text-[13px] sm:gap-3.5 sm:text-sm">
             {shiftPill}
+            {/* The cashier spends the whole shift on this screen and never
+                sees the workspace header, so the help link has to live here
+                too. Points at the register chapter. */}
+            <a
+              href={helpUrlFor('/pos')}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Помощь"
+              title="Помощь"
+              className="flex h-11 w-11 items-center justify-center text-[var(--erp-muted)] hover:bg-[var(--erp-surface)] hover:text-[var(--erp-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)] sm:h-9 sm:w-9"
+            >
+              <QuestionMarkCircleIcon className="h-5 w-5" />
+            </a>
             <span className="hidden text-[var(--erp-muted)] sm:inline">
               {user?.full_name || user?.username}
             </span>

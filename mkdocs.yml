@@ -1,0 +1,88 @@
+site_name: Sellary — руководство пользователя
+site_description: "Как работать в Sellary: касса, смена, склад, закупки, деньги и отчёты — с разбором каждой цифры."
+site_url: https://alisherrik.github.io/Sellary/
+repo_url: https://github.com/alisherrik/Sellary
+edit_uri: edit/main/docs/user/book/
+
+# The book lives beside the .docx guides it grew out of, not in a docs/ of its
+# own: docs/ already holds internal specs that must not be published.
+docs_dir: docs/user/book
+site_dir: site
+
+theme:
+  name: material
+  language: ru
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: red
+      accent: red
+      toggle:
+        icon: material/weather-night
+        name: Тёмная тема
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: red
+      accent: red
+      toggle:
+        icon: material/weather-sunny
+        name: Светлая тема
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.keys
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search:
+      lang: ru
+
+# Mirrors the app's own left rail (sellary-frontend/src/lib/moduleNav.ts).
+# A person standing in «Склад» must find «Склад» here without translating.
+nav:
+  - Быстрые ответы: index.md
+  - Начало работы: nachalo.md
+  - Касса:
+      - Продажа на кассе: kassa/prodazha.md
+      - Смена: kassa/smena.md
+  - Продажи: prodazhi.md
+  - Клиенты: klienty.md
+  - Склад:
+      - Товары: sklad/tovary.md
+      - Списания: sklad/spisaniya.md
+  - Закупки:
+      - Поставщики: zakupki/postavshchiki.md
+      - Заказы поставщикам: zakupki/zakazy.md
+      - Отчёт по закупкам: zakupki/otchet.md
+  - Магазин: magazin.md
+  - Отчеты:
+      - Дашборд: otchety/dashboard.md
+      - Аналитика: otchety/analitika.md
+  - Деньги: dengi.md
+  - Настройки: nastroyki.md
+  - Приложение кассира: kassir-app.md
+  - Откуда берутся цифры: cifry.md
+
+extra:
+  social:
+    - icon: material/github
+      link: https://github.com/alisherrik/Sellary

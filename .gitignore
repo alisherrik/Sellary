@@ -50,3 +50,6 @@ sellary-backend/supabase/.temp/
 # DB backups / cleanup dumps (production data, not source)
 sellary-backend/backups/
 .claude/worktrees/
+
+# MkDocs build output (the book is published from docs/user/book/)
+/site/

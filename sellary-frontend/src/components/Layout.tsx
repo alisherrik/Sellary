@@ -11,7 +11,9 @@ import {
   ChevronDownIcon,
   LockClosedIcon,
   ArrowRightOnRectangleIcon,
+  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
+import { helpUrlFor } from '@/lib/help';
 import { useAuthStore, useModules } from '@/lib/store';
 import { canAccessModule, type ModuleKey } from '@/lib/modules';
 import { MODULE_NAV, moduleForPath, pageForPath } from '@/lib/moduleNav';
@@ -168,6 +170,19 @@ export default function Layout({ children }: LayoutProps) {
         )}
 
         <div className="ml-auto flex items-center gap-3.5">
+          {/* Opens the chapter for the page in view, not the table of
+              contents — the question is always about what is on screen. */}
+          <a
+            href={helpUrlFor(pathname)}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Помощь"
+            className="flex h-9 items-center gap-2 border border-[var(--erp-divider)] px-2.5 text-[13px] font-medium text-[var(--erp-text)] hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+          >
+            <QuestionMarkCircleIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Помощь</span>
+          </a>
+
           <ConnectionStatus />
 
           <div className="relative flex h-9 items-center gap-2 border border-[var(--erp-divider)] px-2.5 text-[13px]">

@@ -1,8 +1,10 @@
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
+import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import { useAuthStore, useModules } from '@/lib/store';
 import { grantedModuleDefs } from '@/lib/moduleNav';
+import { helpUrlFor } from '@/lib/help';
 import { MODULE_ICONS } from '@/components/moduleIcons';
 import BottomSheet from './BottomSheet';
 
@@ -69,6 +71,19 @@ export default function MoreSheet({ isOpen, onClose }: MoreSheetProps) {
             );
           })}
         </div>
+
+        {/* The mobile shell has no header, so this sheet is the only way to
+            the manual. Opens the chapter for the page in view. */}
+        <a
+          href={helpUrlFor(pathname)}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={onClose}
+          className="mt-6 flex min-h-[44px] items-center gap-2.5 border-t border-[var(--erp-divider)] px-3 pt-4 text-[14px] font-bold text-[var(--erp-text)] hover:bg-[var(--erp-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--erp-accent)]"
+        >
+          <QuestionMarkCircleIcon className="h-4 w-4" />
+          Помощь
+        </a>
       </div>
     </BottomSheet>
   );
