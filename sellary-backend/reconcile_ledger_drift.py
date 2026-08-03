@@ -57,6 +57,19 @@ from models.inventory_log import InventoryLog
 from models.product import Product
 from models.user import User
 
+QUANTITY_DRIFT_SQL = text(
+    """
+    select p.id, p.stock_quantity, coalesce(sum(l.remaining_quantity), 0) as layer_quantity
+    from products p
+    left join inventory_layers l
+      on l.product_id = p.id and l.reversed_at is null
+    where p.company_id = :company_id
+    group by p.id, p.stock_quantity
+    having coalesce(sum(l.remaining_quantity), 0) <> p.stock_quantity
+    order by p.id
+    """
+)
+
 # Every layer must still balance: original = remaining + net allocated.
 LAYER_BALANCE_SQL = text(
     """
@@ -185,23 +198,13 @@ def _open_layers(db: Session, product_id: int, lock: bool) -> list[InventoryLaye
 
 
 def _drifted_products(db: Session) -> list[tuple[int, Decimal, Decimal]]:
-    """Every company-2 product whose open layers disagree with its balance."""
-    layer_sums = dict(
-        db.query(InventoryLayer.product_id, func.sum(InventoryLayer.remaining_quantity))
-        .filter(
-            InventoryLayer.company_id == COMPANY_ID,
-            InventoryLayer.reversed_at.is_(None),
-        )
-        .group_by(InventoryLayer.product_id)
-        .all()
-    )
-    rows = []
-    for product in db.query(Product).filter(Product.company_id == COMPANY_ID).all():
-        balance = _dec(product.stock_quantity or 0)
-        layers = _dec(layer_sums.get(product.id, 0) or 0)
-        if layers != balance:
-            rows.append((product.id, balance, layers))
-    return sorted(rows)
+    """Every company-2 product whose open layers disagree with its balance.
+
+    One statement on purpose: read as two, an ordinary sale committing in
+    between shows up as a balance from after it against layers from before it.
+    """
+    rows = db.execute(QUANTITY_DRIFT_SQL, {"company_id": COMPANY_ID}).fetchall()
+    return [(row[0], _dec(row[1]), _dec(row[2])) for row in rows]
 
 
 def _validate_actor(db: Session) -> None:
