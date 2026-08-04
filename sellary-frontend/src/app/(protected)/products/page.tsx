@@ -318,8 +318,8 @@ function Products() {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       toast.success('Товар удален');
     },
-    onError: () => {
-      toast.error('Не удалось удалить товар');
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.detail || 'Не удалось удалить товар');
     },
   });
 

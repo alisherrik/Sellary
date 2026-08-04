@@ -193,13 +193,18 @@ class ProductService:
         product = self.product_repo.get_by_id_for_update(self.company_id, product_id)
         if not product:
             return False
-        # Write off any remaining stock so the row ends empty, draining every open
-        # FIFO layer through releasable ``product_delete`` allocations. This never
-        # leaves orphaned ("ghost") layer units behind, and — because the void
-        # path can release these allocations — never permanently traps the
-        # purchase that stocked the product. Re-creating a product reactivates
-        # this same row, and the cost-price guard blocks that while stock > 0, so
-        # a deleted product must end at zero stock to be re-creatable.
+        # Goods leave the shelf as a document, never as a side effect of deleting
+        # the card that describes them: deleting used to write the stock off
+        # silently, and re-creating the product later started from zero, so the
+        # units were simply gone with no reason recorded anywhere.
+        if Decimal(product.stock_quantity or 0) > 0:
+            raise ValueError(
+                "Нельзя удалить товар, пока на нём есть остаток "
+                f"({product.stock_quantity}). Сначала спишите или продайте его."
+            )
+        # Legacy rows can still hold layer units without a balance; drain them so
+        # the row ends empty. Kept releasable, so voiding the purchase behind
+        # such a layer stays possible.
         self.ledger.writeoff_all_stock(
             product=product,
             consumer_type="product_delete",

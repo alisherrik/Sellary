@@ -399,9 +399,7 @@ class TestDelete:
     """Tests for deleting products."""
 
     def test_delete_existing_product(self, db_session, default_company, admin_user):
-        """Test deleting an existing product. The stock write-off is audited to
-        the acting user, so a real user_id is required (production always passes
-        one from the authenticated request)."""
+        """Test deleting an existing product, which requires an empty shelf."""
         category = Category(company_id=default_company.id, name="Test Category")
         db_session.add(category)
         db_session.flush()
@@ -413,7 +411,7 @@ class TestDelete:
             category_id=category.id,
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
-            stock_quantity=100,
+            stock_quantity=0,
         )
         db_session.add(product)
         db_session.flush()
@@ -430,6 +428,20 @@ class TestDelete:
         deleted_product = service.get_by_id(product.id)
         assert deleted_product is not None
         assert deleted_product.is_active is False
+
+    def test_delete_refuses_while_stock_remains(
+        self, db_session, default_company, admin_user, test_product
+    ):
+        """Goods leave the shelf as a write-off, never as a side effect of
+        deleting the card that describes them."""
+        service = ProductService(db_session, default_company.id)
+
+        with pytest.raises(ValueError, match="остаток"):
+            service.delete(test_product.id, admin_user.id)
+
+        db_session.refresh(test_product)
+        assert test_product.is_active is True
+        assert Decimal(test_product.stock_quantity) == Decimal("100")
 
     def test_delete_nonexistent_product(self, db_session):
         """Test deleting a product that doesn't exist."""
@@ -739,7 +751,7 @@ class TestLedgerBackedCreate:
         self, db_session, default_company, test_category, admin_user
     ):
         # The reported bug: after deleting a product you couldn't add it again.
-        # delete() now writes off stock, and re-creating reactivates the row.
+        # Re-creating reactivates the same row.
         svc = ProductService(db_session, default_company.id)
         created = svc.create(
             ProductCreate(
@@ -748,7 +760,7 @@ class TestLedgerBackedCreate:
                 category_id=test_category.id,
                 cost_price=Decimal("10.00"),
                 sell_price=Decimal("15.00"),
-                stock_quantity=Decimal("5"),
+                stock_quantity=Decimal("0"),
             ),
             user_id=admin_user.id,
         )

@@ -708,7 +708,7 @@ class TestDeleteProduct:
             category_id=category.id,
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
-            stock_quantity=100,
+            stock_quantity=0,
         )
         db_session.add(product)
         db_session.commit()
@@ -733,7 +733,7 @@ class TestDeleteProduct:
             category_id=category.id,
             cost_price=Decimal("10.00"),
             sell_price=Decimal("15.00"),
-            stock_quantity=100,
+            stock_quantity=0,
         )
         db_session.add(product)
         db_session.commit()
@@ -741,6 +741,14 @@ class TestDeleteProduct:
         response = client.delete(f"/api/products/{product.id}", headers=manager_headers)
 
         assert response.status_code == 204
+
+    def test_delete_product_with_stock_returns_400(
+        self, client: TestClient, db_session, manager_headers, test_product
+    ):
+        response = client.delete(f"/api/products/{test_product.id}", headers=manager_headers)
+
+        assert response.status_code == 400
+        assert "остаток" in response.json()["detail"]
 
     def test_delete_product_as_cashier_forbidden(self, client: TestClient, db_session, cashier_headers):
         """Test that cashier cannot delete products."""

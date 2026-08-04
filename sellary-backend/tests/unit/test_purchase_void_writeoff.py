@@ -35,7 +35,17 @@ def test_void_purchase_after_product_delete_succeeds_and_releases_writeoff(
     po_layer = receipt_item.inventory_layer
     product = receipt_item.product
 
-    assert ProductService(db_session, company_id).delete(product.id, admin_user.id) is True
+    # A legacy row: deleted back when deleting a product wrote its stock off.
+    InventoryLedgerService(db_session, company_id).writeoff_all_stock(
+        product=product,
+        consumer_type="product_delete",
+        consumer_id=product.id,
+        user_id=admin_user.id,
+        reason="Product deleted",
+        reference_type="product_delete",
+        reference_id=product.id,
+    )
+    product.is_active = False
     db_session.flush()
 
     writeoff = (
@@ -140,8 +150,8 @@ def test_void_purchase_reverses_reconciled_ghost_layer(
 def test_delete_with_balance_drift_leaves_no_ghost_layer(
     db_session, default_company, test_category, admin_user
 ):
-    """Deleting a product whose balance drifted above its layers must drain the
-    layers to zero — never leave orphaned ('ghost') units behind."""
+    """A product whose balance is already zero can still hold layer units.
+    Deleting it must drain them — never leave orphaned ('ghost') units behind."""
     product = Product(
         company_id=default_company.id,
         name="Drift Delete Product",
@@ -163,8 +173,8 @@ def test_delete_with_balance_drift_leaves_no_ghost_layer(
     )
     db_session.flush()
 
-    # Simulate pre-existing drift: the balance claims more than the layers hold.
-    product.stock_quantity = Decimal("10")
+    # Simulate pre-existing drift: the layers still hold units the balance lost.
+    product.stock_quantity = Decimal("0")
     db_session.flush()
 
     assert ProductService(db_session, default_company.id).delete(product.id, admin_user.id) is True
