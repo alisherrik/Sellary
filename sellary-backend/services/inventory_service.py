@@ -5,9 +5,31 @@ from sqlalchemy.orm import Session
 
 from repositories.inventory_repository import InventoryRepository
 from repositories.product_repository import ProductRepository
-from schemas.inventory_log import InventoryAdjustment, InventoryLog
+from schemas.inventory_log import (
+    STOCKTAKE_REASON_LABELS,
+    InventoryAdjustment,
+    InventoryLog,
+    StocktakeRequest,
+)
 from services.inventory_ledger_service import InventoryLedgerService
 from services.tenant import resolve_company_id
+
+
+class StocktakeConflictError(Exception):
+    """The stock moved between opening the count dialog and submitting it.
+
+    Carries the current quantity so the caller can re-confirm against the real
+    figure instead of silently applying a correction to a number that changed.
+    """
+
+    def __init__(self, expected: Decimal, actual: Decimal):
+        self.expected = expected
+        self.actual = actual
+        self.message = (
+            f"Остаток изменился: ожидалось {expected}, сейчас {actual}. "
+            "Проверьте количество и повторите."
+        )
+        super().__init__(self.message)
 
 
 class InventoryService:
@@ -58,6 +80,83 @@ class InventoryService:
             "product_name": product.name,
             "new_quantity": product.stock_quantity,
         }
+
+    def apply_stocktake(self, request: StocktakeRequest, user_id: int) -> dict:
+        """Set stock to a physically counted quantity.
+
+        Unlike ``adjust_stock`` this takes an absolute figure, so a stale client
+        cannot apply a delta to a quantity that moved. ``expected_quantity``
+        guards that: if the locked row disagrees, nothing is written.
+        """
+        product = self.product_repo.get_by_id_for_update(
+            self.company_id, request.product_id
+        )
+        if not product:
+            raise ValueError(f"Product with id {request.product_id} not found")
+
+        current = Decimal(product.stock_quantity or 0)
+        if current != request.expected_quantity:
+            raise StocktakeConflictError(request.expected_quantity, current)
+
+        delta = request.counted_quantity - current
+        if delta == 0:
+            # Confirming a correct figure is not a stock movement — leave the
+            # ledger untouched rather than logging a no-op.
+            return {
+                "product_id": product.id,
+                "product_name": product.name,
+                "previous_quantity": current,
+                "new_quantity": current,
+                "delta": Decimal("0"),
+            }
+
+        reason = self._compose_stocktake_reason(request, current)
+
+        if delta > 0:
+            # Mirror adjust_stock: a positive count adds a FIFO layer at the
+            # current average cost, preserving historical layer costs.
+            product = self.ledger.add_layer(
+                product=product,
+                quantity=delta,
+                unit_cost=product.cost_price,
+                source_type="manual_adjustment",
+                source_id=None,
+                user_id=user_id,
+                reason=reason,
+                reference_type=request.reason.value,
+            )
+        else:
+            self.ledger.consume_fifo(
+                product=product,
+                quantity=-delta,
+                consumer_type="manual_adjustment",
+                consumer_id=product.id,
+                sale_item_id=None,
+                user_id=user_id,
+                reason=reason,
+                reference_type=request.reason.value,
+                reference_id=None,
+            )
+
+        return {
+            "product_id": product.id,
+            "product_name": product.name,
+            "previous_quantity": current,
+            "new_quantity": product.stock_quantity,
+            "delta": delta,
+        }
+
+    @staticmethod
+    def _compose_stocktake_reason(
+        request: StocktakeRequest, previous: Decimal
+    ) -> str:
+        """Build the audit string, trimmed to the reason column's 255 chars."""
+        label = STOCKTAKE_REASON_LABELS[request.reason]
+        text = f"{label}: пересчёт {request.counted_quantity} (было {previous})"
+        note = (request.note or "").strip()
+        if note:
+            text = f"{text} — {note}"
+        return text[:255]
 
     def get_logs(
         self,

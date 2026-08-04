@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,8 +11,8 @@ from core.idempotency import (
     IdempotencyService,
     require_idempotency_key,
 )
-from schemas.inventory_log import InventoryAdjustment, InventoryLog
-from services.inventory_service import InventoryService
+from schemas.inventory_log import InventoryAdjustment, InventoryLog, StocktakeRequest
+from services.inventory_service import InventoryService, StocktakeConflictError
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
@@ -55,6 +56,71 @@ def adjust_stock(
         )
         db.commit()
         return result
+    except IdempotencyConflictError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.message)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/stocktake")
+def apply_stocktake(
+    request: StocktakeRequest,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_manager_or_admin),
+    idempotency_key: str = Depends(require_idempotency_key),
+):
+    """Set stock to a physically counted quantity, with a stated cause.
+
+    Takes an absolute count plus the quantity the operator was shown; returns
+    409 when the two disagree so a stale page cannot overwrite a moved figure.
+    """
+    endpoint = "/api/inventory/stocktake"
+    request_body = request.model_dump(mode="json")
+
+    idempotency_service = IdempotencyService(db)
+    try:
+        cached = idempotency_service.get_cached_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+        )
+        if cached:
+            response_body, _ = cached
+            return response_body
+    except IdempotencyConflictError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+
+    service = InventoryService(db, auth.company_id)
+    try:
+        result = service.apply_stocktake(request, auth.user.id)
+        # Decimals are not JSON-serialisable for the idempotency cache.
+        result = {
+            key: str(value) if isinstance(value, Decimal) else value
+            for key, value in result.items()
+        }
+        idempotency_service.store_response(
+            key=idempotency_key,
+            company_id=auth.company_id,
+            user_id=auth.user.id,
+            endpoint=endpoint,
+            request_body=request_body,
+            response_body=result,
+            status_code=200,
+        )
+        db.commit()
+        return result
+    except StocktakeConflictError as exc:
+        # The guard fires before any mutation, so there is nothing to roll back;
+        # get_db closes the session, releasing the row lock.
+        raise HTTPException(
+            status_code=409,
+            detail=exc.message,
+            headers={"X-Current-Quantity": str(exc.actual)},
+        )
     except IdempotencyConflictError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail=exc.message)
