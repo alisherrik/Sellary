@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from models.product import Product
 from models.category import Category
 from models.inventory_layer import InventoryLayer
+from models.purchase_receipt import PurchaseReceipt, PurchaseReceiptItem
 from models.sale import PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
 
@@ -149,7 +150,13 @@ class TestMovementTotals:
     """GET /api/products?with_totals=true — what came in and what went out."""
 
     def test_totals_count_receipts_and_sales_only(
-        self, client: TestClient, db_session, manager_headers, admin_user, test_product
+        self,
+        client: TestClient,
+        db_session,
+        manager_headers,
+        admin_user,
+        test_product,
+        partially_received_po,
     ):
         db_session.add(
             InventoryLayer(
@@ -158,6 +165,22 @@ class TestMovementTotals:
                 source_type="purchase_receipt_item",
                 original_quantity=Decimal("20"),
                 remaining_quantity=Decimal("20"),
+                unit_cost=Decimal("10.0000"),
+            )
+        )
+        receipt = PurchaseReceipt(
+            company_id=test_product.company_id,
+            purchase_order_id=partially_received_po.id,
+            user_id=admin_user.id,
+        )
+        db_session.add(receipt)
+        db_session.flush()
+        db_session.add(
+            PurchaseReceiptItem(
+                purchase_receipt_id=receipt.id,
+                purchase_order_item_id=partially_received_po.items[0].id,
+                product_id=test_product.id,
+                quantity=Decimal("20"),
                 unit_cost=Decimal("10.0000"),
             )
         )
@@ -193,10 +216,12 @@ class TestMovementTotals:
 
         assert response.status_code == 200
         row = next(p for p in response.json() if p["id"] == test_product.id)
-        assert Decimal(row["purchased_quantity"]) == Decimal("20")
+        # 20 from the receipt above plus the 4 the fixture's PO already received.
+        assert Decimal(row["purchased_quantity"]) == Decimal("24")
         assert Decimal(row["sold_quantity"]) == Decimal("5")
-        # 100 opening + 20 received, none of it consumed by the raw rows above.
-        assert Decimal(row["ledger_stock_quantity"]) == Decimal("120")
+        # 100 opening + 20 layered here + 4 from the fixture, none consumed by
+        # the raw sale rows above.
+        assert Decimal(row["ledger_stock_quantity"]) == Decimal("124")
 
     def test_totals_absent_by_default(
         self, client: TestClient, db_session, manager_headers, test_product

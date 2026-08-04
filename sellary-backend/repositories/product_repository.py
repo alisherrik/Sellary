@@ -1,8 +1,9 @@
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import case, func, or_
+from sqlalchemy import func, or_
 from models.inventory_layer import InventoryLayer
 from models.product import Product
+from models.purchase_receipt import PurchaseReceipt, PurchaseReceiptItem
 from models.sale import Sale, SaleStatus
 from models.sale_item import SaleItem
 from typing import Optional, List
@@ -84,10 +85,13 @@ class ProductRepository:
     ) -> dict[int, dict[str, Decimal]]:
         """How much of each product came in, went out, and is left.
 
-        `purchased` and `ledger_stock` are read from the FIFO layers, so a voided
-        receipt is already gone from both. `sold` is read from the sale documents,
-        which makes it an independent figure: `ledger_stock` that disagrees with
-        `products.stock_quantity` is drift, not a rounding difference.
+        `purchased` and `sold` are read from the documents — the receipt lines and
+        the sale lines — because that is what the shop counted. A layer can be
+        shrunk by a ledger repair or never written at all (the June PO #9 bug),
+        so reading them from the layers made a product look like it sold more
+        than it ever bought. `ledger_stock` is the layers, and it is meant to be
+        the independent figure: when it disagrees with `products.stock_quantity`
+        that is drift, not rounding.
         """
         zero = Decimal("0")
         totals = {
@@ -100,15 +104,6 @@ class ProductRepository:
         layer_rows = (
             self.db.query(
                 InventoryLayer.product_id,
-                func.sum(
-                    case(
-                        (
-                            InventoryLayer.source_type == "purchase_receipt_item",
-                            InventoryLayer.original_quantity,
-                        ),
-                        else_=0,
-                    )
-                ),
                 func.sum(InventoryLayer.remaining_quantity),
             )
             .filter(
@@ -119,9 +114,31 @@ class ProductRepository:
             .group_by(InventoryLayer.product_id)
             .all()
         )
-        for product_id, purchased, remaining in layer_rows:
-            totals[product_id]["purchased"] = purchased or zero
+        for product_id, remaining in layer_rows:
             totals[product_id]["ledger_stock"] = remaining or zero
+
+        purchased_rows = (
+            self.db.query(
+                PurchaseReceiptItem.product_id,
+                func.sum(PurchaseReceiptItem.quantity),
+            )
+            .join(PurchaseReceipt, PurchaseReceiptItem.purchase_receipt_id == PurchaseReceipt.id)
+            # A voided line keeps its receipt row but its layer is reversed.
+            .outerjoin(
+                InventoryLayer,
+                InventoryLayer.purchase_receipt_item_id == PurchaseReceiptItem.id,
+            )
+            .filter(
+                PurchaseReceipt.company_id == company_id,
+                PurchaseReceiptItem.product_id.in_(product_ids),
+                PurchaseReceipt.reversed_at.is_(None),
+                InventoryLayer.reversed_at.is_(None),
+            )
+            .group_by(PurchaseReceiptItem.product_id)
+            .all()
+        )
+        for product_id, purchased in purchased_rows:
+            totals[product_id]["purchased"] = purchased or zero
 
         sold_rows = (
             self.db.query(
