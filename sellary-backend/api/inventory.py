@@ -68,7 +68,7 @@ def adjust_stock(
 def apply_stocktake(
     request: StocktakeRequest,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_manager_or_admin),
+    auth: AuthContext = Depends(require_module("inventory", "manager")),
     idempotency_key: str = Depends(require_idempotency_key),
 ):
     """Set stock to a physically counted quantity, with a stated cause.

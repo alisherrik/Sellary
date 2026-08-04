@@ -33,25 +33,27 @@ class InventoryAdjustment(BaseModel):
 class StocktakeReason(str, Enum):
     """Why a counted quantity differs from the recorded one.
 
+    These describe an **unexplained** difference found by counting. Goods that
+    are known to be unsellable — spoiled, broken, or going back to the supplier
+    — leave the shelf as a ``stock_write_offs`` document instead, which records
+    the reason, the disposition and the cost the ledger actually consumed. Do
+    not add those causes here; that would be a second channel for the same fact.
+
     The value is stored verbatim in ``inventory_logs.reference_type`` so stock
-    movements can be grouped by cause without a schema change. Keep the values
-    short — the column is ``String(50)``.
+    movements group by cause without a schema change. Keep the values short —
+    the column is ``String(50)``.
     """
 
     stocktake = "stocktake"
-    damage = "damage"
-    theft = "theft"
     surplus = "surplus"
-    supplier_return = "supplier_return"
+    shortage = "shortage"
     other = "other"
 
 
 STOCKTAKE_REASON_LABELS: dict[StocktakeReason, str] = {
     StocktakeReason.stocktake: "Инвентаризация",
-    StocktakeReason.damage: "Бой / брак",
-    StocktakeReason.theft: "Недостача / хищение",
     StocktakeReason.surplus: "Излишек",
-    StocktakeReason.supplier_return: "Возврат поставщику",
+    StocktakeReason.shortage: "Недостача",
     StocktakeReason.other: "Прочее",
 }
 

@@ -75,7 +75,7 @@ class TestStocktakeApplies:
                 "product_id": test_product.id,
                 "counted_quantity": "88",
                 "expected_quantity": "100",
-                "reason": "damage",
+                "reason": "shortage",
             },
         )
 
@@ -93,7 +93,7 @@ class TestStocktakeApplies:
             .order_by(InventoryLog.id.desc())
             .first()
         )
-        assert log.reference_type == "damage"
+        assert log.reference_type == "shortage"
         assert log.quantity_change == Decimal("-12.000")
 
     def test_counting_to_zero_is_allowed(
@@ -278,7 +278,7 @@ class TestStocktakeAccess:
             "product_id": test_product.id,
             "counted_quantity": "97",
             "expected_quantity": "100",
-            "reason": "theft",
+            "reason": "shortage",
         }
         headers = {**admin_headers, "Idempotency-Key": _key("replayed-once")}
 
