@@ -92,3 +92,7 @@ class ProductResponse(Product):
     uom: str = Field(default="dona")
     # Active additional sale units (the base unit is conveyed by uom/sell_price).
     units: List[ProductUnitResponse] = []
+    # Only filled when the list is asked for with_totals=true.
+    purchased_quantity: Optional[Decimal] = None
+    sold_quantity: Optional[Decimal] = None
+    ledger_stock_quantity: Optional[Decimal] = None

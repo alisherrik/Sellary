@@ -46,6 +46,7 @@ class ProductService:
         limit: int = 50,
         search: Optional[str] = None,
         category_id: Optional[int] = None,
+        with_totals: bool = False,
     ) -> Tuple[List[ProductResponse], int]:
         products, total = self.product_repo.get_all(
             self.company_id,
@@ -54,7 +55,18 @@ class ProductService:
             search=search,
             category_id=category_id,
         )
-        return [self._to_response(product) for product in products], total
+        responses = [self._to_response(product) for product in products]
+        if with_totals:
+            totals = self.product_repo.get_movement_totals(
+                self.company_id,
+                [product.id for product in products],
+            )
+            for response in responses:
+                movement = totals[response.id]
+                response.purchased_quantity = movement["purchased"]
+                response.sold_quantity = movement["sold"]
+                response.ledger_stock_quantity = movement["ledger_stock"]
+        return responses, total
 
     def create(self, product_create: ProductCreate, user_id: int | None = None) -> ProductResponse:
         existing = None

@@ -151,6 +151,11 @@ export interface Product {
   is_published?: boolean;
   image_url?: string | null;
   profit_percent?: string;
+  // Only present when the list was requested with_totals=true.
+  purchased_quantity?: string | null;
+  sold_quantity?: string | null;
+  // Stock the FIFO layers still hold. It must equal stock_quantity; a gap is drift.
+  ledger_stock_quantity?: string | null;
   units?: ProductUnit[];
   created_at: string;
   updated_at?: string;

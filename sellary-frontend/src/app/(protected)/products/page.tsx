@@ -99,6 +99,15 @@ function PublishSwitch({
   );
 }
 
+const formatQty = (value?: string | number | null) =>
+  value === undefined || value === null ? '—' : String(Number(value));
+
+// The FIFO layers and products.stock_quantity are two records of the same fact.
+// When they disagree the row shows both, because the gap is the bug.
+const ledgerDrift = (product: Product) =>
+  product.ledger_stock_quantity != null &&
+  Math.abs(Number(product.ledger_stock_quantity) - product.stock_quantity) >= 0.001;
+
 const stockBar = (product: Product) => {
   const ref = Math.max(product.min_stock_level * 5, 1);
   const pct = Math.min(100, Math.max(product.stock_quantity > 0 ? 6 : 0, (product.stock_quantity / ref) * 100));
@@ -128,7 +137,7 @@ function Products() {
 
   // Debounce so typing in search doesn't fire a network request per keystroke.
   const debouncedSearch = useDebounce(searchQuery, 300);
-  const params: Record<string, string | number> = { limit: 100 };
+  const params: Record<string, string | number | boolean> = { limit: 100, with_totals: true };
   if (debouncedSearch) params.search = debouncedSearch;
   if (selectedCategory) params.category_id = selectedCategory;
 
@@ -686,6 +695,12 @@ function Products() {
                             <span className={`tabular-nums ${product.stock_quantity <= product.min_stock_level ? 'font-semibold text-red-600' : 'text-gray-500'}`}>
                               ост: {product.stock_quantity}
                             </span>
+                            {product.purchased_quantity != null && (
+                              <span className="tabular-nums text-gray-500">
+                                зак: {formatQty(product.purchased_quantity)} / прод:{' '}
+                                {formatQty(product.sold_quantity)}
+                              </span>
+                            )}
                           </div>
                           <div className="flex gap-1">
                             <PublishSwitch
@@ -736,6 +751,8 @@ function Products() {
                       <th className="px-4 py-3 text-left font-semibold">Товар</th>
                       <th className="px-4 py-3 text-left font-semibold">Категория</th>
                       <th className="px-4 py-3 text-right font-semibold">Цена</th>
+                      <th className="px-4 py-3 text-right font-semibold">Закуплено</th>
+                      <th className="px-4 py-3 text-right font-semibold">Продано</th>
                       <th className="px-4 py-3 text-right font-semibold">Остаток</th>
                       <th className="px-4 py-3 text-left font-semibold">Уровень запаса</th>
                       <th className="px-4 py-3 text-center font-semibold">Маркетплейс</th>
@@ -772,6 +789,12 @@ function Products() {
                           <td className="px-4 py-3 text-right font-medium tabular-nums text-[var(--erp-text)]">
                             {formatUnitPrice(product.sell_price)}
                           </td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                            {formatQty(product.purchased_quantity)}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                            {formatQty(product.sold_quantity)}
+                          </td>
                           <td className={`px-4 py-3 text-right tabular-nums ${
                             product.stock_quantity === 0
                               ? 'font-semibold text-[var(--erp-accent)]'
@@ -782,6 +805,14 @@ function Products() {
                             {product.stock_quantity}
                             {product.stock_quantity > 0 && product.stock_quantity <= product.min_stock_level && ' ⚠'}
                             <span className="ml-1 text-[11px] text-[var(--erp-muted)]">{product.uom}</span>
+                            {ledgerDrift(product) && (
+                              <div
+                                className="text-[11px] font-semibold text-[var(--erp-accent)]"
+                                title="Остаток товара не сходится с партиями закупки"
+                              >
+                                по партиям: {formatQty(product.ledger_stock_quantity)}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">

@@ -7,6 +7,9 @@ from fastapi.testclient import TestClient
 
 from models.product import Product
 from models.category import Category
+from models.inventory_layer import InventoryLayer
+from models.sale import PaymentMethod, Sale, SaleStatus
+from models.sale_item import SaleItem
 
 
 class TestListProducts:
@@ -140,6 +143,68 @@ class TestListProducts:
         data = response.json()
         assert len(data) == 1
         assert data[0]["name"] == "Laptop"
+
+
+class TestMovementTotals:
+    """GET /api/products?with_totals=true — what came in and what went out."""
+
+    def test_totals_count_receipts_and_sales_only(
+        self, client: TestClient, db_session, manager_headers, admin_user, test_product
+    ):
+        db_session.add(
+            InventoryLayer(
+                company_id=test_product.company_id,
+                product_id=test_product.id,
+                source_type="purchase_receipt_item",
+                original_quantity=Decimal("20"),
+                remaining_quantity=Decimal("20"),
+                unit_cost=Decimal("10.0000"),
+            )
+        )
+
+        def add_sale(quantity: str, returned: str, status: SaleStatus) -> None:
+            sale = Sale(
+                company_id=test_product.company_id,
+                cashier_id=admin_user.id,
+                subtotal=Decimal("0.00"),
+                total_amount=Decimal("0.00"),
+                payment_method=PaymentMethod.CASH,
+                status=status,
+            )
+            db_session.add(sale)
+            db_session.flush()
+            db_session.add(
+                SaleItem(
+                    sale_id=sale.id,
+                    product_id=test_product.id,
+                    quantity=Decimal(quantity),
+                    quantity_returned=Decimal(returned),
+                    unit_price=Decimal("15.0000"),
+                    subtotal=Decimal("0.00"),
+                    total=Decimal("0.00"),
+                )
+            )
+
+        add_sale("6", "1", SaleStatus.PARTIALLY_RETURNED)
+        add_sale("50", "0", SaleStatus.CANCELLED)
+        db_session.commit()
+
+        response = client.get("/api/products?with_totals=true", headers=manager_headers)
+
+        assert response.status_code == 200
+        row = next(p for p in response.json() if p["id"] == test_product.id)
+        assert Decimal(row["purchased_quantity"]) == Decimal("20")
+        assert Decimal(row["sold_quantity"]) == Decimal("5")
+        # 100 opening + 20 received, none of it consumed by the raw rows above.
+        assert Decimal(row["ledger_stock_quantity"]) == Decimal("120")
+
+    def test_totals_absent_by_default(
+        self, client: TestClient, db_session, manager_headers, test_product
+    ):
+        response = client.get("/api/products", headers=manager_headers)
+
+        assert response.status_code == 200
+        assert response.json()[0]["purchased_quantity"] is None
 
 
 class TestGetProduct:

@@ -1,7 +1,10 @@
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import case, func, or_
+from models.inventory_layer import InventoryLayer
 from models.product import Product
+from models.sale import Sale, SaleStatus
+from models.sale_item import SaleItem
 from typing import Optional, List
 
 
@@ -73,6 +76,72 @@ class ProductRepository:
         products = query.offset(skip).limit(limit).all()
 
         return products, total
+
+    def get_movement_totals(
+        self,
+        company_id: int,
+        product_ids: List[int],
+    ) -> dict[int, dict[str, Decimal]]:
+        """How much of each product came in, went out, and is left.
+
+        `purchased` and `ledger_stock` are read from the FIFO layers, so a voided
+        receipt is already gone from both. `sold` is read from the sale documents,
+        which makes it an independent figure: `ledger_stock` that disagrees with
+        `products.stock_quantity` is drift, not a rounding difference.
+        """
+        zero = Decimal("0")
+        totals = {
+            product_id: {"purchased": zero, "sold": zero, "ledger_stock": zero}
+            for product_id in product_ids
+        }
+        if not product_ids:
+            return totals
+
+        layer_rows = (
+            self.db.query(
+                InventoryLayer.product_id,
+                func.sum(
+                    case(
+                        (
+                            InventoryLayer.source_type == "purchase_receipt_item",
+                            InventoryLayer.original_quantity,
+                        ),
+                        else_=0,
+                    )
+                ),
+                func.sum(InventoryLayer.remaining_quantity),
+            )
+            .filter(
+                InventoryLayer.company_id == company_id,
+                InventoryLayer.product_id.in_(product_ids),
+                InventoryLayer.reversed_at.is_(None),
+            )
+            .group_by(InventoryLayer.product_id)
+            .all()
+        )
+        for product_id, purchased, remaining in layer_rows:
+            totals[product_id]["purchased"] = purchased or zero
+            totals[product_id]["ledger_stock"] = remaining or zero
+
+        sold_rows = (
+            self.db.query(
+                SaleItem.product_id,
+                func.sum(SaleItem.quantity - SaleItem.quantity_returned),
+            )
+            .join(Sale, SaleItem.sale_id == Sale.id)
+            .filter(
+                Sale.company_id == company_id,
+                SaleItem.product_id.in_(product_ids),
+                Sale.status != SaleStatus.CANCELLED,
+                Sale.voided_at.is_(None),
+            )
+            .group_by(SaleItem.product_id)
+            .all()
+        )
+        for product_id, sold in sold_rows:
+            totals[product_id]["sold"] = sold or zero
+
+        return totals
 
     def create(self, product: Product) -> Product:
         # Flush only — the service layer assembles the product row, its initial

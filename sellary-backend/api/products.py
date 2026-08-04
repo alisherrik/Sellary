@@ -19,11 +19,18 @@ def get_products(
     limit: int = Query(50, ge=1, le=200),
     search: Optional[str] = None,
     category_id: Optional[int] = None,
+    with_totals: bool = Query(False),
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_module("inventory")),
 ):
     service = ProductService(db, auth.company_id)
-    products, _ = service.get_all(skip=skip, limit=limit, search=search, category_id=category_id)
+    products, _ = service.get_all(
+        skip=skip,
+        limit=limit,
+        search=search,
+        category_id=category_id,
+        with_totals=with_totals,
+    )
     return products
 
 
