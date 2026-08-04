@@ -25,6 +25,7 @@ import type {
   ReceivePurchaseOrderPayload,
   SaleSearchSuggestion,
   SalesSummary,
+  StocktakeInput,
   CashShift,
   CashShiftDetail,
   VoidPreview,
@@ -350,6 +351,13 @@ export const inventoryApi = {
   adjust: (data: any, idempotencyKey?: string) => {
     const key = idempotencyKey || generateIdempotencyKey();
     return api.post('/inventory/adjust', data, { headers: { 'Idempotency-Key': key } });
+  },
+  // A physical count. Sends the absolute quantity plus the one the dialog was
+  // opened on, so the server refuses (409) when stock moved — never a delta
+  // computed against a cached figure.
+  stocktake: (data: StocktakeInput, idempotencyKey?: string) => {
+    const key = idempotencyKey || generateIdempotencyKey();
+    return api.post('/inventory/stocktake', data, { headers: { 'Idempotency-Key': key } });
   },
   getLogs: (params?: any) => api.get('/inventory/logs', { params }),
   getValuation: () => api.get('/inventory/valuation'),

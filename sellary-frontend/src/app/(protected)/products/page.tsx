@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ClipboardDocumentCheckIcon,
   ClockIcon,
   Cog6ToothIcon,
   MagnifyingGlassIcon,
@@ -19,9 +20,10 @@ import StockHistorySheet from '@/components/inventory/StockHistorySheet';
 import QueryError from '@/components/ui/QueryError';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useLowStockProducts, useProducts } from '@/hooks/useQueries';
-import { categoriesApi, inventoryApi, productsApi } from '@/lib/api';
+import { categoriesApi, productsApi } from '@/lib/api';
 import { Category, Product } from '@/lib/types';
 import { formatCurrency, formatUnitPrice, toPriceInput } from '@/lib/utils';
+import StocktakeModal from './StocktakeModal';
 
 type CategoryModalMode = 'create' | 'edit';
 type CategoryModalSource = 'manager' | 'product';
@@ -134,6 +136,7 @@ function Products() {
   const [categoryFormData, setCategoryFormData] = useState(emptyCategoryForm);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+  const [countingProduct, setCountingProduct] = useState<Product | null>(null);
 
   // Debounce so typing in search doesn't fire a network request per keystroke.
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -281,26 +284,13 @@ function Products() {
     },
   });
 
+  // Editing a product never touches stock. It used to post an inventory
+  // adjustment for any change to its stock box, computed against the cached
+  // quantity and always stamped with the same reason, which is how 146 silent
+  // write-offs reached production. Counting goes through StocktakeModal;
+  // spoilage and supplier returns go through the write-off document.
   const updateProductMutation = useMutation({
-    mutationFn: async ({
-      id,
-      data,
-      quantityChange,
-    }: {
-      id: number;
-      data: any;
-      quantityChange: number;
-    }) => {
-      await productsApi.update(id, data);
-
-      if (quantityChange !== 0) {
-        await inventoryApi.adjust({
-          product_id: id,
-          quantity_change: quantityChange,
-          reason: 'Корректировка остатка при редактировании товара',
-        });
-      }
-    },
+    mutationFn: ({ id, data }: { id: number; data: any }) => productsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
@@ -447,16 +437,8 @@ function Products() {
     };
 
     if (editingProduct) {
-      const { stock_quantity: desiredStockQuantity, ...productData } = data;
-      const quantityChange = Number(
-        (desiredStockQuantity - editingProduct.stock_quantity).toFixed(3),
-      );
-
-      updateProductMutation.mutate({
-        id: editingProduct.id,
-        data: productData,
-        quantityChange,
-      });
+      const { stock_quantity: _stockQuantity, ...productData } = data;
+      updateProductMutation.mutate({ id: editingProduct.id, data: productData });
       return;
     }
 
@@ -721,6 +703,13 @@ function Products() {
                               <ClockIcon className="h-4 w-4" />
                             </button>
                             <button
+                              onClick={() => setCountingProduct(product)}
+                              className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-text)]"
+                              aria-label="Корректировка остатка"
+                            >
+                              <ClipboardDocumentCheckIcon className="h-4 w-4" />
+                            </button>
+                            <button
                               onClick={() => handleEditProduct(product)}
                               className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-text)]"
                               aria-label="Редактировать"
@@ -845,6 +834,14 @@ function Products() {
                                 aria-label="История остатка"
                               >
                                 <ClockIcon className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCountingProduct(product)}
+                                className="p-2 text-[var(--erp-muted)] hover:text-[var(--erp-text)]"
+                                aria-label="Корректировка остатка"
+                              >
+                                <ClipboardDocumentCheckIcon className="h-4 w-4" />
                               </button>
                               <button
                                 type="button"
@@ -975,18 +972,22 @@ function Products() {
                     className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Количество *</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    step="0.001"
-                    value={formData.stock_quantity}
-                    onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
-                    className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
-                  />
-                </div>
+                {/* Opening balance only. When editing, stock changes through the
+                    stocktake dialog so every movement carries a stated cause. */}
+                {!editingProduct && (
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Количество *</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      step="0.001"
+                      value={formData.stock_quantity}
+                      onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
+                      className="w-full h-9 sm:h-10 px-3 border border-[var(--erp-divider)] bg-white text-sm"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Мин. остаток</label>
                   <input
@@ -1284,6 +1285,13 @@ function Products() {
         <StockHistorySheet
           product={historyProduct}
           onClose={() => setHistoryProduct(null)}
+        />
+      )}
+
+      {countingProduct && (
+        <StocktakeModal
+          product={countingProduct}
+          onClose={() => setCountingProduct(null)}
         />
       )}
     </>

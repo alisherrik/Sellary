@@ -164,6 +164,30 @@ export interface Product {
 // Company storefront settings for the Telegram marketplace (F1). Read/updated
 // through GET/PATCH /api/company/marketplace; server-side per company, not a
 // device-local setting.
+// What counting alone can tell you about a discrepancy. Known causes —
+// spoilage, breakage, a supplier return — are a write-off document instead.
+// Sent to POST /api/inventory/stocktake and stored in
+// inventory_logs.reference_type so movements group by cause.
+export type StocktakeReason = 'stocktake' | 'surplus' | 'shortage' | 'other';
+
+// An absolute physical count. expected_quantity is what the operator was shown
+// when the dialog opened; the server returns 409 if stock has moved since.
+export interface StocktakeInput {
+  product_id: number;
+  counted_quantity: string;
+  expected_quantity: string;
+  reason: StocktakeReason;
+  note?: string;
+}
+
+export interface StocktakeResult {
+  product_id: number;
+  product_name: string;
+  previous_quantity: string;
+  new_quantity: string;
+  delta: string;
+}
+
 export interface MarketplaceSettings {
   is_marketplace_enabled: boolean;
   logo_url?: string | null;

@@ -170,6 +170,31 @@ Write-offs never enter turnover. The profit report carries them as
 `write_off_cost` and `profit_after_write_offs` beside an unchanged `profit`, so
 existing callers (frontend, MCP `get_profit_report`) keep their meaning.
 
+### Counting stock
+**Editing a product never changes its stock.** The edit form used to carry a
+quantity box that posted an adjustment for any change to it — computed as a
+delta against the cached figure, stamped «Корректировка остатка при
+редактировании товара». 146 of those reached production, many zeroing a
+product, none saying why; and because the server applied the delta to whatever
+it held, a page left open while the cashier sold turned a typed number into a
+wrong one.
+
+A count is a document like any other. `POST /api/inventory/stocktake` takes the
+**absolute** counted quantity plus the `expected_quantity` the dialog opened
+on, locks the row, and returns **409** with the current figure if the two
+disagree rather than correcting a number that moved. Counting the same figure
+back writes no log at all — confirming a correct quantity is not a movement.
+
+Its reasons are only what counting can tell you (`stocktake`, `surplus`,
+`shortage`, `other`), stored in `inventory_logs.reference_type` so movements
+group by cause. Spoilage, breakage and supplier returns stay with the write-off
+document, which also records disposition and consumed cost. Do not add them
+here — that is the second channel this codebase keeps learning not to build.
+
+The quantity field survives on product **creation**: that is a real opening
+balance, written as a `product_initial` FIFO layer on a product with no prior
+figure to corrupt.
+
 ### MCP connector (`sellary-backend/mcp_server/`)
 Gated on the **`ai` module**, like every other domain. It is in no business-type
 preset — it opens a live door into the company's data, so it is switched on
