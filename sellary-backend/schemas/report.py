@@ -43,7 +43,7 @@ class ProfitReport(BaseModel):
 class TopProductItem(BaseModel):
     product_id: int
     product_name: str
-    barcode: str
+    barcode: Optional[str] = None
     quantity_sold: int
     revenue: Decimal
     profit: Decimal
