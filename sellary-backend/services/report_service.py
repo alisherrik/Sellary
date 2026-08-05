@@ -48,14 +48,16 @@ class ReportService:
         """Fill in a missing range as the last `days` local business days.
 
         Anchored on the company's clock — `datetime.now()` here would anchor on
-        the server's UTC day and cut the range at the wrong boundary.
+        the server's UTC day and cut the range at the wrong boundary. Today
+        counts as one of the days, so «30 дней» is 30 and not 31, which is also
+        what the MCP connector's `last_30_days` means.
         """
         tz = self.tz()
         if not end_date:
             _, end_date = self.local_day_bounds()
         if not start_date:
             start_date, _ = self.local_day_bounds(
-                datetime.now(tz).date() - timedelta(days=days)
+                datetime.now(tz).date() - timedelta(days=max(days - 1, 0))
             )
         return start_date, end_date
 
@@ -291,6 +293,13 @@ class ReportService:
                     * (SaleItem.quantity - SaleItem.quantity_returned)
                     / func.nullif(SaleItem.quantity, 0)
                 ).label("revenue"),
+                # What the goods cost when they left, exactly as the profit
+                # report counts it — not today's cost card, which changes with
+                # every delivery and made this profit disagree with that one.
+                func.sum(
+                    (SaleItem.quantity - SaleItem.quantity_returned)
+                    * SaleItem.unit_cost_at_sale
+                ).label("cost"),
             )
             .join(SaleItem, Product.id == SaleItem.product_id)
             .join(Sale, SaleItem.sale_id == Sale.id)
@@ -310,21 +319,19 @@ class ReportService:
 
         items: List[TopProductItem] = []
         for result in results:
-            profit_per_unit = (
-                Decimal(str(result.sell_price)) - Decimal(str(result.cost_price))
-                if result.sell_price and result.cost_price
-                else Decimal("0.00")
-            )
-            profit = profit_per_unit * result.qty
+            revenue = Decimal(str(result.revenue)) if result.revenue else Decimal("0.00")
+            cost = Decimal(str(result.cost)) if result.cost else Decimal("0.00")
 
             items.append(
                 TopProductItem(
                     product_id=result.id,
                     product_name=result.name,
                     barcode=result.barcode,
-                    quantity_sold=int(result.qty),
-                    revenue=Decimal(str(result.revenue)) if result.revenue else Decimal("0.00"),
-                    profit=profit.quantize(Decimal("0.01")),
+                    # Weight and volume sell in fractions; int() turned 43.142 kg
+                    # into 43 and quietly lost the rest.
+                    quantity_sold=Decimal(str(result.qty)),
+                    revenue=revenue,
+                    profit=(revenue - cost).quantize(Decimal("0.01")),
                 )
             )
 

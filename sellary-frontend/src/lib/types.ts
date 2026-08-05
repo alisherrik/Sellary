@@ -601,7 +601,8 @@ export interface TopProductItem {
   product_id: number;
   product_name: string;
   barcode?: string | null;
-  quantity_sold: number;
+  // Decimal on the wire — goods sold by weight move in fractions.
+  quantity_sold: string | number;
   revenue?: string;
   profit?: string;
   total_revenue?: number;

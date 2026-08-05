@@ -16,6 +16,7 @@ from typing import Optional
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
+from models.inventory_layer import InventoryLayer
 from models.product import Product
 from models.purchase_order import PurchaseOrder
 from models.purchase_receipt import PurchaseReceipt, PurchaseReceiptItem
@@ -62,10 +63,19 @@ class PurchaseReportService:
             self.db.query(PurchaseReceiptItem)
             .join(PurchaseReceipt, PurchaseReceipt.id == PurchaseReceiptItem.purchase_receipt_id)
             .join(PurchaseOrder, PurchaseOrder.id == PurchaseReceipt.purchase_order_id)
+            # A voided purchase LINE leaves its receipt row standing and reverses
+            # only the layer it created. PO #56 kept 28 such receipts, and the
+            # report billed the shop for goods the ledger had already sent back.
+            # Items with no layer at all (the June PO #9 receives) still count.
+            .outerjoin(
+                InventoryLayer,
+                InventoryLayer.purchase_receipt_item_id == PurchaseReceiptItem.id,
+            )
             .filter(
                 PurchaseReceipt.company_id == self.company_id,
                 # A reversed receipt is goods that went back; it bought nothing.
                 PurchaseReceipt.reversed_at.is_(None),
+                InventoryLayer.reversed_at.is_(None),
             )
         )
         if start is not None:
@@ -165,7 +175,14 @@ class PurchaseReportService:
             .all()
         )
 
-        total = sum((Decimal(r[6] or 0) for r in rows), ZERO)
+        # The share is of the period's whole spend, not of the rows that fit on
+        # the page: summing the truncated list made every share too big.
+        total = Decimal(
+            self._items(start, end, supplier_id)
+            .with_entities(func.coalesce(func.sum(self._line_total()), ZERO))
+            .scalar()
+            or 0
+        )
         first_last = self._first_and_last_cost(start, end, supplier_id)
 
         result = []

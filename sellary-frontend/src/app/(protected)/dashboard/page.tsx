@@ -114,7 +114,7 @@ function Dashboard() {
                         </div>
                         <div className="ml-2 flex-shrink-0 text-right">
                           <p className="text-xs font-medium text-[var(--erp-text)] sm:text-base">
-                            {product.quantity_sold} шт
+                            {Number(product.quantity_sold)} шт
                           </p>
                           <p className="text-[10px] text-gray-500 sm:text-sm">
                             {formatCurrency(product.revenue)}

@@ -44,7 +44,7 @@ class TopProductItem(BaseModel):
     product_id: int
     product_name: str
     barcode: Optional[str] = None
-    quantity_sold: int
+    quantity_sold: Decimal
     revenue: Decimal
     profit: Decimal
 

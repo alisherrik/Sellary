@@ -83,12 +83,13 @@ def get_top_products(
 
 
 def _purchase_range(service: PurchaseReportService, start_date, end_date, days: int):
+    # Today counts as one of the days, as it does everywhere else.
     tz = service.tz()
     if not end_date:
         _, end_date = service.local_day_bounds()
     if not start_date:
         start_date, _ = service.local_day_bounds(
-            datetime.now(tz).date() - timedelta(days=days)
+            datetime.now(tz).date() - timedelta(days=max(days - 1, 0))
         )
     return start_date, end_date
 

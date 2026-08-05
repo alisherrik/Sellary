@@ -166,10 +166,10 @@ function Reports() {
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-semibold text-[var(--erp-text)]">
-                              {product.quantity_sold} шт
+                              {Number(product.quantity_sold)} шт
                             </div>
                             <div className="text-xs text-green-600">
-                              {formatCurrency(product.total_profit || 0)}
+                              {formatCurrency(product.profit ?? 0)}
                             </div>
                           </div>
                         </div>
