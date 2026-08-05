@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
 import { useDialogFocus } from '@/hooks/useDialogFocus';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -15,12 +16,26 @@ interface StockHistorySheetProps {
   onClose: () => void;
 }
 
+// Keyed on what the server actually writes into reference_type; anything
+// missing here read as a bare «Изменение», which told the shop nothing.
 const REFERENCE_LABELS: Record<string, string> = {
   sale: 'Продажа',
   sale_return: 'Возврат',
-  purchase_order: 'Приёмка',
-  adjustment: 'Корректировка',
-  reversal: 'Аннулирование',
+  sale_void: 'Аннулирование продажи',
+  sale_cancel: 'Отмена продажи',
+  po_receive: 'Приёмка',
+  po_void: 'Аннулирование закупки',
+  po_item_void: 'Аннулирование позиции закупки',
+  manual_adjust: 'Корректировка',
+  stocktake: 'Инвентаризация',
+  surplus: 'Излишек',
+  shortage: 'Недостача',
+  other: 'Прочее',
+  write_off: 'Списание',
+  product_initial: 'Начальный остаток',
+  product_delete: 'Удаление товара',
+  product_recreate: 'Пересоздание товара',
+  ledger_repair: 'Ремонт реестра',
 };
 
 const formatQuantity = (value: number | string) => {
@@ -43,13 +58,21 @@ export default function StockHistorySheet({ product, onClose }: StockHistoryShee
   // inside <main id="main">. Marking #main inert from in here made the sheet
   // inert too — its own close button stopped dispatching clicks.
   const [mounted, setMounted] = useState(false);
+  const [receiptInput, setReceiptInput] = useState('');
 
   useEffect(() => setMounted(true), []);
 
+  const receipt = useDebounce(receiptInput.trim(), 300);
+  const saleId = /^\d+$/.test(receipt) ? Number(receipt) : null;
+
   const { data: logs = [], isLoading, isError, refetch } = useQuery<InventoryLog[]>({
-    queryKey: ['inventoryLogs', product.id],
+    queryKey: ['inventoryLogs', product.id, saleId],
     queryFn: async () => {
-      const response = await inventoryApi.getLogs({ product_id: product.id, limit: 100 });
+      const response = await inventoryApi.getLogs({
+        product_id: product.id,
+        limit: 100,
+        ...(saleId ? { sale_id: saleId } : {}),
+      });
       return response.data;
     },
   });
@@ -109,6 +132,34 @@ export default function StockHistorySheet({ product, onClose }: StockHistoryShee
           </button>
         </div>
 
+        <div className="border-b border-[var(--erp-divider)] px-4 py-3">
+          <label
+            htmlFor="stock-history-receipt"
+            className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--erp-muted)]"
+          >
+            Номер чека
+          </label>
+          <div className="mt-1 flex gap-2">
+            <input
+              id="stock-history-receipt"
+              inputMode="numeric"
+              value={receiptInput}
+              onChange={(event) => setReceiptInput(event.target.value.replace(/\D/g, ''))}
+              placeholder="например 98"
+              className="min-h-[44px] w-full border-2 border-[var(--erp-divider)] px-3 text-[15px] tabular-nums text-[var(--erp-text)] focus:border-[var(--erp-accent)] focus:outline-none"
+            />
+            {receiptInput && (
+              <button
+                type="button"
+                onClick={() => setReceiptInput('')}
+                className="min-h-[44px] shrink-0 border-2 border-[var(--erp-divider)] px-3 text-[13px] font-bold text-[var(--erp-text)] hover:bg-[var(--erp-surface)]"
+              >
+                Сбросить
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {isLoading ? (
             <div className="space-y-2" role="status" aria-live="polite">
@@ -138,7 +189,9 @@ export default function StockHistorySheet({ product, onClose }: StockHistoryShee
             </div>
           ) : logs.length === 0 ? (
             <p className="py-12 text-center text-sm text-[var(--erp-muted)]">
-              По этому товару ещё не было движений.
+              {saleId
+                ? `По чеку №${saleId} движений этого товара нет.`
+                : 'По этому товару ещё не было движений.'}
             </p>
           ) : (
             <ol className="space-y-2">

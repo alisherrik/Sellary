@@ -4,6 +4,10 @@ from models.inventory_log import InventoryLog
 from models.product import Product
 from typing import Optional, List
 
+# Everything a receipt number can do to stock: the sale itself, a return
+# against it, and the two ways of undoing it.
+SALE_REFERENCE_TYPES = ("sale", "sale_return", "sale_void", "sale_cancel")
+
 
 class InventoryRepository:
     def __init__(self, db: Session):
@@ -15,6 +19,7 @@ class InventoryRepository:
         skip: int = 0,
         limit: int = 50,
         product_id: Optional[int] = None,
+        sale_id: Optional[int] = None,
     ) -> tuple[List[InventoryLog], int]:
         query = self.db.query(InventoryLog).options(
             joinedload(InventoryLog.product), joinedload(InventoryLog.user)
@@ -22,6 +27,15 @@ class InventoryRepository:
 
         if product_id:
             query = query.filter(InventoryLog.product_id == product_id)
+
+        if sale_id:
+            # reference_id alone is ambiguous — a purchase receive stores the
+            # order number in it. Only the sale-side movements answer "what did
+            # receipt #98 do to my stock".
+            query = query.filter(
+                InventoryLog.reference_type.in_(SALE_REFERENCE_TYPES),
+                InventoryLog.reference_id == sale_id,
+            )
 
         query = query.order_by(InventoryLog.created_at.desc())
 

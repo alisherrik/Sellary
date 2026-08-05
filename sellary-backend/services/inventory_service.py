@@ -163,12 +163,14 @@ class InventoryService:
         skip: int = 0,
         limit: int = 50,
         product_id: int = None,
+        sale_id: int = None,
     ) -> Tuple[List[InventoryLog], int]:
         logs, total = self.inventory_repo.get_logs(
             self.company_id,
             skip=skip,
             limit=limit,
             product_id=product_id,
+            sale_id=sale_id,
         )
         return [self._log_to_response(log) for log in logs], total
 

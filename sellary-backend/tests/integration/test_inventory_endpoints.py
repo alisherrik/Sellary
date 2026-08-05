@@ -146,6 +146,58 @@ class TestGetInventoryLogs:
         assert all(log["product_id"] == product1.id for log in data)
 
 
+    def test_get_logs_filtered_by_receipt(
+        self, client: TestClient, db_session, manager_headers, test_product, admin_user
+    ):
+        """A receipt number answers «what did chek #98 do to my stock» — and a
+        purchase that happens to carry the same reference_id must not answer."""
+        db_session.add_all(
+            [
+                InventoryLog(
+                    company_id=test_product.company_id,
+                    product_id=test_product.id,
+                    user_id=admin_user.id,
+                    quantity_change=-2,
+                    previous_quantity=100,
+                    new_quantity=98,
+                    reason="Sale #98",
+                    reference_type="sale",
+                    reference_id=98,
+                ),
+                InventoryLog(
+                    company_id=test_product.company_id,
+                    product_id=test_product.id,
+                    user_id=admin_user.id,
+                    quantity_change=1,
+                    previous_quantity=98,
+                    new_quantity=99,
+                    reason="Return from Sale #98",
+                    reference_type="sale_return",
+                    reference_id=98,
+                ),
+                InventoryLog(
+                    company_id=test_product.company_id,
+                    product_id=test_product.id,
+                    user_id=admin_user.id,
+                    quantity_change=10,
+                    previous_quantity=99,
+                    new_quantity=109,
+                    reason="Restock via PO #98",
+                    reference_type="po_receive",
+                    reference_id=98,
+                ),
+            ]
+        )
+        db_session.commit()
+
+        response = client.get("/api/inventory/logs?sale_id=98", headers=manager_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert {log["reference_type"] for log in data} == {"sale", "sale_return"}
+
+
 class TestAdjustStock:
     """Tests for POST /api/inventory/adjust endpoint."""
 

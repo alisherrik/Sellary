@@ -134,11 +134,14 @@ def get_inventory_logs(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     product_id: Optional[int] = None,
+    sale_id: Optional[int] = Query(None, ge=1, description="Номер чека"),
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_module("inventory")),
 ):
     service = InventoryService(db, auth.company_id)
-    logs, _ = service.get_logs(skip=skip, limit=limit, product_id=product_id)
+    logs, _ = service.get_logs(
+        skip=skip, limit=limit, product_id=product_id, sale_id=sale_id
+    )
     return logs
 
 

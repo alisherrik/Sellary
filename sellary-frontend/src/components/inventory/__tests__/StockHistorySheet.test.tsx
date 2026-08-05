@@ -27,7 +27,7 @@ const log = {
   previous_quantity: '15',
   new_quantity: '12',
   reason: 'Списание боя',
-  reference_type: 'adjustment',
+  reference_type: 'manual_adjust',
   reference_id: null,
   created_at: '2026-07-25T10:00:00Z',
 };
@@ -61,10 +61,26 @@ describe('StockHistorySheet', () => {
 
   it('signs an increase so a receipt is not mistaken for a write-off', async () => {
     getLogs.mockResolvedValue({
-      data: [{ ...log, quantity_change: '5', reference_type: 'purchase_order' }],
+      data: [{ ...log, quantity_change: '5', reference_type: 'po_receive' }],
     });
     renderSheet();
     expect(await screen.findByText('+5')).toBeInTheDocument();
+  });
+
+  it('narrows the movements to one receipt', async () => {
+    getLogs.mockResolvedValue({ data: [log] });
+    renderSheet();
+    await screen.findByText('Иван Кассир');
+
+    await userEvent.type(screen.getByLabelText('Номер чека'), '98');
+
+    await vi.waitFor(() =>
+      expect(getLogs).toHaveBeenLastCalledWith({
+        product_id: 4,
+        limit: 100,
+        sale_id: 98,
+      }),
+    );
   });
 
   it('is a labelled modal dialog that closes on Escape', async () => {
