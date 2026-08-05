@@ -1025,3 +1025,32 @@ class TestSalesSummaryEndpoint:
 
     def test_summary_requires_auth(self, client: TestClient):
         assert client.get("/api/sales/summary").status_code in (401, 403)
+
+
+class TestReceiptFilter:
+    """The Фильтры panel asks for one receipt by number."""
+
+    def test_sale_id_filter_returns_only_that_receipt(
+        self, client, db_session, manager_headers, cashier_user, test_product
+    ):
+        from models.sale import PaymentMethod, Sale, SaleStatus
+
+        sales = []
+        for total in ("10.00", "20.00"):
+            sale = Sale(
+                company_id=test_product.company_id,
+                cashier_id=cashier_user.id,
+                subtotal=Decimal(total),
+                total_amount=Decimal(total),
+                payment_method=PaymentMethod.CASH,
+                status=SaleStatus.COMPLETED,
+            )
+            db_session.add(sale)
+            sales.append(sale)
+        db_session.commit()
+
+        response = client.get(f"/api/sales?sale_id={sales[0].id}", headers=manager_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert [row["id"] for row in data] == [sales[0].id]

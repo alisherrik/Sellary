@@ -82,6 +82,7 @@ class SaleService:
         search: Optional[str] = None,
         status_group: Optional[str] = None,
         payment_method: Optional[PaymentMethod] = None,
+        sale_id: Optional[int] = None,
     ) -> Tuple[List[SaleResponse], int]:
         start_date = self._localize_filter(start_date)
         end_date = self._localize_filter(end_date)
@@ -96,6 +97,7 @@ class SaleService:
             search_terms=self._resolve_search_terms(search),
             status_group=status_group,
             payment_method=payment_method,
+            sale_id=sale_id,
         )
         return [self._to_response(sale) for sale in sales], total
 
@@ -113,6 +115,7 @@ class SaleService:
         search: Optional[str] = None,
         status_group: Optional[str] = None,
         payment_method: Optional[PaymentMethod] = None,
+        sale_id: Optional[int] = None,
     ) -> SalesSummary:
         """Totals across every matching sale, and the local-hour breakdown.
 
@@ -130,6 +133,7 @@ class SaleService:
             search_terms=self._resolve_search_terms(search),
             status_group=status_group,
             payment_method=payment_method,
+            sale_id=sale_id,
         )
 
         totals = self.sale_repo.get_summary(self.company_id, **filters)

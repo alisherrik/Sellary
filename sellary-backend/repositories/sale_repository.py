@@ -82,6 +82,7 @@ class SaleRepository:
         search_terms: Optional[List[str]] = None,
         status_group: Optional[str] = None,
         payment_method: Optional[PaymentMethod] = None,
+        sale_id: Optional[int] = None,
     ):
         """Narrow `query` to the sales the caller asked for.
 
@@ -90,6 +91,10 @@ class SaleRepository:
         """
         query = query.filter(Sale.company_id == company_id)
 
+        if sale_id:
+            # Exact, unlike the search box: typing 98 there also finds 198 and
+            # any sale that happens to total 98.
+            query = query.filter(Sale.id == sale_id)
         if start_date:
             query = query.filter(Sale.created_at >= start_date)
         if end_date:
@@ -218,6 +223,7 @@ class SaleRepository:
         search_terms: Optional[List[str]] = None,
         status_group: Optional[str] = None,
         payment_method: Optional[PaymentMethod] = None,
+        sale_id: Optional[int] = None,
     ) -> Tuple[List[Sale], int]:
         query = self.db.query(Sale).options(
             joinedload(Sale.items),
@@ -233,6 +239,7 @@ class SaleRepository:
             search_terms=search_terms,
             status_group=status_group,
             payment_method=payment_method,
+            sale_id=sale_id,
         )
 
         query = query.order_by(Sale.created_at.desc())
@@ -252,6 +259,7 @@ class SaleRepository:
         search_terms: Optional[List[str]] = None,
         status_group: Optional[str] = None,
         payment_method: Optional[PaymentMethod] = None,
+        sale_id: Optional[int] = None,
     ) -> dict:
         """Totals over EVERY matching sale, not just the current page.
 
@@ -278,6 +286,7 @@ class SaleRepository:
             search_terms=search_terms,
             status_group=status_group,
             payment_method=payment_method,
+            sale_id=sale_id,
         )
         # Cancelled sales are listed but never counted as turnover.
         query = query.filter(Sale.status.in_(NON_CANCELLED_STATUSES))
@@ -308,6 +317,7 @@ class SaleRepository:
             search_terms=search_terms,
             status_group=status_group,
             payment_method=payment_method,
+            sale_id=sale_id,
         )
         method_query = method_query.filter(
             Sale.status.in_(NON_CANCELLED_STATUSES)
@@ -362,6 +372,7 @@ class SaleRepository:
         search_terms: Optional[List[str]] = None,
         status_group: Optional[str] = None,
         payment_method: Optional[PaymentMethod] = None,
+        sale_id: Optional[int] = None,
     ) -> List[Tuple[datetime, Decimal]]:
         """(created_at, total_amount) for every matching non-cancelled sale.
 
@@ -382,6 +393,7 @@ class SaleRepository:
             search_terms=search_terms,
             status_group=status_group,
             payment_method=payment_method,
+            sale_id=sale_id,
         )
         query = query.filter(Sale.status.in_(NON_CANCELLED_STATUSES))
 

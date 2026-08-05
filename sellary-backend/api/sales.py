@@ -108,6 +108,7 @@ def get_sales(
     search: Optional[str] = Query(None, max_length=100),
     status_group: Optional[Literal["returns"]] = None,
     payment_method: Optional[PaymentMethod] = None,
+    sale_id: Optional[int] = Query(None, ge=1, description="Номер чека"),
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_module("sales")),
 ):
@@ -122,6 +123,7 @@ def get_sales(
         search=search.strip() if search else None,
         status_group=status_group,
         payment_method=payment_method,
+        sale_id=sale_id,
     )
     # Expose the full match count (ignoring skip/limit) so the client can
     # page through the entire history instead of seeing only the first window.
@@ -151,6 +153,7 @@ def get_sales_summary(
     search: Optional[str] = Query(None, max_length=100),
     status_group: Optional[Literal["returns"]] = None,
     payment_method: Optional[PaymentMethod] = None,
+    sale_id: Optional[int] = Query(None, ge=1, description="Номер чека"),
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_module("sales")),
 ):
@@ -168,6 +171,7 @@ def get_sales_summary(
         search=search.strip() if search else None,
         status_group=status_group,
         payment_method=payment_method,
+        sale_id=sale_id,
     )
 
 

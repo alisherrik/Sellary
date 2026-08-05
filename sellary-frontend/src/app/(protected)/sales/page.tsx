@@ -197,6 +197,7 @@ function SalesHistory() {
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [receiptFilter, setReceiptFilter] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [returns, setReturns] = useState<SaleReturn[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
@@ -253,9 +254,11 @@ function SalesHistory() {
     if (paymentFilter !== 'all') params.payment_method = paymentFilter;
     if (startDate) params.start_date = `${startDate}T00:00:00`;
     if (endDate) params.end_date = `${endDate}T23:59:59`;
+    // Exact, unlike the search box, where 98 also finds 198 and any sale of 98.
+    if (/^\d+$/.test(receiptFilter)) params.sale_id = Number(receiptFilter);
 
     return params;
-  }, [debouncedSearch, statusFilter, paymentFilter, startDate, endDate]);
+  }, [debouncedSearch, statusFilter, paymentFilter, startDate, endDate, receiptFilter]);
 
   const {
     sales = [],
@@ -670,11 +673,15 @@ function SalesHistory() {
     { value: 'credit', label: 'В долг' },
   ];
   const activeFilterCount =
-    (paymentFilter !== 'all' ? 1 : 0) + (startDate ? 1 : 0) + (endDate ? 1 : 0);
+    (paymentFilter !== 'all' ? 1 : 0) +
+    (startDate ? 1 : 0) +
+    (endDate ? 1 : 0) +
+    (receiptFilter ? 1 : 0);
   const resetAdvancedFilters = () => {
     setPaymentFilter('all');
     setStartDate('');
     setEndDate('');
+    setReceiptFilter('');
   };
 
   return (
@@ -721,6 +728,22 @@ function SalesHistory() {
               />
               <FilterMenu activeCount={activeFilterCount} onReset={resetAdvancedFilters}>
                 <div className="space-y-4">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
+                      Номер чека
+                    </span>
+                    <input
+                      inputMode="numeric"
+                      aria-label="Номер чека"
+                      value={receiptFilter}
+                      onChange={(event) =>
+                        setReceiptFilter(event.target.value.replace(/\D/g, ''))
+                      }
+                      placeholder="например 1318"
+                      className="h-10 w-full border border-[var(--erp-divider)] bg-white px-3 text-sm tabular-nums outline-none focus:border-[var(--erp-text)]"
+                    />
+                  </label>
+
                   <label className="block">
                     <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--erp-muted)]">
                       Способ оплаты
