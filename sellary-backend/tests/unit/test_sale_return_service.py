@@ -1053,6 +1053,9 @@ class TestRefundCalculation:
             tax_percent=Decimal("10.00"),
             tax_amount=Decimal("3.00"),
             discount_amount=Decimal("5.00"),
+            # The sale's whole discount lands on the only line, the way
+            # SaleService.create writes it.
+            allocated_sale_discount_amount=Decimal("5.00"),
             subtotal=Decimal("30.00"),
             total=Decimal("28.00"),
             created_at=datetime.now(),
@@ -1071,4 +1074,68 @@ class TestRefundCalculation:
 
         expected = Decimal("28.00") / 2
         assert result.total_refund_amount == expected
+
+    def test_refund_of_a_deeply_discounted_line_is_not_zero(self, db_session):
+        """The POS copies the sale's discount onto the line as well, so the line
+        total already has it subtracted. Taking the allocated share off that
+        total again drove three production refunds to 0.00."""
+        user = User(
+            username="cashier2",
+            email="cashier2@test.com",
+            hashed_password=get_password_hash("password"),
+            role="cashier",
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        product = Product(
+            name="Discounted Product",
+            barcode="DISC123",
+            cost_price=Decimal("10.00"),
+            sell_price=Decimal("42.00"),
+            stock_quantity=10,
+        )
+        db_session.add(product)
+        db_session.flush()
+
+        # 42.00 of goods, 32.00 off, so the customer paid 10.00.
+        sale = Sale(
+            cashier_id=user.id,
+            subtotal=Decimal("42.00"),
+            tax_amount=Decimal("0.00"),
+            discount_amount=Decimal("32.00"),
+            total_amount=Decimal("10.00"),
+            payment_method=PaymentMethod.CASH,
+            status=SaleStatus.COMPLETED,
+            created_at=datetime.now(),
+        )
+        db_session.add(sale)
+        db_session.flush()
+
+        sale_item = SaleItem(
+            sale_id=sale.id,
+            product_id=product.id,
+            quantity=1,
+            unit_price=Decimal("42.00"),
+            tax_percent=Decimal("0.00"),
+            tax_amount=Decimal("0.00"),
+            discount_amount=Decimal("32.00"),
+            allocated_sale_discount_amount=Decimal("32.00"),
+            subtotal=Decimal("42.00"),
+            total=Decimal("10.00"),
+            created_at=datetime.now(),
+        )
+        db_session.add(sale_item)
+        db_session.flush()
+
+        result = SaleReturnService(db_session).process_return(
+            sale.id,
+            SaleReturnCreate(
+                items=[SaleReturnItemCreate(sale_item_id=sale_item.id, quantity=1)],
+                refund_method=PaymentMethod.CASH,
+            ),
+            user.id,
+        )
+
+        assert result.total_refund_amount == Decimal("10.00")
 

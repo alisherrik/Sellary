@@ -307,6 +307,21 @@ class SyncService:
             subtotal + tax_amount - sale_create.discount_amount
         ).quantize(Decimal("0.01"))
 
+        # Spread the sale's discount over the lines exactly as SaleService.create
+        # does. A refund reads this share to know what a line actually cost, so a
+        # sale that arrives from the offline cashier without it would pay back
+        # more than the customer handed over.
+        if sale_create.discount_amount > 0 and (subtotal + tax_amount) > 0:
+            discount_ratio = sale_create.discount_amount / (subtotal + tax_amount)
+            for item in items:
+                item.allocated_sale_discount_amount = (
+                    (item.subtotal + item.tax_amount) * discount_ratio
+                ).quantize(Decimal("0.01"))
+            items[-1].allocated_sale_discount_amount += (
+                sale_create.discount_amount
+                - sum(i.allocated_sale_discount_amount for i in items)
+            )
+
         if total_amount < 0:
             return SyncSaleResult(
                 client_sale_id=sale_create.client_sale_id,

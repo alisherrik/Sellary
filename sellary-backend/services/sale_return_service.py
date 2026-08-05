@@ -99,9 +99,19 @@ class SaleReturnService:
                     f"Sale item {sale_item.id} has invalid quantity {sale_item.quantity}"
                 )
 
+            # What this line actually cost the customer. The sale's discount
+            # reaches the line only as `allocated_sale_discount_amount`; the POS
+            # also copies that same discount into the line's own
+            # `discount_amount`, which `sales.total_amount` never charges, so
+            # `sale_item.total` already has it subtracted. Starting from `total`
+            # took the discount twice and clamped the difference to zero — three
+            # returns of a discounted line paid the customer nothing at all.
+            # Summing (subtotal + tax − allocated) over the lines is exactly
+            # `total_amount`, which is what `remaining_refundable_amount` assumes.
             item_final_total = max(
                 Decimal("0.00"),
-                sale_item.total - sale_item.allocated_sale_discount_amount
+                sale_item.subtotal + sale_item.tax_amount
+                - sale_item.allocated_sale_discount_amount,
             )
             # Quantized here, not left to the column: dividing at 28 significant
             # digits and rounding on write made three refunds of a 100.00 line
