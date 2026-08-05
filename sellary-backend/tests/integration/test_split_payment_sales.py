@@ -111,7 +111,22 @@ class TestTheWorkedExample:
 
 class TestReportsSeeEachTender:
     @pytest.fixture
-    def sale(self, client: TestClient, cashier_headers, test_customer, test_product):
+    def sale(
+        self,
+        client: TestClient,
+        db_session,
+        default_company,
+        cashier_headers,
+        test_customer,
+        test_product,
+    ):
+        # An account's balance counts only what happened at or after its
+        # `opening_at`, and SQLite stamps that column to the whole second. Left
+        # to be created by the first `overview()` call, the till could land in
+        # the second after the sale and read 0.00. A real drawer exists before
+        # the sale too.
+        MoneyService(db_session, default_company.id).ensure_accounts()
+        db_session.flush()
         response = client.post(
             "/api/sales",
             headers=_with_idempotency(cashier_headers, "split-payment-reports"),
