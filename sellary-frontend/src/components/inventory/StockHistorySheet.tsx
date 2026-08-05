@@ -9,6 +9,7 @@ import { XMarkIcon } from '@heroicons/react/24/outline';
 
 import { inventoryApi } from '@/lib/api';
 import type { InventoryLog, Product } from '@/lib/types';
+import { STOCK_MOVEMENT_LABELS } from '@/lib/stockMovements';
 import { formatCurrency } from '@/lib/utils';
 
 interface StockHistorySheetProps {
@@ -16,27 +17,7 @@ interface StockHistorySheetProps {
   onClose: () => void;
 }
 
-// Keyed on what the server actually writes into reference_type; anything
-// missing here read as a bare «Изменение», which told the shop nothing.
-const REFERENCE_LABELS: Record<string, string> = {
-  sale: 'Продажа',
-  sale_return: 'Возврат',
-  sale_void: 'Аннулирование продажи',
-  sale_cancel: 'Отмена продажи',
-  po_receive: 'Приёмка',
-  po_void: 'Аннулирование закупки',
-  po_item_void: 'Аннулирование позиции закупки',
-  manual_adjust: 'Корректировка',
-  stocktake: 'Инвентаризация',
-  surplus: 'Излишек',
-  shortage: 'Недостача',
-  other: 'Прочее',
-  write_off: 'Списание',
-  product_initial: 'Начальный остаток',
-  product_delete: 'Удаление товара',
-  product_recreate: 'Пересоздание товара',
-  ledger_repair: 'Ремонт реестра',
-};
+const REFERENCE_LABELS = STOCK_MOVEMENT_LABELS;
 
 const formatQuantity = (value: number | string) => {
   const numeric = Number(value);

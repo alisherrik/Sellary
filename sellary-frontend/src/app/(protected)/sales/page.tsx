@@ -23,6 +23,7 @@ import { canAccessModule } from '@/lib/modules';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useSaleSearchSuggestions, useInfiniteSales, useSalesSummary } from '@/hooks/useQueries';
 import SalesSearch from '@/components/sales/SalesSearch';
+import SaleStockHistory from '@/components/sales/SaleStockHistory';
 import { parseEditableAmount } from '@/lib/posPricing';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
@@ -220,6 +221,9 @@ function SalesHistory() {
   const modules = useModules();
   // Returns/voids need pos:manager on the backend; admin's modules map carries all modules at manager.
   const canManagePos = canAccessModule(modules, 'sales', 'manager');
+  // The stock movements of a receipt come from the inventory module, which a
+  // cashier may not have — the panel simply leaves the block out then.
+  const canSeeStock = canAccessModule(modules, 'inventory', 'user');
   const debouncedSearch = useDebounce(searchInput, 300);
 
   const returnKey = useIdempotencyKey();
@@ -1132,6 +1136,8 @@ function SalesHistory() {
                   </div>
                 )}
               </div>
+
+              {canSeeStock && <SaleStockHistory saleId={selectedSale.id} />}
             </div>
 
             <div className="mt-auto flex flex-wrap gap-2 border-t border-[var(--erp-divider)] p-4">
