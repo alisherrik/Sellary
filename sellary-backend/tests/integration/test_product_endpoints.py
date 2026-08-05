@@ -767,6 +767,30 @@ class TestDeleteProduct:
 
         assert response.status_code == 204
 
+    def test_barcode_with_spaces_is_the_same_barcode(
+        self, client: TestClient, db_session, manager_headers, test_category
+    ):
+        """26 barcode pairs in production differ only by a trailing space, so one
+        article ended up on two cards with two stocks."""
+        payload = {
+            "name": "Кола",
+            "barcode": "4884000007124",
+            "category_id": test_category.id,
+            "cost_price": "5.00",
+            "sell_price": "6.00",
+        }
+        first = client.post("/api/products", json=payload, headers=manager_headers)
+        assert first.status_code == 201
+
+        second = client.post(
+            "/api/products",
+            json={**payload, "name": "Кола ещё раз", "barcode": " 4884000007124 "},
+            headers=manager_headers,
+        )
+
+        assert second.status_code == 400
+        assert "already exists" in second.json()["detail"]
+
     def test_delete_product_with_stock_returns_400(
         self, client: TestClient, db_session, manager_headers, test_product
     ):

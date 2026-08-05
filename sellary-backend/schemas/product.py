@@ -28,8 +28,17 @@ class ProductUnitResponse(ProductUnitBase):
         from_attributes = True
 
 
+def _clean_barcode(value: Optional[str]) -> Optional[str]:
+    """A barcode is what the scanner reads, without the spaces around it."""
+    if value is None:
+        return None
+    return value.strip() or None
+
+
 class ProductBase(BaseModel):
     barcode: Optional[str] = Field(None, min_length=1, max_length=50)
+
+    _strip_barcode = field_validator("barcode")(_clean_barcode)
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
     uom: str = Field(default="dona", min_length=1, max_length=20)
@@ -50,6 +59,8 @@ class ProductCreate(ProductBase):
 
 class ProductUpdate(BaseModel):
     barcode: Optional[str] = Field(None, min_length=1, max_length=50)
+
+    _strip_barcode = field_validator("barcode")(_clean_barcode)
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
     uom: Optional[str] = Field(None, min_length=1, max_length=20)

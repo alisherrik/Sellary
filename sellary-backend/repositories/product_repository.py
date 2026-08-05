@@ -43,9 +43,12 @@ class ProductRepository:
         ).order_by(Product.id).with_for_update().all()
 
     def get_by_barcode(self, company_id: int, barcode: str) -> Optional[Product]:
+        # Compared trimmed on both sides: barcodes typed with a trailing space
+        # slipped past the duplicate check and split one article across two
+        # cards, so the same goods had two stocks and two histories.
         return self.db.query(Product).filter(
             Product.company_id == company_id,
-            Product.barcode == barcode,
+            func.trim(Product.barcode) == (barcode or "").strip(),
         ).first()
 
     def get_all(
