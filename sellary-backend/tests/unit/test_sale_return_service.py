@@ -1139,3 +1139,65 @@ class TestRefundCalculation:
 
         assert result.total_refund_amount == Decimal("10.00")
 
+    def test_refund_takes_off_a_discount_no_line_carries(self, db_session):
+        """The offline cashier sends the discount on the header only, so the
+        allocated share is the sole record of it and must be taken off."""
+        user = User(
+            username="cashier3",
+            email="cashier3@test.com",
+            hashed_password=get_password_hash("password"),
+            role="cashier",
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        product = Product(
+            name="Synced Product",
+            barcode="SYNC123",
+            cost_price=Decimal("5.00"),
+            sell_price=Decimal("20.00"),
+            stock_quantity=10,
+        )
+        db_session.add(product)
+        db_session.flush()
+
+        sale = Sale(
+            cashier_id=user.id,
+            subtotal=Decimal("20.00"),
+            tax_amount=Decimal("0.00"),
+            discount_amount=Decimal("4.00"),
+            total_amount=Decimal("16.00"),
+            payment_method=PaymentMethod.CASH,
+            status=SaleStatus.COMPLETED,
+            created_at=datetime.now(),
+        )
+        db_session.add(sale)
+        db_session.flush()
+
+        sale_item = SaleItem(
+            sale_id=sale.id,
+            product_id=product.id,
+            quantity=1,
+            unit_price=Decimal("20.00"),
+            tax_percent=Decimal("0.00"),
+            tax_amount=Decimal("0.00"),
+            discount_amount=Decimal("0.00"),
+            allocated_sale_discount_amount=Decimal("4.00"),
+            subtotal=Decimal("20.00"),
+            total=Decimal("20.00"),
+            created_at=datetime.now(),
+        )
+        db_session.add(sale_item)
+        db_session.flush()
+
+        result = SaleReturnService(db_session).process_return(
+            sale.id,
+            SaleReturnCreate(
+                items=[SaleReturnItemCreate(sale_item_id=sale_item.id, quantity=1)],
+                refund_method=PaymentMethod.CASH,
+            ),
+            user.id,
+        )
+
+        assert result.total_refund_amount == Decimal("16.00")
+

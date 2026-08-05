@@ -87,6 +87,16 @@ class SaleReturnService:
         )
         product_map = {product.id: product for product in locked_products}
 
+        # A sale discount can arrive twice over: written onto the lines it was
+        # given on, and again as the share the server spreads across all of
+        # them. Only what the lines do not already carry is still to be taken
+        # off a refund.
+        sale_discount = Decimal(sale.discount_amount or 0)
+        unattributed_discount = max(
+            Decimal("0.00"),
+            sale_discount - sum(Decimal(item.discount_amount or 0) for item in locked_items),
+        )
+
         total_refund = Decimal("0.00")
         return_items = []
 
@@ -99,20 +109,23 @@ class SaleReturnService:
                     f"Sale item {sale_item.id} has invalid quantity {sale_item.quantity}"
                 )
 
-            # What this line actually cost the customer. The sale's discount
-            # reaches the line only as `allocated_sale_discount_amount`; the POS
-            # also copies that same discount into the line's own
-            # `discount_amount`, which `sales.total_amount` never charges, so
-            # `sale_item.total` already has it subtracted. Starting from `total`
-            # took the discount twice and clamped the difference to zero — three
-            # returns of a discounted line paid the customer nothing at all.
-            # Summing (subtotal + tax − allocated) over the lines is exactly
-            # `total_amount`, which is what `remaining_refundable_amount` assumes.
-            item_final_total = max(
-                Decimal("0.00"),
-                sale_item.subtotal + sale_item.tax_amount
-                - sale_item.allocated_sale_discount_amount,
-            )
+            # What this line actually cost the customer. `sale_item.total` is
+            # the line net of its own discount, and the POS writes a sale
+            # discount onto the very lines it was given on, so `total` is
+            # already the right figure there. `allocated_sale_discount_amount`
+            # then re-spreads that same discount over every line, and taking it
+            # off `total` charged it twice: three returns of a deeply discounted
+            # line paid the customer 0.00. Only the part of the sale discount
+            # that no line carries — the offline cashier sends it that way — is
+            # still owed to the pro-rata share.
+            share = Decimal("0.00")
+            if unattributed_discount > 0:
+                share = (
+                    sale_item.allocated_sale_discount_amount
+                    * unattributed_discount
+                    / sale_discount
+                ).quantize(CENTS, rounding=ROUND_HALF_UP)
+            item_final_total = max(Decimal("0.00"), sale_item.total - share)
             # Quantized here, not left to the column: dividing at 28 significant
             # digits and rounding on write made three refunds of a 100.00 line
             # sum to 99.99 — the customer a cent short on a fully returned sale
