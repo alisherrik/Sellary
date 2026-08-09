@@ -19,7 +19,7 @@ import CategoryPicker from '@/components/categories/CategoryPicker';
 import StockHistorySheet from '@/components/inventory/StockHistorySheet';
 import QueryError from '@/components/ui/QueryError';
 import { useDebounce } from '@/hooks/useDebounce';
-import { useLowStockProducts, useProducts } from '@/hooks/useQueries';
+import { useAllProducts, useLowStockProducts } from '@/hooks/useQueries';
 import { categoriesApi, productsApi } from '@/lib/api';
 import { Category, Product } from '@/lib/types';
 import { formatCurrency, formatUnitPrice, toPriceInput } from '@/lib/utils';
@@ -140,11 +140,11 @@ function Products() {
 
   // Debounce so typing in search doesn't fire a network request per keystroke.
   const debouncedSearch = useDebounce(searchQuery, 300);
-  const params: Record<string, string | number | boolean> = { limit: 100, with_totals: true };
+  const params: Record<string, string | number | boolean> = { with_totals: true };
   if (debouncedSearch) params.search = debouncedSearch;
   if (selectedCategory) params.category_id = selectedCategory;
 
-  const { data: products = [], isLoading: loading, isError, refetch } = useProducts(params);
+  const { data: products = [], isLoading: loading, isError, refetch } = useAllProducts(params);
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['categories', 'active'],

@@ -114,6 +114,32 @@ export function useProducts(params?: any, options?: Partial<UseQueryOptions<Prod
 }
 
 /**
+ * The whole catalogue, walked page by page.
+ *
+ * The list endpoint caps a response at 200 rows, so a single request silently
+ * dropped every product past that — a 485-SKU shop saw 100 and no way to reach
+ * the rest.
+ */
+export function useAllProducts(params?: any, options?: Partial<UseQueryOptions<Product[]>>) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    return useQuery<Product[]>({
+        queryKey: queryKeys.products(companyId, { ...params, all: true }),
+        queryFn: async () => {
+            const PAGE_SIZE = 200;
+            const all: Product[] = [];
+            for (let skip = 0; ; skip += PAGE_SIZE) {
+                const response = await productsApi.getAll({ ...params, skip, limit: PAGE_SIZE });
+                all.push(...response.data);
+                if (response.data.length < PAGE_SIZE) return all;
+            }
+        },
+        ...options,
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
+    });
+}
+
+/**
  * The reorder list, computed by the server over the whole catalogue.
  *
  * The pages used to derive "low" and "out of stock" from whichever 100 products

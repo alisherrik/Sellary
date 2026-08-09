@@ -25,7 +25,7 @@ const { product } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/hooks/useQueries', () => ({
-  useProducts: vi.fn(() => ({ data: [product], isLoading: false })),
+  useAllProducts: vi.fn(() => ({ data: [product], isLoading: false })),
   useLowStockProducts: vi.fn(() => ({ data: [], isLoading: false })),
 }));
 
