@@ -4,7 +4,7 @@ Each check gets the same two cases — a clean fixture yields nothing, and a bre
 planted directly on the row yields exactly one finding naming it — because a checker
 that cannot be shown to fire is indistinguishable from one that never runs.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -227,3 +227,67 @@ class TestRegistry:
     def test_every_check_runs_on_an_empty_company(self, db_session, secondary_company):
         assert ConsistencyService(db_session, secondary_company.id).run() == []
         assert len(CHECKS) == 6
+
+
+class TestLateArrivalsAfterFreeze:
+    """Only a receipt that reached the server after the freeze counts as late."""
+
+    def _offline_sale(self, db_session, cashier, rung_at):
+        from models.sale import Sale
+
+        sale = Sale(
+            cashier_id=cashier.id,
+            subtotal=Decimal("10.00"),
+            tax_amount=Decimal("0.00"),
+            total_amount=Decimal("10.00"),
+            payment_method=PaymentMethod.CASH,
+            status=SaleStatus.COMPLETED,
+            created_at=rung_at,
+            client_sale_id="offline-1",
+        )
+        db_session.add(sale)
+        db_session.flush()
+        return add_sale_tenders(db_session, sale)
+
+    def _declare(self, db_session, company, day, created_at):
+        from models.reconciliation import Reconciliation
+        from services import reconciliation
+
+        db_session.add(
+            Reconciliation(
+                company_id=company.id, effective_from=day, created_at=created_at
+            )
+        )
+        db_session.flush()
+        reconciliation.invalidate(db_session, company.id)
+
+    def test_an_offline_receipt_that_synced_before_the_freeze_is_not_reported(
+        self, db_session, default_company, cashier
+    ):
+        # Its tender rows are stamped now, so it arrived before a freeze
+        # declared in the future — which is what «not late» means.
+        self._offline_sale(db_session, cashier, datetime(2026, 7, 12, 10, 0))
+        self._declare(
+            db_session,
+            default_company,
+            datetime(2026, 8, 13).date(),
+            datetime.utcnow() + timedelta(hours=1),
+        )
+
+        assert run(db_session, default_company, "late_arrivals_after_freeze") == []
+
+    def test_one_that_synced_after_the_freeze_is_reported(
+        self, db_session, default_company, cashier
+    ):
+        self._declare(
+            db_session,
+            default_company,
+            datetime(2026, 8, 13).date(),
+            datetime.utcnow() - timedelta(hours=1),
+        )
+        self._offline_sale(db_session, cashier, datetime(2026, 7, 12, 10, 0))
+
+        findings = run(db_session, default_company, "late_arrivals_after_freeze")
+
+        assert len(findings) == 1
+        assert findings[0].bucket == "known"

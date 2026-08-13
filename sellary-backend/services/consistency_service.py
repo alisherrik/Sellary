@@ -302,26 +302,49 @@ def _credit_payment_status(db: Session, company_id: int, since: Optional[datetim
 def _late_arrivals_after_freeze(
     db: Session, company_id: int, since: Optional[datetime]
 ) -> list[Finding]:
-    """Offline sales that arrived carrying a date inside the settled period.
+    """Offline sales that arrived AFTER a reconciliation carrying a date before it.
 
     They are accepted at their own timestamp — a sale is not an edit — so the
     residual is named here rather than absorbed, the same move the shift panel
-    makes with `late_arrivals`. `client_sale_id` already marks the offline
-    origin, so no second timestamp is needed to find them.
+    makes with `late_arrivals`.
+
+    "After" is the point. A sale's own date says when it was rung, never when it
+    reached the server, so filtering on that alone reports every offline receipt
+    the shop has ever taken and the list never clears. The arrival time is the
+    insert time of its tender rows (`server_default=now()`), which is written when
+    the sync lands — no second timestamp column needed.
     """
+    from models.reconciliation import Reconciliation
     from services.reconciliation import open_from_instant
 
     floor = open_from_instant(db, company_id)
     if floor is None:
         return []
 
+    declared_at = db.execute(
+        select(Reconciliation.created_at)
+        .where(Reconciliation.company_id == company_id)
+        .order_by(Reconciliation.effective_from.desc(), Reconciliation.id.desc())
+        .limit(1)
+    ).scalar()
+
+    arrived = (
+        select(
+            SalePayment.sale_id.label("sale_id"),
+            func.min(SalePayment.created_at).label("arrived_at"),
+        )
+        .group_by(SalePayment.sale_id)
+        .subquery()
+    )
     stmt = (
         select(Sale.company_id, Sale.id, Sale.created_at)
+        .join(arrived, arrived.c.sale_id == Sale.id)
         .where(
             Sale.company_id == company_id,
             Sale.status.in_(NON_CANCELLED_STATUSES),
             Sale.client_sale_id.is_not(None),
             Sale.created_at < floor.replace(tzinfo=None),
+            arrived.c.arrived_at > declared_at,
         )
         .order_by(Sale.id)
     )
