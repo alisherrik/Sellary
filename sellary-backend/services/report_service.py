@@ -23,8 +23,9 @@ from schemas.report import (
     TopProductItem,
     TopProductReport,
 )
+from services import reconciliation
 from services.calculation_service import CalculationService
-from services.company_time import company_tz, local_day_bounds, to_local
+from services.company_time import company_tz, local_day_bounds, period_range, to_local
 from services.tenant import resolve_company_id
 
 
@@ -44,6 +45,10 @@ class ReportService:
     def local_day_bounds(self, day=None) -> tuple[datetime, datetime]:
         return local_day_bounds(self.tz(), day)
 
+    def open_from(self):
+        """The first day the open period covers, or None before any reconciliation."""
+        return reconciliation.open_from(self.db, self.company_id)
+
     def default_range(self, start_date, end_date, days: int) -> tuple[datetime, datetime]:
         """Fill in a missing range as the last `days` local business days.
 
@@ -52,14 +57,7 @@ class ReportService:
         counts as one of the days, so «30 дней» is 30 and not 31, which is also
         what the MCP connector's `last_30_days` means.
         """
-        tz = self.tz()
-        if not end_date:
-            _, end_date = self.local_day_bounds()
-        if not start_date:
-            start_date, _ = self.local_day_bounds(
-                datetime.now(tz).date() - timedelta(days=max(days - 1, 0))
-            )
-        return start_date, end_date
+        return period_range(self, start_date, end_date, days)
 
     def _net_revenue_subquery(self):
         return self.sale_repo.refund_totals_subquery(self.company_id)

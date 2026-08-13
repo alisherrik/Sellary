@@ -352,7 +352,9 @@ class OrderService:
                 )
             except ReversalConflict:
                 # Sale already voided or in terminal state — proceed to cancel
-                # the order record anyway.
+                # the order record anyway. `ReconciliationClosed` deliberately
+                # is not a ReversalConflict, so it escapes: cancelling the order
+                # while the settled sale stays live is the worse outcome.
                 pass
 
         order.status = OrderStatus.CANCELLED.value

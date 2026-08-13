@@ -264,18 +264,23 @@ class CustomerLedgerService:
         paid = max(ZERO, credit_amount - remaining).quantize(Decimal("0.01"))
         return {"amount": credit_amount, "paid": paid, "remaining": remaining}
 
-    def _refresh_sale_payment_status(self, sale: Sale) -> None:
+    def expected_payment_status(self, sale: Sale) -> str:
+        """What the ledger says the sale's payment status is.
+
+        Public so the consistency checker can assert the cached column against
+        the same rule that writes it, instead of restating it.
+        """
         summary = self.sale_credit_summary(sale)
         if summary["amount"] <= ZERO:
-            sale.payment_status = "paid"
-            return
-
+            return "paid"
         if summary["remaining"] <= ZERO:
-            sale.payment_status = "settled"
-        elif summary["paid"] <= ZERO:
-            sale.payment_status = "unpaid"
-        else:
-            sale.payment_status = "partial"
+            return "settled"
+        if summary["paid"] <= ZERO:
+            return "unpaid"
+        return "partial"
+
+    def _refresh_sale_payment_status(self, sale: Sale) -> None:
+        sale.payment_status = self.expected_payment_status(sale)
 
     def _open_credit_sales(self, customer_id: int) -> Iterable[Sale]:
         # Matched on having a credit tender, not on `payment_method`: a split

@@ -98,6 +98,18 @@ export const formatDate = (date: string | Date): string => {
   }).format(d);
 };
 
+/**
+ * A calendar day off the wire — `2026-08-13` or `2026-08-13T00:00:00+05:00` —
+ * as дд.мм.гггг, the shape the server writes its own Russian messages in.
+ * Sliced rather than parsed: `new Date('2026-08-13')` is UTC midnight and reads
+ * as the 12th anywhere west of Greenwich, which is the wrong day to tell a shop
+ * their period was closed on.
+ */
+export const formatIsoDate = (value: string): string => {
+  const [year, month, day] = value.slice(0, 10).split('-');
+  return year && month && day ? `${day}.${month}.${year}` : value;
+};
+
 export const formatDateTime = (date: string | Date): string => {
   const d = typeof date === 'string' ? new Date(date) : date;
   return new Intl.DateTimeFormat('ru-RU', {

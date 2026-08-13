@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -16,15 +16,6 @@ from services.purchase_report_service import PurchaseReportService
 from services.report_service import ReportService
 
 router = APIRouter(prefix="/reports", tags=["reports"])
-
-
-def _default_range(service: ReportService, start_date, end_date, days: int):
-    """Fill in a missing range as the last `days` local business days.
-
-    The rule itself lives on ReportService so other routers (the write-off
-    summary) share one company-clock range instead of hand-rolling a second.
-    """
-    return service.default_range(start_date, end_date, days)
 
 
 @router.get("/dashboard", response_model=DashboardWidgets)
@@ -45,7 +36,7 @@ def get_daily_sales(
     auth: AuthContext = Depends(require_module("reports")),
 ):
     service = ReportService(db, auth.company_id)
-    start_date, end_date = _default_range(service, start_date, end_date, days)
+    start_date, end_date = service.default_range(start_date, end_date, days)
     return service.get_daily_sales(start_date, end_date)
 
 
@@ -58,7 +49,7 @@ def get_profit_report(
     auth: AuthContext = Depends(require_module("reports")),
 ):
     service = ReportService(db, auth.company_id)
-    start_date, end_date = _default_range(service, start_date, end_date, days)
+    start_date, end_date = service.default_range(start_date, end_date, days)
     return service.get_profit_report(start_date, end_date)
 
 
@@ -72,7 +63,7 @@ def get_top_products(
     auth: AuthContext = Depends(require_module("reports")),
 ):
     service = ReportService(db, auth.company_id)
-    start_date, end_date = _default_range(service, start_date, end_date, days)
+    start_date, end_date = service.default_range(start_date, end_date, days)
     return service.get_top_products(start_date, end_date, limit=limit)
 
 
@@ -80,18 +71,6 @@ def get_top_products(
 #
 # Gated on `purchasing`, not `reports`: someone who buys goods needs to see
 # what they have been paying without also being given the sales analytics.
-
-
-def _purchase_range(service: PurchaseReportService, start_date, end_date, days: int):
-    # Today counts as one of the days, as it does everywhere else.
-    tz = service.tz()
-    if not end_date:
-        _, end_date = service.local_day_bounds()
-    if not start_date:
-        start_date, _ = service.local_day_bounds(
-            datetime.now(tz).date() - timedelta(days=max(days - 1, 0))
-        )
-    return start_date, end_date
 
 
 @router.get("/purchases", response_model=PurchaseSummary)
@@ -109,7 +88,7 @@ def get_purchase_summary(
     receipt is stock that arrived and money that is owed.
     """
     service = PurchaseReportService(db, auth.company_id)
-    start_date, end_date = _purchase_range(service, start_date, end_date, days)
+    start_date, end_date = service.default_range(start_date, end_date, days)
     return service.summary(start_date, end_date, supplier_id)
 
 
@@ -125,7 +104,7 @@ def get_purchases_by_product(
 ):
     """What was bought and for how much, per product, dearest first."""
     service = PurchaseReportService(db, auth.company_id)
-    start_date, end_date = _purchase_range(service, start_date, end_date, days)
+    start_date, end_date = service.default_range(start_date, end_date, days)
     return service.by_product(start_date, end_date, supplier_id, limit)
 
 
@@ -138,7 +117,7 @@ def get_purchases_by_supplier(
     auth: AuthContext = Depends(require_module("purchasing")),
 ):
     service = PurchaseReportService(db, auth.company_id)
-    start_date, end_date = _purchase_range(service, start_date, end_date, days)
+    start_date, end_date = service.default_range(start_date, end_date, days)
     return service.by_supplier(start_date, end_date)
 
 

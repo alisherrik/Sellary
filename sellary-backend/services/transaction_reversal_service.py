@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from core.state_machine import StateTransitionError, validate_sale_transition
@@ -39,6 +40,7 @@ from services.inventory_ledger_service import (
     InventoryLedgerService,
 )
 from services.customer_ledger_service import CustomerLedgerService
+from services.reconciliation import assert_open, frozen_reason
 from services.tenant import resolve_company_id
 
 MONEY_QUANT = Decimal("0.0001")
@@ -116,6 +118,35 @@ class TransactionReversalService:
             .first()
         )
 
+    def _receipt_moment(self, po_id: int):
+        """When the goods actually landed on the shelf.
+
+        Not `purchase_orders.order_date`: an order raised in June and received in
+        August is an August fact, and the receipt is what the count saw.
+        """
+        return (
+            self.db.query(func.min(PurchaseReceipt.created_at))
+            .filter(
+                PurchaseReceipt.company_id == self.company_id,
+                PurchaseReceipt.purchase_order_id == po_id,
+                PurchaseReceipt.reversed_at.is_(None),
+            )
+            .scalar()
+        )
+
+    def _sale_block_reason(self, sale: Sale) -> Optional[str]:
+        """Why this receipt cannot be annulled, in one place.
+
+        A settled receipt is refused before a closed shift is even mentioned:
+        the shift message advises a return, and the freeze refuses that too, so
+        advising it would send the cashier at an impossible action.
+        """
+        frozen = frozen_reason(self.db, self.company_id, sale.created_at, "Чек")
+        if frozen:
+            return frozen
+        shift = self._closed_shift_containing(sale)
+        return self._closed_shift_message(shift) if shift else None
+
     @staticmethod
     def _closed_shift_message(shift: CashShift) -> str:
         return (
@@ -136,11 +167,11 @@ class TransactionReversalService:
         if not sale:
             raise ValueError(f"Sale with id {sale_id} not found")
 
-        closed_shift = self._closed_shift_containing(sale)
+        block_reason = self._sale_block_reason(sale)
         can_void = (
             not self._is_voided(sale)
             and sale.status in (SaleStatus.COMPLETED, SaleStatus.PARTIALLY_RETURNED)
-            and closed_shift is None
+            and block_reason is None
         )
         impacts: List[InventoryImpact] = []
         is_legacy = False
@@ -171,9 +202,7 @@ class TransactionReversalService:
             is_legacy=is_legacy,
             impacts=impacts,
             blockers=[],
-            block_reason=(
-                self._closed_shift_message(closed_shift) if closed_shift else None
-            ),
+            block_reason=block_reason,
         )
 
     def void_sale(self, sale_id: int, reason: str, user_id: int) -> VoidResult:
@@ -192,6 +221,9 @@ class TransactionReversalService:
 
         if self._is_voided(sale):
             raise ReversalConflict("Продажа уже аннулирована.")
+
+        # After the row lock and before any mutation: nothing to roll back.
+        assert_open(self.db, self.company_id, sale.created_at, "Чек")
 
         closed_shift = self._closed_shift_containing(sale)
         if closed_shift is not None:
@@ -357,11 +389,15 @@ class TransactionReversalService:
             PurchaseOrderStatus.PARTIALLY_RECEIVED,
             PurchaseOrderStatus.RECEIVED,
         )
+        frozen = frozen_reason(
+            self.db, self.company_id, self._receipt_moment(po_id), "Приход"
+        )
         return VoidPreview(
-            can_void=allowed_status and not blockers and bool(receipt_items),
+            can_void=allowed_status and not blockers and bool(receipt_items) and frozen is None,
             is_legacy=False,
             impacts=impacts,
             blockers=blockers,
+            block_reason=frozen,
         )
 
     def _layer_impacts_and_blockers(
@@ -521,11 +557,15 @@ class TransactionReversalService:
             PurchaseOrderStatus.PARTIALLY_RECEIVED,
             PurchaseOrderStatus.RECEIVED,
         )
+        frozen = frozen_reason(
+            self.db, self.company_id, self._receipt_moment(po_id), "Приход"
+        )
         return VoidPreview(
-            can_void=allowed_status and not blockers,
+            can_void=allowed_status and not blockers and frozen is None,
             is_legacy=False,
             impacts=impacts,
             blockers=blockers,
+            block_reason=frozen,
         )
 
     def void_purchase_item(
@@ -561,6 +601,8 @@ class TransactionReversalService:
             raise ReversalConflict(
                 "Позицию закупки нельзя аннулировать в текущем состоянии."
             )
+
+        assert_open(self.db, self.company_id, self._receipt_moment(po_id), "Приход")
 
         receipt_items = self._active_receipt_items_for_po_item(item_id)
 
@@ -658,6 +700,9 @@ class TransactionReversalService:
         )
 
     def void_purchase(self, po_id: int, reason: str, user_id: int) -> VoidResult:
+        # A line rewrites `purchase_orders.total_amount`, a historical money
+        # figure a settled report already counted.
+        assert_open(self.db, self.company_id, self._receipt_moment(po_id), "Приход")
         preview = self.preview_purchase(po_id, for_update=True)
         if preview.blockers:
             raise ReversalBlocked(preview.blockers)

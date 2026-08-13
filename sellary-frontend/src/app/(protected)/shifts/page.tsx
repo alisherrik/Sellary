@@ -13,6 +13,7 @@ import { CloseShiftForm } from '@/components/shifts/CloseShiftForm';
 import { MoneyDialog } from '@/components/finance/MoneyDialog';
 import { TableSkeleton } from '@/components/skeletons';
 import { ShiftGateBanner } from '@/components/shifts/ShiftGate';
+import { SettledBadge } from '@/components/ReconciliationNotice';
 
 function OpenShiftBlock() {
   const { data: shift } = useCurrentShift();
@@ -222,9 +223,12 @@ export default function ShiftsPage() {
                   return (
                     <tr key={s.id} className="border-t border-[var(--erp-divider)] hover:bg-[var(--erp-surface)]">
                       <td className="px-4 py-3">
-                        <Link href={`/shifts/${s.id}`} className="font-medium text-[var(--erp-accent)] hover:underline">
-                          №{s.shift_number}
-                        </Link>
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <Link href={`/shifts/${s.id}`} className="font-medium text-[var(--erp-accent)] hover:underline">
+                            №{s.shift_number}
+                          </Link>
+                          <SettledBadge at={s.opened_at} />
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-gray-500">{formatDateTime(s.opened_at)}</td>
                       <td className="px-4 py-3 text-gray-500">{s.closed_at ? formatDateTime(s.closed_at) : '—'}</td>

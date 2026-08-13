@@ -30,6 +30,13 @@ interface AuthState {
   modules: ModuleMap;
   /** What the company has, regardless of this user's grants. */
   companyModules: ModuleKey[];
+  /**
+   * First open day (YYYY-MM-DD), or null when the shop has never reconciled.
+   * Persisted with the rest of the session, so it can be minutes stale after
+   * another admin reconciles — every treatment of it is cosmetic, and the
+   * server's 409 and `can_return` remain the only authority.
+   */
+  reconciledFrom: string | null;
   loginToken: string | null;
   accessToken: string | null;
   isAuthenticated: boolean;
@@ -49,6 +56,7 @@ const emptyAuthState = {
   currentCompany: null,
   modules: {} as ModuleMap,
   companyModules: [] as ModuleKey[],
+  reconciledFrom: null as string | null,
   loginToken: null,
   accessToken: null,
   isAuthenticated: false,
@@ -69,6 +77,7 @@ const applyCompanySession = (
     currentCompany: session.current_company,
     modules: session.modules ?? {},
         companyModules: session.company_modules ?? [],
+    reconciledFrom: session.reconciled_from ?? null,
     loginToken: null,
     accessToken: session.access_token,
     isAuthenticated: true,
@@ -94,6 +103,7 @@ export const useAuthStore = create<AuthState>()(
           currentCompany: null,
           modules: {},
           companyModules: [],
+          reconciledFrom: null,
           loginToken: session.login_token,
           accessToken: null,
           isAuthenticated: false,
@@ -169,6 +179,7 @@ export const useAuthStore = create<AuthState>()(
           currentCompany: session.current_company,
           modules: session.modules ?? {},
         companyModules: session.company_modules ?? [],
+          reconciledFrom: session.reconciled_from ?? null,
           accessToken: activeToken,
           isAuthenticated: true,
           hasHydrated: true,
@@ -184,6 +195,7 @@ export const useAuthStore = create<AuthState>()(
         currentCompany: state.currentCompany,
         modules: state.modules,
         companyModules: state.companyModules,
+        reconciledFrom: state.reconciledFrom,
         loginToken: state.loginToken,
         accessToken: state.accessToken,
         isAuthenticated: state.isAuthenticated,
@@ -211,6 +223,7 @@ export const useAuthStore = create<AuthState>()(
 
 export const useModules = () => useAuthStore((state) => state.modules);
 export const useCompanyModules = () => useAuthStore((state) => state.companyModules);
+export const useReconciledFrom = () => useAuthStore((state) => state.reconciledFrom);
 
 interface Session {
   id: string;

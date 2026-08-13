@@ -18,6 +18,7 @@ from schemas.sale_return import (
 )
 from services.inventory_ledger_service import InventoryLedgerService
 from services.customer_ledger_service import CustomerLedgerService
+from services.reconciliation import assert_open
 from services.tenant import resolve_company_id
 
 
@@ -59,6 +60,11 @@ class SaleReturnService:
                 current_status=sale.status.value,
                 target_status="return",
             )
+
+        # Keyed on the SALE, not on the return's own date: the return document
+        # is new, but it rewrites `quantity_returned` and `status` on a row
+        # inside the settled period. Still nothing has been mutated here.
+        assert_open(self.db, self.company_id, sale.created_at, "Чек")
 
         locked_items = self.sale_repo.get_sale_items_for_update(sale_id)
         sale_item_map = {item.id: item for item in locked_items}

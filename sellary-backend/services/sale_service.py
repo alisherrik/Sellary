@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from core.state_machine import validate_sale_transition
+from core.state_machine import can_return_sale, validate_sale_transition
 from models.sale import PaymentMethod, Sale, SaleStatus
 from models.sale_item import SaleItem
 from repositories.customer_repository import CustomerRepository
@@ -18,8 +18,10 @@ from schemas.sale import (
     SalesHourlyBucket,
     SalesSummary,
 )
+from services import reconciliation
 from services.calculation_service import CalculationService
 from services.company_time import UTC, company_tz, to_local, utc_now
+from services.reconciliation import frozen_reason
 from services.customer_ledger_service import CustomerLedgerService
 from services.inventory_ledger_service import InventoryLedgerService
 from services.sale_tender_service import (
@@ -65,6 +67,26 @@ class SaleService:
         tz = company_tz(self.db, self.company_id)
         return dt.replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None)
 
+    def _default_start(
+        self,
+        start_date: Optional[datetime],
+        sale_id: Optional[int],
+        search: Optional[str],
+    ) -> Optional[datetime]:
+        """An unbounded browse of the history starts at the last reconciliation.
+
+        A lookup by receipt number or by text reaches behind it: reading an old
+        receipt is not editing one, and a cashier must still be able to find it.
+        The repository ANDs `sale_id` with `start_date`, so a defaulted start
+        would make a settled receipt unfindable by its own number.
+        """
+        if start_date is not None or sale_id is not None or (search and search.strip()):
+            return start_date
+        floor = reconciliation.open_from_instant(self.db, self.company_id)
+        if floor is None:
+            return None
+        return floor.astimezone(UTC).replace(tzinfo=None)
+
     def get_by_id(self, sale_id: int) -> Optional[SaleResponse]:
         sale = self.sale_repo.get_by_id(self.company_id, sale_id)
         if not sale:
@@ -84,7 +106,7 @@ class SaleService:
         payment_method: Optional[PaymentMethod] = None,
         sale_id: Optional[int] = None,
     ) -> Tuple[List[SaleResponse], int]:
-        start_date = self._localize_filter(start_date)
+        start_date = self._default_start(self._localize_filter(start_date), sale_id, search)
         end_date = self._localize_filter(end_date)
         sales, total = self.sale_repo.get_all(
             self.company_id,
@@ -123,7 +145,7 @@ class SaleService:
         that is exactly how the turnover card came to report a fraction of the
         real number.
         """
-        start_date = self._localize_filter(start_date)
+        start_date = self._default_start(self._localize_filter(start_date), sale_id, search)
         end_date = self._localize_filter(end_date)
         filters = dict(
             start_date=start_date,
@@ -157,6 +179,8 @@ class SaleService:
             count=count,
             average_check=(turnover / count).quantize(Decimal("0.01")) if count else Decimal("0.00"),
             refund_operations=totals["refund_operations"],
+            period_start=to_local(start_date, tz).date().isoformat() if start_date else None,
+            period_end=to_local(end_date, tz).date().isoformat() if end_date else None,
             hourly=[
                 SalesHourlyBucket(hour=hour, turnover=hourly[hour]) for hour in sorted(hourly)
             ],
@@ -393,48 +417,6 @@ class SaleService:
         self.db.flush()
         return self._to_response(sale)
 
-    def cancel(self, sale_id: int, user_id: int) -> SaleResponse:
-        sale = self.sale_repo.get_by_id_for_update(self.company_id, sale_id)
-        if not sale:
-            raise ValueError(f"Sale with id {sale_id} not found")
-
-        validate_sale_transition(
-            current_status=sale.status,
-            target_status=SaleStatus.CANCELLED,
-            sale_id=sale_id,
-        )
-
-        locked_items = self.sale_repo.get_sale_items_for_update(sale_id)
-        product_ids = sorted(item.product_id for item in locked_items)
-        locked_products = self.product_repo.get_multiple_for_update(
-            self.company_id,
-            product_ids,
-        )
-        product_map = {product.id: product for product in locked_products}
-
-        for item in locked_items:
-            product = product_map.get(item.product_id)
-            if product:
-                previous_quantity = product.stock_quantity
-                new_quantity = previous_quantity + item.quantity
-                product.stock_quantity = new_quantity
-
-                self.inventory_repo.create_log(
-                    company_id=self.company_id,
-                    product_id=product.id,
-                    user_id=user_id,
-                    quantity_change=item.quantity,
-                    previous_quantity=previous_quantity,
-                    new_quantity=new_quantity,
-                    reason=f"Cancelled sale #{sale_id}",
-                    reference_type="sale_cancel",
-                    reference_id=sale_id,
-                )
-
-        sale.status = SaleStatus.CANCELLED
-        self.db.flush()
-        return self._to_response(sale, items_override=locked_items)
-
     def _to_response(self, sale: Sale, items_override=None) -> SaleResponse:
         refunded_amount = Decimal("0.00")
         try:
@@ -444,7 +426,11 @@ class SaleService:
             pass
 
         remaining_refundable = sale.total_amount - refunded_amount
-        can_return = sale.status in (SaleStatus.COMPLETED, SaleStatus.PARTIALLY_RETURNED)
+        # One source for "may this be returned": the state machine the return
+        # service itself calls, and the freeze that would refuse it anyway.
+        can_return = can_return_sale(sale.status) and (
+            frozen_reason(self.db, self.company_id, sale.created_at, "Чек") is None
+        )
 
         items_source = items_override if items_override is not None else sale.items
         credit_summary = self.customer_ledger.sale_credit_summary(sale)

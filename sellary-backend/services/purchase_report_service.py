@@ -27,7 +27,8 @@ from schemas.purchase_report import (
     PurchaseDayRow,
     PurchaseSummary,
 )
-from services.company_time import company_tz, local_day_bounds, to_local
+from services import reconciliation
+from services.company_time import company_tz, local_day_bounds, period_range, to_local
 from services.tenant import resolve_company_id
 
 ZERO = Decimal("0.00")
@@ -54,6 +55,12 @@ class PurchaseReportService:
 
     def local_day_bounds(self, day=None):
         return local_day_bounds(self.tz(), day)
+
+    def open_from(self):
+        return reconciliation.open_from(self.db, self.company_id)
+
+    def default_range(self, start_date, end_date, days: int):
+        return period_range(self, start_date, end_date, days)
 
     # ----------------------------------------------------------------- base
 
@@ -112,6 +119,8 @@ class PurchaseReportService:
             products_count=int(products or 0),
             lines_count=int(lines or 0),
             average_receipt=_money(total / receipts) if receipts else ZERO,
+            period_start=to_local(start, self.tz()).date().isoformat(),
+            period_end=to_local(end, self.tz()).date().isoformat(),
             by_day=self.by_day(start, end, supplier_id),
         )
 

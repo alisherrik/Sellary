@@ -49,6 +49,8 @@ export interface CompanySession {
   companies: CompanySummary[];
   modules?: ModuleMap;
   company_modules?: ModuleKey[];
+  /** First open day (YYYY-MM-DD); everything before it is settled. */
+  reconciled_from?: string | null;
 }
 
 export interface AuthSession {
@@ -57,6 +59,7 @@ export interface AuthSession {
   companies: CompanySummary[];
   modules?: ModuleMap;
   company_modules?: ModuleKey[];
+  reconciled_from?: string | null;
 }
 
 export interface OwnerLoginResponse {
@@ -401,6 +404,10 @@ export interface PurchaseDayRow {
 }
 
 export interface PurchaseSummary {
+  // The window the server actually used, echoed back: a reconciliation floors a
+  // defaulted start, so «за 90 дней» is only true if the server says it is.
+  period_start?: string | null;
+  period_end?: string | null;
   total_spend: string;
   receipts_count: number;
   orders_count: number;
@@ -481,6 +488,10 @@ export interface CashShiftDetail extends CashShift {
  * and `net_turnover` has refunds taken off, which is what the reports headline.
  */
 export interface SalesSummary {
+  // The window the server actually used. Null when the filter was unbounded and
+  // the shop has never reconciled.
+  period_start?: string | null;
+  period_end?: string | null;
   turnover: string;
   refunds: string;
   net_turnover: string;
@@ -731,6 +742,8 @@ export interface DailySalesData {
 }
 
 export interface DailySalesReport {
+  period_start: string;
+  period_end: string;
   total_sales: number; // net of refunds
   // Gross and refunds let this page reconcile with the sales history, which
   // headlines gross turnover.
@@ -886,4 +899,40 @@ export interface WriteOffSummary {
   document_count: number;
   by_reason: WriteOffSummaryBucket[];
   by_disposition: WriteOffSummaryBucket[];
+}
+
+// --- reconciliation (сверка) ------------------------------------------------
+
+/**
+ * A declared cut-off. `effective_from` is the first local day still OPEN, so
+ * everything strictly before it is settled and no longer editable.
+ */
+export interface Reconciliation {
+  id: number;
+  effective_from: string;
+  created_at: string;
+  created_by_user_id: number | null;
+  note: string | null;
+}
+
+export interface ReconciliationState {
+  latest: Reconciliation | null;
+  history: Reconciliation[];
+}
+
+/** One disagreement the consistency checker found. `bucket` is drift | known. */
+export interface ConsistencyFinding {
+  check: string;
+  company_id: number;
+  subject: string;
+  expected: string;
+  actual: string;
+  bucket: string;
+  note: string;
+}
+
+export interface ConsistencyReport {
+  checked_at: string;
+  clean: boolean;
+  findings: ConsistencyFinding[];
 }

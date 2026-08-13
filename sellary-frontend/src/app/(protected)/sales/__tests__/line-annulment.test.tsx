@@ -31,6 +31,7 @@ vi.mock('@/lib/store', () => ({
   useAuthStore: (selector: any) => selector({ currentCompany: { id: 1, role: 'admin' } }),
   // Annulment controls require pos:manager (admin's map carries manager everywhere).
   useModules: () => ({ sales: 'manager' }),
+  useReconciledFrom: () => null,
 }));
 
 vi.mock('react-hot-toast', () => ({

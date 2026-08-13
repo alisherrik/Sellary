@@ -8,6 +8,7 @@ from repositories.company_module_repository import CompanyModuleRepository
 from models.membership_module_access import MODULES, MembershipModuleAccess
 from repositories.user_repository import UserRepository
 from models.user import User
+from services import reconciliation
 from schemas.admin import OwnerLoginResponse, OwnerSession
 from schemas.user import (
     AuthSession,
@@ -272,6 +273,7 @@ class AuthService:
             companies=companies,
             modules=self._module_map(membership, membership.role, company_id),
             company_modules=self._company_modules(company_id),
+            reconciled_from=reconciliation.open_from(self.db, company_id),
         )
 
     def create_super_admin_company_session(
@@ -306,6 +308,7 @@ class AuthService:
             companies=[current_company],
             modules=self._module_map(None, "admin", company.id),
             company_modules=self._company_modules(company.id),
+            reconciled_from=reconciliation.open_from(self.db, company.id),
         )
 
     def get_auth_session(
@@ -355,6 +358,7 @@ class AuthService:
             user=user,
             modules=self._module_map(membership, current_company.role, current_company.id),
             company_modules=self._company_modules(current_company.id),
+            reconciled_from=reconciliation.open_from(self.db, current_company.id),
             current_company=current_company,
             companies=companies,
         )

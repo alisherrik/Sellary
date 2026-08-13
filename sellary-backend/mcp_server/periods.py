@@ -129,6 +129,12 @@ def resolve_period(
             raise ToolError("Начало периода позже его конца.")
     else:
         first_day, last_day = resolve_days(period, today)
+        # A named period is a request for "the recent past", so it starts no
+        # earlier than the reconciliation. An explicit custom range is honoured
+        # as asked: reading settled history is not editing it.
+        open_from = service.open_from()
+        if open_from and open_from > first_day:
+            first_day = open_from
 
     start, _ = service.local_day_bounds(first_day)
     _, end = service.local_day_bounds(last_day)
@@ -139,4 +145,6 @@ def resolve_period(
         "start_date": first_day.isoformat(),
         "end_date": last_day.isoformat(),
         "timezone": str(tz),
+        # So a model reading across the cut-off says so instead of averaging two eras.
+        "reconciled_from": service.open_from().isoformat() if service.open_from() else None,
     }

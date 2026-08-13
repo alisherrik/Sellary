@@ -3,8 +3,9 @@
 import dynamic from 'next/dynamic';
 import { CardSkeleton, ChartSkeleton, StatCardsSkeleton } from '@/components/skeletons';
 import { ModuleGuard } from '@/components/ModuleGuard';
+import ReconciliationNotice from '@/components/ReconciliationNotice';
 import { useDailySales, useDashboard, useTopProducts } from '@/hooks/useQueries';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatCurrency, formatIsoDate, formatNumber } from '@/lib/utils';
 import {
   ArrowTrendingUpIcon,
   ChartBarIcon,
@@ -83,6 +84,8 @@ function Reports() {
           </div>
         </div>
 
+        <ReconciliationNotice />
+
         {salesLoading || dashboardLoading ? (
           <StatCardsSkeleton count={4} />
         ) : (
@@ -127,8 +130,14 @@ function Reports() {
                     <h2 className="text-sm font-bold text-[var(--erp-text)] sm:text-lg">
                       Динамика продаж
                     </h2>
+                    {/* The window the SERVER used, not the one asked for: a
+                        reconciliation floors a defaulted start, and «за
+                        последние 90 дней» over a 12-day window is a false
+                        statement. */}
                     <p className="text-xs text-gray-500 sm:text-sm">
-                      Общая выручка за последние {days} дней
+                      {salesData
+                        ? `Общая выручка с ${formatIsoDate(salesData.period_start)} по ${formatIsoDate(salesData.period_end)}`
+                        : `Общая выручка за последние ${days} дней`}
                     </p>
                   </div>
 

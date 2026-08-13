@@ -17,6 +17,7 @@ from .cash_shifts import router as cash_shifts_router
 from .mcp import router as mcp_connector_router
 from .money import router as money_router
 from .company import router as company_router
+from .reconciliation import router as reconciliation_router
 from .shop import router as shop_router
 from .shop_orders import router as shop_orders_router
 from .orders import router as orders_router
@@ -42,6 +43,7 @@ __all__ = [
     "mcp_connector_router",
     "money_router",
     "company_router",
+    "reconciliation_router",
     "shop_router",
     "shop_orders_router",
     "orders_router",

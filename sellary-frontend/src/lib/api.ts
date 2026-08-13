@@ -45,6 +45,9 @@ import type {
   MoneyAccount,
   MoneyMovement,
   MovementReasons,
+  ConsistencyReport,
+  Reconciliation,
+  ReconciliationState,
   PurchaseSummary,
   PurchaseByProductRow,
   PurchaseBySupplierRow,
@@ -544,6 +547,20 @@ export const companyApi = {
   getMarketplace: () => api.get<MarketplaceSettings>('/company/marketplace'),
   updateMarketplace: (data: MarketplaceSettingsUpdate) =>
     api.patch<MarketplaceSettings>('/company/marketplace', data),
+};
+
+/**
+ * Сверка — the cut-off document. Reading it is manager-level; declaring one and
+ * running the consistency checker are admin acts.
+ */
+export const reconciliationApi = {
+  get: () => api.get<ReconciliationState>('/reconciliation'),
+  check: () => api.get<ConsistencyReport>('/reconciliation/check'),
+  create: (data: {
+    effective_from: string;
+    note?: string;
+    acknowledge_violations?: boolean;
+  }) => api.post<Reconciliation>('/reconciliation', data),
 };
 
 export const ordersApi = {

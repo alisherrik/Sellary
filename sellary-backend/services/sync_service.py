@@ -31,8 +31,13 @@ from schemas.sync import (
     SyncWarning,
 )
 from services.customer_ledger_service import CustomerLedgerService
+from services.reconciliation import frozen_reason
 from services.inventory_ledger_service import InventoryLedgerService
-from services.sale_tender_service import build_payment_rows, tenders_from_scalars
+from services.sale_tender_service import (
+    build_payment_rows,
+    dominant_method,
+    tenders_from_scalars,
+)
 
 
 SYNC_ENDPOINT = "/api/sync/sales"
@@ -383,6 +388,28 @@ class SyncService:
 
         ledger = InventoryLedgerService(self.db, company.id)
         warnings: list[SyncWarning] = []
+
+        # A queued sale can arrive days after a reconciliation. It is NOT an edit
+        # of a settled document — it creates one, dated when it was actually rung
+        # — so it is accepted at its own timestamp and named rather than moved.
+        # Rewriting `created_at` to the floor would destroy when the sale
+        # happened and make the server receipt disagree with the printed one.
+        # The money self-corrects: the till balance and `stock_quantity` are
+        # running states, so a late arrival moves them forward exactly once.
+        late = frozen_reason(
+            self.db, company.id, sale_create.created_at_client, "Продажа"
+        )
+        if late:
+            warnings.append(
+                SyncWarning(
+                    type="late_arrival",
+                    message=(
+                        f"Продажа от {sale_create.created_at_client:%d.%m.%Y} относится "
+                        "к периоду до сверки. Чек принят; отчёты за закрытый период "
+                        "его уже не показывают."
+                    ),
+                )
+            )
         try:
             with self.db.begin_nested():
                 created_sale = self.sale_repo.create(sale, items)
@@ -403,6 +430,11 @@ class SyncService:
                     paid_amount=sale_create.paid_amount,
                     initial_method=initial_for_tenders,
                 )
+                # The same rule the online path uses: `payment_method` is the
+                # largest tender. Writing the cashier's scalar instead filed an
+                # offline credit sale with a big cash leg under «в долг», where
+                # nobody reconciling наличные could find it.
+                created_sale.payment_method, created_sale.card_type = dominant_method(tenders)
                 created_sale.is_split = len(tenders) > 1
                 for row in build_payment_rows(company.id, created_sale.id, tenders):
                     self.db.add(row)

@@ -4,11 +4,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 from core.config import settings
 from core.database import SessionLocal
 from bootstrap_utils import ensure_super_admin
 from services.customer_credit_schema import ensure_customer_credit_schema
+from services.reconciliation import ReconciliationClosed
 from api import (
     admin_router,
     auth_router,
@@ -29,6 +30,7 @@ from api import (
     money_router,
     mcp_connector_router,
     company_router,
+    reconciliation_router,
     shop_router,
     shop_orders_router,
     orders_router,
@@ -141,6 +143,7 @@ def create_app() -> FastAPI:
     app.include_router(money_router, prefix=settings.API_V1_STR)
     app.include_router(mcp_connector_router, prefix=settings.API_V1_STR)
     app.include_router(company_router, prefix=settings.API_V1_STR)
+    app.include_router(reconciliation_router, prefix=settings.API_V1_STR)
     app.include_router(shop_router, prefix=settings.API_V1_STR)
     app.include_router(shop_orders_router, prefix=settings.API_V1_STR)
     app.include_router(orders_router, prefix=settings.API_V1_STR)
@@ -165,6 +168,17 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+
+@app.exception_handler(ReconciliationClosed)
+def reconciliation_closed_handler(request: Request, exc: ReconciliationClosed):
+    """One handler for every entry point, because the guards live in services/.
+
+    Each guard raises after its row lock and before any mutation, so there is
+    nothing to roll back; `get_db` closes the session and discards the read
+    transaction. That covers the routers, the MCP mount and anything added later.
+    """
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 
 @app.get("/")

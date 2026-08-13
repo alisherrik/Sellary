@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, EmailStr
@@ -76,6 +76,10 @@ class CompanySession(BaseModel):
     modules: dict[ModuleKey, ModuleLevel] = {}
     # What the company has, regardless of this user's grants.
     company_modules: list[ModuleKey] = []
+    # The first day of the open period; null before the shop has reconciled.
+    # A sibling of `modules` for the same reason: it belongs to the CURRENT
+    # company, not to every company in the pre-selection list.
+    reconciled_from: Optional[date] = None
 
 
 class AuthSession(BaseModel):
@@ -85,6 +89,10 @@ class AuthSession(BaseModel):
     modules: dict[ModuleKey, ModuleLevel] = {}
     # What the company has, regardless of this user's grants.
     company_modules: list[ModuleKey] = []
+    # The first day of the open period; null before the shop has reconciled.
+    # A sibling of `modules` for the same reason: it belongs to the CURRENT
+    # company, not to every company in the pre-selection list.
+    reconciled_from: Optional[date] = None
 
 
 class TokenData(BaseModel):

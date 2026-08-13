@@ -71,11 +71,13 @@ class SyncSalesRequest(BaseModel):
 
 class SyncWarning(BaseModel):
     type: str
-    product_id: int
-    product_name: str
-    requested: Decimal
-    available: Decimal
-    new_balance: Decimal
+    # Only an oversell is about one product; a late arrival is about the receipt.
+    product_id: Optional[int] = None
+    product_name: Optional[str] = None
+    requested: Optional[Decimal] = None
+    available: Optional[Decimal] = None
+    new_balance: Optional[Decimal] = None
+    message: Optional[str] = None
 
 
 class SyncSaleResult(BaseModel):

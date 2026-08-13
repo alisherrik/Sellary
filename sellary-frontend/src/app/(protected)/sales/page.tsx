@@ -11,11 +11,12 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { salesApi, metaApi, customersApi, generateIdempotencyKey } from '@/lib/api';
-import { formatCurrency, printReceipt } from '@/lib/utils';
+import { formatCurrency, formatIsoDate, printReceipt } from '@/lib/utils';
 import { TableSkeleton } from '@/components/skeletons';
 import FilterMenu from '@/components/filters/FilterMenu';
 import { ModuleGuard } from '@/components/ModuleGuard';
 import QueryError from '@/components/ui/QueryError';
+import ReconciliationNotice, { SettledBadge } from '@/components/ReconciliationNotice';
 import AnnulmentDialog from '@/components/transactions/AnnulmentDialog';
 import { Sale, SaleItem, SalePayment, VoidPreview } from '@/lib/types';
 import { useModules } from '@/lib/store';
@@ -252,10 +253,19 @@ function SalesHistory() {
     // Filtered server-side so the KPI cards reflect the choice: a client-side
     // filter would only narrow the page in hand, never the totals.
     if (paymentFilter !== 'all') params.payment_method = paymentFilter;
-    if (startDate) params.start_date = `${startDate}T00:00:00`;
-    if (endDate) params.end_date = `${endDate}T23:59:59`;
     // Exact, unlike the search box, where 98 also finds 198 and any sale of 98.
-    if (/^\d+$/.test(receiptFilter)) params.sale_id = Number(receiptFilter);
+    const byReceipt = /^\d+$/.test(receiptFilter);
+    if (byReceipt) params.sale_id = Number(receiptFilter);
+    // A lookup by receipt number or by text reaches behind the cut-off, which is
+    // the server's own rule: the repository ANDs `sale_id` with `start_date`, so
+    // a bound here would make a settled receipt unfindable by its number.
+    if (!byReceipt && !search) {
+      // Empty dates mean «use the server default», which is the open period.
+      // The client must not compute one: the session is persisted, so a
+      // locally-derived floor goes stale the moment another admin reconciles.
+      if (startDate) params.start_date = `${startDate}T00:00:00`;
+      if (endDate) params.end_date = `${endDate}T23:59:59`;
+    }
 
     return params;
   }, [debouncedSearch, statusFilter, paymentFilter, startDate, endDate, receiptFilter]);
@@ -672,6 +682,13 @@ function SalesHistory() {
     { value: 'mobile', label: 'Мобильный' },
     { value: 'credit', label: 'В долг' },
   ];
+  // The window the SERVER used. The date inputs start empty and empty means
+  // «the open period», so this echo is the only honest statement of what the
+  // figures below actually cover.
+  const periodLabel =
+    summary?.period_start && summary?.period_end
+      ? `${formatIsoDate(summary.period_start)} — ${formatIsoDate(summary.period_end)}`
+      : null;
   const activeFilterCount =
     (paymentFilter !== 'all' ? 1 : 0) +
     (startDate ? 1 : 0) +
@@ -692,7 +709,9 @@ function SalesHistory() {
           <div className="mb-3 flex flex-none items-end gap-4">
             <div>
               <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">История продаж</h2>
-              <p className="mt-0.5 text-[13px] text-gray-500">{totals.count} чеков</p>
+              <p className="mt-0.5 text-[13px] text-gray-500">
+                {totals.count} чеков{periodLabel ? ` · ${periodLabel}` : ''}
+              </p>
             </div>
           </div>
 
@@ -804,6 +823,12 @@ function SalesHistory() {
                 <span className="hidden sm:inline">Обновить</span>
               </button>
             </div>
+          </div>
+
+          {/* empty:hidden — with no cut-off the notice renders nothing, and the
+              spacer must not leave a gap where a banner never was. */}
+          <div className="mb-3 empty:hidden">
+            <ReconciliationNotice />
           </div>
 
           {/* KPI cards */}
@@ -922,8 +947,12 @@ function SalesHistory() {
                               {getStatusText(sale.status)}
                             </span>
                           </div>
-                          <p className="mt-0.5 text-[11px] text-[var(--erp-muted)]">
-                            {sale.cashier_name} · {new Date(sale.created_at).toLocaleString('ru-RU')}
+                          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--erp-muted)]">
+                            <span>
+                              {sale.cashier_name} ·{' '}
+                              {new Date(sale.created_at).toLocaleString('ru-RU')}
+                            </span>
+                            <SettledBadge at={sale.created_at} />
                           </p>
                           <span title={chip.title} className={`mt-1 inline-block px-2 py-0.5 text-[10px] ${chip.cls}`}>{chip.label}</span>
                         </div>
@@ -980,8 +1009,13 @@ function SalesHistory() {
                               #{sale.id}
                             </button>
                           </td>
-                          <td className="px-4 py-3 tabular-nums text-gray-500">
-                            {new Date(sale.created_at).toLocaleString('ru-RU')}
+                          <td className="px-4 py-3 text-gray-500">
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <span className="tabular-nums">
+                                {new Date(sale.created_at).toLocaleString('ru-RU')}
+                              </span>
+                              <SettledBadge at={sale.created_at} />
+                            </span>
                           </td>
                           <td className="px-4 py-3 text-gray-700">{sale.cashier_name}</td>
                           <td className="px-4 py-3 text-right tabular-nums text-gray-500">{sale.items?.length ?? 0}</td>

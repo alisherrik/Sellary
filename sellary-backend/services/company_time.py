@@ -6,7 +6,7 @@ server clock — a naive `datetime.now()` reported every sale rung before 05:00
 local against the previous day.
 """
 
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -46,6 +46,28 @@ def to_local(moment: datetime, tz: ZoneInfo) -> datetime:
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=UTC)
     return moment.astimezone(tz)
+
+
+def period_range(service, start_date=None, end_date=None, days: int = 30) -> tuple[datetime, datetime]:
+    """Fill in a missing report range on the company's clock, no earlier than the cut-off.
+
+    Duck-typed on `tz()` / `local_day_bounds()` / `open_from()`, so the sales reports
+    and the purchase reports share one rule instead of two that drift apart.
+
+    The floor fills in a MISSING start and never truncates an explicit one: reading
+    pre-reconciliation history is not editing it, and a hard clamp would make
+    «за последние 90 дней» quietly mean twelve.
+    """
+    tz = service.tz()
+    if not end_date:
+        _, end_date = service.local_day_bounds()
+    if not start_date:
+        first_day = datetime.now(tz).date() - timedelta(days=max(days - 1, 0))
+        open_from = service.open_from()
+        if open_from and open_from > first_day:
+            first_day = open_from
+        start_date, _ = service.local_day_bounds(first_day)
+    return start_date, end_date
 
 
 def local_day_bounds(tz: ZoneInfo, day=None) -> tuple[datetime, datetime]:

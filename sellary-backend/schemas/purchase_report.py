@@ -20,6 +20,10 @@ class PurchaseSummary(BaseModel):
     products_count: int
     lines_count: int
     average_receipt: Decimal
+    # The window actually covered. «за N дней» becomes a false label the moment
+    # the reconciliation floor shortens it, so the screen reads these instead.
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
     by_day: list[PurchaseDayRow]
 
 

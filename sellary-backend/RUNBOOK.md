@@ -122,6 +122,38 @@ Frontend build:
 npm run build
 ```
 
+## Сверка (closing a period)
+
+The order matters — every step exists because skipping it has cost somebody a day.
+
+1. **Close the shift.** A cut-off inside an open shift splits that shift's own
+   arithmetic across the boundary, and the API refuses it.
+2. **Count the goods and the cash.** Enter the counted quantities through
+   «Инвентаризация» on the products page and «Сверить» on each money account.
+3. **Run the checker** and read the output:
+   ```
+   railway run --service Postgres python check_consistency.py --company <id>
+   ```
+   It writes nothing and exits 1 when anything is in the `drift` bucket.
+4. **Declare the reconciliation** — Settings → «Сверка», or
+   `POST /api/reconciliation {"effective_from": "<first open day>"}`. It runs the
+   checker again and refuses on drift; `acknowledge_violations: true` proceeds
+   and records the findings on the row.
+
+Two things to know before anyone relies on it:
+
+- **The freeze binds the application, not the database.** The maintenance
+  scripts in this directory (`reconcile_ledger_drift.py`, `repair_purchase_15.py`,
+  `reconcile_inventory_value.py`, `reset_database.py`, `clear_test_data.py`,
+  `debug_return.py`, `fix_enum*.py`) open their own engines and commit their own
+  transactions, outside all company scoping. No service guard stops them. That
+  escape hatch is deliberate — it is how the June ledger drift was repaired — and
+  making it a real invariant would need a Postgres trigger and its own migration.
+- **Nothing schedules the checker.** There is no cron, no APScheduler and no
+  Railway worker anywhere in the stack; `railway.toml` has only a
+  `preDeployCommand` and a healthcheck. Production runs are manual until someone
+  decides otherwise.
+
 ## Known Guardrails
 
 - `Idempotency-Key` must be 16-64 characters.

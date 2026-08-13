@@ -5,6 +5,7 @@ import {
   BuildingOffice2Icon,
   BuildingStorefrontIcon,
   CpuChipIcon,
+  LockClosedIcon,
   ServerStackIcon,
   UsersIcon,
 } from '@heroicons/react/24/outline';
@@ -13,6 +14,7 @@ import AiConnectorSection from '@/components/settings/AiConnectorSection';
 import CompanyAdminSection from '@/components/settings/CompanyAdminSection';
 import CompanyProfileSection from '@/components/settings/CompanyProfileSection';
 import MarketplaceSettingsSection from '@/components/settings/MarketplaceSettingsSection';
+import ReconciliationSection from '@/components/settings/ReconciliationSection';
 import SettingsNav, {
   panelDomId,
   tabDomId,
@@ -43,6 +45,13 @@ const TEAM: SettingsSectionDef = {
   Icon: UsersIcon,
 };
 
+const RECONCILIATION: SettingsSectionDef = {
+  id: 'reconciliation',
+  label: 'Сверка',
+  summary: 'Дата, с которой начинается открытый период. Документы до неё не изменяются.',
+  Icon: LockClosedIcon,
+};
+
 const AI: SettingsSectionDef = {
   id: 'ai',
   label: 'ИИ-коннектор',
@@ -70,11 +79,14 @@ export default function SettingsPage() {
   const modules = useModules();
 
   // Staff administration is admin-only; the tab would otherwise open onto a
-  // panel that has nothing to show. The connector tab follows its module: with
-  // `ai` off there is no address to copy and nobody to list, so the tab would
-  // open onto a 403.
+  // panel that has nothing to show. So is the reconciliation: it spans stock
+  // and cash and the server only lets an admin declare one. The connector tab
+  // follows its module: with `ai` off there is no address to copy and nobody to
+  // list, so the tab would open onto a 403.
   const sections = useMemo(() => {
-    const list = isAdmin ? [COMPANY, MARKETPLACE, TEAM] : [COMPANY, MARKETPLACE];
+    const list = isAdmin
+      ? [COMPANY, MARKETPLACE, TEAM, RECONCILIATION]
+      : [COMPANY, MARKETPLACE];
     if (canAccessModule(modules, 'ai')) list.push(AI);
     list.push(SYSTEM);
     return list;
@@ -123,6 +135,7 @@ export default function SettingsPage() {
               {section.id === COMPANY.id && <CompanyProfileSection />}
               {section.id === MARKETPLACE.id && <MarketplaceSettingsSection />}
               {section.id === TEAM.id && <CompanyAdminSection />}
+              {section.id === RECONCILIATION.id && <ReconciliationSection />}
               {section.id === AI.id && <AiConnectorSection />}
               {section.id === SYSTEM.id && <SystemStatusSection />}
             </div>

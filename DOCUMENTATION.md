@@ -343,6 +343,7 @@ Margin = (Profit / Revenue) × 100
 | `purchase_orders` | Inventory purchase orders |
 | `purchase_order_items` | Items in each PO |
 | `inventory_logs` | Stock change history |
+| `company_reconciliations` | Reconciliation cut-offs: `effective_from` is the first local day still open; documents before it are read-only |
 | `membership_module_access` | Per-membership module grants (`pos`/`inventory`/`purchasing`/`shop`/`reports` × `user`/`manager`); no row = no access, admin role bypasses |
 
 ### Key Relationships
@@ -391,6 +392,15 @@ Multi-company auth flow:
 | PUT | `/api/admin/memberships/{id}/modules` | Admin: replace a member's module grants |
 
 Module access: business endpoints are gated per module (`pos`: sales/shifts/customers; `inventory`: products/categories/inventory; `purchasing`: suppliers/POs; `shop`: merchant orders; `reports`) at level `user` (daily flow) or `manager` (destructive/corrective ops: cancels, returns, voids, deletes, inventory adjust, PO receive). Admin role bypasses. Missing grant → HTTP 403 `{"detail": {"code": "module_access_denied", ...}}`.
+
+### Reconciliation (сверка)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/reconciliation` | Latest cut-off plus history (manager or admin) |
+| GET | `/api/reconciliation/check` | Run the consistency checker and return its findings (admin) |
+| POST | `/api/reconciliation` | Declare a cut-off (admin). 409 on a future date, a date not later than the previous one, an open shift, or checker drift — `acknowledge_violations: true` overrides the last of those |
+
+`select-company` and `/auth/me` also carry `reconciled_from`, the first day of the open period. Settings → «Сверка» is the screen that declares it.
 
 ### Products
 | Method | Endpoint | Description |

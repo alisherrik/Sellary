@@ -16,16 +16,20 @@ from services.company_time import local_day_bounds
 
 
 class FakeService:
-    """Stands in for ReportService: only `tz` and `local_day_bounds` are used."""
+    """Stands in for ReportService: `tz`, `local_day_bounds` and `open_from`."""
 
-    def __init__(self, tz_name: str = "Asia/Dushanbe"):
+    def __init__(self, tz_name: str = "Asia/Dushanbe", open_from: date | None = None):
         self._tz = ZoneInfo(tz_name)
+        self._open_from = open_from
 
     def tz(self) -> ZoneInfo:
         return self._tz
 
     def local_day_bounds(self, day=None):
         return local_day_bounds(self._tz, day)
+
+    def open_from(self):
+        return self._open_from
 
 
 class TestResolveDays:
@@ -159,3 +163,25 @@ class TestResolvePeriod:
     def test_period_name_is_case_insensitive(self):
         _, _, echo = resolve_period(FakeService(), "This_Month")
         assert echo["period"] == "this_month"
+
+
+class TestReconciliationFloor:
+    def test_a_named_period_starts_no_earlier_than_the_reconciliation(self):
+        service = FakeService(open_from=date.today())
+
+        start, _, echo = resolve_period(service, "last_90_days")
+
+        assert echo["start_date"] == date.today().isoformat()
+        assert echo["reconciled_from"] == date.today().isoformat()
+
+    def test_an_explicit_range_is_honoured_as_asked(self):
+        # Reading settled history is not editing it, and a clamp here would make
+        # a requested range silently mean something else.
+        service = FakeService(open_from=date(2026, 8, 1))
+
+        _, _, echo = resolve_period(
+            service, "custom", start_date="2026-01-01", end_date="2026-01-31"
+        )
+
+        assert echo["start_date"] == "2026-01-01"
+        assert echo["reconciled_from"] == "2026-08-01"

@@ -1,11 +1,12 @@
 import { useQuery, useInfiniteQuery, keepPreviousData, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
-import { reportsApi, productsApi, salesApi, shiftsApi, suppliersApi, purchaseOrdersApi, customersApi, companyApi, ordersApi } from '@/lib/api';
+import { reportsApi, productsApi, salesApi, shiftsApi, suppliersApi, purchaseOrdersApi, customersApi, companyApi, ordersApi, reconciliationApi } from '@/lib/api';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { useAuthStore } from '@/lib/store';
 import {
     Product, Sale, SaleSearchSuggestion, SalesSummary, Supplier, PurchaseOrder, Customer,
     CustomerLedgerResponse, DailySalesReport, ProfitReport, TopProductsReport,
-    CashShift, CashShiftDetail, MarketplaceSettings, Order, OrderListResponse
+    CashShift, CashShiftDetail, MarketplaceSettings, Order, OrderListResponse,
+    ReconciliationState
 } from '@/lib/types';
 
 const tenantKey = (companyId: number | null) => companyId ?? 'no-company';
@@ -36,6 +37,7 @@ export const queryKeys = {
     profit: (companyId: number | null, days: number) => ['profit', tenantKey(companyId), days] as const,
     topProducts: (companyId: number | null, days: number, limit: number) => ['topProducts', tenantKey(companyId), days, limit] as const,
     marketplaceSettings: (companyId: number | null) => ['marketplaceSettings', tenantKey(companyId)] as const,
+    reconciliation: (companyId: number | null) => ['reconciliation', tenantKey(companyId)] as const,
     orders: (companyId: number | null, params?: any) => ['orders', tenantKey(companyId), params] as const,
     order: (companyId: number | null, id: number) => ['order', tenantKey(companyId), id] as const,
 };
@@ -415,6 +417,24 @@ export function useMarketplaceSettings(
         queryKey: queryKeys.marketplaceSettings(companyId),
         queryFn: async () => {
             const response = await companyApi.getMarketplace();
+            return response.data;
+        },
+        ...options,
+        enabled: isServerReachable && companyId !== null && (options?.enabled !== false),
+    });
+}
+
+/**
+ * The company's reconciliation cut-off and its history. Manager-level on the
+ * server; the settings section that writes one is admin-only.
+ */
+export function useReconciliation(options?: Partial<UseQueryOptions<ReconciliationState>>) {
+    const { isServerReachable } = useServerHealth();
+    const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
+    return useQuery<ReconciliationState>({
+        queryKey: queryKeys.reconciliation(companyId),
+        queryFn: async () => {
+            const response = await reconciliationApi.get();
             return response.data;
         },
         ...options,

@@ -195,6 +195,87 @@ The quantity field survives on product **creation**: that is a real opening
 balance, written as a `product_initial` FIFO layer on a product with no prior
 figure to corrupt.
 
+### Одна проверка
+Every derived figure is recomputed from an **independent** source in
+`services/consistency_service.py`, and that registry is the only place to add
+one. `check_consistency.py` is a thin CLI over it — the service lives under
+`services/` because CI's compile gate is `python -m compileall api core models
+repositories schemas services main.py`, and a script at the backend root ships
+green even when broken.
+
+The checker writes nothing: it opens with `autoflush=False` and touches no ORM
+attribute. Every check is SQLAlchemy Core over the models, never raw `text()` —
+`Sale.status` and `SaleReturn.refund_method` are native Postgres enums and the
+SQLite test engine accepts SQL Postgres refuses, a bet this repo has already
+lost once. Every check groups by `company_id`: a cross-company aggregate lets
+two shops' opposite drifts net to zero and report health.
+
+Findings carry a bucket. `drift` means a pair that must agree does not;
+`known` means a recorded fact — an offline oversell drives the balance below
+zero where the layers cannot follow, and a receipt that synced after a
+reconciliation keeps its own date. Only `drift` fails the run.
+
+### Сверка (the reconciliation cut-off)
+A shop that has counted every product and every account on one day wants the
+figures before it left alone. That is an act with a date, an author and a note,
+so it is a **document** (`company_reconciliations`) and not a column;
+`effective_from` is the first local day still **open**, so the comparison is the
+one the reports already make. `services/reconciliation.py` holds the single
+predicate — two writers of this rule is how the sales page and the reports page
+would come to disagree about where the open period starts.
+
+Two rules do all the work. **The floor fills in a MISSING period start and never
+truncates an explicit one**: reading settled history is not editing it, and a
+hard clamp would make «за последние 90 дней» quietly mean twelve. And the freeze
+**forbids editing documents dated before it, and nothing else** — the five
+guarded paths are `void_sale`, `void_purchase`, `void_purchase_item`,
+`process_return` and their previews, each guarded after the row lock and before
+any mutation, so `main.py`'s single `ReconciliationClosed` handler has nothing
+to roll back.
+
+Stock, FIFO layers, customer debts, money balances and open purchase orders all
+**carry forward**: none of them is a period sum. Two consequences are worth
+naming. A debt repayment stays writable — `sales.payment_status` is derived from
+the ledger, and guarding it would make old debts permanently unpayable. And an
+offline sale that arrives after the cut-off is **accepted at its own timestamp**,
+because a new sale is not an edit of an old one; rewriting `created_at` to the
+floor would destroy when it was rung and make the server receipt disagree with
+the printed one. The residual is named by the `late_arrivals_after_freeze` check
+instead, the same move the shift panel makes with `late_arrivals`.
+
+Declaring a reconciliation runs the checker and **refuses on drift**, because
+freezing over a known break bakes it into a carried-forward opening position at
+the exact moment the repair scripts stop being usable. `acknowledge_violations`
+proceeds anyway and stores the findings in `checker_report`, so the frozen
+period records what was known to be broken rather than pretending it was clean.
+
+**The freeze binds the application, not the database.** The maintenance scripts
+at the backend root (`reconcile_ledger_drift.py`, `repair_purchase_15.py`,
+`reset_database.py` and the rest) write through their own engines and their own
+commits, outside all company scoping, and no service guard binds them. That is
+deliberate — it is how the June drift was repaired — and closing it would need a
+Postgres trigger and its own migration.
+
+`companies.inventory_ledger_started_at` was dropped with the same migration: a
+per-company cut-off timestamp read by no application code, sitting beside a new
+one, is exactly the decay this work exists to prevent.
+
+**Nothing schedules the checker.** There is no cron, no APScheduler and no
+Railway worker in the stack — `railway.toml` carries only a `preDeployCommand`
+and a healthcheck — so production runs are manual until someone builds that.
+
+### Which side of the stock invariant is the truth
+`products.stock_quantity` and the sum of a product's open `inventory_layers`
+must agree, and when they do not the checker **reports both figures and names
+no winner**. The repair tooling has gone both ways for good reasons:
+`reconcile_ledger_drift.py` shrank layers down to a balance the POS, every
+report and the physical count had been measured against, while
+`repair_purchase_15.py` lifted a balance up to a layer that recorded goods
+which had really arrived. Which side is wrong is a judgement about what
+happened in the shop, so a tool that picks one becomes a second opinion instead
+of a single one — it states the disagreement and leaves the decision where the
+evidence is.
+
 ### MCP connector (`sellary-backend/mcp_server/`)
 Gated on the **`ai` module**, like every other domain. It is in no business-type
 preset — it opens a live door into the company's data, so it is switched on

@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 
 import { purchaseReportApi } from '@/lib/api';
-import { formatDateTime, formatMoney, formatUnitPrice } from '@/lib/utils';
+import { formatDateTime, formatIsoDate, formatMoney, formatUnitPrice } from '@/lib/utils';
 import { CardSkeleton, TableSkeleton } from '@/components/skeletons';
 import QueryError from '@/components/ui/QueryError';
+import ReconciliationNotice from '@/components/ReconciliationNotice';
 import type {
   OutstandingOrderRow,
   PurchaseByProductRow,
@@ -100,22 +101,34 @@ export default function PurchaseReportPage() {
             вкладку.
           </p>
         </div>
-        <div className="flex gap-1">
-          {PERIODS.map((period) => (
-            <button
-              key={period.days}
-              onClick={() => setDays(period.days)}
-              className={`h-9 border px-3 text-sm font-medium ${
-                days === period.days
-                  ? 'border-[var(--erp-accent)] bg-[var(--erp-accent)] text-white'
-                  : 'border-[var(--erp-divider)] bg-white text-[var(--erp-text)] hover:border-[var(--erp-text)] dark:bg-gray-800 dark:text-gray-100'
-              }`}
-            >
-              {period.label}
-            </button>
-          ))}
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex gap-1">
+            {PERIODS.map((period) => (
+              <button
+                key={period.days}
+                onClick={() => setDays(period.days)}
+                className={`h-9 border px-3 text-sm font-medium ${
+                  days === period.days
+                    ? 'border-[var(--erp-accent)] bg-[var(--erp-accent)] text-white'
+                    : 'border-[var(--erp-divider)] bg-white text-[var(--erp-text)] hover:border-[var(--erp-text)] dark:bg-gray-800 dark:text-gray-100'
+                }`}
+              >
+                {period.label}
+              </button>
+            ))}
+          </div>
+          {/* The window the SERVER used: a reconciliation floors a defaulted
+              start, and the button then names a period nobody was shown. */}
+          {summary.data?.period_start && summary.data?.period_end ? (
+            <p className="text-xs tabular-nums text-[var(--erp-muted)]">
+              {formatIsoDate(summary.data.period_start)} —{' '}
+              {formatIsoDate(summary.data.period_end)}
+            </p>
+          ) : null}
         </div>
       </div>
+
+      <ReconciliationNotice />
 
       {summary.isLoading ? (
         <CardSkeleton />

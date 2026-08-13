@@ -216,6 +216,10 @@ class SalesSummary(BaseModel):
     count: int
     average_check: Decimal
     refund_operations: int
+    # The window these totals actually cover, so the page states it instead of
+    # computing a second answer from its own empty date inputs.
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
     hourly: List[SalesHourlyBucket]
     # Turnover split by payment method. cash + card + mobile + credit == turnover.
     cash: Decimal = Decimal("0.00")

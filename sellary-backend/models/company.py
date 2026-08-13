@@ -36,7 +36,6 @@ class Company(Base):
     )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    inventory_ledger_started_at = Column(DateTime(timezone=True))
 
     memberships = relationship(
         "CompanyMembership",
@@ -48,6 +47,7 @@ class Company(Base):
         back_populates="company",
         cascade="all, delete-orphan",
     )
+    reconciliations = relationship("Reconciliation", back_populates="company")
     categories = relationship("Category", back_populates="company")
     customers = relationship("Customer", back_populates="company")
     products = relationship("Product", back_populates="company")

@@ -130,6 +130,49 @@ Write-offs never enter turnover. The profit report carries them as
 `write_off_cost` and `profit_after_write_offs` beside an unchanged `profit`, so
 existing callers (frontend, MCP `get_profit_report`) keep their meaning.
 
+### Одна проверка
+Every derived figure is recomputed from an independent source in
+`services/consistency_service.py` — one registry, and the only place to add a
+figure. `check_consistency.py` is a thin CLI over it. The checker writes
+nothing (`autoflush=False`, no ORM writes), uses SQLAlchemy Core rather than raw
+`text()` because the enums differ between Postgres and the SQLite test engine,
+and groups every check by `company_id`. A `drift` finding is a pair that must
+agree and does not; a `known` finding is a recorded fact (an offline oversell, a
+receipt that synced after a reconciliation). Only `drift` fails the run.
+
+### Сверка (the reconciliation cut-off)
+The cut-off is a document (`company_reconciliations`), not a column;
+`effective_from` is the first local day still open, and
+`services/reconciliation.py` is the single predicate everything reads.
+
+The floor fills in a **missing** period start and never truncates an explicit
+one. The freeze forbids editing documents dated before it and nothing else —
+guarded at `void_sale`, `void_purchase`, `void_purchase_item` and
+`process_return`, after the row lock and before any mutation, surfacing as one
+`ReconciliationClosed` handler in `main.py`.
+
+Stock, FIFO layers, customer debts, money balances and open POs carry forward.
+A debt repayment stays writable (`payment_status` is derived from the ledger),
+and an offline sale arriving after the cut-off is accepted at its own timestamp
+and named by the `late_arrivals_after_freeze` check rather than moved.
+
+Declaring one runs the checker and refuses on drift;
+`acknowledge_violations` proceeds and stores the findings. The freeze binds the
+application, not the database: the backend-root maintenance scripts write
+outside it, deliberately. Nothing schedules the checker — there is no cron or
+worker in the stack.
+
+### Which side of the stock invariant is the truth
+`products.stock_quantity` and the sum of a product's open `inventory_layers`
+must agree, and when they do not the checker **reports both figures and names
+no winner**. The repair tooling has gone both ways for good reasons:
+`reconcile_ledger_drift.py` shrank layers down to a balance the POS, every
+report and the physical count had been measured against, while
+`repair_purchase_15.py` lifted a balance up to a layer that recorded goods
+which had really arrived. Which side is wrong is a judgement about what
+happened in the shop, so a tool that picks one becomes a second opinion instead
+of a single one.
+
 ### MCP connector
 
 Gated on the `ai` module — in no business-type preset, checked on every tool call (not just at connect time, since access tokens live a day), and the OAuth company step hides companies without it. Settings → «ИИ-коннектор» (`api/mcp.py`, `services/mcp_admin_service.py`) gives the URL to copy, lists connected agents and revokes one by striking its refresh token.

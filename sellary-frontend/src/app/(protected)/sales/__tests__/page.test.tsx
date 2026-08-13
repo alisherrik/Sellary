@@ -61,6 +61,7 @@ vi.mock('@/lib/store', () => ({
   useAuthStore: (selector: any) =>
     selector({ currentCompany: { id: 1, role: 'admin' } }),
   useModules: () => ({ sales: 'user' }),
+  useReconciledFrom: () => null,
 }));
 
 vi.mock('react-hot-toast', () => ({
@@ -210,6 +211,65 @@ describe('Sales history smart search', () => {
         }),
       ),
     );
+  });
+
+  it('drops the date bounds when a receipt number is entered', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Фильтры' }));
+    fireEvent.change(screen.getByLabelText('Дата от'), {
+      target: { value: '2026-07-01' },
+    });
+
+    await waitFor(() =>
+      expect(useInfiniteSales).toHaveBeenLastCalledWith(
+        expect.objectContaining({ start_date: '2026-07-01T00:00:00' }),
+      ),
+    );
+
+    // A receipt stays findable behind the cut-off: the server ANDs `sale_id`
+    // with `start_date`, so any bound at all would hide a settled receipt from
+    // a lookup by its own number.
+    await user.type(screen.getByLabelText('Номер чека'), '1318');
+
+    await waitFor(() => {
+      const params = vi.mocked(useInfiniteSales).mock.lastCall?.[0];
+      expect(params).toMatchObject({ sale_id: 1318 });
+      expect(params).not.toHaveProperty('start_date');
+      expect(params).not.toHaveProperty('end_date');
+    });
+  });
+
+  it('drops the date bounds when the history is searched by text', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Фильтры' }));
+    fireEvent.change(screen.getByLabelText('Дата до'), {
+      target: { value: '2026-07-31' },
+    });
+    await user.type(screen.getByRole('combobox', { name: 'Поиск продаж' }), 'кола');
+
+    await waitFor(
+      () => {
+        const params = vi.mocked(useInfiniteSales).mock.lastCall?.[0];
+        expect(params).toMatchObject({ search: 'кола' });
+        expect(params).not.toHaveProperty('end_date');
+      },
+      { timeout: 1500 },
+    );
+  });
+
+  it('names the window the server actually used', () => {
+    vi.mocked(useSalesSummary).mockReturnValue(
+      summaryResult({ period_start: '2026-07-01', period_end: '2026-07-31' }) as any,
+    );
+    renderPage();
+
+    // Not «за 30 дней»: a reconciliation floors a defaulted start, and the
+    // request said nothing about dates at all.
+    expect(screen.getByText(/01\.07\.2026 — 31\.07\.2026/)).toBeInTheDocument();
   });
 
   it('asks the server for totals over the whole filtered history, not the loaded page', async () => {
