@@ -70,5 +70,7 @@ def list_sale_returns(sale_id: int) -> dict:
     with mcp_session() as (db, auth):
         require_scope(auth, SCOPE_RECORDS)
         require_module(auth, db, "sales")
+        if SaleService(db, auth.company_id).get_by_id(sale_id) is None:
+            raise ToolError(f"Чек №{sale_id} не найден.")
         returns = SaleReturnService(db, auth.company_id).get_returns_for_sale(sale_id)
         return {"sale_id": sale_id, "count": len(returns), "returns": json_safe(returns)}

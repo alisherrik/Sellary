@@ -20,14 +20,7 @@ class CustomerRepository:
             Customer.phone == phone,
         ).first()
 
-    def get_all(
-        self,
-        company_id: int,
-        skip: int = 0,
-        limit: int = 50,
-        search: Optional[str] = None,
-        active_only: bool = True,
-    ) -> List[Customer]:
+    def _filtered(self, company_id: int, search: Optional[str], active_only: bool):
         query = self.db.query(Customer).filter(Customer.company_id == company_id)
         if active_only:
             query = query.filter(Customer.is_active == True)
@@ -39,7 +32,27 @@ class CustomerRepository:
                     Customer.email.ilike(f"%{search}%"),
                 )
             )
-        return query.offset(skip).limit(limit).all()
+        return query
+
+    def get_all(
+        self,
+        company_id: int,
+        skip: int = 0,
+        limit: int = 50,
+        search: Optional[str] = None,
+        active_only: bool = True,
+    ) -> List[Customer]:
+        return (
+            self._filtered(company_id, search, active_only)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+    def count(
+        self, company_id: int, search: Optional[str] = None, active_only: bool = True
+    ) -> int:
+        return self._filtered(company_id, search, active_only).count()
 
     def create(self, customer: Customer) -> Customer:
         self.db.add(customer)

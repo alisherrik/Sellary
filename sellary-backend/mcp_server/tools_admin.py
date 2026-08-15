@@ -9,7 +9,7 @@ from fastmcp.exceptions import ToolError
 
 from mcp_server import SCOPE_RECORDS, SCOPE_REPORTS
 from mcp_server.context import mcp_session, require_module, require_scope
-from mcp_server.serialization import json_safe
+from mcp_server.serialization import json_safe, money
 from mcp_server.server import mcp
 from models.cash_shift import CashShift as CashShiftModel
 from services.cash_shift_service import CashShiftService
@@ -58,7 +58,21 @@ def get_shift(shift_id: int | None = None) -> dict:
             )
             if shift is None:
                 raise ToolError(f"Смена №{shift_id} не найдена.")
-        return {"shift": json_safe(shift), "totals": json_safe(service.totals_for(shift))}
+        return {
+            "shift": {
+                "id": shift.id,
+                "shift_number": shift.shift_number,
+                "status": json_safe(shift.status),
+                "opened_at": json_safe(shift.opened_at),
+                "closed_at": json_safe(shift.closed_at),
+                "opening_cash": money(shift.opening_cash),
+                "expected_cash": money(shift.expected_cash),
+                "counted_cash": money(shift.counted_cash),
+                "discrepancy": money(shift.discrepancy),
+                "notes": shift.notes,
+            },
+            "totals": json_safe(service.totals_for(shift)),
+        }
 
 
 @mcp.tool
@@ -112,4 +126,9 @@ def get_period_report(reconciliation_id: int) -> dict:
         detail = PeriodReportService(db, auth.company_id).detail(reconciliation_id)
         if detail is None:
             raise ToolError(f"Период №{reconciliation_id} не найден.")
+        if auth.role not in ("admin", "manager"):
+            # checker_report is consistency-checker drift — the same admin-only
+            # bar as run_consistency_check and GET /reconciliation/check, not
+            # the report-module grant this tool is otherwise gated on.
+            detail.checker_report = None
         return json_safe(detail)

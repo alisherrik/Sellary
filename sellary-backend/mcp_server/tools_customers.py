@@ -23,11 +23,10 @@ def list_customers(query: str | None = None, limit: int = 50) -> dict:
         require_scope(auth, SCOPE_RECORDS)
         require_module(auth, db, "customers")
         limit = max(1, min(int(limit), 200))
-        customers = CustomerRepository(db).get_all(
-            auth.company_id, limit=limit, search=query
-        )
+        repo = CustomerRepository(db)
+        customers = repo.get_all(auth.company_id, limit=limit, search=query)
         return {
-            "total": len(customers),
+            "total": repo.count(auth.company_id, search=query),
             "customers": [
                 {"id": row.id, "name": row.name, "phone": row.phone}
                 for row in customers

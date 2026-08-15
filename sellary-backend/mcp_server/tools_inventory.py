@@ -8,13 +8,42 @@ suffered — neither belongs on this channel.
 from mcp_server import SCOPE_RECORDS, SCOPE_REPORTS
 from mcp_server.context import mcp_session, require_module, require_scope
 from mcp_server.periods import resolve_period
-from mcp_server.serialization import json_safe, quantity, unit_price
+from mcp_server.serialization import json_safe, money, quantity, unit_price
 from mcp_server.server import mcp
+from mcp_server.tools_catalog import _product_row
 from repositories.category_repository import CategoryRepository
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.report_service import ReportService
 from services.stock_write_off_service import StockWriteOffService
+
+
+def _write_off_row(write_off) -> dict:
+    return {
+        "id": write_off.id,
+        "disposition": write_off.disposition,
+        "reason_code": write_off.reason_code,
+        "supplier_id": write_off.supplier_id,
+        "supplier_name": write_off.supplier.name if write_off.supplier else None,
+        "notes": write_off.notes,
+        "total_cost": money(write_off.total_cost),
+        "created_by_name": (
+            (write_off.created_by_user.full_name or write_off.created_by_user.username)
+            if write_off.created_by_user
+            else None
+        ),
+        "created_at": json_safe(write_off.created_at),
+        "items": [
+            {
+                "product_id": item.product_id,
+                "product_name": item.product.name if item.product else "",
+                "quantity": quantity(item.quantity),
+                "unit_cost": unit_price(item.unit_cost),
+                "line_cost": money(item.line_cost),
+            }
+            for item in write_off.items
+        ],
+    }
 
 
 @mcp.tool
@@ -32,18 +61,7 @@ def list_products(query: str | None = None, limit: int = 50, offset: int = 0) ->
         )
         return {
             "total": total,
-            "products": [
-                {
-                    "id": row.id,
-                    "name": row.name,
-                    "barcode": row.barcode,
-                    "uom": row.uom,
-                    "stock_quantity": quantity(row.stock_quantity),
-                    "cost_price": unit_price(row.cost_price),
-                    "sell_price": unit_price(row.sell_price),
-                }
-                for row in products
-            ],
+            "products": [_product_row(row) for row in products],
         }
 
 
@@ -53,7 +71,7 @@ def list_categories() -> dict:
     with mcp_session() as (db, auth):
         require_scope(auth, SCOPE_REPORTS)
         require_module(auth, db, "inventory")
-        categories = CategoryRepository(db).get_all(auth.company_id)
+        categories = CategoryRepository(db).get_all(auth.company_id, limit=500)
         return {
             "categories": [{"id": row.id, "name": row.name} for row in categories]
         }
@@ -99,7 +117,11 @@ def list_write_offs(
         write_offs, total = StockWriteOffService(db, auth.company_id).list(
             start_date=start, end_date=end, limit=limit
         )
-        return {**echo, "total": total, "write_offs": json_safe(write_offs)}
+        return {
+            **echo,
+            "total": total,
+            "write_offs": [_write_off_row(row) for row in write_offs],
+        }
 
 
 @mcp.tool

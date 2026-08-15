@@ -138,6 +138,14 @@ class TestSalesTools:
 
         assert "разрешение" in str(exc.value)
 
+    def test_returns_on_an_unknown_sale_is_an_error_not_an_empty_answer(
+        self, as_user, admin_user, default_company
+    ):
+        as_user(admin_user, default_company)
+
+        with pytest.raises(ToolError):
+            _call(tools_sales.list_sale_returns, sale_id=99999)
+
 
 class TestCustomerTools:
     def test_list_customers_returns_the_shop_s_customers(
@@ -154,6 +162,22 @@ class TestCustomerTools:
         result = _call(tools_customers.list_customers)
 
         assert any(row["name"] == "Иван Петров" for row in result["customers"])
+
+    def test_total_is_the_real_count_not_the_page_size(
+        self, as_user, admin_user, default_company, db_session
+    ):
+        """`get_all` is paged; `total` must not just be `len()` of that page."""
+        from models.customer import Customer
+
+        for i in range(3):
+            db_session.add(Customer(company_id=default_company.id, name=f"Клиент {i}"))
+        db_session.flush()
+        as_user(admin_user, default_company)
+
+        result = _call(tools_customers.list_customers, limit=2)
+
+        assert len(result["customers"]) == 2
+        assert result["total"] >= 3
 
     def test_a_customer_with_no_debt_reports_zero(
         self, as_user, admin_user, default_company, db_session
@@ -255,6 +279,40 @@ class TestInventoryTools:
 
         assert result["period"] == "this_month"
 
+    def test_list_write_offs_returns_real_fields_not_object_reprs(
+        self, as_user, admin_user, default_company, db_session, test_product
+    ):
+        from models.stock_write_off import StockWriteOff, StockWriteOffItem
+
+        write_off = StockWriteOff(
+            company_id=default_company.id,
+            disposition="disposed",
+            reason_code="damaged",
+            total_cost=Decimal("15.0000"),
+            created_by_user_id=admin_user.id,
+        )
+        db_session.add(write_off)
+        db_session.flush()
+        db_session.add(
+            StockWriteOffItem(
+                write_off_id=write_off.id,
+                product_id=test_product.id,
+                unit_quantity=Decimal("3.000"),
+                quantity=Decimal("3.000"),
+                unit_cost=Decimal("5.0000"),
+                line_cost=Decimal("15.0000"),
+            )
+        )
+        db_session.flush()
+        as_user(admin_user, default_company)
+
+        result = _call(tools_inventory.list_write_offs, period="this_month")
+
+        row = next(r for r in result["write_offs"] if r["id"] == write_off.id)
+        assert row["reason_code"] == "damaged"
+        assert row["total_cost"] == "15.00"
+        assert row["items"][0]["product_id"] == test_product.id
+
     def test_valuation_reports_what_the_stock_is_worth(
         self, as_user, admin_user, default_company
     ):
@@ -346,6 +404,30 @@ class TestAdminTools:
         with pytest.raises(ToolError):
             _call(tools_admin.get_shift, shift_id=99999)
 
+    @pytest.mark.no_auto_shift
+    def test_get_shift_returns_real_fields_not_an_object_repr(
+        self, as_user, admin_user, default_company, db_session
+    ):
+        """A raw ORM row is not JSON — json_safe alone renders it unusable."""
+        from models.cash_shift import CashShift, CashShiftStatus
+
+        shift = CashShift(
+            company_id=default_company.id,
+            shift_number=1,
+            status=CashShiftStatus.OPEN,
+            opened_by_user_id=admin_user.id,
+            opening_cash=Decimal("100.00"),
+        )
+        db_session.add(shift)
+        db_session.flush()
+        as_user(admin_user, default_company)
+
+        result = _call(tools_admin.get_shift, shift_id=shift.id)
+
+        assert result["shift"]["id"] == shift.id
+        assert result["shift"]["opening_cash"] == "100.00"
+        assert result["shift"]["status"] == "open"
+
 
 class TestPeriodTools:
     def test_periods_are_empty_before_the_first_сверка(
@@ -386,6 +468,37 @@ class TestPeriodTools:
 
         with pytest.raises(ToolError):
             _call(tools_admin.get_period_report, reconciliation_id=9999)
+
+    def test_checker_report_stays_hidden_from_a_reports_grant_without_the_role(
+        self, as_user, cashier_user, default_company, db_session, grant_module
+    ):
+        """A `reports:manager` module grant opens the report, not the audit trail.
+
+        `require_module` checks a per-membership grant, an axis independent of
+        company role — a cashier can hold it. `checker_report` is consistency-
+        checker drift, gated everywhere else at admin/manager; this tool must
+        not become a side door around that, matching the same fix already made
+        on GET /api/reconciliation/periods/{id}.
+        """
+        from datetime import date
+
+        from models.reconciliation import Reconciliation
+        from services import reconciliation
+
+        row = Reconciliation(
+            company_id=default_company.id,
+            effective_from=date(2026, 6, 1),
+            checker_report=[{"bucket": "drift", "check": "stock_vs_layers"}],
+        )
+        db_session.add(row)
+        db_session.flush()
+        reconciliation.invalidate(db_session, default_company.id)
+        grant_module(cashier_user, default_company, "reports", "manager")
+        as_user(cashier_user, default_company)
+
+        detail = _call(tools_admin.get_period_report, reconciliation_id=row.id)
+
+        assert detail["checker_report"] is None
 
 
 EXPECTED_TOOLS = {
