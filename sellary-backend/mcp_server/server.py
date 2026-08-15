@@ -85,6 +85,7 @@ def build_mcp_app():
     from mcp_server import (  # noqa: F401
         tools_catalog,
         tools_customers,
+        tools_finance,
         tools_purchase,
         tools_reports,
         tools_sales,

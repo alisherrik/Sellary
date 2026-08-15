@@ -14,7 +14,7 @@ from mcp.server.auth.provider import AccessToken
 
 from mcp_server import SCOPE_PURCHASING, SCOPE_RECORDS, SCOPE_REPORTS
 from mcp_server import context as mcp_context
-from mcp_server import tools_customers, tools_sales
+from mcp_server import tools_customers, tools_finance, tools_sales
 from models.sale import PaymentMethod, Sale, SaleStatus
 from tests.conftest import add_sale_tenders
 
@@ -179,3 +179,32 @@ class TestCustomerTools:
             _call(tools_customers.list_customers)
 
         assert "Клиенты" in str(exc.value)
+
+
+class TestFinanceTools:
+    def test_movements_come_back_for_the_period(
+        self, as_user, admin_user, default_company
+    ):
+        as_user(admin_user, default_company)
+
+        result = _call(tools_finance.get_money_movements, period="this_month")
+
+        assert "movements" in result
+        assert result["period"] == "this_month"
+
+    def test_the_finance_module_is_required(
+        self, as_user, admin_user, default_company, db_session
+    ):
+        from models.company_module import CompanyModule
+
+        as_user(admin_user, default_company)
+        db_session.query(CompanyModule).filter(
+            CompanyModule.company_id == default_company.id,
+            CompanyModule.module == "finance",
+        ).delete()
+        db_session.flush()
+
+        with pytest.raises(ToolError) as exc:
+            _call(tools_finance.get_money_movements)
+
+        assert "Финансы" in str(exc.value)
