@@ -86,6 +86,7 @@ def build_mcp_app():
         tools_catalog,
         tools_customers,
         tools_finance,
+        tools_inventory,
         tools_purchase,
         tools_reports,
         tools_sales,

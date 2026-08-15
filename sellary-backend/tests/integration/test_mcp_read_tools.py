@@ -14,7 +14,7 @@ from mcp.server.auth.provider import AccessToken
 
 from mcp_server import SCOPE_PURCHASING, SCOPE_RECORDS, SCOPE_REPORTS
 from mcp_server import context as mcp_context
-from mcp_server import tools_customers, tools_finance, tools_sales
+from mcp_server import tools_customers, tools_finance, tools_inventory, tools_sales
 from models.sale import PaymentMethod, Sale, SaleStatus
 from tests.conftest import add_sale_tenders
 
@@ -208,3 +208,58 @@ class TestFinanceTools:
             _call(tools_finance.get_money_movements)
 
         assert "Финансы" in str(exc.value)
+
+
+class TestInventoryTools:
+    def test_the_catalogue_can_be_browsed_without_a_query(
+        self, as_user, admin_user, default_company, test_product
+    ):
+        as_user(admin_user, default_company)
+
+        result = _call(tools_inventory.list_products, limit=10)
+
+        assert result["total"] >= 1
+        assert any(row["id"] == test_product.id for row in result["products"])
+
+    def test_search_products_still_requires_its_query(self):
+        """The existing tool's meaning must not change under connected agents."""
+        import inspect
+
+        from mcp_server import tools_catalog
+
+        signature = inspect.signature(tools_catalog.search_products)
+        assert signature.parameters["query"].default is inspect.Parameter.empty
+
+    def test_stock_movements_come_back(
+        self, as_user, admin_user, default_company, test_product
+    ):
+        as_user(admin_user, default_company)
+
+        result = _call(tools_inventory.get_stock_movements, product_id=test_product.id)
+
+        assert "movements" in result
+
+    def test_write_offs_summarise_by_reason(
+        self, as_user, admin_user, default_company
+    ):
+        as_user(admin_user, default_company)
+
+        result = _call(tools_inventory.get_write_off_summary, period="this_month")
+
+        assert result["period"] == "this_month"
+
+    def test_valuation_reports_what_the_stock_is_worth(
+        self, as_user, admin_user, default_company
+    ):
+        as_user(admin_user, default_company)
+
+        result = _call(tools_inventory.get_inventory_valuation)
+
+        assert result is not None
+
+    def test_categories_come_back(self, as_user, admin_user, default_company, test_category):
+        as_user(admin_user, default_company)
+
+        result = _call(tools_inventory.list_categories)
+
+        assert any(row["id"] == test_category.id for row in result["categories"])
