@@ -386,3 +386,56 @@ class TestPeriodTools:
 
         with pytest.raises(ToolError):
             _call(tools_admin.get_period_report, reconciliation_id=9999)
+
+
+EXPECTED_TOOLS = {
+    # aggregates — sellary:reports
+    "get_dashboard",
+    "get_sales_summary",
+    "get_daily_sales",
+    "get_profit_report",
+    "get_top_products",
+    "get_purchase_summary",
+    "get_purchases_by_product",
+    "get_purchases_by_supplier",
+    "get_outstanding_orders",
+    "get_low_stock",
+    "get_money_accounts",
+    "get_current_shift",
+    "list_shifts",
+    "search_products",
+    "list_suppliers",
+    "list_products",
+    "list_categories",
+    "get_write_off_summary",
+    "get_inventory_valuation",
+    "list_periods",
+    "get_period_report",
+    # rows — sellary:records
+    "get_sale",
+    "list_sales",
+    "list_sale_returns",
+    "list_customers",
+    "get_customer_debt",
+    "get_money_movements",
+    "get_stock_movements",
+    "list_write_offs",
+    "get_purchase_order",
+    "list_purchase_orders",
+    "list_shop_orders",
+    "get_shift",
+    "run_consistency_check",
+    # the only writes
+    "purchase_preview",
+    "purchase_commit",
+}
+
+
+async def test_the_tool_surface_is_exactly_what_we_meant_to_ship():
+    """A new tool on this connector is a deliberate act, not a side effect."""
+    from mcp_server.server import build_mcp_app, mcp
+
+    build_mcp_app()
+    tools = await mcp.list_tools()
+
+    assert {tool.name for tool in tools} == EXPECTED_TOOLS
