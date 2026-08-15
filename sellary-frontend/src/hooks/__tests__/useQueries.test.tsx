@@ -448,9 +448,9 @@ describe('Report Hooks (useDailySales, useProfit, useTopProducts)', () => {
             expect(result.current.isSuccess).toBe(true);
         });
 
-        expect(api.reportsApi.getDailySales).toHaveBeenCalledWith(
-            expect.objectContaining({ days: 7, start_date: expect.any(String) })
-        );
+        // No start_date: Аналитика has no day-picker to be honest about, so
+        // the server's own сверка-aware floor is the correct window.
+        expect(api.reportsApi.getDailySales).toHaveBeenCalledWith({ days: 7 });
     });
 
     it('should fetch profit report when server is reachable', async () => {
@@ -498,9 +498,7 @@ describe('Report Hooks (useDailySales, useProfit, useTopProducts)', () => {
             expect(result.current.isSuccess).toBe(true);
         });
 
-        expect(api.reportsApi.getTopProducts).toHaveBeenCalledWith(
-            expect.objectContaining({ days: 7, limit: 10, start_date: expect.any(String) })
-        );
+        expect(api.reportsApi.getTopProducts).toHaveBeenCalledWith({ days: 7, limit: 10 });
     });
 
     it('should NOT fetch reports when server is unreachable', () => {
