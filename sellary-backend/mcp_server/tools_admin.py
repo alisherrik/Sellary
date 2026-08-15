@@ -7,7 +7,7 @@ deliberately absent: freezing a period needs a human signature.
 
 from fastmcp.exceptions import ToolError
 
-from mcp_server import SCOPE_RECORDS
+from mcp_server import SCOPE_RECORDS, SCOPE_REPORTS
 from mcp_server.context import mcp_session, require_module, require_scope
 from mcp_server.serialization import json_safe
 from mcp_server.server import mcp
@@ -15,6 +15,7 @@ from models.cash_shift import CashShift as CashShiftModel
 from services.cash_shift_service import CashShiftService
 from services.consistency_service import ConsistencyService
 from services.order_service import OrderService
+from services.period_report_service import PeriodReportService
 
 
 @mcp.tool
@@ -77,3 +78,38 @@ def run_consistency_check() -> dict:
             "clean": not any(item.bucket == "drift" for item in findings),
             "findings": json_safe([item.__dict__ for item in findings]),
         }
+
+
+@mcp.tool
+def list_periods(limit: int = 12, offset: int = 0) -> dict:
+    """Закрытые периоды — каждый закрыт своей сверкой — с тем, сколько за период
+    закупили и сколько продали. Отвечает на «покажи по месяцам, что я купил и
+    что продал».
+    """
+    with mcp_session() as (db, auth):
+        require_scope(auth, SCOPE_REPORTS)
+        require_module(auth, db, "reports", "manager")
+        limit = max(1, min(int(limit), 60))
+        return json_safe(
+            PeriodReportService(db, auth.company_id).list(
+                limit=limit, offset=max(0, int(offset))
+            )
+        )
+
+
+@mcp.tool
+def get_period_report(reconciliation_id: int) -> dict:
+    """Отчёт по одному закрытому периоду: закуплено, продано, себестоимость,
+    прибыль, списания, возвраты, кто и когда провёл сверку. Цифры считаются
+    заново при каждом запросе, поэтому всегда совпадают с остальными отчётами.
+    `late_arrivals` — чеки, пробитые внутри периода, но дошедшие до сервера
+    после его закрытия; из-за них итог может отличаться от того, что видели
+    в день сверки.
+    """
+    with mcp_session() as (db, auth):
+        require_scope(auth, SCOPE_REPORTS)
+        require_module(auth, db, "reports", "manager")
+        detail = PeriodReportService(db, auth.company_id).detail(reconciliation_id)
+        if detail is None:
+            raise ToolError(f"Период №{reconciliation_id} не найден.")
+        return json_safe(detail)

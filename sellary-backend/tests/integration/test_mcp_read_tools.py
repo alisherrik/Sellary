@@ -345,3 +345,44 @@ class TestAdminTools:
 
         with pytest.raises(ToolError):
             _call(tools_admin.get_shift, shift_id=99999)
+
+
+class TestPeriodTools:
+    def test_periods_are_empty_before_the_first_сверка(
+        self, as_user, admin_user, default_company
+    ):
+        as_user(admin_user, default_company)
+
+        result = _call(tools_admin.list_periods)
+
+        assert result["total"] == 0
+
+    def test_a_period_reports_bought_and_sold(
+        self, as_user, admin_user, default_company, db_session
+    ):
+        from datetime import date
+
+        from models.reconciliation import Reconciliation
+        from services import reconciliation
+
+        row = Reconciliation(company_id=default_company.id, effective_from=date(2026, 6, 1))
+        db_session.add(row)
+        db_session.flush()
+        reconciliation.invalidate(db_session, default_company.id)
+        as_user(admin_user, default_company)
+
+        listed = _call(tools_admin.list_periods)
+        detail = _call(tools_admin.get_period_report, reconciliation_id=row.id)
+
+        assert listed["total"] == 1
+        assert detail["end_day"] == "2026-05-31"
+        assert "purchased" in detail
+        assert "sold" in detail
+
+    def test_an_unknown_period_is_an_error(
+        self, as_user, admin_user, default_company
+    ):
+        as_user(admin_user, default_company)
+
+        with pytest.raises(ToolError):
+            _call(tools_admin.get_period_report, reconciliation_id=9999)
