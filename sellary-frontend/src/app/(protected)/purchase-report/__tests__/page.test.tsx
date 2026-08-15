@@ -123,7 +123,9 @@ describe('PurchaseReportPage', () => {
     await screen.findByText('Потрачено на товар');
     summary.mockClear();
     await userEvent.click(screen.getByRole('button', { name: '7 дней' }));
-    expect(summary).toHaveBeenCalledWith({ days: 7 });
+    expect(summary).toHaveBeenCalledWith(
+      expect.objectContaining({ days: 7, start_date: expect.any(String) }),
+    );
   });
 
   it('does not ask the server for a tab nobody opened', async () => {
