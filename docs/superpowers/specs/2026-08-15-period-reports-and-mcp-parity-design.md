@@ -72,7 +72,7 @@ In:
 
 - Turnover figures per period: закуплено, продано, себестоимость, прибыль, списания,
   возвраты.
-- 18 read-only MCP tools.
+- 19 read-only MCP tools.
 - The defaulted-range bug fix.
 
 Out (explicitly, for now):
@@ -105,9 +105,12 @@ class Period:
     created_by_user_id: int | None
 
 
-def periods(db, company_id, limit=24, offset=0) -> list[Period]
+def periods(db, company_id) -> list[Period]
 def period(db, company_id, reconciliation_id) -> Period | None
 ```
+
+`periods` is not paged. `index` counts from the oldest so «Сверка №1» keeps its number as
+new ones are declared, and that cannot be computed from a page. Paging happens above it.
 
 Rules:
 
@@ -138,12 +141,18 @@ changing it touches every report.
 
 ### 1.3 Endpoints
 
-Both live in `api/reconciliation.py` behind `require_manager_or_admin` — the same guard
-and the same reason as the existing `GET /api/reconciliation`: *"A reconciliation spans
-stock and cash, so it is an admin act rather than a module one."* A user with `reports`
-but not `purchasing` must not read purchase totals through a side door.
+Both live in `api/reconciliation.py` behind `require_module("reports", "manager")`.
 
-**`GET /api/reconciliation/periods?limit=24&offset=0`**
+`require_manager_or_admin` — the existing guard on `GET /api/reconciliation` — was
+considered and rejected. The nav is module-keyed (`moduleNav.ts`), so a page reachable
+without the `reports` module would either be invisible to someone allowed to read it, or
+visible to someone who gets a 403. `manager` carries the seniority the act deserves.
+
+The consequence: a `reports:manager` without `purchasing` sees total purchase spend. That
+is accepted — `/reports` already shows Прибыль, from which cost is derivable, so the
+reports module is already the place where cost figures live.
+
+**`GET /api/reconciliation/periods?limit=12&offset=0`**
 
 ```json
 {
@@ -163,7 +172,9 @@ but not `purchasing` must not read purchase totals through a side door.
 `purchased` = `PurchaseReportService.summary(start, end).total_spend`.
 `sold` = `ReportService.get_profit_report(start, end).revenue` (already net of refunds).
 
-Two aggregate queries per row. Default `limit=24` caps it; `limit` is bounded to 100.
+Two aggregate reports per row, so a page is a few dozen indexed aggregates. That is why the
+default page is 12 — a year of monthly сверки — and `limit` is bounded to 60. If it ever
+becomes slow, the fix is a narrower spend query, not a stored column.
 
 **`GET /api/reconciliation/periods/{id}`**
 
@@ -247,9 +258,20 @@ finally points somewhere.
 
 ### 1.6 The bug fix (separate PR, ships first)
 
-`/reports` and `/purchase-report` resolve their preset to `start_date` / `end_date` on the
-company clock and send both. `useDailySales`, `useProfit`, `useTopProducts` and
-`purchaseReportApi.summary` pass them through — the API client already types them.
+`/reports` and `/purchase-report` resolve their preset to an explicit **`start_date` only**
+and send it. `useDailySales`, `useProfit`, `useTopProducts` and the four
+`purchaseReportApi` calls pass it through — the API client already types it.
+
+`end_date` is deliberately left empty. `period_range` then fills it from
+`local_day_bounds()` on the **company** clock, which the browser does not know
+(`timezone` appears nowhere in `sellary-frontend/src`). Only the start is computed in the
+browser, where the worst error is ±1 day on a 90-day window — the same trade-off
+`sales/page.tsx:353` already documents and accepts.
+
+The floor itself is not touched. It is deliberate, and
+`tests/unit/test_reconciliation_period.py::test_a_defaulted_range_starts_at_the_cut_off`
+pins it: with no explicit start, the default view after a сверка shows the open period.
+That stays true for the dashboard and for any caller that sends nothing.
 
 Regression test: with a сверка declared at today−10 days, a 90-day request from those
 pages returns data from before the cut-off.
@@ -282,7 +304,9 @@ So: **one new scope, `sellary:records`**, for row-level reads. Aggregates stay o
   up. Existing tokens do not carry it and get the correct existing message: «Приложению не
   выдано это разрешение. Переподключите его к Sellary».
 
-### 2.2 The 18 tools
+### 2.2 The 19 tools
+
+17 exist today; these bring the surface to 36.
 
 All read-only. All follow the existing shape: `mcp_session()` → `require_scope` →
 `require_module` → call the service → serialise with `mcp_server/serialization.py`. A tool
@@ -392,9 +416,14 @@ CI gate stays `python -m compileall api core models repositories schemas service
    `/purchase-report`. Independently valuable: it un-hides the settled history today.
 2. **PR 2 — periods.** `periods()` / `period()` in `services/reconciliation.py`, the two
    endpoints, the `/periods` page.
-3. **PR 3 — MCP.** `sellary:records` scope + consent label, then the 18 tools grouped by
+3. **PR 3 — MCP.** `sellary:records` scope + consent label, then the 19 tools grouped by
    module across `tools_sales.py`, `tools_customers.py`, `tools_finance.py`,
    `tools_inventory.py`, `tools_purchasing.py`, `tools_admin.py`. `tools_reports.py` is
    already 300 lines; do not grow it further.
 
 No migration in any of the three.
+
+## Plans
+
+- `docs/superpowers/plans/2026-08-15-period-reports.md` — PR 1 and PR 2
+- `docs/superpowers/plans/2026-08-15-mcp-read-parity.md` — PR 3
