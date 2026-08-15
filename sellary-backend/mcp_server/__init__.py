@@ -10,6 +10,10 @@ never becomes a hard requirement for the rest of the backend.
 
 SCOPE_REPORTS = "sellary:reports"
 SCOPE_PURCHASING = "sellary:purchasing"
-SCOPES = [SCOPE_REPORTS, SCOPE_PURCHASING]
+# Row-level reads — a receipt, a customer's debt, a movement — as opposed to the
+# aggregates on SCOPE_REPORTS. Its own scope so that widening what the connector
+# can read means asking again, rather than quietly upgrading tokens already issued.
+SCOPE_RECORDS = "sellary:records"
+SCOPES = [SCOPE_REPORTS, SCOPE_RECORDS, SCOPE_PURCHASING]
 
-__all__ = ["SCOPES", "SCOPE_REPORTS", "SCOPE_PURCHASING"]
+__all__ = ["SCOPES", "SCOPE_REPORTS", "SCOPE_RECORDS", "SCOPE_PURCHASING"]
