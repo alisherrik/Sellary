@@ -264,6 +264,18 @@ one, is exactly the decay this work exists to prevent.
 Railway worker in the stack — `railway.toml` carries only a `preDeployCommand`
 and a healthcheck — so production runs are manual until someone builds that.
 
+A сверка's **period** — from the previous cut-off to the day before this one — is
+derived, never stored. `services/reconciliation.py` holds the one predicate
+(`periods`, `period`) beside `open_from`, and `services/period_report_service.py`
+composes the existing profit and purchase reports over that window. Nothing is
+written to `company_reconciliations`: a settled total with no independent source
+is the same shape as `stock_quantity` drifting from its layers, and the freeze
+binds the application rather than the database — the repair scripts write behind
+it, so a derived report shows the repaired truth while a frozen column would
+disagree with every other screen forever. The figure can move, and that residual
+is named: `late_arrivals` on the period report counts receipts dated inside it
+whose tenders were written after the freeze.
+
 ### Which side of the stock invariant is the truth
 `products.stock_quantity` and the sum of a product's open `inventory_layers`
 must agree, and when they do not the checker **reports both figures and names

@@ -71,6 +71,7 @@ export const MODULE_NAV: ModuleDef[] = [
     pages: [
       { label: 'Дашборд', href: '/dashboard' },
       { label: 'Аналитика', href: '/reports' },
+      { label: 'Периоды', href: '/periods' },
     ],
   },
   {
