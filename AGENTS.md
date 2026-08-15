@@ -162,6 +162,15 @@ application, not the database: the backend-root maintenance scripts write
 outside it, deliberately. Nothing schedules the checker — there is no cron or
 worker in the stack.
 
+A сверка's **period** — from the previous cut-off to the day before this one —
+is derived, never stored: `services/reconciliation.py` holds the predicate
+(`periods`, `period`) beside `open_from`, and
+`services/period_report_service.py` composes the existing profit and purchase
+reports over that window. A stored total would be the same drift as
+`stock_quantity` vs. its layers, and would disagree with the repair scripts that
+write behind the freeze. `late_arrivals` on the period report names, rather than
+absorbs, receipts dated inside the window whose tenders arrived after it closed.
+
 ### Which side of the stock invariant is the truth
 `products.stock_quantity` and the sum of a product's open `inventory_layers`
 must agree, and when they do not the checker **reports both figures and names
