@@ -83,6 +83,7 @@ def build_mcp_app():
     service layer in behind it.
     """
     from mcp_server import (  # noqa: F401
+        tools_admin,
         tools_catalog,
         tools_customers,
         tools_finance,

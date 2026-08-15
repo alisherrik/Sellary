@@ -15,6 +15,7 @@ from mcp.server.auth.provider import AccessToken
 from mcp_server import SCOPE_PURCHASING, SCOPE_RECORDS, SCOPE_REPORTS
 from mcp_server import context as mcp_context
 from mcp_server import (
+    tools_admin,
     tools_customers,
     tools_finance,
     tools_inventory,
@@ -308,3 +309,39 @@ class TestPurchasingTools:
 
         with pytest.raises(ToolError):
             _call(tools_purchasing.get_purchase_order, purchase_order_id=99999)
+
+
+class TestAdminTools:
+    def test_shop_orders_come_back(self, as_user, admin_user, default_company):
+        as_user(admin_user, default_company)
+
+        result = _call(tools_admin.list_shop_orders)
+
+        assert "orders" in result
+
+    def test_the_checker_reports_clean_or_not(
+        self, as_user, admin_user, default_company
+    ):
+        as_user(admin_user, default_company)
+
+        result = _call(tools_admin.run_consistency_check)
+
+        assert isinstance(result["clean"], bool)
+        assert isinstance(result["findings"], list)
+
+    def test_the_checker_is_refused_to_a_manager(
+        self, as_user, manager_user, default_company
+    ):
+        """It spans stock and cash, so it mirrors its REST guard: admin only."""
+        as_user(manager_user, default_company)
+
+        with pytest.raises(ToolError):
+            _call(tools_admin.run_consistency_check)
+
+    def test_a_shift_that_does_not_exist_is_an_error(
+        self, as_user, admin_user, default_company
+    ):
+        as_user(admin_user, default_company)
+
+        with pytest.raises(ToolError):
+            _call(tools_admin.get_shift, shift_id=99999)
