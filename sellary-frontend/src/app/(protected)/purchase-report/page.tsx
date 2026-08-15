@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 
 import { purchaseReportApi } from '@/lib/api';
-import { windowStart } from '@/lib/reportWindow';
 import { formatDateTime, formatIsoDate, formatMoney, formatUnitPrice } from '@/lib/utils';
 import { CardSkeleton, TableSkeleton } from '@/components/skeletons';
 import QueryError from '@/components/ui/QueryError';
@@ -17,12 +16,11 @@ import type {
   PurchaseSummary,
 } from '@/lib/types';
 
-const PERIODS = [
-  { days: 7, label: '7 дней' },
-  { days: 30, label: '30 дней' },
-  { days: 90, label: '90 дней' },
-  { days: 365, label: 'Год' },
-];
+// Only a ceiling for the fallback window when the shop has never reconciled —
+// not a claim shown anywhere. There is no picker: this report always covers
+// the current open period (since the last сверка), and the date line below
+// the title prints whatever range the server actually used.
+const FALLBACK_DAYS = 30;
 
 type Tab = 'products' | 'suppliers' | 'outstanding';
 
@@ -63,24 +61,23 @@ function CostChange({ percent }: { percent: string | null }) {
 }
 
 export default function PurchaseReportPage() {
-  const [days, setDays] = useState(30);
+  const days = FALLBACK_DAYS;
   const [tab, setTab] = useState<Tab>('products');
-  const start_date = windowStart(days);
 
   const summary = useQuery<PurchaseSummary>({
     queryKey: ['purchase-report', 'summary', days],
-    queryFn: async () => (await purchaseReportApi.summary({ days, start_date })).data,
+    queryFn: async () => (await purchaseReportApi.summary({ days })).data,
   });
 
   const byProduct = useQuery<PurchaseByProductRow[]>({
     queryKey: ['purchase-report', 'by-product', days],
-    queryFn: async () => (await purchaseReportApi.byProduct({ days, start_date, limit: 500 })).data,
+    queryFn: async () => (await purchaseReportApi.byProduct({ days, limit: 500 })).data,
     enabled: tab === 'products',
   });
 
   const bySupplier = useQuery<PurchaseBySupplierRow[]>({
     queryKey: ['purchase-report', 'by-supplier', days],
-    queryFn: async () => (await purchaseReportApi.bySupplier({ days, start_date })).data,
+    queryFn: async () => (await purchaseReportApi.bySupplier({ days })).data,
     enabled: tab === 'suppliers',
   });
 
@@ -103,31 +100,14 @@ export default function PurchaseReportPage() {
             вкладку.
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex gap-1">
-            {PERIODS.map((period) => (
-              <button
-                key={period.days}
-                onClick={() => setDays(period.days)}
-                className={`h-9 border px-3 text-sm font-medium ${
-                  days === period.days
-                    ? 'border-[var(--erp-accent)] bg-[var(--erp-accent)] text-white'
-                    : 'border-[var(--erp-divider)] bg-white text-[var(--erp-text)] hover:border-[var(--erp-text)] dark:bg-gray-800 dark:text-gray-100'
-                }`}
-              >
-                {period.label}
-              </button>
-            ))}
-          </div>
-          {/* The window the SERVER used: a reconciliation floors a defaulted
-              start, and the button then names a period nobody was shown. */}
-          {summary.data?.period_start && summary.data?.period_end ? (
-            <p className="text-xs tabular-nums text-[var(--erp-muted)]">
-              {formatIsoDate(summary.data.period_start)} —{' '}
-              {formatIsoDate(summary.data.period_end)}
-            </p>
-          ) : null}
-        </div>
+        {/* The window the SERVER used: it floors at the last сверка, so this
+            reads as the current open period. */}
+        {summary.data?.period_start && summary.data?.period_end ? (
+          <p className="text-xs tabular-nums text-[var(--erp-muted)]">
+            {formatIsoDate(summary.data.period_start)} —{' '}
+            {formatIsoDate(summary.data.period_end)}
+          </p>
+        ) : null}
       </div>
 
       <ReconciliationNotice />

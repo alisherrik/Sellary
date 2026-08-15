@@ -115,17 +115,16 @@ describe('PurchaseReportPage', () => {
     expect(screen.getByText('Оптовик')).toBeInTheDocument();
   });
 
-  it('refetches when the period changes', async () => {
+  it('asks for the current period, not a rolling window with no start', async () => {
     summary.mockResolvedValue({ data: SUMMARY });
     byProduct.mockResolvedValue({ data: [PRODUCT_ROW] });
     renderPage();
 
     await screen.findByText('Потрачено на товар');
-    summary.mockClear();
-    await userEvent.click(screen.getByRole('button', { name: '7 дней' }));
-    expect(summary).toHaveBeenCalledWith(
-      expect.objectContaining({ days: 7, start_date: expect.any(String) }),
-    );
+
+    // No start_date: no picker claims a duration, so the server's own
+    // сверка-aware floor decides the window — same as Аналитика.
+    expect(summary).toHaveBeenCalledWith({ days: 30 });
   });
 
   it('does not ask the server for a tab nobody opened', async () => {
