@@ -82,3 +82,89 @@ def test_the_page_is_newest_first_and_total_counts_them_all(
 
     assert result.total == 3
     assert [row.index for row in result.periods] == [3, 2]
+
+
+def test_detail_returns_none_for_an_unknown_id(db_session, default_company):
+    assert PeriodReportService(db_session, default_company.id).detail(9999) is None
+
+
+def test_detail_carries_the_author_and_the_note(
+    db_session, default_company, admin_user
+):
+    row = Reconciliation(
+        company_id=default_company.id,
+        effective_from=date(2026, 6, 1),
+        note="Июньская сверка",
+        created_by_user_id=admin_user.id,
+    )
+    db_session.add(row)
+    db_session.flush()
+    reconciliation.invalidate(db_session, default_company.id)
+
+    detail = PeriodReportService(db_session, default_company.id).detail(row.id)
+
+    assert detail.note == "Июньская сверка"
+    assert detail.declared_by == (admin_user.full_name or admin_user.username)
+    assert detail.effective_from == date(2026, 6, 1)
+
+
+def test_detail_sold_matches_the_profit_report_over_the_same_bounds(
+    db_session, default_company, cashier_user
+):
+    """The derived-not-stored guarantee, asserted."""
+    from services.report_service import ReportService
+    from services.company_time import company_tz, local_day_bounds
+
+    sell(db_session, cashier_user, datetime.utcnow() - timedelta(days=5), "31.00")
+    row = declare(db_session, default_company, (datetime.utcnow() - timedelta(days=1)).date())
+
+    detail = PeriodReportService(db_session, default_company.id).detail(row.id)
+
+    tz = company_tz(db_session, default_company.id)
+    start, _ = local_day_bounds(tz, date(1970, 1, 1))
+    _, end = local_day_bounds(tz, row.effective_from - timedelta(days=1))
+    direct = ReportService(db_session, default_company.id).get_profit_report(start, end)
+
+    assert detail.sold == direct.revenue
+    assert detail.profit == direct.profit
+    assert detail.write_off_cost == direct.write_off_cost
+
+
+def test_detail_reports_the_returns_that_happened_inside_the_window(
+    db_session, default_company, cashier_user
+):
+    from models.sale_return import SaleReturn
+    from models.sale import PaymentMethod
+
+    sale = sell(db_session, cashier_user, datetime.utcnow() - timedelta(days=5), "50.00")
+    db_session.add(
+        SaleReturn(
+            company_id=default_company.id,
+            sale_id=sale.id,
+            user_id=cashier_user.id,
+            refund_method=PaymentMethod.CASH,
+            total_refund_amount=Decimal("12.00"),
+            created_at=datetime.utcnow() - timedelta(days=4),
+        )
+    )
+    db_session.flush()
+    row = declare(db_session, default_company, (datetime.utcnow() - timedelta(days=1)).date())
+
+    detail = PeriodReportService(db_session, default_company.id).detail(row.id)
+
+    assert detail.returns_total == Decimal("12.00")
+
+
+def test_detail_surfaces_a_checker_report(db_session, default_company):
+    row = Reconciliation(
+        company_id=default_company.id,
+        effective_from=date(2026, 6, 1),
+        checker_report=[{"bucket": "drift", "name": "stock_vs_layers"}],
+    )
+    db_session.add(row)
+    db_session.flush()
+    reconciliation.invalidate(db_session, default_company.id)
+
+    detail = PeriodReportService(db_session, default_company.id).detail(row.id)
+
+    assert detail.checker_report == [{"bucket": "drift", "name": "stock_vs_layers"}]

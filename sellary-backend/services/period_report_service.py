@@ -8,11 +8,16 @@ column would disagree with every other screen forever.
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from schemas.reconciliation import PeriodList, PeriodRow
+from models.reconciliation import Reconciliation
+from models.sale_return import SaleReturn
+from models.user import User
+from schemas.reconciliation import LateArrivals, PeriodDetail, PeriodList, PeriodRow
 from services import reconciliation
 from services.company_time import company_tz, local_day_bounds
 from services.purchase_report_service import PurchaseReportService
@@ -58,3 +63,63 @@ class PeriodReportService:
             .get_profit_report(start, end)
             .revenue,
         )
+
+    def detail(self, reconciliation_id: int) -> Optional[PeriodDetail]:
+        item = reconciliation.period(self.db, self.company_id, reconciliation_id)
+        if item is None:
+            return None
+
+        start, end = self._bounds(item)
+        purchases = PurchaseReportService(self.db, self.company_id).summary(start, end)
+        profit = ReportService(self.db, self.company_id).get_profit_report(start, end)
+
+        return PeriodDetail(
+            id=item.id,
+            index=item.index,
+            start_day=item.start_day,
+            end_day=item.end_day,
+            effective_from=item.effective_from,
+            note=item.note,
+            declared_at=item.created_at,
+            declared_by=self._author(item.created_by_user_id),
+            purchased=purchases.total_spend,
+            receipts_count=purchases.receipts_count,
+            sold=profit.revenue,
+            sales_count=profit.sales_count,
+            cost=profit.cost,
+            profit=profit.profit,
+            write_off_cost=profit.write_off_cost,
+            profit_after_write_offs=profit.profit_after_write_offs,
+            returns_total=self._returns(start, end),
+            late_arrivals=LateArrivals(),
+            checker_report=self._checker_report(item.id),
+        )
+
+    def _author(self, user_id: Optional[int]) -> Optional[str]:
+        if user_id is None:
+            return None
+        row = self.db.execute(
+            select(User.full_name, User.username).where(User.id == user_id)
+        ).first()
+        if row is None:
+            return None
+        return row.full_name or row.username
+
+    def _returns(self, start: datetime, end: datetime) -> Decimal:
+        return self.db.execute(
+            select(
+                func.coalesce(func.sum(SaleReturn.total_refund_amount), Decimal("0.00"))
+            ).where(
+                SaleReturn.company_id == self.company_id,
+                SaleReturn.created_at >= start,
+                SaleReturn.created_at <= end,
+            )
+        ).scalar() or Decimal("0.00")
+
+    def _checker_report(self, reconciliation_id: int) -> Optional[list]:
+        return self.db.execute(
+            select(Reconciliation.checker_report).where(
+                Reconciliation.id == reconciliation_id,
+                Reconciliation.company_id == self.company_id,
+            )
+        ).scalar()
