@@ -88,6 +88,7 @@ def build_mcp_app():
         tools_finance,
         tools_inventory,
         tools_purchase,
+        tools_purchasing,
         tools_reports,
         tools_sales,
     )

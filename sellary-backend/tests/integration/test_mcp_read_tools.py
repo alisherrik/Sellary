@@ -14,7 +14,13 @@ from mcp.server.auth.provider import AccessToken
 
 from mcp_server import SCOPE_PURCHASING, SCOPE_RECORDS, SCOPE_REPORTS
 from mcp_server import context as mcp_context
-from mcp_server import tools_customers, tools_finance, tools_inventory, tools_sales
+from mcp_server import (
+    tools_customers,
+    tools_finance,
+    tools_inventory,
+    tools_purchasing,
+    tools_sales,
+)
 from models.sale import PaymentMethod, Sale, SaleStatus
 from tests.conftest import add_sale_tenders
 
@@ -263,3 +269,42 @@ class TestInventoryTools:
         result = _call(tools_inventory.list_categories)
 
         assert any(row["id"] == test_category.id for row in result["categories"])
+
+
+class TestPurchasingTools:
+    def test_an_order_can_be_read_back_after_it_is_created(
+        self, as_user, admin_user, default_company, db_session
+    ):
+        from models.purchase_order import PurchaseOrder, PurchaseOrderStatus
+        from models.supplier import Supplier
+
+        supplier = Supplier(
+            company_id=default_company.id,
+            name="ООО Ромашка",
+            phone="+992900000003",
+            is_active=True,
+        )
+        db_session.add(supplier)
+        db_session.flush()
+        order = PurchaseOrder(
+            company_id=default_company.id,
+            supplier_id=supplier.id,
+            status=PurchaseOrderStatus.RECEIVED,
+            total_amount=Decimal("100.00"),
+        )
+        db_session.add(order)
+        db_session.flush()
+        as_user(admin_user, default_company)
+
+        result = _call(tools_purchasing.get_purchase_order, purchase_order_id=order.id)
+
+        assert result["id"] == order.id
+        assert result["total_amount"] == "100.00"
+
+    def test_an_unknown_order_is_an_error_not_an_empty_answer(
+        self, as_user, admin_user, default_company
+    ):
+        as_user(admin_user, default_company)
+
+        with pytest.raises(ToolError):
+            _call(tools_purchasing.get_purchase_order, purchase_order_id=99999)
