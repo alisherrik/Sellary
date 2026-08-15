@@ -310,11 +310,25 @@ ordinary company-scoped JWT plus an `mcp: true` claim, so a web-session token is
 rejected at `/mcp` and an MCP token carries no more authority than its owner's login.
 Discovery documents are served from the **origin root**, not under the mount.
 
-Reports are read-only. The only write is the two-phase purchase: `purchase_preview`
-resolves a delivery against the catalogue and returns a signed `draft_token` without
+Reads come in two permissions. `sellary:reports` covers aggregates — dashboards,
+summaries, valuations, the сверка archive. `sellary:records` covers rows — a
+receipt, a customer's debt ledger, a money movement, a stock movement, a purchase
+order, a shop order, a shift. They are separate because widening what an agent can
+read must mean asking the owner again, not silently upgrading a token already
+issued; `provider.py` grants both to newly registered clients, and an older token
+gets «Приложению не выдано это разрешение» until it reconnects.
+
+The only write is still the two-phase purchase: `purchase_preview` resolves a
+delivery against the catalogue and returns a signed `draft_token` without
 writing; `purchase_commit` executes only what that token carries, guarded by the
-existing `idempotency_keys` table. Required env var: `MCP_PUBLIC_BASE_URL` (the public
-https origin) — in production the connector disables itself if it is unset.
+existing `idempotency_keys` table. Ten capabilities are excluded on purpose and
+listed in `docs/superpowers/specs/2026-08-15-period-reports-and-mcp-parity-design.md`:
+ringing a sale, refunds, voids, opening or closing a shift, delta stock
+adjustment, stocktake, balance correction, declaring a сверка, staff and password
+administration, and revoking an MCP agent. Each one either moves money outward, is
+a physical count that needs a human author, or edits the agent's own authority.
+Required env var: `MCP_PUBLIC_BASE_URL` (the public https origin) — in production
+the connector disables itself if it is unset.
 
 ### Tauri cashier — offline-first sync
 The cashier app is a local-first POS. It keeps a local SQLite catalog and an **outbox** of sales (`src/lib/db.ts`), and reconciles with the server via the backend's sync endpoints:
