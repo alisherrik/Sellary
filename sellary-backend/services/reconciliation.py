@@ -10,7 +10,8 @@ settled period when its local calendar day is earlier than `effective_from`. Wor
 in dates sidesteps every naive-vs-aware trap in one move.
 """
 
-from datetime import date, datetime
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -85,3 +86,60 @@ def assert_open(
     reason = frozen_reason(db, company_id, moment, subject_ru)
     if reason:
         raise ReconciliationClosed(reason)
+
+
+@dataclass(frozen=True)
+class Period:
+    """A settled window, closed by one reconciliation.
+
+    `start_day` is None for the oldest: it covers everything the shop recorded
+    before its first сверка, and inventing a start would be a claim about when
+    the shop opened.
+    """
+
+    id: int
+    index: int
+    start_day: Optional[date]
+    end_day: date
+    effective_from: date
+    note: Optional[str]
+    created_at: datetime
+    created_by_user_id: Optional[int]
+
+
+def periods(db: Session, company_id: int) -> list[Period]:
+    """Closed periods, newest first.
+
+    Loaded whole rather than paged: `index` counts from the oldest so that
+    «Сверка №1» keeps its number as new ones are declared, and that cannot be
+    computed from a page. A shop reconciles monthly at most.
+    """
+    rows = list(
+        db.execute(
+            select(Reconciliation)
+            .where(Reconciliation.company_id == company_id)
+            .order_by(Reconciliation.effective_from, Reconciliation.id)
+        ).scalars()
+    )
+    built = [
+        Period(
+            id=row.id,
+            index=position + 1,
+            start_day=rows[position - 1].effective_from if position else None,
+            end_day=row.effective_from - timedelta(days=1),
+            effective_from=row.effective_from,
+            note=row.note,
+            created_at=row.created_at,
+            created_by_user_id=row.created_by_user_id,
+        )
+        for position, row in enumerate(rows)
+    ]
+    built.reverse()
+    return built
+
+
+def period(db: Session, company_id: int, reconciliation_id: int) -> Optional[Period]:
+    return next(
+        (item for item in periods(db, company_id) if item.id == reconciliation_id),
+        None,
+    )
