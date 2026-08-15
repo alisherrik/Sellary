@@ -82,7 +82,17 @@ def build_mcp_app():
     `mcp_server.server` alone — as the OAuth layer does — cannot pull the whole
     service layer in behind it.
     """
-    from mcp_server import tools_catalog, tools_purchase, tools_reports  # noqa: F401
+    from mcp_server import (  # noqa: F401
+        tools_admin,
+        tools_catalog,
+        tools_customers,
+        tools_finance,
+        tools_inventory,
+        tools_purchase,
+        tools_purchasing,
+        tools_reports,
+        tools_sales,
+    )
 
     _register_oauth_pages()
     return mcp.http_app(path="/")
