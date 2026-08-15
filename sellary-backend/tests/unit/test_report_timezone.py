@@ -107,3 +107,39 @@ class TestDailySalesBucketing:
 
         assert sum(d.total_sales for d in report.data) == report.total_sales
         assert report.sales_count == 4
+
+
+class TestPeriodStartLabel:
+    """A caller can pass an explicit start as a UTC instant — a browser's
+    `toISOString()` always does — and the echoed `period_start` must still read
+    the shop's own calendar day, not the UTC day the instant happens to fall on.
+    """
+
+    def _utc_instant(self, day: str, hour: int) -> datetime:
+        return datetime.fromisoformat(f"{day}T{hour:02d}:00:00+00:00")
+
+    def test_a_utc_evening_instant_labels_as_the_next_local_day(self, db_session, default_company):
+        # 19:00 UTC on the 9th is local midnight on the 10th in Dushanbe (UTC+5)
+        # — exactly what a browser's `toISOString()` sends for "local midnight".
+        start = self._utc_instant("2026-07-09", 19)
+        end = self._utc_instant("2026-07-20", 18)
+
+        report = ReportService(db_session, default_company.id).get_daily_sales(start, end)
+
+        assert report.period_start == "2026-07-10"
+
+    def test_the_profit_report_labels_the_same_way(self, db_session, default_company):
+        start = self._utc_instant("2026-07-09", 19)
+        end = self._utc_instant("2026-07-20", 18)
+
+        report = ReportService(db_session, default_company.id).get_profit_report(start, end)
+
+        assert report.period_start == "2026-07-10"
+
+    def test_top_products_labels_the_same_way(self, db_session, default_company):
+        start = self._utc_instant("2026-07-09", 19)
+        end = self._utc_instant("2026-07-20", 18)
+
+        report = ReportService(db_session, default_company.id).get_top_products(start, end)
+
+        assert report.period_start == "2026-07-10"
