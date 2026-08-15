@@ -12,7 +12,6 @@ import {
   ExclamationTriangleIcon,
   ShoppingBagIcon,
 } from '@heroicons/react/24/outline';
-import { useState } from 'react';
 import Link from 'next/link';
 
 const SalesChart = dynamic(() => import('@/components/reports/SalesChart'), {
@@ -20,10 +19,14 @@ const SalesChart = dynamic(() => import('@/components/reports/SalesChart'), {
   loading: () => <ChartSkeleton />,
 });
 
-const dayOptions = [7, 30, 90];
+// Only a ceiling for the fallback window when the shop has never reconciled —
+// not a claim shown anywhere. There is no picker: Аналитика always trends
+// over the current open period (since the last сверка), and the label below
+// the chart prints whatever range the server actually used.
+const FALLBACK_DAYS = 30;
 
 function Reports() {
-  const [days, setDays] = useState(30);
+  const days = FALLBACK_DAYS;
   const { data: dashboard, isLoading: dashboardLoading } = useDashboard();
   const { data: salesData, isLoading: salesLoading } = useDailySales(days);
   const { data: topProducts, isLoading: topProductsLoading } = useTopProducts(days, 5);
@@ -67,21 +70,6 @@ function Reports() {
       <div className="h-full overflow-y-auto mobile-no-overscroll p-4 space-y-4">
         <div className="flex flex-wrap items-end gap-4">
           <h2 className="text-[30px] font-extrabold tracking-tight text-[var(--erp-text)]">Аналитика</h2>
-          <div className="ml-auto inline-flex border border-[var(--erp-divider)] bg-white p-1">
-            {dayOptions.map((option) => (
-              <button
-                key={option}
-                onClick={() => setDays(option)}
-                className={`px-3 py-2 text-xs font-medium transition-colors sm:text-sm ${
-                  option === days
-                    ? 'bg-[var(--erp-text)] text-white'
-                    : 'text-gray-600 hover:text-[var(--erp-text)]'
-                }`}
-              >
-                {option} дн.
-              </button>
-            ))}
-          </div>
         </div>
 
         <ReconciliationNotice />
@@ -130,10 +118,8 @@ function Reports() {
                     <h2 className="text-sm font-bold text-[var(--erp-text)] sm:text-lg">
                       Динамика продаж
                     </h2>
-                    {/* The window the SERVER used, not the one asked for: a
-                        reconciliation floors a defaulted start, and «за
-                        последние 90 дней» over a 12-day window is a false
-                        statement. */}
+                    {/* The window the SERVER used: it floors at the last
+                        сверка, so this reads as the current open period. */}
                     <p className="text-xs text-gray-500 sm:text-sm">
                       {salesData
                         ? `Общая выручка с ${formatIsoDate(salesData.period_start)} по ${formatIsoDate(salesData.period_end)}`
