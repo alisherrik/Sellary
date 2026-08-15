@@ -168,3 +168,42 @@ def test_detail_surfaces_a_checker_report(db_session, default_company):
     detail = PeriodReportService(db_session, default_company.id).detail(row.id)
 
     assert detail.checker_report == [{"bucket": "drift", "name": "stock_vs_layers"}]
+
+
+def test_a_receipt_that_arrived_after_the_freeze_is_named(
+    db_session, default_company, cashier_user
+):
+    from models.sale_payment import SalePayment
+
+    row = declare(db_session, default_company, (datetime.utcnow() - timedelta(days=1)).date())
+
+    # Dated inside the settled period, but its tender rows were written after
+    # the сверка — that is what "arrived late" means.
+    late = sell(db_session, cashier_user, datetime.utcnow() - timedelta(days=3), "18.00")
+    db_session.query(SalePayment).filter(SalePayment.sale_id == late.id).update(
+        {"created_at": row.created_at + timedelta(minutes=1)}
+    )
+    db_session.flush()
+
+    detail = PeriodReportService(db_session, default_company.id).detail(row.id)
+
+    assert detail.late_arrivals.count == 1
+    assert detail.late_arrivals.total == Decimal("18.00")
+
+
+def test_a_receipt_that_arrived_before_the_freeze_is_not(
+    db_session, default_company, cashier_user
+):
+    from models.sale_payment import SalePayment
+
+    early = sell(db_session, cashier_user, datetime.utcnow() - timedelta(days=3), "18.00")
+    row = declare(db_session, default_company, (datetime.utcnow() - timedelta(days=1)).date())
+    db_session.query(SalePayment).filter(SalePayment.sale_id == early.id).update(
+        {"created_at": row.created_at - timedelta(minutes=1)}
+    )
+    db_session.flush()
+
+    detail = PeriodReportService(db_session, default_company.id).detail(row.id)
+
+    assert detail.late_arrivals.count == 0
+    assert detail.late_arrivals.total == Decimal("0.00")

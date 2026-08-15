@@ -15,8 +15,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from models.reconciliation import Reconciliation
+from models.sale import Sale
+from models.sale_payment import SalePayment
 from models.sale_return import SaleReturn
 from models.user import User
+from repositories.sale_repository import NON_CANCELLED_STATUSES
 from schemas.reconciliation import LateArrivals, PeriodDetail, PeriodList, PeriodRow
 from services import reconciliation
 from services.company_time import company_tz, local_day_bounds
@@ -91,7 +94,7 @@ class PeriodReportService:
             write_off_cost=profit.write_off_cost,
             profit_after_write_offs=profit.profit_after_write_offs,
             returns_total=self._returns(start, end),
-            late_arrivals=LateArrivals(),
+            late_arrivals=self._late_arrivals(item, start, end),
             checker_report=self._checker_report(item.id),
         )
 
@@ -123,3 +126,35 @@ class PeriodReportService:
                 Reconciliation.company_id == self.company_id,
             )
         ).scalar()
+
+    def _late_arrivals(self, item, start: datetime, end: datetime) -> LateArrivals:
+        """Sales dated inside the period whose tenders were written after the freeze.
+
+        A `sale_payments` row is stamped when the server accepts the sale, so
+        the earliest one is when the receipt actually reached us. A sale rung
+        offline carries its own `created_at` and is never rewritten — the spec
+        explains why rewriting it would be worse.
+        """
+        arrival = (
+            select(
+                SalePayment.sale_id.label("sale_id"),
+                func.min(SalePayment.created_at).label("arrived_at"),
+            )
+            .group_by(SalePayment.sale_id)
+            .subquery()
+        )
+        count, total = self.db.execute(
+            select(
+                func.count(Sale.id),
+                func.coalesce(func.sum(Sale.total_amount), Decimal("0.00")),
+            )
+            .join(arrival, arrival.c.sale_id == Sale.id)
+            .where(
+                Sale.company_id == self.company_id,
+                Sale.created_at >= start,
+                Sale.created_at <= end,
+                Sale.status.in_(NON_CANCELLED_STATUSES),
+                arrival.c.arrived_at > item.created_at,
+            )
+        ).one()
+        return LateArrivals(count=int(count or 0), total=total or Decimal("0.00"))
