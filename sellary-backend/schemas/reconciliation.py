@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -25,3 +26,18 @@ class ReconciliationRead(BaseModel):
 class ReconciliationState(BaseModel):
     latest: Optional[ReconciliationRead] = None
     history: list[ReconciliationRead] = []
+
+
+class PeriodRow(BaseModel):
+    id: int
+    index: int
+    start_day: Optional[date] = None
+    end_day: date
+    note: Optional[str] = None
+    purchased: Decimal
+    sold: Decimal
+
+
+class PeriodList(BaseModel):
+    total: int
+    periods: list[PeriodRow] = []
