@@ -155,6 +155,43 @@ def test_detail_reports_the_returns_that_happened_inside_the_window(
     assert detail.returns_total == Decimal("12.00")
 
 
+def test_returns_total_follows_the_sale_it_settles_not_its_own_date(
+    db_session, default_company, cashier_user
+):
+    """A return filed after its period closes still counts against that period.
+
+    `sold` nets a sale of every return it ever gets, keyed on the SALE's date
+    (`refund_totals_subquery`). `returns_total` must key on the same date, or
+    the two figures — shown side by side with "already netted from Продано" —
+    disagree about which return that sentence is talking about.
+    """
+    from models.sale import PaymentMethod
+    from models.sale_return import SaleReturn
+
+    now = datetime.utcnow()
+    sale = sell(db_session, cashier_user, now - timedelta(days=15), "50.00")
+    period_one = declare(db_session, default_company, (now - timedelta(days=10)).date())
+
+    # Filed after period one's cut-off, before period two exists yet.
+    db_session.add(
+        SaleReturn(
+            company_id=default_company.id,
+            sale_id=sale.id,
+            user_id=cashier_user.id,
+            refund_method=PaymentMethod.CASH,
+            total_refund_amount=Decimal("12.00"),
+            created_at=now - timedelta(days=9),
+        )
+    )
+    db_session.flush()
+    period_two = declare(db_session, default_company, (now - timedelta(days=1)).date())
+
+    service = PeriodReportService(db_session, default_company.id)
+
+    assert service.detail(period_one.id).returns_total == Decimal("12.00")
+    assert service.detail(period_two.id).returns_total == Decimal("0.00")
+
+
 def test_detail_surfaces_a_checker_report(db_session, default_company):
     row = Reconciliation(
         company_id=default_company.id,

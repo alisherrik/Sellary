@@ -76,3 +76,49 @@ class TestPeriodEndpoints:
         response = client.get("/api/reconciliation/periods", headers=cashier_headers)
 
         assert response.status_code == 403
+
+    def test_checker_report_stays_hidden_from_a_reports_grant_without_the_role(
+        self, client, db_session, default_company, cashier_user, cashier_headers, grant_module
+    ):
+        """A `reports:manager` module grant opens the report, not the audit trail.
+
+        `require_module` checks a per-membership grant, an axis independent of
+        company role — a cashier can hold it. `checker_report` is consistency-
+        checker drift, gated everywhere else (`/check`, the declare-time 409) at
+        `require_admin`; this route must not become a side door around that.
+        """
+        grant_module(cashier_user, default_company, "reports", "manager")
+        row = declare(
+            db_session,
+            default_company,
+            date(2026, 6, 1),
+            checker_report=[{"bucket": "drift", "check": "stock_vs_layers"}],
+        )
+
+        list_body = client.get(
+            "/api/reconciliation/periods", headers=cashier_headers
+        ).json()
+        detail_body = client.get(
+            f"/api/reconciliation/periods/{row.id}", headers=cashier_headers
+        ).json()
+
+        assert list_body["total"] == 1
+        assert "sold" in list_body["periods"][0]
+        assert detail_body["id"] == row.id
+        assert detail_body["checker_report"] is None
+
+    def test_checker_report_is_visible_to_a_manager(
+        self, client, db_session, default_company, manager_headers
+    ):
+        row = declare(
+            db_session,
+            default_company,
+            date(2026, 6, 1),
+            checker_report=[{"bucket": "drift", "check": "stock_vs_layers"}],
+        )
+
+        body = client.get(
+            f"/api/reconciliation/periods/{row.id}", headers=manager_headers
+        ).json()
+
+        assert body["checker_report"] == [{"bucket": "drift", "check": "stock_vs_layers"}]

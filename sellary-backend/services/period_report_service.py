@@ -109,13 +109,26 @@ class PeriodReportService:
         return row.full_name or row.username
 
     def _returns(self, start: datetime, end: datetime) -> Decimal:
+        """Returns against a sale dated inside this period — whenever the return itself happened.
+
+        Keyed on the SALE's date, matching `refund_totals_subquery`
+        (`repositories/sale_repository.py`), the one place `sold` is netted of
+        returns. Keying on the return's own date instead would make this figure
+        disagree with what `sold` actually subtracted: a return can be filed in
+        a later period than the sale it settles (`sale_return_service.py` only
+        guards the sale's own freeze, not the period about to close), so the
+        two dates are not interchangeable.
+        """
         return self.db.execute(
             select(
                 func.coalesce(func.sum(SaleReturn.total_refund_amount), Decimal("0.00"))
-            ).where(
+            )
+            .select_from(SaleReturn)
+            .join(Sale, Sale.id == SaleReturn.sale_id)
+            .where(
                 SaleReturn.company_id == self.company_id,
-                SaleReturn.created_at >= start,
-                SaleReturn.created_at <= end,
+                Sale.created_at >= start,
+                Sale.created_at <= end,
             )
         ).scalar() or Decimal("0.00")
 

@@ -54,6 +54,11 @@ def get_period(
     detail = PeriodReportService(db, auth.company_id).detail(reconciliation_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="Период не найден.")
+    if auth.role not in ("admin", "manager"):
+        # checker_report is consistency-checker drift — the same admin-only bar
+        # as GET /reconciliation/check, not the report-module grant this route
+        # is otherwise gated on.
+        detail.checker_report = None
     return detail
 
 

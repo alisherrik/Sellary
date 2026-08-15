@@ -95,11 +95,14 @@ function Detail({ id }: { id: number }) {
   );
 }
 
+const PAGE_SIZE = 12;
+
 function Periods() {
   const [openId, setOpenId] = useState<number | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const list = useQuery<PeriodList>({
-    queryKey: ['reconciliation', 'periods'],
-    queryFn: async () => (await reconciliationApi.periods()).data,
+    queryKey: ['reconciliation', 'periods', visibleCount],
+    queryFn: async () => (await reconciliationApi.periods({ limit: visibleCount })).data,
   });
 
   return (
@@ -148,6 +151,15 @@ function Periods() {
               {openId === row.id && <Detail id={row.id} />}
             </div>
           ))}
+          {list.data!.periods.length < list.data!.total && (
+            <button
+              onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+              disabled={list.isFetching}
+              className="w-full border-2 border-[var(--erp-divider)] bg-white p-3 text-sm font-medium text-[var(--erp-accent)] hover:bg-[var(--erp-surface)] disabled:opacity-50 dark:bg-gray-800"
+            >
+              Показать ещё
+            </button>
+          )}
         </div>
       )}
     </div>
