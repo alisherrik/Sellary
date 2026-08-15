@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useReconciledFrom } from '@/lib/store';
 import { formatIsoDate } from '@/lib/utils';
 
@@ -24,7 +26,11 @@ export default function ReconciliationNotice() {
     >
       <p className="text-[13px] leading-snug text-[var(--erp-text)]">
         Сверка от {formatIsoDate(reconciledFrom)}. Данные до этой даты закрыты: их
-        можно смотреть, но не изменять.
+        можно смотреть, но не изменять.{' '}
+        <Link href="/periods" className="font-medium text-[var(--erp-accent)] hover:underline">
+          Отчёты по закрытым периодам
+        </Link>
+        .
       </p>
     </div>
   );
