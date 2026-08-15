@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 
 import { purchaseReportApi } from '@/lib/api';
+import { windowStart } from '@/lib/reportWindow';
 import { formatDateTime, formatIsoDate, formatMoney, formatUnitPrice } from '@/lib/utils';
 import { CardSkeleton, TableSkeleton } from '@/components/skeletons';
 import QueryError from '@/components/ui/QueryError';
@@ -64,21 +65,22 @@ function CostChange({ percent }: { percent: string | null }) {
 export default function PurchaseReportPage() {
   const [days, setDays] = useState(30);
   const [tab, setTab] = useState<Tab>('products');
+  const start_date = windowStart(days);
 
   const summary = useQuery<PurchaseSummary>({
     queryKey: ['purchase-report', 'summary', days],
-    queryFn: async () => (await purchaseReportApi.summary({ days })).data,
+    queryFn: async () => (await purchaseReportApi.summary({ days, start_date })).data,
   });
 
   const byProduct = useQuery<PurchaseByProductRow[]>({
     queryKey: ['purchase-report', 'by-product', days],
-    queryFn: async () => (await purchaseReportApi.byProduct({ days, limit: 500 })).data,
+    queryFn: async () => (await purchaseReportApi.byProduct({ days, start_date, limit: 500 })).data,
     enabled: tab === 'products',
   });
 
   const bySupplier = useQuery<PurchaseBySupplierRow[]>({
     queryKey: ['purchase-report', 'by-supplier', days],
-    queryFn: async () => (await purchaseReportApi.bySupplier({ days })).data,
+    queryFn: async () => (await purchaseReportApi.bySupplier({ days, start_date })).data,
     enabled: tab === 'suppliers',
   });
 

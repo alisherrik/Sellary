@@ -2,6 +2,7 @@ import { useQuery, useInfiniteQuery, keepPreviousData, useQueryClient, UseQueryO
 import { reportsApi, productsApi, salesApi, shiftsApi, suppliersApi, purchaseOrdersApi, customersApi, companyApi, ordersApi, reconciliationApi } from '@/lib/api';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { useAuthStore } from '@/lib/store';
+import { windowStart } from '@/lib/reportWindow';
 import {
     Product, Sale, SaleSearchSuggestion, SalesSummary, Supplier, PurchaseOrder, Customer,
     CustomerLedgerResponse, DailySalesReport, ProfitReport, TopProductsReport,
@@ -369,7 +370,7 @@ export function useDailySales(days: number, options?: Partial<UseQueryOptions<Da
     return useQuery<DailySalesReport>({
         queryKey: queryKeys.dailySales(companyId, days),
         queryFn: async () => {
-            const response = await reportsApi.getDailySales({ days });
+            const response = await reportsApi.getDailySales({ days, start_date: windowStart(days) });
             return response.data;
         },
         ...options,
@@ -383,7 +384,7 @@ export function useProfit(days: number, options?: Partial<UseQueryOptions<Profit
     return useQuery<ProfitReport>({
         queryKey: queryKeys.profit(companyId, days),
         queryFn: async () => {
-            const response = await reportsApi.getProfit({ days });
+            const response = await reportsApi.getProfit({ days, start_date: windowStart(days) });
             return response.data;
         },
         ...options,
@@ -397,7 +398,7 @@ export function useTopProducts(days: number, limit: number = 10, options?: Parti
     return useQuery<TopProductsReport>({
         queryKey: queryKeys.topProducts(companyId, days, limit),
         queryFn: async () => {
-            const response = await reportsApi.getTopProducts({ days, limit });
+            const response = await reportsApi.getTopProducts({ days, limit, start_date: windowStart(days) });
             return response.data;
         },
         ...options,
