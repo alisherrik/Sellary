@@ -459,3 +459,132 @@ class TestInventoryValuation:
         data = response.json()
         # Verify inactive product is not included
         # (Exact assertion depends on response format)
+
+
+class TestStocktakeOnlyLogs:
+    """The Инвентаризация page asks for counts and must not get sales."""
+
+    def _log(self, db_session, default_company, admin_user, product, reference_type):
+        row = InventoryLog(
+            company_id=default_company.id,
+            product_id=product.id,
+            user_id=admin_user.id,
+            quantity_change=Decimal("-2.000"),
+            value_change=Decimal("-10.00"),
+            previous_quantity=Decimal("10.000"),
+            new_quantity=Decimal("8.000"),
+            reason="test",
+            reference_type=reference_type,
+        )
+        db_session.add(row)
+        db_session.flush()
+        return row
+
+    def test_it_returns_counts_and_excludes_sales(
+        self, client, db_session, default_company, admin_user, test_product, manager_headers
+    ):
+        counted = self._log(
+            db_session, default_company, admin_user, test_product, "shortage"
+        )
+        sold = self._log(db_session, default_company, admin_user, test_product, "sale")
+
+        body = client.get(
+            "/api/inventory/logs",
+            params={"stocktake_only": True},
+            headers=manager_headers,
+        ).json()
+
+        ids = [row["id"] for row in body]
+        assert counted.id in ids
+        assert sold.id not in ids
+
+    def test_every_counted_reference_type_comes_back(
+        self, client, db_session, default_company, admin_user, test_product, manager_headers
+    ):
+        from schemas.inventory_log import STOCKTAKE_REFERENCE_TYPES
+
+        expected = {
+            self._log(
+                db_session, default_company, admin_user, test_product, reference_type
+            ).id
+            for reference_type in STOCKTAKE_REFERENCE_TYPES
+        }
+
+        body = client.get(
+            "/api/inventory/logs",
+            params={"stocktake_only": True, "limit": 200},
+            headers=manager_headers,
+        ).json()
+
+        assert expected <= {row["id"] for row in body}
+
+    def test_receipts_and_write_offs_stay_out(
+        self, client, db_session, default_company, admin_user, test_product, manager_headers
+    ):
+        unwanted = {
+            self._log(
+                db_session, default_company, admin_user, test_product, reference_type
+            ).id
+            for reference_type in ("po_receive", "write_off", "product_initial")
+        }
+
+        body = client.get(
+            "/api/inventory/logs",
+            params={"stocktake_only": True, "limit": 200},
+            headers=manager_headers,
+        ).json()
+
+        assert not unwanted & {row["id"] for row in body}
+
+    def test_the_default_is_unchanged_for_existing_callers(
+        self, client, db_session, default_company, admin_user, test_product, manager_headers
+    ):
+        """StockHistorySheet still asks without the flag and still gets sales."""
+        sold = self._log(db_session, default_company, admin_user, test_product, "sale")
+
+        body = client.get("/api/inventory/logs", headers=manager_headers).json()
+
+        assert sold.id in [row["id"] for row in body]
+
+    def test_it_composes_with_product_id(
+        self,
+        client,
+        db_session,
+        default_company,
+        admin_user,
+        test_products_bulk,
+        manager_headers,
+    ):
+        first, second = test_products_bulk[0], test_products_bulk[1]
+        mine = self._log(db_session, default_company, admin_user, first, "stocktake")
+        theirs = self._log(db_session, default_company, admin_user, second, "stocktake")
+
+        body = client.get(
+            "/api/inventory/logs",
+            params={"stocktake_only": True, "product_id": first.id},
+            headers=manager_headers,
+        ).json()
+
+        ids = [row["id"] for row in body]
+        assert mine.id in ids
+        assert theirs.id not in ids
+
+    def test_the_limit_ceiling_is_a_thousand(
+        self, client, default_company, manager_headers
+    ):
+        assert (
+            client.get(
+                "/api/inventory/logs",
+                params={"limit": 1000},
+                headers=manager_headers,
+            ).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                "/api/inventory/logs",
+                params={"limit": 1001},
+                headers=manager_headers,
+            ).status_code
+            == 422
+        )

@@ -2,6 +2,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session, joinedload
 from models.inventory_log import InventoryLog
 from models.product import Product
+from schemas.inventory_log import STOCKTAKE_REFERENCE_TYPES
 from typing import Optional, List
 
 # Everything a receipt number can do to stock: the sale itself, a return
@@ -20,6 +21,7 @@ class InventoryRepository:
         limit: int = 50,
         product_id: Optional[int] = None,
         sale_id: Optional[int] = None,
+        stocktake_only: bool = False,
     ) -> tuple[List[InventoryLog], int]:
         query = self.db.query(InventoryLog).options(
             joinedload(InventoryLog.product), joinedload(InventoryLog.user)
@@ -27,6 +29,14 @@ class InventoryRepository:
 
         if product_id:
             query = query.filter(InventoryLog.product_id == product_id)
+
+        if stocktake_only:
+            # Counting stock is rare; every sale line writes a row. Narrowing
+            # here is what keeps the Инвентаризация page from downloading the
+            # whole movement history to find a handful of rows.
+            query = query.filter(
+                InventoryLog.reference_type.in_(STOCKTAKE_REFERENCE_TYPES)
+            )
 
         if sale_id:
             # reference_id alone is ambiguous — a purchase receive stores the
