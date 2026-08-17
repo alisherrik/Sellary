@@ -130,6 +130,17 @@ Write-offs never enter turnover. The profit report carries them as
 `write_off_cost` and `profit_after_write_offs` beside an unchanged `profit`, so
 existing callers (frontend, MCP `get_profit_report`) keep their meaning.
 
+### Counting stock
+Editing a product never changes its stock — `POST /api/inventory/stocktake`
+takes the **absolute** counted quantity plus the `expected_quantity` the dialog
+opened on and returns 409 if they disagree; counting back the same figure writes
+no log. Reasons are only what counting can tell you (`stocktake`, `surplus`,
+`shortage`, `other`); spoilage and supplier returns stay with the write-off
+document. Counts are read back on `/stocktakes` («Инвентаризация»);
+`GET /api/inventory/logs?stocktake_only=true` narrows to `STOCKTAKE_REFERENCE_TYPES`
+(those four reasons plus the removed `manual_adjust` channel), and the page does
+its own date/reason/user/direction/search filtering client-side.
+
 ### Одна проверка
 Every derived figure is recomputed from an independent source in
 `services/consistency_service.py` — one registry, and the only place to add a
