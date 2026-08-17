@@ -57,6 +57,7 @@ class ShiftTotals(BaseModel):
 
 class ShiftOpen(BaseModel):
     opening_cash: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
+    opening_notes: Optional[str] = Field(None, max_length=500)
 
 
 class ShiftClose(BaseModel):
@@ -81,6 +82,7 @@ class CashShift(BaseModel):
     opened_at: datetime
     opened_by_user_id: int
     opening_cash: Decimal
+    opening_notes: Optional[str] = None
     closed_at: Optional[datetime] = None
     closed_by_user_id: Optional[int] = None
     counted_cash: Optional[Decimal] = None

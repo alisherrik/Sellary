@@ -202,6 +202,16 @@ class TestOpenCloseSnapshot:
         with pytest.raises(ShiftConflict):
             svc.close_shift(shift.id, Decimal("0.00"), None, cashier.id)
 
+    def test_opening_notes_are_saved(self, db_session, cashier):
+        svc = CashShiftService(db_session)
+        shift = svc.open_shift(Decimal("0.00"), cashier.id, opening_notes="сдачи не было")
+        assert shift.opening_notes == "сдачи не было"
+
+    def test_opening_notes_default_to_none(self, db_session, cashier):
+        svc = CashShiftService(db_session)
+        shift = svc.open_shift(Decimal("0.00"), cashier.id)
+        assert shift.opening_notes is None
+
     def test_closed_totals_are_frozen(self, db_session, cashier):
         svc = CashShiftService(db_session)
         shift = svc.open_shift(Decimal("0.00"), cashier.id)
