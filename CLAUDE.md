@@ -195,6 +195,14 @@ The quantity field survives on product **creation**: that is a real opening
 balance, written as a `product_initial` FIFO layer on a product with no prior
 figure to corrupt.
 
+Counts are read back on `/stocktakes` («Инвентаризация», in the Склад nav group).
+`GET /api/inventory/logs?stocktake_only=true` narrows the movement log to
+`STOCKTAKE_REFERENCE_TYPES` — the four `StocktakeReason` values plus the removed
+`manual_adjust` channel, whose 146 production rows are real corrections and are
+shown rather than hidden. That flag is the server's only job here: the page loads
+one page of rows and does its own date, reason, user, direction and search
+filtering, because counts are rare while every sale line writes a log row.
+
 ### Одна проверка
 Every derived figure is recomputed from an **independent** source in
 `services/consistency_service.py`, and that registry is the only place to add
