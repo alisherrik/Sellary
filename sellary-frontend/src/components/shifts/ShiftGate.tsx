@@ -26,12 +26,14 @@ export function ShiftGateBanner() {
   // one shift went into production opened at 0.00 — every cash figure it
   // produced was measured from a starting point nobody had checked.
   const [openingCash, setOpeningCash] = useState('');
+  const [openingNotes, setOpeningNotes] = useState('');
   const lastClosed = shifts.find((s) => s.status === 'closed' && s.counted_cash != null);
 
   const openMutation = useMutation({
-    mutationFn: () => shiftsApi.open(openingCash || '0'),
+    mutationFn: () => shiftsApi.open(openingCash || '0', openingNotes || undefined),
     onSuccess: () => {
       toast.success('Смена открыта');
+      setOpeningNotes('');
       queryClient.invalidateQueries({ queryKey: ['currentShift'] });
       queryClient.invalidateQueries({ queryKey: ['shifts'] });
     },
@@ -82,6 +84,15 @@ export function ShiftGateBanner() {
             placeholder="Наличные в кассе"
             aria-label="Наличные в кассе на начало смены"
             className="h-11 w-32 rounded-lg border border-amber-300 bg-white px-3 text-sm tabular-nums dark:border-amber-700 dark:bg-gray-800"
+          />
+          <input
+            type="text"
+            value={openingNotes}
+            onChange={(e) => setOpeningNotes(e.target.value)}
+            placeholder="Комментарий"
+            aria-label="Комментарий к открытию смены"
+            maxLength={500}
+            className="h-11 w-40 rounded-lg border border-amber-300 bg-white px-3 text-sm dark:border-amber-700 dark:bg-gray-800"
           />
           <button
             onClick={() => openMutation.mutate()}

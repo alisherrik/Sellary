@@ -469,6 +469,7 @@ export interface CashShift {
   opened_at: string;
   opened_by_user_id: number;
   opening_cash: string;
+  opening_notes: string | null;
   closed_at: string | null;
   closed_by_user_id: number | null;
   counted_cash: string | null;
