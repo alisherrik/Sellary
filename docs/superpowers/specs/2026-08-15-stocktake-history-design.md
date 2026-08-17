@@ -66,8 +66,8 @@ Out:
   actually bites.
 - Any new write. The page reads; counting stays `POST /api/inventory/stocktake`
   from the products page.
-- Changing `StockHistorySheet`'s existing behaviour. The grouped view opens it
-  as-is.
+- Touching `StockHistorySheet` at all. It keeps its current job (one product's
+  full movement history, from the products page) and this page does not use it.
 
 ## Backend
 
@@ -100,8 +100,15 @@ number.
 
 - «Список» — sana · товар · причина · было→стало · ±кол-во · ±сумма · кто
 - «По товарам» — товар · счётов · ±кол-во · ±сумма · последний, sorted by count
-  descending so the most-corrected product is first. A row opens the existing
-  `StockHistorySheet` for that product.
+  descending so the most-corrected product is first. A row expands in place to
+  that product's own count rows, taken from the already-loaded array.
+
+Expanding in place rather than opening `StockHistorySheet` is deliberate. That
+sheet takes a full `Product` (it prints `stock_quantity` and `uom` in its header),
+and a log row carries only `product_id` and `product_name` — reusing it would
+mean a second fetch per click to recover fields the page does not otherwise need.
+It also shows *every* movement type, which is the opposite of this page's point.
+The rows to expand are already in memory.
 
 **Four filters**, in `FilterMenu` (`components/filters/FilterMenu.tsx`, the
 funnel-with-badge panel `/sales` uses):
@@ -113,7 +120,9 @@ funnel-with-badge panel `/sales` uses):
 3. Who — the distinct `user_name` values present in the loaded rows.
 4. Direction — излишек (`quantity_change > 0`) / недостача (`< 0`) / все.
 
-**Search** — product name, debounced via `lib/hooks/useDebounce.ts`.
+**Search** — product name, debounced via `hooks/useDebounce.ts`. The
+`InventoryLog` TS type (`lib/types.ts:828`) already matches the response, money
+and quantities as strings; no new type is needed.
 
 Both views and every filter read the same loaded array, so the summary line
 («N счётов, ±X ед., ±Y сум.») always describes exactly what is on screen.
@@ -142,6 +151,10 @@ Frontend (`npx vitest run` from `sellary-frontend/`):
   counted figure matches, because confirming a correct quantity is not a
   movement.
 - The date filter is inclusive at both ends on the row's own local day.
-- The cap notice renders only when the loaded count reaches the ceiling.
+
+The filter/group/search rules live in `lib/stocktakeHistory.ts` as pure functions
+precisely so these are unit tests over an array, with no rendering. The row-cap
+notice is one boolean over `rows.length` and is covered by the manual pass rather
+than a page render test.
 
 CI gate stays `python -m compileall api core models repositories schemas services main.py`.
