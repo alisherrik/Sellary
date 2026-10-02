@@ -10,7 +10,7 @@ from decimal import Decimal
 import pytest
 
 from core.security import get_password_hash
-from models.cash_shift import CashShiftStatus
+from models.cash_shift import CashShift, CashShiftStatus
 from models.customer import Customer
 from models.customer_ledger_entry import CustomerLedgerEntry
 from models.money_account import MoneyAccount
@@ -212,6 +212,29 @@ class TestOpenCloseSnapshot:
         sale(db_session, cashier, "500.00", at=closed.closed_at + timedelta(minutes=1))
         again = svc.totals_for(closed)
         assert frozen.expected_cash == again.expected_cash == Decimal("100.00")
+
+    @pytest.mark.parametrize("stored_expected,want_expected,want_residual", [
+        (None, "120.00", "0.00"),
+        (Decimal("150.00"), "150.00", "30.00"),
+    ])
+    def test_closed_shift_without_snapshot_uses_its_closed_window(
+        self, db_session, cashier, till, stored_expected, want_expected, want_residual,
+    ):
+        end = T0 + timedelta(hours=2)
+        shift = CashShift(company_id=till.company_id, shift_number=1,
+                          status=CashShiftStatus.CLOSED, opening_cash=Decimal("100.00"),
+                          opened_by_user_id=cashier.id, opened_at=T0, closed_at=end,
+                          expected_cash=stored_expected, closing_totals=None)
+        db_session.add(shift); db_session.flush()
+        sale(db_session, cashier, "20.00", at=T0 + timedelta(hours=1))
+        sale(db_session, cashier, "70.00", at=end)
+        sale(db_session, cashier, "500.00", at=end + timedelta(hours=1))
+        totals = CashShiftService(db_session).totals_for(shift)
+        assert totals.sales_count == 1
+        assert totals.cash_sales == Decimal("20.00")
+        assert totals.expected_cash == Decimal(want_expected)
+        assert totals.late_arrivals == Decimal(want_residual)
+        assert shift.closing_totals is None
 
     def test_snapshot_does_not_close_the_shift(self, db_session, cashier):
         svc = CashShiftService(db_session)

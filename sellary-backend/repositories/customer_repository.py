@@ -28,6 +28,9 @@ class CustomerRepository:
         search: Optional[str] = None,
         active_only: bool = True,
     ) -> List[Customer]:
+        return self.get_page(company_id, skip, limit, search, active_only)[0]
+
+    def get_page(self, company_id, skip=0, limit=50, search=None, active_only=True):
         query = self.db.query(Customer).filter(Customer.company_id == company_id)
         if active_only:
             query = query.filter(Customer.is_active == True)
@@ -39,7 +42,8 @@ class CustomerRepository:
                     Customer.email.ilike(f"%{search}%"),
                 )
             )
-        return query.offset(skip).limit(limit).all()
+        total = query.count()
+        return query.order_by(Customer.name.asc(), Customer.id.asc()).offset(skip).limit(limit).all(), total
 
     def create(self, customer: Customer) -> Customer:
         self.db.add(customer)

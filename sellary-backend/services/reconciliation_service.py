@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from models.reconciliation import Reconciliation
@@ -24,6 +24,15 @@ class ReconciliationService:
 
     def history(self, limit: int = 50, offset: int = 0) -> list[Reconciliation]:
         return list(self.db.execute(self._ordered().limit(limit).offset(offset)).scalars())
+
+    def history_page(self, limit: int = 50, offset: int = 0):
+        total = self.db.execute(select(func.count(Reconciliation.id)).where(
+            Reconciliation.company_id == self.company_id)).scalar_one()
+        return self.history(limit, offset), total
+
+    def get_by_id(self, reconciliation_id: int):
+        return self.db.execute(self._ordered().where(
+            Reconciliation.id == reconciliation_id)).scalars().first()
 
     def check(self):
         return ConsistencyService(self.db, self.company_id).run()

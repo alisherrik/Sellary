@@ -10,6 +10,8 @@ hours — enough to move an evening's takings into the wrong report.
 """
 
 from datetime import date, datetime, timedelta
+import re
+from typing import Literal
 
 from fastmcp.exceptions import ToolError
 
@@ -26,6 +28,10 @@ PERIODS = (
     "this_year",
     "custom",
 )
+
+Period = Literal["today", "yesterday", "this_week", "last_week", "this_month",
+                 "last_month", "last_7_days", "last_30_days", "last_90_days",
+                 "this_year", "custom"]
 
 PERIOD_LABELS_RU = {
     "today": "сегодня",
@@ -44,7 +50,10 @@ PERIOD_LABELS_RU = {
 
 def _parse_date(value: str, field: str) -> date:
     try:
-        return date.fromisoformat(value.strip()[:10])
+        cleaned = value.strip()
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", cleaned):
+            raise ValueError("Expected ISO calendar date")
+        return date.fromisoformat(cleaned)
     except (ValueError, AttributeError):
         raise ToolError(
             f"Не удалось прочитать {field}: «{value}». Ожидается формат ГГГГ-ММ-ДД."
@@ -114,6 +123,11 @@ def resolve_period(
             f"Неизвестный период «{period}». Доступны: {', '.join(PERIODS)}."
         )
 
+    # Dates are an explicit request even when the caller leaves the named
+    # period at its tool default. Never silently ignore half a date pair.
+    if start_date is not None or end_date is not None:
+        period = "custom"
+
     tz = service.tz()
     today = datetime.now(tz).date()
 
@@ -129,16 +143,14 @@ def resolve_period(
             raise ToolError("Начало периода позже его конца.")
     else:
         first_day, last_day = resolve_days(period, today)
-        # A named period is a request for "the recent past", so it starts no
-        # earlier than the reconciliation. An explicit custom range is honoured
-        # as asked: reading settled history is not editing it.
-        open_from = service.open_from()
-        if open_from and open_from > first_day:
-            first_day = open_from
+        # Named historical windows are also explicit reads. The reconciliation
+        # freezes edits and fills missing REST starts; it cannot change what
+        # "last month" means or turn yesterday into a reversed interval.
 
     start, _ = service.local_day_bounds(first_day)
     _, end = service.local_day_bounds(last_day)
 
+    open_from = service.open_from()
     return start, end, {
         "period": period,
         "period_label": PERIOD_LABELS_RU.get(period, period),
@@ -146,5 +158,5 @@ def resolve_period(
         "end_date": last_day.isoformat(),
         "timezone": str(tz),
         # So a model reading across the cut-off says so instead of averaging two eras.
-        "reconciled_from": service.open_from().isoformat() if service.open_from() else None,
+        "reconciled_from": open_from.isoformat() if open_from else None,
     }

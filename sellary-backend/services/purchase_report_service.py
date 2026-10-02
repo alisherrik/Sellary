@@ -11,9 +11,10 @@ on sugar" but "what is sugar costing us now compared with the start of the
 month".
 """
 from decimal import Decimal
+from datetime import timedelta
 from typing import Optional
 
-from sqlalchemy import case, func
+from sqlalchemy import case, func, Numeric, type_coerce
 from sqlalchemy.orm import Session
 
 from models.inventory_layer import InventoryLayer
@@ -95,7 +96,10 @@ class PurchaseReportService:
 
     @staticmethod
     def _line_total():
-        return PurchaseReceiptItem.quantity * PurchaseReceiptItem.unit_cost
+        # Quantity has 3 and unit cost 4 decimals. Preserve their product until
+        # the final money display; SQLAlchemy's inferred scale otherwise rounds
+        # a small received quantity before computing its weighted unit cost.
+        return type_coerce(PurchaseReceiptItem.quantity * PurchaseReceiptItem.unit_cost, Numeric(24, 8))
 
     # -------------------------------------------------------------- summary
 
@@ -120,7 +124,7 @@ class PurchaseReportService:
             lines_count=int(lines or 0),
             average_receipt=_money(total / receipts) if receipts else ZERO,
             period_start=to_local(start, self.tz()).date().isoformat(),
-            period_end=to_local(end, self.tz()).date().isoformat(),
+            period_end=to_local(end - timedelta(microseconds=1), self.tz()).date().isoformat(),
             by_day=self.by_day(start, end, supplier_id),
         )
 
@@ -130,9 +134,11 @@ class PurchaseReportService:
             .with_entities(
                 PurchaseReceipt.id,
                 PurchaseReceipt.created_at,
-                self._line_total(),
+                func.sum(self._line_total()),
             )
-            .all()
+            .group_by(PurchaseReceipt.id, PurchaseReceipt.created_at)
+            .order_by(PurchaseReceipt.created_at, PurchaseReceipt.id)
+            .yield_per(200)
         )
 
         # Bucketed in Python, as get_daily_sales does and for the same reason:
@@ -146,13 +152,13 @@ class PurchaseReportService:
         for receipt_id, created_at, line_total in rows:
             day = to_local(created_at, tz).date()
             spend_by_day[day] = spend_by_day.get(day, ZERO) + Decimal(line_total or 0)
-            receipts_by_day.setdefault(day, set()).add(receipt_id)
+            receipts_by_day[day] = receipts_by_day.get(day, 0) + 1
 
         return [
             PurchaseDayRow(
                 day=day,
                 spend=_money(spend_by_day[day]),
-                receipts=len(receipts_by_day[day]),
+                receipts=receipts_by_day[day],
             )
             for day in sorted(spend_by_day)
         ]
@@ -160,7 +166,7 @@ class PurchaseReportService:
     # ----------------------------------------------------------- by product
 
     def by_product(
-        self, start, end, supplier_id: Optional[int] = None, limit: int = 200
+        self, start, end, supplier_id: Optional[int] = None, limit: int = 200, offset: int = 0
     ) -> list[PurchaseByProductRow]:
         rows = (
             self._items(start, end, supplier_id)
@@ -179,8 +185,9 @@ class PurchaseReportService:
                 func.max(PurchaseReceipt.created_at),
             )
             .group_by(Product.id, Product.name, Product.uom, Product.sell_price, Product.cost_price)
-            .order_by(func.sum(self._line_total()).desc())
+            .order_by(func.sum(self._line_total()).desc(), Product.id.asc())
             .limit(limit)
+            .offset(offset)
             .all()
         )
 
@@ -192,7 +199,7 @@ class PurchaseReportService:
             .scalar()
             or 0
         )
-        first_last = self._first_and_last_cost(start, end, supplier_id)
+        first_last = self._first_and_last_cost(start, end, supplier_id, [row[0] for row in rows])
 
         result = []
         for (
@@ -209,10 +216,11 @@ class PurchaseReportService:
             last_at,
         ) in rows:
             quantity = Decimal(quantity or 0)
-            spend = _money(spend)
+            raw_spend = Decimal(spend or 0)
+            spend = _money(raw_spend)
             first_cost, last_cost = first_last.get(product_id, (None, None))
             change = None
-            if first_cost and last_cost and first_cost != 0:
+            if first_cost is not None and last_cost is not None and first_cost != 0:
                 change = ((last_cost - first_cost) / first_cost * 100).quantize(MONEY)
             result.append(
                 PurchaseByProductRow(
@@ -221,8 +229,8 @@ class PurchaseReportService:
                     uom=uom,
                     quantity=quantity,
                     spend=spend,
-                    share_percent=_share(spend, total),
-                    average_cost=(spend / quantity).quantize(Decimal("0.0001"))
+                    share_percent=_share(raw_spend, total),
+                    average_cost=(raw_spend / quantity).quantize(Decimal("0.0001"))
                     if quantity
                     else ZERO,
                     min_cost=Decimal(min_cost or 0),
@@ -239,22 +247,25 @@ class PurchaseReportService:
         return result
 
     def _first_and_last_cost(
-        self, start, end, supplier_id: Optional[int] = None
+        self, start, end, supplier_id: Optional[int] = None, product_ids=None
     ) -> dict[int, tuple[Optional[Decimal], Optional[Decimal]]]:
         """The unit cost on the earliest and latest delivery of each product.
 
         min/max would answer a different question: the cheapest and dearest the
         shop ever paid, not the direction the price is moving.
         """
+        query = self._items(start, end, supplier_id)
+        if product_ids is not None:
+            query = query.filter(PurchaseReceiptItem.product_id.in_(product_ids))
         rows = (
-            self._items(start, end, supplier_id)
+            query
             .with_entities(
                 PurchaseReceiptItem.product_id,
                 PurchaseReceipt.created_at,
                 PurchaseReceiptItem.unit_cost,
             )
             .order_by(PurchaseReceiptItem.product_id, PurchaseReceipt.created_at, PurchaseReceiptItem.id)
-            .all()
+            .yield_per(200)
         )
         result: dict[int, tuple[Optional[Decimal], Optional[Decimal]]] = {}
         for product_id, _created, unit_cost in rows:
@@ -267,8 +278,16 @@ class PurchaseReportService:
 
     # ---------------------------------------------------------- by supplier
 
-    def by_supplier(self, start, end) -> list[PurchaseBySupplierRow]:
-        rows = (
+    def product_count(self, start, end, supplier_id=None):
+        return self._items(start, end, supplier_id).with_entities(
+            func.count(func.distinct(PurchaseReceiptItem.product_id))).scalar()
+
+    def supplier_count(self, start, end):
+        return self._items(start, end).with_entities(
+            func.count(func.distinct(PurchaseOrder.supplier_id))).scalar()
+
+    def by_supplier(self, start, end, limit=None, offset=0) -> list[PurchaseBySupplierRow]:
+        query = (
             self._items(start, end)
             .join(Supplier, Supplier.id == PurchaseOrder.supplier_id)
             .with_entities(
@@ -280,16 +299,19 @@ class PurchaseReportService:
                 func.max(PurchaseReceipt.created_at),
             )
             .group_by(Supplier.id, Supplier.name)
-            .order_by(func.sum(self._line_total()).desc())
-            .all()
+            .order_by(func.sum(self._line_total()).desc(), Supplier.id.asc())
         )
-        total = sum((Decimal(r[2] or 0) for r in rows), ZERO)
+        if limit is not None:
+            query = query.offset(offset).limit(limit)
+        rows = query.all()
+        total = Decimal(self._items(start, end).with_entities(
+            func.coalesce(func.sum(self._line_total()), ZERO)).scalar() or 0)
         return [
             PurchaseBySupplierRow(
                 supplier_id=supplier_id,
                 name=name,
                 spend=_money(spend),
-                share_percent=_share(_money(spend), total),
+                share_percent=_share(Decimal(spend or 0), total),
                 receipts=int(receipts or 0),
                 products=int(products or 0),
                 last_received_at=last_at,
@@ -299,14 +321,20 @@ class PurchaseReportService:
 
     # --------------------------------------------------------- open orders
 
-    def outstanding(self) -> list[dict]:
+    def outstanding_count(self):
+        return self.db.query(func.count(PurchaseOrder.id)).filter(
+            PurchaseOrder.company_id == self.company_id,
+            PurchaseOrder.status.in_(["sent", "partially_received"]),
+            PurchaseOrder.voided_at.is_(None)).scalar()
+
+    def outstanding(self, limit=None, offset=0) -> list[dict]:
         """Orders sent but not fully received — money committed, goods not in.
 
         Excluded from every total above: nothing has been bought yet.
         """
         from models.purchase_order_item import PurchaseOrderItem
 
-        rows = (
+        query = (
             self.db.query(
                 PurchaseOrder.id,
                 PurchaseOrder.order_date,
@@ -334,9 +362,11 @@ class PurchaseReportService:
                 PurchaseOrder.voided_at.is_(None),
             )
             .group_by(PurchaseOrder.id, PurchaseOrder.order_date, Supplier.name)
-            .order_by(PurchaseOrder.order_date.desc())
-            .all()
+            .order_by(PurchaseOrder.order_date.desc(), PurchaseOrder.id.desc())
         )
+        if limit is not None:
+            query = query.offset(offset).limit(limit)
+        rows = query.all()
         return [
             {
                 "order_id": order_id,

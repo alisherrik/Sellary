@@ -38,6 +38,22 @@ class CustomerLedgerService:
             entries=[self._entry_response(entry) for entry in entries],
         )
 
+    def get_customer_ledger_page(self, customer_id, limit=50, offset=0, start=None, end=None):
+        self._require_customer(customer_id)
+        query = self.db.query(CustomerLedgerEntry).filter(
+            CustomerLedgerEntry.company_id == self.company_id,
+            CustomerLedgerEntry.customer_id == customer_id)
+        if start is not None:
+            query = query.filter(CustomerLedgerEntry.created_at >= start)
+        if end is not None:
+            query = query.filter(CustomerLedgerEntry.created_at <= end)
+        total = query.count()
+        entries = query.order_by(CustomerLedgerEntry.created_at.desc(),
+                                 CustomerLedgerEntry.id.desc()).offset(offset).limit(limit).all()
+        return CustomerLedgerResponse(customer_id=customer_id,
+            balance=self._customer_balance(customer_id),
+            entries=[self._entry_response(entry) for entry in entries]), total
+
     def record_credit_sale_tenders(
         self,
         sale: Sale,

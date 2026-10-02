@@ -1,14 +1,12 @@
 """Database access for the OAuth authorization server.
 
-Every function opens and closes its own session. The provider is driven from
-async code while the ORM is synchronous, so these are deliberately small,
-self-contained units of work rather than anything that holds a session open
-across an await.
+Each operation owns its session, except a refresh-token write that joins the
+rotation transaction. The async provider runs these synchronous units of work
+in a worker thread; no database session stays open across an await.
 
-Two of them — `take_auth_code` and `take_refresh_token` — read and delete in
-one transaction. That single-use property is the entire security value of an
-authorization code, so it must not be split into a read followed by a separate
-delete.
+Single-use codes and refresh tokens are locked before consumption on Postgres.
+Refresh rotation deletes the old grant and writes its replacement in the same
+transaction, so a failed issuance leaves the original grant usable.
 """
 
 import base64
@@ -17,13 +15,16 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 from cryptography.fernet import Fernet, InvalidToken
+from sqlalchemy.orm import Session
 
 from core.config import settings
 from core.database import SessionLocal
 from models.oauth import OAuthAuthCode, OAuthClient, OAuthRefreshToken
+
+TokenResult = TypeVar("TokenResult")
 
 
 def hash_secret(value: str) -> str:
@@ -110,6 +111,7 @@ class GrantRecord:
     code_challenge: str | None = None
     resource: str | None = None
     expires_at: datetime | None = None
+    created_at: datetime | None = None
 
 
 # ------------------------------------------------------------------ clients
@@ -121,9 +123,12 @@ def get_client(client_id: str) -> ClientRecord | None:
         row = db.query(OAuthClient).filter(OAuthClient.client_id == client_id).first()
         if row is None:
             return None
+        secret = decrypt_secret(row.client_secret_enc)
+        if row.token_endpoint_auth_method != "none" and not secret:
+            return None
         return ClientRecord(
             client_id=row.client_id,
-            client_secret=decrypt_secret(row.client_secret_enc),
+            client_secret=secret,
             client_name=row.client_name,
             redirect_uris=list(row.redirect_uris or []),
             grant_types=list(row.grant_types or []),
@@ -133,6 +138,20 @@ def get_client(client_id: str) -> ClientRecord | None:
         )
     finally:
         db.close()
+
+
+def lock_client(db: Session, client_id: str) -> bool:
+    """Serialize grant rotation and revocation through their persistent client.
+
+    Lock the client before reading grants: unlike a rotating token row, this
+    row survives replacement. Revocation can then requery every live grant
+    after a competing refresh commits, including the replacement it issued.
+    The caller owns the transaction and releases the lock on commit/rollback.
+    """
+    query = db.query(OAuthClient.client_id).filter(OAuthClient.client_id == client_id)
+    if _dialect(db) == "postgresql":
+        query = query.with_for_update()
+    return query.first() is not None
 
 
 def save_client(
@@ -254,8 +273,11 @@ def take_auth_code(code: str) -> GrantRecord | None:
 # ----------------------------------------------------------- refresh tokens
 
 
-def save_refresh_token(token: str, grant: GrantRecord) -> None:
-    db = SessionLocal()
+def save_refresh_token(
+    token: str, grant: GrantRecord, *, db: Session | None = None
+) -> None:
+    owns_session = db is None
+    db = db if db is not None else SessionLocal()
     try:
         db.add(
             OAuthRefreshToken(
@@ -264,13 +286,18 @@ def save_refresh_token(token: str, grant: GrantRecord) -> None:
                 user_id=grant.user_id,
                 company_id=grant.company_id,
                 scopes=grant.scopes,
+                created_at=grant.created_at or _utcnow(),
                 expires_at=_utcnow()
                 + timedelta(days=settings.MCP_REFRESH_TOKEN_EXPIRE_DAYS),
             )
         )
-        db.commit()
+        if owns_session:
+            db.commit()
+        else:
+            db.flush()
     finally:
-        db.close()
+        if owns_session:
+            db.close()
 
 
 def peek_refresh_token(token: str) -> GrantRecord | None:
@@ -292,6 +319,7 @@ def peek_refresh_token(token: str) -> GrantRecord | None:
             company_id=row.company_id,
             scopes=list(row.scopes or []),
             expires_at=expires_at,
+            created_at=_aware(row.created_at),
         )
     finally:
         db.close()
@@ -301,11 +329,13 @@ def take_refresh_token(token: str) -> GrantRecord | None:
     """Consume a refresh token. Rotation: the caller issues a fresh one."""
     db = SessionLocal()
     try:
-        row = (
+        query = (
             db.query(OAuthRefreshToken)
             .filter(OAuthRefreshToken.token_hash == hash_secret(token))
-            .first()
         )
+        if _dialect(db) == "postgresql":
+            query = query.with_for_update()
+        row = query.first()
         if row is None or row.revoked_at is not None:
             return None
         expires_at = _aware(row.expires_at)
@@ -315,12 +345,64 @@ def take_refresh_token(token: str) -> GrantRecord | None:
             company_id=row.company_id,
             scopes=list(row.scopes or []),
             expires_at=expires_at,
+            created_at=_aware(row.created_at),
         )
         db.delete(row)
         db.commit()
         if expires_at is not None and expires_at <= _utcnow():
             return None
         return grant
+    finally:
+        db.close()
+
+
+def rotate_refresh_token(
+    token: str,
+    issue: Callable[[Session, GrantRecord | None], TokenResult],
+) -> TokenResult:
+    """Lock, consume and replace a refresh grant in one transaction.
+
+    The callback writes its replacement through the shared session. If minting
+    fails, the savepoint restores the original grant and closing the session
+    discards the failed transaction.
+    """
+    db = SessionLocal()
+    try:
+        with db.begin_nested():
+            # Read only the client id before locking; the actual grant must be
+            # read again after the lock so a completed revocation is visible.
+            client_id = db.query(OAuthRefreshToken.client_id).filter(
+                OAuthRefreshToken.token_hash == hash_secret(token)
+            ).scalar()
+            if client_id is None or not lock_client(db, client_id):
+                return issue(db, None)
+            query = db.query(OAuthRefreshToken).filter(
+                OAuthRefreshToken.token_hash == hash_secret(token)
+            )
+            if _dialect(db) == "postgresql":
+                query = query.with_for_update()
+            row = query.populate_existing().first()
+            expires_at = _aware(row.expires_at) if row is not None else None
+            if (
+                row is None
+                or row.revoked_at is not None
+                or (expires_at is not None and expires_at <= _utcnow())
+            ):
+                result = issue(db, None)
+            else:
+                grant = GrantRecord(
+                    client_id=row.client_id,
+                    user_id=row.user_id,
+                    company_id=row.company_id,
+                    scopes=list(row.scopes or []),
+                    expires_at=expires_at,
+                    created_at=_aware(row.created_at),
+                )
+                db.delete(row)
+                db.flush()
+                result = issue(db, grant)
+        db.commit()
+        return result
     finally:
         db.close()
 

@@ -5,7 +5,7 @@ that date arithmetic fails quietly — a report for the wrong month looks exactl
 as plausible as one for the right month.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -166,12 +166,12 @@ class TestResolvePeriod:
 
 
 class TestReconciliationFloor:
-    def test_a_named_period_starts_no_earlier_than_the_reconciliation(self):
+    def test_a_named_history_period_preserves_its_days_across_reconciliation(self):
         service = FakeService(open_from=date.today())
 
         start, _, echo = resolve_period(service, "last_90_days")
 
-        assert echo["start_date"] == date.today().isoformat()
+        assert echo["start_date"] == (datetime.now(service.tz()).date() - timedelta(days=89)).isoformat()
         assert echo["reconciled_from"] == date.today().isoformat()
 
     def test_an_explicit_range_is_honoured_as_asked(self):

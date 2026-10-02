@@ -107,6 +107,7 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         lifespan=_make_lifespan(mcp_app),
     )
+    app.state.mcp_available = mcp_app is not None
 
     app.add_middleware(
         CORSMiddleware,
@@ -196,6 +197,7 @@ def health_check():
         "status": "healthy",
         "name": settings.PROJECT_NAME,
         "version": settings.VERSION,
+        "mcp": {"enabled": settings.MCP_ENABLED, "available": app.state.mcp_available},
     }
 
 

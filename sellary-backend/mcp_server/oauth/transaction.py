@@ -65,7 +65,9 @@ def authorize_url(
             "redirect_uri": str(params.redirect_uri),
             "redirect_uri_provided_explicitly": params.redirect_uri_provided_explicitly,
             "code_challenge": params.code_challenge,
-            "scopes": list(params.scopes or []),
+            "scopes": list(
+                params.scopes if params.scopes is not None else (client.scope or "").split()
+            ),
             "state": params.state,
             "resource": params.resource,
             "attempts": 0,

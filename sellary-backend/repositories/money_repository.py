@@ -83,7 +83,7 @@ class MoneyRepository:
             .first()
         )
 
-    def ensure_other_noncash(self, company_id: int) -> MoneyAccount:
+    def ensure_other_noncash(self, company_id: int, opening_at=None) -> MoneyAccount:
         """The catch-all account, created on first need.
 
         Non-cash money that carries no card type has to land somewhere or it
@@ -98,6 +98,7 @@ class MoneyRepository:
             is_till=False,
             is_other_noncash=True,
             sort_order=self.next_sort_order(company_id),
+            **({"opening_at": opening_at} if opening_at is not None else {}),
         )
         self.db.add(account)
         self.db.flush()

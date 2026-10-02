@@ -10,6 +10,7 @@ Business rules live here; the repository only reads. Three of them matter:
   change a single figure in the sales reports.
 """
 import uuid
+from datetime import timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -17,6 +18,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models.cash_shift import CashShift, CashShiftStatus
+from models.company import Company
 from models.customer_ledger_entry import CustomerLedgerEntry, CustomerLedgerEntryType
 from models.money_account import (
     IN_REASONS,
@@ -76,6 +78,24 @@ class MoneyService:
 
     # -------------------------------------------------------------- accounts
 
+    def _history_start(self):
+        """Automatic accounts represent existing money, including late syncs.
+
+        Their opening is a historical anchor, not the time somebody first
+        opened Finance. Explicitly created/count-corrected accounts keep their
+        own anchor; this is only used when a system account is first created.
+        """
+        moments = [
+            self.db.query(Company.created_at).filter(Company.id == self.company_id).scalar(),
+            self.db.query(func.min(Sale.created_at)).filter(Sale.company_id == self.company_id).scalar(),
+            self.db.query(func.min(SaleReturn.created_at)).filter(SaleReturn.company_id == self.company_id).scalar(),
+            self.db.query(func.min(CustomerLedgerEntry.created_at)).filter(CustomerLedgerEntry.company_id == self.company_id).scalar(),
+        ]
+        return min(
+            (moment.astimezone(timezone.utc).replace(tzinfo=None) if moment.tzinfo else moment)
+            for moment in moments if moment is not None
+        ) if any(moment is not None for moment in moments) else utc_now()
+
     def ensure_accounts(self) -> None:
         """Create the accounts the company's own data implies.
 
@@ -85,13 +105,22 @@ class MoneyService:
         land on «Банк (прочее)» and the owner would see a lump they cannot
         explain.
         """
+        history_start = self._history_start()
         till = self.repo.till(self.company_id)
         if till is None:
+            first_shift = (
+                self.db.query(CashShift)
+                .filter(CashShift.company_id == self.company_id)
+                .order_by(CashShift.opened_at, CashShift.id)
+                .first()
+            )
             till = MoneyAccount(
                 company_id=self.company_id,
                 name="Касса",
                 is_till=True,
                 sort_order=0,
+                opening_balance=Decimal(first_shift.opening_cash) if first_shift else ZERO,
+                opening_at=first_shift.opened_at if first_shift else history_start,
             )
             self.db.add(till)
             self.db.flush()
@@ -124,6 +153,7 @@ class MoneyService:
                     is_till=False,
                     card_type=value,
                     sort_order=self.repo.next_sort_order(self.company_id),
+                    opening_at=history_start,
                 )
             )
             self.db.flush()
@@ -131,7 +161,7 @@ class MoneyService:
         # The catch-all is created only when something would otherwise fall
         # through it: a mobile payment, a card refund, a debt repaid by card.
         if self.repo.other_noncash(self.company_id) is None and self._has_unattributable_noncash():
-            self.repo.ensure_other_noncash(self.company_id)
+            self.repo.ensure_other_noncash(self.company_id, opening_at=history_start)
 
     def _has_unattributable_noncash(self) -> bool:
         mobile = (

@@ -53,6 +53,7 @@ class TopProductReport(BaseModel):
     period_start: str
     period_end: str
     top_products: List[TopProductItem]
+    product_count: int = 0
 
 
 class InventoryValuationItem(BaseModel):
@@ -74,7 +75,7 @@ class InventoryValuationReport(BaseModel):
 class LowStockItem(BaseModel):
     product_id: int
     product_name: str
-    barcode: str
+    barcode: Optional[str] = None
     current_stock: Decimal
     min_stock_level: Decimal
 

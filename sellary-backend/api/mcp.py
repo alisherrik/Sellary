@@ -1,6 +1,6 @@
 """Settings screen for the AI connector: the URL, who is connected, cutting one off."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from api.dependencies import AuthContext, require_module
@@ -13,11 +13,14 @@ router = APIRouter(prefix="/mcp-connector", tags=["mcp-connector"])
 
 @router.get("/connection", response_model=McpConnection)
 def get_connection(
+    request: Request,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_module("ai")),
 ):
     """The URL to paste into Claude, and whether the connector is switched on."""
-    return McpAdminService(db, auth.company_id).connection()
+    return McpAdminService(
+        db, auth.company_id, connector_available=request.app.state.mcp_available
+    ).connection()
 
 
 @router.get("/agents", response_model=McpAgentList)

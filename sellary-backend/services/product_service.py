@@ -28,11 +28,17 @@ class ProductService:
         self.ledger = InventoryLedgerService(db, self.company_id)
         self.calc = CalculationService
 
-    def get_by_id(self, product_id: int) -> Optional[ProductResponse]:
+    def get_by_id(self, product_id: int, with_totals: bool = False) -> Optional[ProductResponse]:
         product = self.product_repo.get_by_id(self.company_id, product_id)
         if not product:
             return None
-        return self._to_response(product)
+        response = self._to_response(product)
+        if with_totals:
+            totals = self.product_repo.get_movement_totals(self.company_id, [product.id])[product.id]
+            response.purchased_quantity = totals["purchased"]
+            response.sold_quantity = totals["sold"]
+            response.ledger_stock_quantity = totals["ledger_stock"]
+        return response
 
     def get_by_barcode(self, barcode: str) -> Optional[ProductResponse]:
         product = self.product_repo.get_by_barcode(self.company_id, barcode)
@@ -47,6 +53,7 @@ class ProductService:
         search: Optional[str] = None,
         category_id: Optional[int] = None,
         with_totals: bool = False,
+        low_stock_only: bool = False,
     ) -> Tuple[List[ProductResponse], int]:
         products, total = self.product_repo.get_all(
             self.company_id,
@@ -54,6 +61,7 @@ class ProductService:
             limit=limit,
             search=search,
             category_id=category_id,
+            low_stock_only=low_stock_only,
         )
         responses = [self._to_response(product) for product in products]
         if with_totals:
@@ -68,7 +76,13 @@ class ProductService:
                 response.ledger_stock_quantity = movement["ledger_stock"]
         return responses, total
 
-    def create(self, product_create: ProductCreate, user_id: int | None = None) -> ProductResponse:
+    def create(
+        self,
+        product_create: ProductCreate,
+        user_id: int | None = None,
+        *,
+        allow_reactivation: bool = True,
+    ) -> ProductResponse:
         existing = None
         if product_create.barcode:
             existing = self.product_repo.get_by_barcode(
@@ -77,6 +91,11 @@ class ProductService:
             )
             if existing and existing.is_active:
                 raise ValueError(f"Product with barcode '{product_create.barcode}' already exists")
+            if existing and not allow_reactivation:
+                raise ValueError(
+                    f"Product with barcode '{product_create.barcode}' is archived; "
+                    "restore it in the catalog and create a new preview"
+                )
 
         if product_create.category_id and not self.category_repo.get_by_id(
             self.company_id,

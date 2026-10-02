@@ -242,7 +242,7 @@ class SaleRepository:
             sale_id=sale_id,
         )
 
-        query = query.order_by(Sale.created_at.desc())
+        query = query.order_by(Sale.created_at.desc(), Sale.id.desc())
 
         total = query.count()
         sales = query.offset(skip).limit(limit).all()

@@ -193,9 +193,14 @@ class TestModuleEnforcement:
         assert "нет доступа" in str(exc.value)
 
     def test_a_cashier_may_still_see_the_till(
-        self, as_user, cashier_user, default_company
+        self, as_user, db_session, cashier_user, default_company
     ):
         """`register` is what a cashier has, and the shift is a register thing."""
+        db_session.add(MembershipModuleAccess(
+            membership_id=_membership(cashier_user, default_company).id,
+            module="ai", level="user",
+        ))
+        db_session.flush()
         as_user(cashier_user, default_company)
         result = _call(tools_reports.get_current_shift)
         # The integration suite keeps a shift open so sales can be rung.

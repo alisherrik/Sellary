@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from core.config import settings
+from mcp_server.oauth import store
 from models.company import Company
 from models.oauth import OAuthClient, OAuthRefreshToken
 from models.user import User
@@ -26,15 +27,21 @@ CONNECTOR_MODULE = "ai"
 
 
 class McpAdminService:
-    def __init__(self, db: Session, company_id: int | None = None):
+    def __init__(
+        self, db: Session, company_id: int | None = None, *,
+        connector_available: bool | None = None,
+    ):
         self.db = db
         self.company_id = resolve_company_id(db, company_id)
+        self.connector_available = connector_available
 
     def connection(self) -> McpConnection:
         company = self.db.get(Company, self.company_id)
+        available = settings.MCP_ENABLED and self.connector_available is not False
         return McpConnection(
             url=f"{settings.MCP_PUBLIC_BASE_URL.rstrip('/')}/mcp",
-            enabled=CompanyModuleRepository(self.db).has_module(
+            available=available,
+            enabled=available and CompanyModuleRepository(self.db).has_module(
                 self.company_id, CONNECTOR_MODULE
             ),
             company_name=company.name if company else "",
@@ -57,18 +64,25 @@ class McpAdminService:
             .filter(
                 OAuthRefreshToken.company_id == self.company_id,
                 OAuthRefreshToken.revoked_at.is_(None),
+                OAuthRefreshToken.expires_at > now,
             )
             .order_by(OAuthRefreshToken.created_at.desc())
             .all()
         )
 
-        agents: list[McpAgent] = []
+        grouped: dict[tuple[str, int], McpAgent] = {}
         for token, client, user in rows:
             expires_at = _aware(token.expires_at)
             if expires_at is not None and expires_at <= now:
                 continue
-            agents.append(
-                McpAgent(
+            key = (token.client_id, token.user_id)
+            if key in grouped:
+                agent = grouped[key]
+                agent.connected_at = min(agent.connected_at, _aware(token.created_at) or now)
+                agent.expires_at = max(agent.expires_at, expires_at or now)
+                agent.scopes = list(dict.fromkeys([*agent.scopes, *(token.scopes or [])]))
+            else:
+                grouped[key] = McpAgent(
                     client_id=token.client_id,
                     client_name=client.client_name if client else None,
                     user_id=token.user_id,
@@ -77,8 +91,9 @@ class McpAdminService:
                     expires_at=expires_at or now,
                     scopes=list(token.scopes or []),
                 )
-            )
-        return McpAgentList(agents=agents)
+        return McpAgentList(agents=sorted(
+            grouped.values(), key=lambda agent: agent.connected_at, reverse=True
+        ))
 
     def revoke(self, client_id: str, user_id: int) -> int:
         """Cut one agent off for one user. Returns how many grants were struck.
@@ -86,6 +101,9 @@ class McpAdminService:
         Scoped to this company: the same client id is shared by every tenant
         that connected the same product, and revoking must not reach across.
         """
+        # A token row disappears during refresh; the persistent client row
+        # serializes this query with rotation so replacement grants are struck.
+        store.lock_client(self.db, client_id)
         rows = (
             self.db.query(OAuthRefreshToken)
             .filter(

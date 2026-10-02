@@ -67,7 +67,7 @@ class PurchaseOrderService:
         )
         return [self._to_response(purchase_order) for purchase_order in purchase_orders], total
 
-    def create(self, po_create: PurchaseOrderCreate) -> PurchaseOrderResponse:
+    def create(self, po_create: PurchaseOrderCreate, *, commit: bool = True) -> PurchaseOrderResponse:
         supplier = self.supplier_repo.get_by_id(self.company_id, po_create.supplier_id)
         if not supplier:
             raise ValueError(f"Supplier with id {po_create.supplier_id} not found")
@@ -103,7 +103,9 @@ class PurchaseOrderService:
             total_amount=total_amount,
         )
 
-        purchase_order = self.po_repo.create_with_items(purchase_order, po_items)
+        # Composite callers own the transaction; existing REST callers retain
+        # their standalone create behavior.
+        purchase_order = self.po_repo.create_with_items(purchase_order, po_items, commit=commit)
         return self._to_response(purchase_order)
 
     def update(self, po_id: int, po_update: PurchaseOrderUpdate) -> PurchaseOrderResponse:

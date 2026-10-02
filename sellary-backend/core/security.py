@@ -5,6 +5,7 @@ import bcrypt
 from .config import settings
 
 ACCESS_TOKEN_TYPE = "access"
+MCP_ACCESS_TOKEN_TYPE = "mcp_access"
 LOGIN_TOKEN_TYPE = "login"
 OWNER_ACCESS_TOKEN_TYPE = "owner_access"
 
@@ -51,9 +52,22 @@ def create_owner_access_token(data: dict, expires_delta: Optional[timedelta] = N
     )
 
 
-def decode_access_token(token: str) -> Optional[dict]:
+def decode_access_token(
+    token: str, *, audience: str | None = None, allow_missing_audience: bool = False
+) -> Optional[dict]:
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM], audience=audience
+        )
         return payload
+    except jwt.MissingRequiredClaimError as exc:
+        # Existing MCP grants predate resource audiences. Only their verifier
+        # opts into compatibility; a present but wrong audience never falls back.
+        if not allow_missing_audience or exc.claim != "aud":
+            return None
+        try:
+            return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        except jwt.PyJWTError:
+            return None
     except jwt.PyJWTError:
         return None

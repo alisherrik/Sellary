@@ -11,14 +11,17 @@ are approving.
 
 import logging
 from dataclasses import dataclass, field
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Any, Literal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from typing import Annotated, Any, Literal
 
 from rapidfuzz import fuzz, process, utils as fuzz_utils
+from pydantic import AliasChoices, BaseModel, Field, ValidationError, field_validator, model_validator
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models.product import Product
 from models.supplier import Supplier
+from schemas.product import ProductCreate
 
 logger = logging.getLogger(__name__)
 
@@ -83,9 +86,74 @@ class LineError(ValueError):
     """The line cannot be read at all — a missing quantity, an unusable price."""
 
 
+class PurchaseItem(BaseModel):
+    """The wire contract; plain dict callers are validated through the same model."""
+
+    query: str | None = Field(default=None, max_length=200, validation_alias=AliasChoices("query", "name"))
+    quantity: Decimal = Field(..., gt=0, allow_inf_nan=False)
+    unit_cost: Decimal = Field(..., ge=0, allow_inf_nan=False)
+    sell_price: Decimal | None = Field(default=None, ge=0, allow_inf_nan=False)
+    barcode: str | None = Field(default=None, max_length=50)
+    uom: str | None = Field(default="dona", max_length=20)
+    product_id: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def keep_name_fallback(cls, value):
+        if isinstance(value, dict) and not value.get("query") and value.get("name"):
+            return {**value, "query": value["name"]}
+        return value
+
+    @field_validator("quantity", "unit_cost", "sell_price", mode="before")
+    @classmethod
+    def parse_decimal(cls, value):
+        if isinstance(value, str):
+            return value.replace(",", ".").strip() or None
+        return value
+
+    @field_validator("barcode", mode="before")
+    @classmethod
+    def clean_barcode(cls, value):
+        return str(value).strip() or None if value is not None else None
+
+
+PurchaseItems = Annotated[list[PurchaseItem], Field(min_length=1, max_length=200)]
+
+
+def validate_items_count(items: list) -> None:
+    if not items:
+        raise LineError("Список товаров пуст.")
+    if len(items) > 200:
+        raise LineError("В одной закупке может быть не больше 200 строк.")
+
+
+class SupplierAmbiguity(LineError):
+    def __init__(self, suppliers: list[Supplier]):
+        super().__init__("Несколько подходящих поставщиков — укажите supplier_id.")
+        self.candidates = [
+            {"supplier_id": supplier.id, "name": supplier.name, "phone": supplier.phone}
+            for supplier in suppliers
+        ]
+
+
+def _read_item(raw: PurchaseItem | dict[str, Any], line_no: int) -> dict[str, Any]:
+    if not isinstance(raw, (dict, PurchaseItem)):
+        raise LineError(f"Строка {line_no}: ожидается объект с полями товара.")
+    try:
+        item = raw if isinstance(raw, PurchaseItem) else PurchaseItem.model_validate(raw)
+    except ValidationError as exc:
+        field = exc.errors()[0]["loc"][0]
+        label = {"quantity": "количество", "unit_cost": "закупочная цена", "sell_price": "цена продажи"}.get(field, field)
+        raise LineError(f"Строка {line_no}: неверное значение «{label}».") from exc
+    return item.model_dump()
+
+
 def _decimal(value: Any, field_name: str, line_no: int) -> Decimal:
     try:
-        return Decimal(str(value).replace(",", ".").strip())
+        result = Decimal(str(value).replace(",", ".").strip())
+        if not result.is_finite():
+            raise ValueError("Nonfinite number")
+        return result
     except Exception:
         raise LineError(
             f"Строка {line_no}: не удалось прочитать «{field_name}» = «{value}»."
@@ -93,17 +161,25 @@ def _decimal(value: Any, field_name: str, line_no: int) -> Decimal:
 
 
 def _quantize_price(value: Decimal) -> Decimal:
-    return value.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+    try:
+        return value.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+    except InvalidOperation as exc:
+        raise LineError("Цена должна быть конечным числом допустимого размера.") from exc
 
 
 def _quantize_qty(value: Decimal) -> Decimal:
-    return value.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+    try:
+        return value.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+    except InvalidOperation as exc:
+        raise LineError("Количество должно быть конечным числом допустимого размера.") from exc
 
 
 # ------------------------------------------------------------------ supplier
 
 
-def resolve_supplier(db: Session, company_id: int, query: str) -> Supplier | None:
+def resolve_supplier(
+    db: Session, company_id: int, query: str, *, supplier_id: int | None = None
+) -> Supplier | None:
     """Exact name, then case-insensitive, then fuzzy. Never creates.
 
     A supplier is a relationship with payment terms and a history, not a label
@@ -113,29 +189,39 @@ def resolve_supplier(db: Session, company_id: int, query: str) -> Supplier | Non
     suppliers = (
         db.query(Supplier)
         .filter(Supplier.company_id == company_id, Supplier.is_active == True)  # noqa: E712
+        .order_by(Supplier.id)
         .all()
     )
+    if supplier_id is not None:
+        try:
+            selected_id = int(supplier_id)
+        except (TypeError, ValueError) as exc:
+            raise LineError("Неверный supplier_id.") from exc
+        return next((s for s in suppliers if s.id == selected_id), None)
     if not suppliers:
         return None
 
     needle = (query or "").strip()
-    for supplier in suppliers:
-        if supplier.name == needle:
-            return supplier
-    for supplier in suppliers:
-        if supplier.name.lower() == needle.lower():
-            return supplier
+    exact = [s for s in suppliers if s.name.strip().lower() == needle.lower()]
+    if len(exact) > 1:
+        raise SupplierAmbiguity(exact)
+    if exact:
+        return exact[0]
 
-    match = process.extractOne(
+    matches = process.extract(
         needle,
         {supplier.id: supplier.name for supplier in suppliers},
         scorer=fuzz.token_set_ratio,
         processor=_PREPROCESS,
         score_cutoff=FUZZY_THRESHOLD,
+        limit=5,
     )
-    if match is None:
+    if not matches:
         return None
-    return next(s for s in suppliers if s.id == match[2])
+    by_id = {s.id: s for s in suppliers}
+    if len(matches) > 1 and matches[0][1] - matches[1][1] < 8:
+        raise SupplierAmbiguity([by_id[match[2]] for match in matches])
+    return by_id[matches[0][2]]
 
 
 # ------------------------------------------------------------------ products
@@ -157,10 +243,20 @@ def _candidates(products: list[Product], query: str) -> list[tuple[Product, floa
     return [(by_id[product_id], score) for _, score, product_id in scored]
 
 
+def _mark_ambiguous(line: ResolvedLine, matches: list[tuple[Product, float]]) -> None:
+    line.status = "ambiguous"
+    line.candidates = [
+        {"product_id": candidate.id, "name": candidate.name, "barcode": candidate.barcode,
+         "stock": str(candidate.stock_quantity), "score": round(score)}
+        for candidate, score in matches
+    ]
+    line.warnings.append("Несколько подходящих товаров — укажите product_id.")
+
+
 def resolve_lines(
     db: Session,
     company_id: int,
-    items: list[dict[str, Any]],
+    items: list[PurchaseItem] | list[dict[str, Any]],
     *,
     markup: Decimal = DEFAULT_MARKUP,
 ) -> tuple[list[ResolvedLine], list[str]]:
@@ -169,23 +265,24 @@ def resolve_lines(
     Returns the lines and a list of delivery-level notes. Nothing is silently
     corrected: if two lines were merged or a price was guessed, it is said.
     """
-    if not items:
-        raise LineError("Список товаров пуст.")
+    validate_items_count(items)
 
     products = (
         db.query(Product)
         .filter(Product.company_id == company_id, Product.is_active == True)  # noqa: E712
         .all()
     )
-    by_barcode = {p.barcode: p for p in products if p.barcode}
-    by_name = {p.name.strip().lower(): p for p in products}
+    by_barcode = {p.barcode.strip(): p for p in products if p.barcode}
+    by_name: dict[str, list[Product]] = {}
+    for product in products:
+        by_name.setdefault(product.name.strip().lower(), []).append(product)
 
     notes: list[str] = []
     resolved: list[ResolvedLine] = []
+    new_barcodes: set[str] = set()
 
     for index, raw in enumerate(items, start=1):
-        if not isinstance(raw, dict):
-            raise LineError(f"Строка {index}: ожидается объект с полями товара.")
+        raw = _read_item(raw, index)
 
         query = str(raw.get("query") or raw.get("name") or "").strip()
         barcode = (str(raw.get("barcode")).strip() or None) if raw.get("barcode") else None
@@ -227,8 +324,30 @@ def resolve_lines(
         if product is None and barcode and barcode in by_barcode:
             product = by_barcode[barcode]
 
+        if product is None and barcode:
+            archived = (
+                db.query(Product.id)
+                .filter(
+                    Product.company_id == company_id,
+                    func.trim(Product.barcode) == barcode,
+                    Product.is_active.is_(False),
+                )
+                .first()
+            )
+            if archived is not None:
+                raise LineError(
+                    f"Строка {index}: товар со штрихкодом «{barcode}» архивирован. "
+                    "Восстановите его в каталоге и повторите purchase_preview."
+                )
+
         if product is None and query:
-            product = by_name.get(query.lower())
+            exact = by_name.get(query.lower(), [])
+            if len(exact) > 1:
+                _mark_ambiguous(line, [(candidate, 100) for candidate in exact])
+                resolved.append(line)
+                continue
+            if exact:
+                product = exact[0]
 
         if product is None and query:
             matches = _candidates(products, query)
@@ -240,20 +359,7 @@ def resolve_lines(
                 if best[1] - second[1] >= 8:
                     product = best[0]
                 else:
-                    line.status = "ambiguous"
-                    line.candidates = [
-                        {
-                            "product_id": candidate.id,
-                            "name": candidate.name,
-                            "barcode": candidate.barcode,
-                            "stock": str(candidate.stock_quantity),
-                            "score": round(score),
-                        }
-                        for candidate, score in matches
-                    ]
-                    line.warnings.append(
-                        "Несколько подходящих товаров — укажите product_id."
-                    )
+                    _mark_ambiguous(line, matches)
                     resolved.append(line)
                     continue
 
@@ -276,6 +382,13 @@ def resolve_lines(
         else:
             line.status = "new"
             line.product_name = query
+            if barcode:
+                if barcode in new_barcodes:
+                    raise LineError(
+                        f"Строка {index}: штрихкод «{barcode}» повторяется у нового товара. "
+                        "Укажите его одной строкой и повторите purchase_preview."
+                    )
+                new_barcodes.add(barcode)
             sell_price_raw = raw.get("sell_price")
             if sell_price_raw not in (None, ""):
                 line.sell_price = _quantize_price(
@@ -288,6 +401,15 @@ def resolve_lines(
                     f"Цена продажи рассчитана как закупка +{round(markup * 100)}%. "
                     "Проверьте её."
                 )
+
+            # Validate the actual creation schema now, before the owner is
+            # shown a plan that cannot be executed.
+            try:
+                ProductCreate(name=line.product_name, barcode=line.barcode, uom=line.uom,
+                              cost_price=line.unit_cost, sell_price=line.sell_price,
+                              stock_quantity=Decimal("0"))
+            except ValidationError as exc:
+                raise LineError(f"Строка {index}: неверные данные нового товара.") from exc
 
         resolved.append(line)
 

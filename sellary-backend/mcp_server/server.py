@@ -27,8 +27,10 @@ Sellary — система учёта магазина: продажи, скла
 показано. Всегда покажите результат preview владельцу и дождитесь его
 подтверждения, прежде чем вызывать commit.
 
-Продажи, возвраты и отмены через этот интерфейс недоступны — они делаются
-на кассе.
+Каталог, чеки, история товара, сверки, долги, закупки и списания доступны
+для чтения. Списки продолжаются через next_offset, пока has_more=true.
+Явные даты читают и закрытую историю; сверка запрещает её редактирование.
+Продажи, возвраты и отмены создаются на кассе.
 """
 
 auth_provider = build_provider()
@@ -82,7 +84,7 @@ def build_mcp_app():
     `mcp_server.server` alone — as the OAuth layer does — cannot pull the whole
     service layer in behind it.
     """
-    from mcp_server import tools_catalog, tools_purchase, tools_reports  # noqa: F401
+    from mcp_server import tools_catalog, tools_history, tools_purchase, tools_reports  # noqa: F401
 
     _register_oauth_pages()
     return mcp.http_app(path="/")

@@ -64,7 +64,7 @@ def get_token_payload(
 
 
 def get_access_token_payload(payload: dict = Depends(get_token_payload)) -> dict:
-    if payload.get("token_type") != ACCESS_TOKEN_TYPE:
+    if payload.get("token_type") != ACCESS_TOKEN_TYPE or payload.get("mcp") is True:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",

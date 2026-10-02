@@ -20,6 +20,9 @@ class InventoryRepository:
         limit: int = 50,
         product_id: Optional[int] = None,
         sale_id: Optional[int] = None,
+        start_date=None,
+        end_date=None,
+        reference_type: Optional[str] = None,
     ) -> tuple[List[InventoryLog], int]:
         query = self.db.query(InventoryLog).options(
             joinedload(InventoryLog.product), joinedload(InventoryLog.user)
@@ -27,6 +30,13 @@ class InventoryRepository:
 
         if product_id:
             query = query.filter(InventoryLog.product_id == product_id)
+
+        if start_date is not None:
+            query = query.filter(InventoryLog.created_at >= start_date)
+        if end_date is not None:
+            query = query.filter(InventoryLog.created_at <= end_date)
+        if reference_type:
+            query = query.filter(InventoryLog.reference_type == reference_type)
 
         if sale_id:
             # reference_id alone is ambiguous — a purchase receive stores the
@@ -37,7 +47,7 @@ class InventoryRepository:
                 InventoryLog.reference_id == sale_id,
             )
 
-        query = query.order_by(InventoryLog.created_at.desc())
+        query = query.order_by(InventoryLog.created_at.desc(), InventoryLog.id.desc())
 
         total = query.count()
         logs = query.offset(skip).limit(limit).all()

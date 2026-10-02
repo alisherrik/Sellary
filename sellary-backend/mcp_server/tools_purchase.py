@@ -11,7 +11,9 @@ token, the plan that was shown and the plan that is written are the same object.
 
 import hashlib
 import logging
-from decimal import Decimal
+from copy import deepcopy
+from decimal import Decimal, InvalidOperation
+from typing import Literal
 
 from fastmcp.exceptions import ToolError
 
@@ -21,14 +23,18 @@ from mcp_server import SCOPE_PURCHASING
 from mcp_server.context import mcp_session, require_module, require_scope
 from mcp_server.drafts import issue_draft, read_draft
 from mcp_server.purchase_resolve import (
-    DEFAULT_MARKUP,
     LineError,
+    PurchaseItems,
+    SupplierAmbiguity,
     resolve_lines,
     resolve_supplier,
+    validate_items_count,
 )
+from mcp_server.read_support import READ_ONLY
 from mcp_server.serialization import money
 from mcp_server.server import mcp
 from models.supplier import Supplier
+from schemas.mcp_purchase import PurchaseCommitResult, PurchasePreviewResult
 from schemas.product import ProductCreate
 from schemas.purchase_order import (
     PurchaseOrderCreate,
@@ -41,13 +47,14 @@ from services.purchase_order_service import PurchaseOrderService
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 def purchase_preview(
     supplier: str,
-    items: list[dict],
+    items: PurchaseItems,
     markup_percent: float = 30.0,
     notes: str | None = None,
-) -> dict:
+    supplier_id: int | None = None,
+) -> PurchasePreviewResult:
     """Разобрать поступление товара и показать, что будет сделано. Ничего не
     записывает.
 
@@ -60,6 +67,9 @@ def purchase_preview(
       uom         — единица измерения для нового товара (по умолчанию dona)
       product_id  — если предыдущий preview сообщил о неоднозначности
 
+    Если название поставщика неоднозначно, повторите preview с supplier_id
+    из supplier_candidates.
+
     Ответ показывает по каждой строке: найден товар, несколько подходящих
     вариантов, или товар будет создан. Обязательно покажите этот разбор
     владельцу и дождитесь подтверждения — только потом вызывайте
@@ -69,7 +79,20 @@ def purchase_preview(
         require_scope(auth, SCOPE_PURCHASING)
         require_module(auth, db, "purchasing")
 
-        supplier_row = resolve_supplier(db, auth.company_id, supplier)
+        try:
+            validate_items_count(items)
+            supplier_row = resolve_supplier(db, auth.company_id, supplier, supplier_id=supplier_id)
+        except SupplierAmbiguity as exc:
+            return {
+                "supplier": supplier,
+                "supplier_candidates": exc.candidates,
+                "lines": [],
+                "can_commit": False,
+                "draft_token": None,
+                "next_step": "Уточните поставщика: повторите purchase_preview с supplier_id.",
+            }
+        except LineError as exc:
+            raise ToolError(str(exc)) from exc
         if supplier_row is None:
             known = [
                 name
@@ -88,7 +111,12 @@ def purchase_preview(
                 "Поставщика нужно завести в системе — я не создаю его сам."
             )
 
-        markup = Decimal(str(markup_percent)) / Decimal("100")
+        try:
+            markup = Decimal(str(markup_percent)) / Decimal("100")
+        except InvalidOperation as exc:
+            raise ToolError("Не удалось прочитать наценку.") from exc
+        if not markup.is_finite():
+            raise ToolError("Наценка должна быть конечным числом.")
         if markup < 0:
             raise ToolError("Наценка не может быть отрицательной.")
 
@@ -146,8 +174,13 @@ def purchase_preview(
         return result
 
 
-@mcp.tool
-def purchase_commit(draft_token: str, mode: str = "receive") -> dict:
+@mcp.tool(annotations={
+    "readOnlyHint": False, "destructiveHint": False,
+    "idempotentHint": True, "openWorldHint": False,
+})
+def purchase_commit(
+    draft_token: str, mode: Literal["receive", "draft"] = "receive"
+) -> PurchaseCommitResult:
     """Записать закупку, подтверждённую владельцем. Выполняет ровно то, что
     показал purchase_preview.
 
@@ -169,7 +202,8 @@ def purchase_commit(draft_token: str, mode: str = "receive") -> dict:
         require_module(auth, db, "purchasing", "manager" if mode == "receive" else "user")
 
         plan = read_draft(draft_token, auth.company_id, auth.user.id)
-        lines = plan["lines"]
+        # Resolution IDs are execution state, never part of the signed request.
+        lines = deepcopy(plan["lines"])
 
         if any(line["status"] == "ambiguous" for line in lines):
             raise ToolError(
@@ -179,7 +213,7 @@ def purchase_commit(draft_token: str, mode: str = "receive") -> dict:
 
         endpoint = "mcp:purchase_commit"
         key = "mcp-po-" + hashlib.sha256(draft_token.encode()).hexdigest()[:32]
-        request_body = {"mode": mode, "lines": lines}
+        request_body = {"mode": mode, "lines": plan["lines"]}
 
         idempotency = IdempotencyService(db)
         try:
@@ -221,6 +255,9 @@ def purchase_commit(draft_token: str, mode: str = "receive") -> dict:
                         stock_quantity=Decimal("0.000"),
                     ),
                     user_id=auth.user.id,
+                    # A signed new-product plan never authorizes reactivation,
+                    # which also drains the archived card's residual stock.
+                    allow_reactivation=False,
                 )
                 line["product_id"] = created.id
                 created_products.append({"id": created.id, "name": created.name})
@@ -237,7 +274,8 @@ def purchase_commit(draft_token: str, mode: str = "receive") -> dict:
                         )
                         for line in lines
                     ],
-                )
+                ),
+                commit=False,
             )
 
             received = False

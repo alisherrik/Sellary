@@ -9,29 +9,37 @@ That is why `authorize()` does not answer directly. It parks the request under
 a signed transaction and sends the browser to our own three-step flow
 (login -> company -> consent), which finally mints the code.
 
-The access token handed out is the ordinary Sellary company-scoped JWT with an
-`mcp` claim added. One auth model, not two: a tool resolves its caller with the
-same membership lookup the REST dependencies perform, and an MCP token carries
-exactly the authority its owner would have logging into the web app.
+MCP access tokens have their own type and resource audience. Live membership
+and module grants still decide access, but the delegated token cannot enter
+the ordinary REST API or exchange itself for a web session.
 """
 
 import logging
-import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from mcp.server.auth.provider import (
     AccessToken,
     AuthorizationCode,
     AuthorizationParams,
     RefreshToken,
+    AuthorizeError,
+    TokenError,
 )
 from mcp.server.auth.settings import ClientRegistrationOptions, RevocationOptions
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 from pydantic import AnyUrl
 
 from core.config import settings
-from core.security import ACCESS_TOKEN_TYPE, create_access_token, decode_access_token
+from core.security import (
+    ACCESS_TOKEN_TYPE,
+    MCP_ACCESS_TOKEN_TYPE,
+    create_access_token,
+    decode_access_token,
+)
+from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import OAuthProvider
+from starlette.concurrency import run_in_threadpool
+from sqlalchemy.orm import Session
 from mcp_server import SCOPES
 from mcp_server.oauth import store
 from mcp_server.oauth.transaction import authorize_url
@@ -78,7 +86,7 @@ class SellaryOAuthProvider(OAuthProvider):
     # ------------------------------------------------------------- clients
 
     async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
-        record = store.get_client(client_id)
+        record = await run_in_threadpool(store.get_client, client_id)
         if record is None:
             return None
         return OAuthClientInformationFull(
@@ -93,7 +101,8 @@ class SellaryOAuthProvider(OAuthProvider):
         )
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
-        store.save_client(
+        await run_in_threadpool(
+            store.save_client,
             client_id=client_info.client_id,
             client_secret=client_info.client_secret,
             client_name=client_info.client_name,
@@ -119,6 +128,8 @@ class SellaryOAuthProvider(OAuthProvider):
         Nothing is decided here. The code is only minted at the end of
         login -> company -> consent, by `mcp_server.oauth.routes`.
         """
+        if params.resource and params.resource != self._resource_identifier:
+            raise AuthorizeError("invalid_request", "Unsupported resource")
         return authorize_url(client, params)
 
     # -------------------------------------------------- authorization codes
@@ -126,7 +137,7 @@ class SellaryOAuthProvider(OAuthProvider):
     async def load_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: str
     ) -> AuthorizationCode | None:
-        grant = store.peek_auth_code(authorization_code)
+        grant = await run_in_threadpool(store.peek_auth_code, authorization_code)
         if grant is None or grant.client_id != client.client_id:
             return None
         return AuthorizationCode(
@@ -144,11 +155,20 @@ class SellaryOAuthProvider(OAuthProvider):
     async def exchange_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: AuthorizationCode
     ) -> OAuthToken:
+        return await run_in_threadpool(
+            self._exchange_authorization_code, client, authorization_code
+        )
+
+    def _exchange_authorization_code(
+        self, client: OAuthClientInformationFull, authorization_code: AuthorizationCode
+    ) -> OAuthToken:
         # `take_` rather than `peek_`: the code is destroyed in the same
         # transaction it is read in, so a replayed code finds nothing.
         grant = store.take_auth_code(authorization_code.code)
         if grant is None or grant.client_id != client.client_id:
-            raise ValueError("Authorization code is invalid or already used")
+            raise TokenError("invalid_grant", "Authorization code is invalid or already used")
+        if grant.resource and grant.resource != self._resource_identifier:
+            raise TokenError("invalid_grant", "Unsupported resource")
 
         return self._issue_tokens(
             client_id=client.client_id,
@@ -162,7 +182,7 @@ class SellaryOAuthProvider(OAuthProvider):
     async def load_refresh_token(
         self, client: OAuthClientInformationFull, refresh_token: str
     ) -> RefreshToken | None:
-        grant = store.peek_refresh_token(refresh_token)
+        grant = await run_in_threadpool(store.peek_refresh_token, refresh_token)
         if grant is None or grant.client_id != client.client_id:
             return None
         return RefreshToken(
@@ -179,26 +199,46 @@ class SellaryOAuthProvider(OAuthProvider):
         refresh_token: RefreshToken,
         scopes: list[str],
     ) -> OAuthToken:
-        grant = store.take_refresh_token(refresh_token.token)
-        if grant is None or grant.client_id != client.client_id:
-            raise ValueError("Refresh token is invalid or expired")
-
-        # Refresh may narrow the grant but never widen it.
-        granted = [scope for scope in (scopes or grant.scopes) if scope in grant.scopes]
-        return self._issue_tokens(
-            client_id=client.client_id,
-            user_id=grant.user_id,
-            company_id=grant.company_id,
-            scopes=granted or grant.scopes,
+        return await run_in_threadpool(
+            self._exchange_refresh_token, client, refresh_token, scopes
         )
+
+    def _exchange_refresh_token(
+        self,
+        client: OAuthClientInformationFull,
+        refresh_token: RefreshToken,
+        scopes: list[str],
+    ) -> OAuthToken:
+        def issue(db: Session, grant: store.GrantRecord | None) -> OAuthToken:
+            if grant is None or grant.client_id != client.client_id:
+                raise TokenError("invalid_grant", "Refresh token is invalid or expired")
+            granted = scopes if scopes else grant.scopes
+            if not set(granted).issubset(grant.scopes):
+                raise TokenError("invalid_scope", "Refresh scope exceeds the original grant")
+            return self._issue_tokens(
+                client_id=client.client_id,
+                user_id=grant.user_id,
+                company_id=grant.company_id,
+                scopes=granted,
+                db=db,
+                connected_at=grant.created_at,
+            )
+
+        return store.rotate_refresh_token(refresh_token.token, issue)
 
     # -------------------------------------------------------- access tokens
 
     async def load_access_token(self, token: str) -> AccessToken | None:
-        payload = decode_access_token(token)
+        payload = decode_access_token(
+            token, audience=self._resource_identifier, allow_missing_audience=True
+        )
         if payload is None:
             return None
-        if payload.get("token_type") != ACCESS_TOKEN_TYPE:
+        if payload.get("token_type") not in {ACCESS_TOKEN_TYPE, MCP_ACCESS_TOKEN_TYPE}:
+            return None
+        if payload.get("token_type") == MCP_ACCESS_TOKEN_TYPE and not payload.get("aud"):
+            return None
+        if payload.get("iss") is not None and payload["iss"] != str(self.issuer_url).rstrip("/"):
             return None
         # An ordinary web-session token must not open the MCP endpoint. Only a
         # token minted through this flow carries `mcp`.
@@ -221,67 +261,81 @@ class SellaryOAuthProvider(OAuthProvider):
         # Access tokens are stateless JWTs and expire on their own; only the
         # refresh token has a record to strike.
         if isinstance(token, RefreshToken):
-            store.revoke_refresh_token(token.token)
+            await run_in_threadpool(store.revoke_refresh_token, token.token)
 
     # -------------------------------------------------------------- helpers
 
+    @property
+    def _resource_identifier(self) -> str:
+        return str(self._resource_url or self.base_url).rstrip("/")
+
     def _issue_tokens(
-        self, *, client_id: str, user_id: int, company_id: int, scopes: list[str]
+        self,
+        *,
+        client_id: str,
+        user_id: int,
+        company_id: int,
+        scopes: list[str],
+        db: Session | None = None,
+        connected_at: datetime | None = None,
     ) -> OAuthToken:
         from services.auth_service import AuthService  # local: avoids import cycle
         from core.database import SessionLocal
+        from mcp_server.context import resolve_caller
 
-        db = SessionLocal()
+        owns_session = db is None
+        db = db if db is not None else SessionLocal()
         try:
-            session = AuthService(db).create_company_session(
-                _load_user(db, user_id), company_id
+            try:
+                auth = resolve_caller(db, user_id, company_id, scopes)
+                session = AuthService(db).create_company_session(auth.user, company_id)
+            except (ToolError, ValueError) as exc:
+                raise TokenError("invalid_grant", str(exc)) from exc
+
+            base_claims = decode_access_token(session.access_token) or {}
+            claims = {
+                key: value
+                for key, value in base_claims.items()
+                if key not in {"exp", "token_type"}
+            }
+            claims.update({
+                "mcp": True,
+                "scopes": scopes,
+                "mcp_client_id": client_id,
+                "aud": self._resource_identifier,
+                "iss": str(self.issuer_url).rstrip("/"),
+            })
+
+            expires_in = settings.MCP_ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            access_token = create_access_token(
+                data=claims,
+                expires_delta=timedelta(seconds=expires_in),
+                token_type=MCP_ACCESS_TOKEN_TYPE,
+            )
+            refresh_token = store.new_token()
+            store.save_refresh_token(
+                refresh_token,
+                store.GrantRecord(
+                    client_id=client_id,
+                    user_id=user_id,
+                    company_id=company_id,
+                    scopes=scopes,
+                    created_at=connected_at,
+                ),
+                db=db,
+            )
+            if owns_session:
+                db.commit()
+            return OAuthToken(
+                access_token=access_token,
+                token_type="Bearer",
+                expires_in=expires_in,
+                scope=" ".join(scopes),
+                refresh_token=refresh_token,
             )
         finally:
-            db.close()
-
-        # `create_company_session` builds the canonical claim set; re-mint it
-        # with the MCP marker and the connector's shorter lifetime rather than
-        # hand-assembling claims that would drift from the web session's.
-        base_claims = decode_access_token(session.access_token) or {}
-        claims = {
-            key: value
-            for key, value in base_claims.items()
-            if key not in {"exp", "token_type"}
-        }
-        claims.update({"mcp": True, "scopes": scopes, "mcp_client_id": client_id})
-
-        expires_in = settings.MCP_ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        access_token = create_access_token(
-            data=claims, expires_delta=timedelta(seconds=expires_in)
-        )
-
-        refresh_token = store.new_token()
-        store.save_refresh_token(
-            refresh_token,
-            store.GrantRecord(
-                client_id=client_id,
-                user_id=user_id,
-                company_id=company_id,
-                scopes=scopes,
-            ),
-        )
-
-        return OAuthToken(
-            access_token=access_token,
-            token_type="Bearer",
-            expires_in=expires_in,
-            scope=" ".join(scopes),
-            refresh_token=refresh_token,
-        )
-
-
-def _load_user(db, user_id: int):
-    from repositories.user_repository import UserRepository
-
-    user = UserRepository(db).get_by_id(user_id)
-    if user is None or not user.is_active:
-        raise ValueError("User not found or disabled")
-    return user
+            if owns_session:
+                db.close()
 
 
 def build_provider() -> SellaryOAuthProvider:

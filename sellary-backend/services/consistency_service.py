@@ -26,12 +26,14 @@ from sqlalchemy.orm import Session
 from models.cash_shift import CashShift
 from models.customer_ledger_entry import CustomerLedgerEntry, CustomerLedgerEntryType
 from models.inventory_layer import InventoryLayer
+from models.inventory_log import InventoryLog
 from models.money_account import MoneyMovement
 from models.product import Product
 from models.sale import Sale
 from models.sale_payment import SalePayment
 from repositories.sale_repository import NON_CANCELLED_STATUSES
 from services.tenant import resolve_company_id
+from services.company_time import UTC, company_tz, to_local
 
 ZERO = Decimal("0.00")
 
@@ -83,10 +85,26 @@ def _stock_vs_layers(db: Session, company_id: int, since: Optional[datetime]) ->
 
     findings = []
     for row_company, product_id, name, balance, layer_sum, layer_count in db.execute(stmt):
-        # A sale that synced from an offline cashier is allowed to drive the
-        # balance below zero; the layers cannot follow it there. That is a
-        # recorded historical fact, not a drift to repair.
-        oversold = Decimal(balance) < 0 and not layer_count
+        # Depleted layers still exist. Only an independently recorded offline
+        # sale explaining the current negative balance makes this a known fact;
+        # a manually planted negative quantity must still be reported as drift.
+        oversold = False
+        if Decimal(balance) < 0 and Decimal(layer_sum) == 0:
+            latest_log = db.execute(
+                select(InventoryLog.new_quantity, InventoryLog.reference_type,
+                       Sale.client_sale_id, Sale.status)
+                .outerjoin(Sale, (Sale.id == InventoryLog.reference_id)
+                           & (Sale.company_id == company_id)
+                           & (InventoryLog.reference_type == "sale"))
+                .where(InventoryLog.company_id == company_id, InventoryLog.product_id == product_id)
+                .order_by(InventoryLog.id.desc())
+                .limit(1)
+            ).first()
+            oversold = bool(
+                latest_log and Decimal(latest_log.new_quantity) == Decimal(balance)
+                and latest_log.reference_type == "sale" and latest_log.client_sale_id
+                and latest_log.status in NON_CANCELLED_STATUSES
+            )
         findings.append(
             Finding(
                 check="stock_vs_layers",
@@ -343,7 +361,7 @@ def _late_arrivals_after_freeze(
             Sale.company_id == company_id,
             Sale.status.in_(NON_CANCELLED_STATUSES),
             Sale.client_sale_id.is_not(None),
-            Sale.created_at < floor.replace(tzinfo=None),
+            Sale.created_at < floor.astimezone(UTC).replace(tzinfo=None),
             arrived.c.arrived_at > declared_at,
         )
         .order_by(Sale.id)
@@ -354,7 +372,7 @@ def _late_arrivals_after_freeze(
             company_id=row_company,
             subject=f"продажа #{sale_id}",
             expected=f"после {floor:%d.%m.%Y}",
-            actual=f"{created_at:%d.%m.%Y}",
+            actual=f"{to_local(created_at, company_tz(db, company_id)):%d.%m.%Y}",
             bucket="known",
             note="офлайн-чек пришёл позже сверки",
         )

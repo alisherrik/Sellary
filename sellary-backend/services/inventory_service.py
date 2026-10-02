@@ -164,6 +164,9 @@ class InventoryService:
         limit: int = 50,
         product_id: int = None,
         sale_id: int = None,
+        start_date=None,
+        end_date=None,
+        reference_type: str = None,
     ) -> Tuple[List[InventoryLog], int]:
         logs, total = self.inventory_repo.get_logs(
             self.company_id,
@@ -171,6 +174,9 @@ class InventoryService:
             limit=limit,
             product_id=product_id,
             sale_id=sale_id,
+            start_date=start_date,
+            end_date=end_date,
+            reference_type=reference_type,
         )
         return [self._log_to_response(log) for log in logs], total
 

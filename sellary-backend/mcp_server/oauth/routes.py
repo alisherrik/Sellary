@@ -15,10 +15,15 @@ from urllib.parse import urlencode
 
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
+from starlette.concurrency import run_in_threadpool
+from sqlalchemy import and_, or_
 
 from core.database import SessionLocal
+from core.rate_limiter import login_rate_limiter
 from mcp_server.context import CONNECTOR_MODULE
 from mcp_server.oauth import store, templates
+from models.company_membership import CompanyMembership
+from models.membership_module_access import MembershipModuleAccess
 from repositories.company_module_repository import CompanyModuleRepository
 from mcp_server.oauth.transaction import (
     TransactionError,
@@ -43,11 +48,38 @@ def _companies_for(db, user_id: int) -> list[dict]:
     and the login page has no room to explain why.
     """
     repo = CompanyModuleRepository(db)
+    eligible = {
+        company_id
+        for (company_id,) in db.query(CompanyMembership.company_id)
+        .outerjoin(
+            MembershipModuleAccess,
+            and_(
+                MembershipModuleAccess.membership_id == CompanyMembership.id,
+                MembershipModuleAccess.module == CONNECTOR_MODULE,
+            ),
+        )
+        .filter(
+            CompanyMembership.user_id == user_id,
+            CompanyMembership.is_active.is_(True),
+            or_(
+                CompanyMembership.role == "admin",
+                MembershipModuleAccess.level.in_(("user", "manager")),
+            ),
+        ).all()
+    }
     return [
         {"id": company.id, "name": company.name}
         for company in AuthService(db).get_companies_for_user(user_id)
-        if repo.has_module(company.id, CONNECTOR_MODULE)
+        if company.id in eligible and repo.has_module(company.id, CONNECTOR_MODULE)
     ]
+
+
+def _load_companies(user_id: int) -> list[dict]:
+    db = SessionLocal()
+    try:
+        return _companies_for(db, user_id)
+    finally:
+        db.close()
 
 
 def _redirect_target_is_registered(txn_payload: dict) -> bool:
@@ -102,7 +134,22 @@ async def login_submit(request: Request) -> Response:
 
     username = str(form.get("username") or "").strip()
     password = str(form.get("password") or "")
+    # Use the ASGI peer, whose proxy forwarding is configured by the server,
+    # rather than accepting an arbitrary X-Forwarded-For supplied by a caller.
+    peer = request.client.host if request.client else "unknown"
+    ip_key = f"mcp:ip:{peer}"
+    account_key = f"mcp:account:{username.casefold()}"
+    if (
+        login_rate_limiter.is_rate_limited(ip_key)
+        or login_rate_limiter.is_rate_limited(account_key)
+    ):
+        return _error("Слишком много попыток входа. Попробуйте через минуту.", 429)
+    return await run_in_threadpool(_login, payload, username, password, ip_key, account_key)
 
+
+def _login(
+    payload: dict, username: str, password: str, ip_key: str, account_key: str
+) -> Response:
     db = SessionLocal()
     try:
         user = AuthService(db).authenticate(username, password)
@@ -120,6 +167,8 @@ async def login_submit(request: Request) -> Response:
                 status_code=401,
             )
 
+        login_rate_limiter.reset_key(ip_key)
+        login_rate_limiter.reset_key(account_key)
         companies = _companies_for(db, user.id)
         if not companies:
             # Distinguish "you belong to nothing" from "the connector is off",
@@ -161,11 +210,7 @@ async def company_page(request: Request) -> Response:
     if not payload.get("user_id"):
         return _error("Сначала выполните вход.", 400)
 
-    db = SessionLocal()
-    try:
-        companies = _companies_for(db, payload["user_id"])
-    finally:
-        db.close()
+    companies = await run_in_threadpool(_load_companies, payload["user_id"])
 
     return HTMLResponse(
         templates.render_company(request.query_params["txn"], companies)
@@ -186,11 +231,7 @@ async def company_submit(request: Request) -> Response:
     except ValueError:
         return _error("Компания не выбрана.", 400)
 
-    db = SessionLocal()
-    try:
-        companies = _companies_for(db, payload["user_id"])
-    finally:
-        db.close()
+    companies = await run_in_threadpool(_load_companies, payload["user_id"])
 
     # Re-check against the user's own list: the form value is client-controlled
     # and must never be trusted to name a company they do not belong to.
@@ -235,6 +276,10 @@ async def consent_submit(request: Request) -> Response:
     if not payload.get("user_id") or not payload.get("company_id"):
         return _error("Сессия авторизации неполная. Начните заново.", 400)
 
+    return await run_in_threadpool(_consent, payload, str(form.get("decision")))
+
+
+def _consent(payload: dict, decision: str) -> Response:
     if not _redirect_target_is_registered(payload):
         return _error(
             "Адрес возврата приложения больше не зарегистрирован. "
@@ -242,8 +287,12 @@ async def consent_submit(request: Request) -> Response:
             400,
         )
 
-    if str(form.get("decision")) != "approve":
+    if decision != "approve":
         return _redirect_with(payload, error="access_denied")
+
+    companies = _load_companies(payload["user_id"])
+    if payload["company_id"] not in {company["id"] for company in companies}:
+        return _error("Доступ к ИИ-коннектору этой компании отозван.", 403)
 
     code = store.new_token()
     store.save_auth_code(

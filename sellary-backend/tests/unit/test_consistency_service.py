@@ -107,7 +107,7 @@ class TestStockVsLayers:
         assert str(bare_product.id) in findings[0].subject
         assert findings[0].bucket == "drift"
 
-    def test_an_offline_oversell_is_a_recorded_fact_not_a_drift(
+    def test_an_unexplained_negative_stock_is_a_drift(
         self, db_session, default_company, bare_product
     ):
         bare_product.stock_quantity = Decimal("-3")
@@ -115,7 +115,7 @@ class TestStockVsLayers:
 
         findings = run(db_session, default_company, "stock_vs_layers")
 
-        assert [f.bucket for f in findings] == ["known"]
+        assert [f.bucket for f in findings] == ["drift"]
 
     def test_another_company_is_never_reported(
         self, db_session, default_company, secondary_company, bare_product

@@ -33,6 +33,17 @@ class CashShiftService:
 
     # ------------------------------------------------------------------ totals
 
+    def history(self, start=None, end=None, limit=50, offset=0):
+        query = self.db.query(CashShift).filter(CashShift.company_id == self.company_id)
+        if start is not None:
+            query = query.filter(CashShift.opened_at >= start)
+        if end is not None:
+            query = query.filter(CashShift.opened_at <= end)
+        total = query.count()
+        discrepancy = query.with_entities(func.coalesce(func.sum(CashShift.discrepancy), ZERO)).scalar()
+        rows = query.order_by(CashShift.opened_at.desc(), CashShift.id.desc()).offset(offset).limit(limit).all()
+        return rows, total, Decimal(discrepancy)
+
     def compute_totals(
         self,
         start: datetime,
@@ -365,8 +376,22 @@ class CashShiftService:
 
     def totals_for(self, shift: CashShift) -> ShiftTotals:
         """Live totals for an open shift; the frozen close for a closed one."""
-        if shift.status == CashShiftStatus.CLOSED and shift.closing_totals:
-            return ShiftTotals.model_validate(shift.closing_totals)
+        if shift.status == CashShiftStatus.CLOSED:
+            if shift.closing_totals:
+                return ShiftTotals.model_validate(shift.closing_totals)
+            if shift.closed_at is None:
+                raise ShiftConflict("В закрытой смене отсутствует время закрытия")
+            totals = self.compute_totals(
+                shift.opened_at, shift.closed_at, Decimal(shift.opening_cash),
+            )
+            if shift.expected_cash is not None:
+                # An incomplete old snapshot still has its recorded close.
+                # Keep that expectation and name what this window cannot
+                # explain, without consulting today's drawer balance.
+                recorded = Decimal(shift.expected_cash)
+                totals.late_arrivals = (recorded - totals.expected_cash).quantize(ZERO)
+                totals.expected_cash = recorded
+            return totals
         return self.compute_totals(
             shift.opened_at,
             None,

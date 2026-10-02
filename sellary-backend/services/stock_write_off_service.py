@@ -24,7 +24,7 @@ from models.stock_write_off import (
 from models.supplier import Supplier
 from repositories.product_repository import ProductRepository
 from repositories.stock_write_off_repository import StockWriteOffRepository
-from schemas.stock_write_off import WriteOffCreate
+from schemas.stock_write_off import WriteOffCreate, WriteOffRead
 from services.inventory_ledger_service import InventoryLedgerService
 from services.tenant import resolve_company_id
 
@@ -140,6 +140,21 @@ class StockWriteOffService:
 
     def get(self, write_off_id: int) -> Optional[StockWriteOff]:
         return self.repo.get_by_id(self.company_id, write_off_id)
+
+    @staticmethod
+    def to_read(row) -> WriteOffRead:
+        return WriteOffRead(
+            id=row.id, disposition=row.disposition, reason_code=row.reason_code,
+            supplier_id=row.supplier_id, supplier_name=row.supplier.name if row.supplier else None,
+            notes=row.notes, total_cost=row.total_cost, created_by_user_id=row.created_by_user_id,
+            created_by_name=(row.created_by_user.full_name or row.created_by_user.username)
+                if row.created_by_user else None, created_at=row.created_at,
+            items=[dict(id=item.id, product_id=item.product_id,
+                product_name=item.product.name if item.product else "",
+                product_unit_id=item.product_unit_id,
+                unit_name=item.product_unit.name if item.product_unit else None,
+                unit_quantity=item.unit_quantity, quantity=item.quantity,
+                unit_cost=item.unit_cost, line_cost=item.line_cost) for item in row.items])
 
     def list(self, **filters) -> Tuple[List[StockWriteOff], int]:
         return self.repo.list(self.company_id, **filters)

@@ -1,5 +1,5 @@
 from decimal import Decimal
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func, or_
 from models.inventory_layer import InventoryLayer
 from models.product import Product
@@ -59,6 +59,7 @@ class ProductRepository:
         search: Optional[str] = None,
         category_id: Optional[int] = None,
         active_only: bool = True,
+        low_stock_only: bool = False,
     ) -> tuple[List[Product], int]:
         query = self.db.query(Product).filter(Product.company_id == company_id)
 
@@ -76,8 +77,12 @@ class ProductRepository:
         if category_id:
             query = query.filter(Product.category_id == category_id)
 
+        if low_stock_only:
+            query = query.filter(Product.stock_quantity <= Product.min_stock_level)
+
         total = query.count()
-        products = query.offset(skip).limit(limit).all()
+        products = query.options(joinedload(Product.category), selectinload(Product.units)).order_by(
+            Product.name.asc(), Product.id.asc()).offset(skip).limit(limit).all()
 
         return products, total
 

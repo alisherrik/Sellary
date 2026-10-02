@@ -74,7 +74,7 @@ class PurchaseOrderRepository:
         total = query.count()
         purchase_orders = (
             query.options(joinedload(PurchaseOrder.supplier))
-            .order_by(PurchaseOrder.order_date.desc())
+            .order_by(PurchaseOrder.order_date.desc(), PurchaseOrder.id.desc())
             .offset(skip)
             .limit(limit)
             .all()
@@ -89,7 +89,7 @@ class PurchaseOrderRepository:
         return purchase_order
 
     def create_with_items(
-        self, purchase_order: PurchaseOrder, items: List[PurchaseOrderItem]
+        self, purchase_order: PurchaseOrder, items: List[PurchaseOrderItem], *, commit: bool = True
     ) -> PurchaseOrder:
         self.db.add(purchase_order)
         self.db.flush()  # Get the ID without committing
@@ -98,7 +98,10 @@ class PurchaseOrderRepository:
             item.purchase_order_id = purchase_order.id
             self.db.add(item)
 
-        self.db.commit()
+        if commit:
+            self.db.commit()
+        else:
+            self.db.flush()
         self.db.refresh(purchase_order)
         return purchase_order
 

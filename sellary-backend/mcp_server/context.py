@@ -69,6 +69,13 @@ def _resolve(db: Session) -> McpAuth:
     if user_id is None or company_id is None:
         raise ToolError("Токен не привязан к компании. Переподключите приложение.")
 
+    return resolve_caller(db, user_id, company_id, list(token.scopes or []))
+
+
+def resolve_caller(
+    db: Session, user_id: int, company_id: int, scopes: list[str]
+) -> McpAuth:
+    """Resolve live membership and connector permissions for tools and OAuth."""
     membership = (
         db.query(CompanyMembership)
         .options(
@@ -94,19 +101,14 @@ def _resolve(db: Session) -> McpAuth:
         company=membership.company,
         membership=membership,
         role=membership.role,
-        scopes=list(token.scopes or []),
+        scopes=scopes,
     )
 
     # The connector's own switch, checked on every call rather than only at
     # connect time. Turning it off has to shut the door on tokens that were
     # already issued — a switch that only stops *new* connections is not a
     # switch, and the tokens live for a day.
-    if not CompanyModuleRepository(db).has_module(auth.company_id, CONNECTOR_MODULE):
-        raise ToolError(
-            "ИИ-коннектор отключён для этой компании. "
-            "Включить его может владелец в настройках модулей."
-        )
-
+    require_module(auth, db, CONNECTOR_MODULE)
     return auth
 
 
@@ -143,6 +145,11 @@ def require_module(
     label = MODULE_LABELS_RU.get(module, module)
 
     if not CompanyModuleRepository(db).has_module(auth.company_id, module):
+        if module == CONNECTOR_MODULE:
+            raise ToolError(
+                "ИИ-коннектор отключён для этой компании. "
+                "Включить его может владелец в настройках модулей."
+            )
         raise ToolError(f"Модуль «{label}» не подключён для этой компании.")
 
     if auth.role == "admin":

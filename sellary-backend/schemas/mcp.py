@@ -10,6 +10,7 @@ class McpConnection(BaseModel):
     # The URL to paste into Claude. Everything else is discovered from it.
     url: str
     enabled: bool
+    available: bool = True
     company_name: str
 
 

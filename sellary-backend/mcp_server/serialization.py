@@ -22,7 +22,8 @@ UNIT_PRICE = Decimal("0.0001")
 
 # Fields whose name tells us the scale. Anything not listed keeps its own.
 _QUANTITY_HINTS = ("quantity", "qty", "stock", "count_units")
-_UNIT_PRICE_HINTS = ("unit_cost", "unit_price", "cost_price", "sell_price", "factor")
+_UNIT_PRICE_HINTS = ("unit_cost", "unit_price", "cost_price", "sell_price", "factor",
+                     "average_cost", "first_cost", "last_cost", "min_cost", "max_cost")
 
 
 def money(value: Any) -> str | None:

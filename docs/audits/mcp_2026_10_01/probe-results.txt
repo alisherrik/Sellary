@@ -1,0 +1,17 @@
+period: 2026-10-01 2026-09-30 start > end
+.explicit dates ignored: 2026-10-01 2026-10-01
+.reports-only MCP token, ai disabled: /auth/refresh = 200; MCP restrictions removed
+.company-scoped MCP token: /auth/switch-company = 200; token issued for other membership
+.same original login transaction: [401, 401, 401, 401, 401, 401, 401] no 429
+.new product: first commit succeeds; same draft replay rejected; order 1
+.55 matching products: 50 returned, count=50, no total/continuation
+.two exact identical names: silently matched product 2
+.exact saved cost=40.00; report cost=39.99; profit=20.01; daily row profit=0.00
+.two failed receipts with same draft: 2 persisted orders, 0 idempotency records
+.valid low-stock product barcode=None: whole dashboard fails validation
+.first DC account read: earlier tender=100.00, account balance=0.00
+.purchase average/last unit cost: 1.2345 serialized as 1.23
+.discounted sale: overall profit=10.00, same top product profit=60.00
+.allowed FIFO oversell: stock=-3, depleted layers retained; checker classifies drift
+.
+15 passed, 2 warnings in 2.94s

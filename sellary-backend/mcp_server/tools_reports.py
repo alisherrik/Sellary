@@ -8,14 +8,18 @@ they are written for the shopkeeper who will hear the answer — they say what t
 number means, not which service produced it.
 """
 
-from decimal import Decimal
+from datetime import timedelta
 
 from mcp_server import SCOPE_REPORTS
 from mcp_server.context import mcp_session, require_module, require_scope
-from mcp_server.periods import resolve_period
+from mcp_server.periods import Period
+from mcp_server.read_support import READ_ONLY, DateArg, Id, Limit, ShiftLimit, Offset, page_info, period_query
 from mcp_server.serialization import json_safe, money
 from mcp_server.server import mcp
-from models.cash_shift import CashShift as CashShiftModel
+from schemas.mcp_read import (DashboardResult, SalesSummaryResult, DailySalesResult,
+    ProfitResult, TopProductsResult, PurchaseSummaryResult, PurchaseProductsPage,
+    PurchaseSuppliersPage, OutstandingPage, ShiftsPage, CurrentShiftResult)
+from schemas.money import MoneyOverview
 from services.cash_shift_service import CashShiftService
 from services.money_service import MoneyService
 from services.purchase_report_service import PurchaseReportService
@@ -32,8 +36,8 @@ PERIOD_ARG_DOC = (
 # ----------------------------------------------------------------- продажи
 
 
-@mcp.tool
-def get_dashboard() -> dict:
+@mcp.tool(annotations=READ_ONLY)
+def get_dashboard() -> DashboardResult:
     """Краткая сводка за сегодня: выручка, число продаж, средний чек,
     сколько товаров заканчивается. Отвечает на вопрос «как дела сейчас».
     День закрывается по часовому поясу компании, а не по серверному времени.
@@ -50,33 +54,34 @@ def get_dashboard() -> dict:
         }
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 def get_sales_summary(
-    period: str = "today",
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> dict:
+    period: Period = "today",
+    start_date: DateArg | None = None,
+    end_date: DateArg | None = None,
+) -> SalesSummaryResult:
     """Итоги продаж за период: оборот, количество чеков, средний чек и разбивка
     по способам оплаты. Это главный ответ на вопрос «сколько наторговали».
-    Возвраты уже вычтены — это чистая выручка, а не сумма пробитых чеков.
+    turnover — сумма чеков, refunds — возвраты по этим чекам,
+    net_turnover = turnover - refunds. Возвраты привязаны к дате исходного чека.
     """
     with mcp_session() as (db, auth):
         require_scope(auth, SCOPE_REPORTS)
         require_module(auth, db, "reports")
         report = ReportService(db, auth.company_id)
-        start, end, echo = resolve_period(report, period, start_date, end_date)
+        start, end, echo = period_query(report, period, start_date, end_date)
         summary = SaleService(db, auth.company_id).get_summary(
             start_date=start, end_date=end
         )
         return {**echo, **json_safe(summary)}
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 def get_daily_sales(
-    period: str = "last_30_days",
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> dict:
+    period: Period = "last_30_days",
+    start_date: DateArg | None = None,
+    end_date: DateArg | None = None,
+) -> DailySalesResult:
     """Выручка по дням за период — ряд «дата → сумма и число чеков».
     Используйте, когда нужно увидеть динамику или сравнить дни недели.
     """
@@ -84,16 +89,16 @@ def get_daily_sales(
         require_scope(auth, SCOPE_REPORTS)
         require_module(auth, db, "reports")
         service = ReportService(db, auth.company_id)
-        start, end, echo = resolve_period(service, period, start_date, end_date)
+        start, end, echo = period_query(service, period, start_date, end_date)
         return {**echo, **json_safe(service.get_daily_sales(start, end))}
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 def get_profit_report(
-    period: str = "this_month",
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> dict:
+    period: Period = "this_month",
+    start_date: DateArg | None = None,
+    end_date: DateArg | None = None,
+) -> ProfitResult:
     """Прибыль за период: выручка, себестоимость проданного, валовая прибыль
     и маржа в процентах. Себестоимость берётся из FIFO-партий, то есть по той
     цене, по которой товар реально закупался, а не по текущей.
@@ -102,17 +107,18 @@ def get_profit_report(
         require_scope(auth, SCOPE_REPORTS)
         require_module(auth, db, "reports")
         service = ReportService(db, auth.company_id)
-        start, end, echo = resolve_period(service, period, start_date, end_date)
+        start, end, echo = period_query(service, period, start_date, end_date)
         return {**echo, **json_safe(service.get_profit_report(start, end))}
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 def get_top_products(
-    period: str = "this_month",
-    limit: int = 10,
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> dict:
+    period: Period = "this_month",
+    limit: Limit = 10,
+    start_date: DateArg | None = None,
+    end_date: DateArg | None = None,
+    offset: Offset = 0,
+) -> TopProductsResult:
     """Самые продаваемые товары за период — по количеству, с выручкой и
     прибылью. Отвечает на «что лучше всего продаётся» и «на чём мы зарабатываем».
     Прибыль считается по себестоимости на момент продажи, как в отчёте о прибыли.
@@ -120,94 +126,101 @@ def get_top_products(
     with mcp_session() as (db, auth):
         require_scope(auth, SCOPE_REPORTS)
         require_module(auth, db, "reports")
-        limit = max(1, min(int(limit), 50))
+        limit = max(1, min(int(limit), 200))
         service = ReportService(db, auth.company_id)
-        start, end, echo = resolve_period(service, period, start_date, end_date)
-        return {
-            **echo,
-            **json_safe(service.get_top_products(start, end, limit=limit)),
-        }
+        start, end, echo = period_query(service, period, start_date, end_date)
+        result = service.get_top_products(start, end, limit=limit, offset=offset)
+        return {**echo, **page_info(len(result.top_products), result.product_count, limit, offset),
+                **json_safe(result)}
 
 
 # ----------------------------------------------------------------- закупки
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 def get_purchase_summary(
-    period: str = "this_month",
-    supplier_id: int | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> dict:
-    """Сколько потрачено на товар за период и сколько было поставок.
-    Считается по принятому товару, а не по оформленным заказам: заказ — это
-    намерение, а приход — это товар на складе и деньги, которые вы должны.
+    period: Period = "this_month",
+    supplier_id: Id | None = None,
+    start_date: DateArg | None = None,
+    end_date: DateArg | None = None,
+) -> PurchaseSummaryResult:
+    """Стоимость принятого товара и число поставок за период по дате прихода.
+    Заказы и отменённые приходы исключены. Это стоимость закупки, а не
+    фактические выплаты поставщикам: возврат поставщику не двигает деньги.
     """
     with mcp_session() as (db, auth):
         require_scope(auth, SCOPE_REPORTS)
         require_module(auth, db, "purchasing")
         service = PurchaseReportService(db, auth.company_id)
-        start, end, echo = resolve_period(service, period, start_date, end_date)
+        start, end, echo = period_query(service, period, start_date, end_date)
+        end += timedelta(microseconds=1)  # Receipts use half-open calendar windows.
         return {**echo, **json_safe(service.summary(start, end, supplier_id))}
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 def get_purchases_by_supplier(
-    period: str = "this_month",
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> dict:
-    """Расходы на закупку в разрезе поставщиков за период — кому сколько
-    заплачено и сколько было поставок.
+    period: Period = "this_month",
+    start_date: DateArg | None = None,
+    end_date: DateArg | None = None,
+    limit: Limit = 50,
+    offset: Offset = 0,
+) -> PurchaseSuppliersPage:
+    """Стоимость принятых товаров по поставщикам за период, постранично.
+    spend — стоимость прихода, не сумма фактических выплат поставщику.
     """
     with mcp_session() as (db, auth):
         require_scope(auth, SCOPE_REPORTS)
         require_module(auth, db, "purchasing")
         service = PurchaseReportService(db, auth.company_id)
-        start, end, echo = resolve_period(service, period, start_date, end_date)
-        return {**echo, "rows": json_safe(service.by_supplier(start, end))}
+        start, end, echo = period_query(service, period, start_date, end_date)
+        end += timedelta(microseconds=1)  # Receipts use half-open calendar windows.
+        rows = service.by_supplier(start, end, limit=limit, offset=offset)
+        return {**echo, **page_info(len(rows), service.supplier_count(start, end), limit, offset),
+                "rows": json_safe(rows)}
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 def get_purchases_by_product(
-    period: str = "this_month",
-    supplier_id: int | None = None,
-    limit: int = 50,
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> dict:
+    period: Period = "this_month",
+    supplier_id: Id | None = None,
+    limit: Limit = 50,
+    start_date: DateArg | None = None,
+    end_date: DateArg | None = None,
+    offset: Offset = 0,
+) -> PurchaseProductsPage:
     """Что закупали и почём, по товарам, начиная с самых дорогих позиций.
     Показывает, куда уходят деньги на закупку.
     """
     with mcp_session() as (db, auth):
         require_scope(auth, SCOPE_REPORTS)
         require_module(auth, db, "purchasing")
-        limit = max(1, min(int(limit), 500))
+        limit = max(1, min(int(limit), 200))
         service = PurchaseReportService(db, auth.company_id)
-        start, end, echo = resolve_period(service, period, start_date, end_date)
-        return {
-            **echo,
-            "rows": json_safe(service.by_product(start, end, supplier_id, limit)),
-        }
+        start, end, echo = period_query(service, period, start_date, end_date)
+        end += timedelta(microseconds=1)  # Receipts use half-open calendar windows.
+        rows = service.by_product(start, end, supplier_id, limit, offset)
+        return {**echo, **page_info(len(rows), service.product_count(start, end, supplier_id), limit, offset),
+                "rows": json_safe(rows)}
 
 
-@mcp.tool
-def get_outstanding_orders() -> dict:
+@mcp.tool(annotations=READ_ONLY)
+def get_outstanding_orders(limit: Limit = 50, offset: Offset = 0) -> OutstandingPage:
     """Заказы поставщикам, которые отправлены, но ещё не получены полностью —
     товар в пути и деньги, которые уже обещаны.
     """
     with mcp_session() as (db, auth):
         require_scope(auth, SCOPE_REPORTS)
         require_module(auth, db, "purchasing")
-        rows = PurchaseReportService(db, auth.company_id).outstanding()
-        return {"count": len(rows), "orders": json_safe(rows)}
+        service = PurchaseReportService(db, auth.company_id)
+        rows = service.outstanding(limit, offset)
+        return {**page_info(len(rows), service.outstanding_count(), limit, offset), "orders": json_safe(rows)}
 
 
 # -------------------------------------------------------------------- касса
 
 
-@mcp.tool
-def get_current_shift() -> dict:
+@mcp.tool(annotations=READ_ONLY)
+def get_current_shift() -> CurrentShiftResult:
     """Открытая смена с текущими итогами: наличные в кассе, выручка, число
     чеков. Если открытой смены нет, возвращает is_open = false.
     """
@@ -227,13 +240,14 @@ def get_current_shift() -> dict:
         }
 
 
-@mcp.tool
+@mcp.tool(annotations=READ_ONLY)
 def list_shifts(
-    period: str = "last_7_days",
-    limit: int = 20,
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> dict:
+    period: Period = "last_7_days",
+    limit: ShiftLimit = 20,
+    start_date: DateArg | None = None,
+    end_date: DateArg | None = None,
+    offset: Offset = 0,
+) -> ShiftsPage:
     """Смены за период с итогами: выручка, ожидаемая и посчитанная наличность,
     расхождение. Отрицательное расхождение означает недостачу в кассе.
     """
@@ -243,25 +257,11 @@ def list_shifts(
         limit = max(1, min(int(limit), 100))
         service = CashShiftService(db, auth.company_id)
         report = ReportService(db, auth.company_id)
-        start, end, echo = resolve_period(report, period, start_date, end_date)
+        start, end, echo = period_query(report, period, start_date, end_date)
 
-        shifts = (
-            db.query(CashShiftModel)
-            .filter(
-                CashShiftModel.company_id == auth.company_id,
-                CashShiftModel.opened_at >= start,
-                CashShiftModel.opened_at <= end,
-            )
-            .order_by(CashShiftModel.opened_at.desc())
-            .limit(limit)
-            .all()
-        )
-
+        shifts, total, total_discrepancy = service.history(start, end, limit, offset)
         rows = []
-        total_discrepancy = Decimal("0.00")
         for shift in shifts:
-            if shift.discrepancy is not None:
-                total_discrepancy += Decimal(str(shift.discrepancy))
             rows.append(
                 {
                     "shift_number": shift.shift_number,
@@ -279,7 +279,7 @@ def list_shifts(
 
         return {
             **echo,
-            "count": len(rows),
+            **page_info(len(rows), total, limit, offset),
             "total_discrepancy": money(total_discrepancy),
             "shifts": rows,
         }
@@ -288,8 +288,8 @@ def list_shifts(
 # ------------------------------------------------------------------ деньги
 
 
-@mcp.tool
-def get_money_accounts() -> dict:
+@mcp.tool(annotations=READ_ONLY)
+def get_money_accounts() -> MoneyOverview:
     """Остатки по счетам: касса, карты, банк. Показывает, где сейчас лежат
     деньги. Остатки считаются из движений, а не хранятся отдельно, поэтому
     всегда сходятся с историей операций.

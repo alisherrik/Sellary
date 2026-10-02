@@ -38,7 +38,7 @@ class SupplierRepository:
             )
 
         total = query.count()
-        suppliers = query.offset(skip).limit(limit).all()
+        suppliers = query.order_by(Supplier.name.asc(), Supplier.id.asc()).offset(skip).limit(limit).all()
 
         return suppliers, total
 
