@@ -203,6 +203,17 @@ class CashShiftService:
 
     # -------------------------------------------------------------- operations
 
+    def get_by_id(self, shift_id: int) -> Optional[CashShift]:
+        """Read one shift within this company's scope."""
+        return (
+            self.db.query(CashShift)
+            .filter(
+                CashShift.company_id == self.company_id,
+                CashShift.id == shift_id,
+            )
+            .first()
+        )
+
     def get_current(self) -> Optional[CashShift]:
         return (
             self.db.query(CashShift)
@@ -216,7 +227,9 @@ class CashShiftService:
     def has_open_shift(self) -> bool:
         return self.get_current() is not None
 
-    def open_shift(self, opening_cash: Decimal, user_id: int) -> CashShift:
+    def open_shift(
+        self, opening_cash: Decimal, user_id: int, opening_notes: Optional[str] = None
+    ) -> CashShift:
         next_number = (
             self.db.query(func.coalesce(func.max(CashShift.shift_number), 0))
             .filter(CashShift.company_id == self.company_id)
@@ -240,6 +253,7 @@ class CashShiftService:
             # pull that correction into this shift.
             opened_at=utc_now(),
             opening_cash=opening_cash if ledger is None else ledger,
+            opening_notes=opening_notes,
         )
         self.db.add(shift)
         try:

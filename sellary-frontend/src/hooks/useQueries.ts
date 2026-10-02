@@ -2,6 +2,7 @@ import { useQuery, useInfiniteQuery, keepPreviousData, useQueryClient, UseQueryO
 import { reportsApi, productsApi, salesApi, shiftsApi, suppliersApi, purchaseOrdersApi, customersApi, companyApi, ordersApi, reconciliationApi } from '@/lib/api';
 import { useServerHealth } from '@/providers/ServerHealthProvider';
 import { useAuthStore } from '@/lib/store';
+import { windowStart } from '@/lib/reportWindow';
 import {
     Product, Sale, SaleSearchSuggestion, SalesSummary, Supplier, PurchaseOrder, Customer,
     CustomerLedgerResponse, DailySalesReport, ProfitReport, TopProductsReport,
@@ -363,6 +364,12 @@ export function useCustomerLedger(
 }
 
 // Reports Hooks
+
+/**
+ * The window Аналитика trends over: since the last сверка, or last `days` if
+ * there is none. No start_date sent — the page has no picker claiming a
+ * specific duration, so the server's own сверка-aware floor is honest here.
+ */
 export function useDailySales(days: number, options?: Partial<UseQueryOptions<DailySalesReport>>) {
     const { isServerReachable } = useServerHealth();
     const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);
@@ -383,7 +390,7 @@ export function useProfit(days: number, options?: Partial<UseQueryOptions<Profit
     return useQuery<ProfitReport>({
         queryKey: queryKeys.profit(companyId, days),
         queryFn: async () => {
-            const response = await reportsApi.getProfit({ days });
+            const response = await reportsApi.getProfit({ days, start_date: windowStart(days) });
             return response.data;
         },
         ...options,
@@ -391,6 +398,7 @@ export function useProfit(days: number, options?: Partial<UseQueryOptions<Profit
     });
 }
 
+/** Same window as `useDailySales` — no start_date, same reasoning. */
 export function useTopProducts(days: number, limit: number = 10, options?: Partial<UseQueryOptions<TopProductsReport>>) {
     const { isServerReachable } = useServerHealth();
     const companyId = useAuthStore((state) => state.currentCompany?.id ?? null);

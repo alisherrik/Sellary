@@ -4,7 +4,7 @@ from datetime import timedelta
 from typing import Literal
 from fastmcp.exceptions import ToolError
 
-from mcp_server import SCOPE_REPORTS
+from mcp_server import SCOPE_RECORDS, SCOPE_REPORTS
 from mcp_server.context import mcp_session, require_module, require_scope
 from mcp_server.periods import Period
 from mcp_server.read_support import READ_ONLY, DateArg, Id, Limit, Offset, page_info, period_query
@@ -31,7 +31,7 @@ from services.stock_write_off_service import StockWriteOffService
 
 
 def _access(auth, db, module):
-    require_scope(auth, SCOPE_REPORTS)
+    require_scope(auth, SCOPE_RECORDS)
     require_module(auth, db, module)
 
 
@@ -40,7 +40,8 @@ def list_sales(period: Period | None = None, start_date: DateArg | None = None,
                end_date: DateArg | None = None, sale_id: Id | None = None,
                cashier_id: Id | None = None, status: SaleStatus | None = None,
                payment_method: PaymentMethod | None = None, query: str | None = None,
-               limit: Limit = 50, offset: Offset = 0) -> SalesPage:
+               limit: Limit = 50, offset: Offset = 0,
+               search: str | None = None) -> SalesPage:
     """Чеки постранично: даты, кассир, статус, способ оплаты и поиск.
     Без периода — открытый период после сверки; явный период читает историю.
     sale_id находит конкретный чек в том числе до сверки. Оплаты берутся из tenders.
@@ -50,7 +51,8 @@ def list_sales(period: Period | None = None, start_date: DateArg | None = None,
         start, end, echo = period_query(ReportService(db, auth.company_id), period, start_date, end_date)
         rows, total = SaleService(db, auth.company_id).get_all(skip=offset, limit=limit,
             start_date=start, end_date=end, sale_id=sale_id, cashier_id=cashier_id,
-            status=status, payment_method=payment_method, search=query)
+            status=status, payment_method=payment_method,
+            search=query if query is not None else search)
         return {**echo, **page_info(len(rows), total, limit, offset), "sales": json_safe(rows)}
 
 
@@ -127,7 +129,7 @@ def check_consistency(limit: Limit = 50, offset: Offset = 0, check: str | None =
     clean относится ко всей проверке; findings — выбранная страница/фильтр.
     """
     with mcp_session() as (db, auth):
-        require_scope(auth, SCOPE_REPORTS)
+        require_scope(auth, SCOPE_RECORDS)
         if auth.role != "admin":
             raise ToolError("Проверка согласованности доступна только администратору.")
         findings = ReconciliationService(db, auth.company_id).check()
@@ -210,13 +212,19 @@ def list_purchase_orders(supplier_id: Id | None = None, status: PurchaseOrderSta
 
 
 @mcp.tool(annotations=READ_ONLY)
-def get_purchase_order(order_id: Id) -> PurchaseOrderResponse:
+def get_purchase_order(order_id: Id | None = None,
+                       purchase_order_id: Id | None = None) -> PurchaseOrderResponse:
     """Заказ поставщику по ID: товары, цены, заказанное и полученное количество,
     статус и отменённые строки. Читает документ, не принимает товар.
     """
     with mcp_session() as (db, auth):
         _access(auth, db, "purchasing")
-        row = PurchaseOrderService(db, auth.company_id).get_by_id(order_id)
+        if order_id is None and purchase_order_id is None:
+            raise ToolError("Укажите purchase_order_id.")
+        if order_id is not None and purchase_order_id is not None and order_id != purchase_order_id:
+            raise ToolError("order_id и purchase_order_id должны совпадать.")
+        row = PurchaseOrderService(db, auth.company_id).get_by_id(
+            order_id if order_id is not None else purchase_order_id)
         if row is None:
             raise ToolError("Заказ не найден.")
         return json_safe(row)
@@ -260,6 +268,7 @@ def get_write_off_summary(period: Period = "this_month", start_date: DateArg | N
     Эти расходы не входят в оборот; прибыль после них — profit_after_write_offs.
     """
     with mcp_session() as (db, auth):
-        _access(auth, db, "inventory")
+        require_scope(auth, SCOPE_REPORTS)
+        require_module(auth, db, "inventory")
         start, end, echo = period_query(ReportService(db, auth.company_id), period, start_date, end_date)
         return {**echo, **json_safe(StockWriteOffService(db, auth.company_id).summary(start, end))}

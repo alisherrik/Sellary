@@ -20,17 +20,7 @@ class CustomerRepository:
             Customer.phone == phone,
         ).first()
 
-    def get_all(
-        self,
-        company_id: int,
-        skip: int = 0,
-        limit: int = 50,
-        search: Optional[str] = None,
-        active_only: bool = True,
-    ) -> List[Customer]:
-        return self.get_page(company_id, skip, limit, search, active_only)[0]
-
-    def get_page(self, company_id, skip=0, limit=50, search=None, active_only=True):
+    def _filtered(self, company_id: int, search: Optional[str], active_only: bool):
         query = self.db.query(Customer).filter(Customer.company_id == company_id)
         if active_only:
             query = query.filter(Customer.is_active == True)
@@ -42,8 +32,46 @@ class CustomerRepository:
                     Customer.email.ilike(f"%{search}%"),
                 )
             )
+        return query
+
+    def get_all(
+        self,
+        company_id: int,
+        skip: int = 0,
+        limit: int = 50,
+        search: Optional[str] = None,
+        active_only: bool = True,
+    ) -> List[Customer]:
+        return (
+            self._filtered(company_id, search, active_only)
+            .order_by(Customer.name.asc(), Customer.id.asc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+    def count(
+        self, company_id: int, search: Optional[str] = None, active_only: bool = True
+    ) -> int:
+        return self._filtered(company_id, search, active_only).count()
+
+    def get_page(
+        self,
+        company_id: int,
+        skip: int = 0,
+        limit: int = 50,
+        search: Optional[str] = None,
+        active_only: bool = True,
+    ) -> tuple[List[Customer], int]:
+        query = self._filtered(company_id, search, active_only)
         total = query.count()
-        return query.order_by(Customer.name.asc(), Customer.id.asc()).offset(skip).limit(limit).all(), total
+        rows = (
+            query.order_by(Customer.name.asc(), Customer.id.asc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return rows, total
 
     def create(self, customer: Customer) -> Customer:
         self.db.add(customer)

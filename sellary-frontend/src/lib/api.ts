@@ -48,6 +48,8 @@ import type {
   ConsistencyReport,
   Reconciliation,
   ReconciliationState,
+  PeriodDetail,
+  PeriodList,
   PurchaseSummary,
   PurchaseByProductRow,
   PurchaseBySupplierRow,
@@ -397,7 +399,8 @@ export const shiftsApi = {
   getCurrent: () => api.get<CashShift | null>('/shifts/current'),
   getAll: (params?: any) => api.get<CashShift[]>('/shifts', { params }),
   getById: (id: number) => api.get<CashShiftDetail>(`/shifts/${id}`),
-  open: (opening_cash: string) => api.post<CashShift>('/shifts/open', { opening_cash }),
+  open: (opening_cash: string, opening_notes?: string) =>
+    api.post<CashShift>('/shifts/open', { opening_cash, opening_notes }),
   close: (id: number, counted_cash: string, notes?: string) =>
     api.post<CashShift>(`/shifts/${id}/close`, { counted_cash, notes }),
   snapshot: (id: number) => api.post(`/shifts/${id}/snapshots`),
@@ -556,6 +559,9 @@ export const companyApi = {
 export const reconciliationApi = {
   get: () => api.get<ReconciliationState>('/reconciliation'),
   check: () => api.get<ConsistencyReport>('/reconciliation/check'),
+  periods: (params?: { limit?: number; offset?: number }) =>
+    api.get<PeriodList>('/reconciliation/periods', { params }),
+  period: (id: number) => api.get<PeriodDetail>(`/reconciliation/periods/${id}`),
   create: (data: {
     effective_from: string;
     note?: string;

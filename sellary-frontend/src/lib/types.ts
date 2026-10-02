@@ -469,6 +469,7 @@ export interface CashShift {
   opened_at: string;
   opened_by_user_id: number;
   opening_cash: string;
+  opening_notes: string | null;
   closed_at: string | null;
   closed_by_user_id: number | null;
   counted_cash: string | null;
@@ -918,6 +919,43 @@ export interface Reconciliation {
 export interface ReconciliationState {
   latest: Reconciliation | null;
   history: Reconciliation[];
+}
+
+export interface PeriodRow {
+  id: number;
+  index: number;
+  /** null on the oldest period: it covers everything before the first сверка. */
+  start_day: string | null;
+  end_day: string;
+  note: string | null;
+  purchased: string;
+  sold: string;
+}
+
+export interface PeriodList {
+  total: number;
+  periods: PeriodRow[];
+}
+
+export interface LateArrivals {
+  count: number;
+  total: string;
+}
+
+export interface PeriodDetail extends PeriodRow {
+  effective_from: string;
+  declared_at: string;
+  declared_by: string | null;
+  receipts_count: number;
+  sales_count: number;
+  cost: string;
+  profit: string;
+  write_off_cost: string;
+  profit_after_write_offs: string;
+  /** Informational. `sold` is already net of these — never subtract twice. */
+  returns_total: string;
+  late_arrivals: LateArrivals;
+  checker_report: unknown[] | null;
 }
 
 /** One disagreement the consistency checker found. `bucket` is drift | known. */

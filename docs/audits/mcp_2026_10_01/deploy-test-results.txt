@@ -1,0 +1,191 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.3, pytest-9.0.3, pluggy-1.6.0
+rootdir: D:\Learning\Sellary\sellary-backend
+configfile: pytest.ini
+plugins: anyio-4.13.0, Faker-40.18.0, asyncio-1.3.0, cov-7.1.0, mock-3.15.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1285 items
+
+tests\integration\test_admin_endpoints.py ..........                     [  0%]
+tests\integration\test_admin_password_reset.py .....                     [  1%]
+tests\integration\test_auth_endpoints.py .........                       [  1%]
+tests\integration\test_auth_refresh.py ....                              [  2%]
+tests\integration\test_auth_session_carries_reconciliation.py ..         [  2%]
+tests\integration\test_cash_shift_endpoints.py ........                  [  2%]
+tests\integration\test_category_endpoints.py ....                        [  3%]
+tests\integration\test_company_marketplace_endpoints.py ...              [  3%]
+tests\integration\test_company_modules.py ...............                [  4%]
+tests\integration\test_customer_credit_endpoints.py .......              [  5%]
+tests\integration\test_customers_endpoints.py .......................    [  7%]
+tests\integration\test_device_auth.py ..........                         [  7%]
+tests\integration\test_inventory_endpoints.py ....................       [  9%]
+tests\integration\test_mcp_auth_hardening.py ...................         [ 10%]
+tests\integration\test_mcp_connector_admin.py .............              [ 11%]
+tests\integration\test_mcp_merge_records.py ...........                  [ 12%]
+tests\integration\test_mcp_oauth_flow.py .............                   [ 13%]
+tests\integration\test_mcp_paged_reads.py .......................        [ 15%]
+tests\integration\test_mcp_purchase_safety.py .......................... [ 17%]
+............                                                             [ 18%]
+tests\integration\test_mcp_read_tools.py ..............................  [ 20%]
+tests\integration\test_mcp_tools.py ..........................           [ 22%]
+tests\integration\test_mcp_upstream_compatibility.py ................... [ 24%]
+                                                                         [ 24%]
+tests\integration\test_merchant_notify_link_model.py ..                  [ 24%]
+tests\integration\test_merchant_notify_repository.py ...                 [ 24%]
+tests\integration\test_merchant_notify_service.py ......                 [ 25%]
+tests\integration\test_module_access_inventory.py .......                [ 25%]
+tests\integration\test_module_access_misc.py .........                   [ 26%]
+tests\integration\test_module_access_pos.py ......                       [ 26%]
+tests\integration\test_money_endpoints.py .........................      [ 28%]
+tests\integration\test_order_endpoints.py ..............                 [ 29%]
+tests\integration\test_order_service.py ................                 [ 31%]
+tests\integration\test_owner_endpoints.py .....                          [ 31%]
+tests\integration\test_owner_platform_settings.py ....                   [ 31%]
+tests\integration\test_platform_settings_rewire.py ..                    [ 31%]
+tests\integration\test_product_endpoints.py ............................ [ 34%]
+.....                                                                    [ 34%]
+tests\integration\test_product_image_upload.py .....                     [ 34%]
+tests\integration\test_product_marketplace_fields.py ..                  [ 35%]
+tests\integration\test_purchase_order_endpoints.py .............         [ 36%]
+tests\integration\test_purchase_reports.py ..........                    [ 36%]
+tests\integration\test_reconciliation_api.py ........                    [ 37%]
+tests\integration\test_reconciliation_endpoints.py ........              [ 38%]
+tests\integration\test_refund_debt_allocation.py ..........              [ 38%]
+tests\integration\test_reports_endpoints.py ..                           [ 39%]
+tests\integration\test_return_endpoints.py ............                  [ 40%]
+tests\integration\test_sales_endpoints.py .............................. [ 42%]
+.                                                                        [ 42%]
+tests\integration\test_shop_auth_dependency.py ...                       [ 42%]
+tests\integration\test_shop_endpoints.py .........                       [ 43%]
+tests\integration\test_shop_order_endpoints.py ..........                [ 44%]
+tests\integration\test_shop_orders_notify.py ....                        [ 44%]
+tests\integration\test_shop_service.py ...........                       [ 45%]
+tests\integration\test_shop_tenant_isolation.py ..                       [ 45%]
+tests\integration\test_split_payment_sales.py ...................        [ 46%]
+tests\integration\test_stocktake_endpoints.py .............              [ 47%]
+tests\integration\test_sync_bootstrap_customers.py ..                    [ 48%]
+tests\integration\test_sync_client_sale_id.py ...                        [ 48%]
+tests\integration\test_sync_credit_sales.py .......                      [ 48%]
+tests\integration\test_sync_customers.py ......                          [ 49%]
+tests\integration\test_sync_endpoints.py .............                   [ 50%]
+tests\integration\test_sync_oversell.py ..                               [ 50%]
+tests\integration\test_sync_payments.py .....                            [ 50%]
+tests\integration\test_telegram_webhook.py .......                       [ 51%]
+tests\integration\test_transaction_reversal_endpoints.py ............... [ 52%]
+.........                                                                [ 53%]
+tests\integration\test_write_off_endpoints.py .....................      [ 54%]
+tests\unit\test_admin_management_service.py ....                         [ 55%]
+tests\unit\test_auth_service.py .....................                    [ 56%]
+tests\unit\test_bootstrap_utils.py ...                                   [ 57%]
+tests\unit\test_cash_shift_service.py ........................           [ 58%]
+tests\unit\test_config_telegram_webhook.py ..                            [ 59%]
+tests\unit\test_consistency_service.py ..............                    [ 60%]
+tests\unit\test_consistency_sql_compiles_on_postgres.py .                [ 60%]
+tests\unit\test_crypto.py .....                                          [ 60%]
+tests\unit\test_customer_ledger_service.py ........                      [ 61%]
+tests\unit\test_device_auth_service.py ................                  [ 62%]
+tests\unit\test_device_schemas_and_repository.py ............            [ 63%]
+tests\unit\test_idempotency.py ........                                  [ 64%]
+tests\unit\test_image_upload_service.py .....                            [ 64%]
+tests\unit\test_inventory_ledger_oversell.py ..                          [ 64%]
+tests\unit\test_inventory_ledger_service.py ...........                  [ 65%]
+tests\unit\test_inventory_service.py ..............                      [ 66%]
+tests\unit\test_inventory_valuation_totals.py .                          [ 66%]
+tests\unit\test_marketplace_model.py ..                                  [ 66%]
+tests\unit\test_mcp_drafts.py .........                                  [ 67%]
+tests\unit\test_mcp_periods.py .....................                     [ 69%]
+tests\unit\test_mcp_purchase_resolve.py ........................         [ 71%]
+tests\unit\test_membership_module_access_model.py ...                    [ 71%]
+tests\unit\test_merchant_link_token.py .....                             [ 71%]
+tests\unit\test_migration_chain.py ...                                   [ 71%]
+tests\unit\test_modules_registry.py ...........                          [ 72%]
+tests\unit\test_money_queries_compile_on_postgres.py ........            [ 73%]
+tests\unit\test_no_second_channel.py .....                               [ 73%]
+tests\unit\test_order_model.py ....                                      [ 74%]
+tests\unit\test_period_report_mcp_compatibility.py ...                   [ 74%]
+tests\unit\test_period_report_service.py .............                   [ 75%]
+tests\unit\test_platform_setting_model.py ..                             [ 75%]
+tests\unit\test_platform_settings_service.py ........                    [ 76%]
+tests\unit\test_price_precision.py .......                               [ 76%]
+tests\unit\test_product_report_schemas.py ...                            [ 76%]
+tests\unit\test_product_service.py ..................................    [ 79%]
+tests\unit\test_purchase_item_void.py ..............                     [ 80%]
+tests\unit\test_purchase_order_service.py ....                           [ 80%]
+tests\unit\test_purchase_void_writeoff.py ....                           [ 81%]
+tests\unit\test_reconciliation.py ...........                            [ 82%]
+tests\unit\test_reconciliation_guard.py .....                            [ 82%]
+tests\unit\test_reconciliation_period.py ........                        [ 83%]
+tests\unit\test_reconciliation_periods.py .......                        [ 83%]
+tests\unit\test_refund_rounding.py ...                                   [ 83%]
+tests\unit\test_report_account_consistency_regressions.py .............. [ 84%]
+........                                                                 [ 85%]
+tests\unit\test_report_timezone.py .........                             [ 86%]
+tests\unit\test_require_module.py .......                                [ 86%]
+tests\unit\test_sale_return_service.py ..................                [ 88%]
+tests\unit\test_sale_search_service.py ......                            [ 88%]
+tests\unit\test_sale_service.py ..................................       [ 91%]
+tests\unit\test_sale_summary.py .............                            [ 92%]
+tests\unit\test_sale_tender_service.py ....................              [ 93%]
+tests\unit\test_security.py ......................                       [ 95%]
+tests\unit\test_shop_schemas.py ...                                      [ 95%]
+tests\unit\test_stocktake_reference_types.py ...                         [ 96%]
+tests\unit\test_sync_service.py ........................                 [ 97%]
+tests\unit\test_telegram_auth_service.py .......                         [ 98%]
+tests\unit\test_telegram_bot_client.py ...                               [ 98%]
+tests\unit\test_telegram_user_model.py ...                               [ 98%]
+tests\unit\test_telegram_user_repository.py ..                           [ 99%]
+tests\unit\test_transaction_reversal_service.py ...........              [100%]
+
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\Learning\Sellary\sellary-backend\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv\Lib\site-packages\pydantic\main.py:263
+tests/unit/test_config_telegram_webhook.py::test_telegram_webhook_settings_have_safe_defaults
+tests/unit/test_config_telegram_webhook.py::test_telegram_webhook_secret_reads_from_env
+  D:\Learning\Sellary\sellary-backend\.venv\Lib\site-packages\pydantic\main.py:263: RuntimeWarning: SYNC_ALLOW_OVERSELL is enabled but no longer overrides ledger safety: synced sales that exceed available FIFO layer stock are always rejected. The flag is deprecated and can be removed.
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+tests/integration/test_cash_shift_endpoints.py: 1 warning
+tests/integration/test_customer_credit_endpoints.py: 1 warning
+tests/integration/test_device_auth.py: 5 warnings
+tests/integration/test_merchant_notify_link_model.py: 1 warning
+tests/integration/test_module_access_pos.py: 1 warning
+tests/integration/test_money_endpoints.py: 4 warnings
+tests/integration/test_order_endpoints.py: 1 warning
+tests/integration/test_product_endpoints.py: 5 warnings
+tests/integration/test_purchase_order_endpoints.py: 3 warnings
+tests/integration/test_reconciliation_api.py: 4 warnings
+tests/integration/test_return_endpoints.py: 3 warnings
+tests/integration/test_sales_endpoints.py: 4 warnings
+tests/integration/test_split_payment_sales.py: 2 warnings
+tests/integration/test_stocktake_endpoints.py: 1 warning
+tests/integration/test_sync_client_sale_id.py: 1 warning
+tests/integration/test_sync_customers.py: 1 warning
+tests/integration/test_transaction_reversal_endpoints.py: 4 warnings
+tests/integration/test_write_off_endpoints.py: 3 warnings
+tests/unit/test_cash_shift_service.py: 1 warning
+tests/unit/test_membership_module_access_model.py: 1 warning
+tests/unit/test_telegram_user_model.py: 1 warning
+  D:\Learning\Sellary\sellary-backend\tests\conftest.py:108: SAWarning: transaction already deassociated from connection
+    transaction.rollback()
+
+tests/integration/test_mcp_paged_reads.py: 23 warnings
+  D:\Learning\Sellary\sellary-backend\.venv\Lib\site-packages\fastmcp\utilities\json_schema_type.py:434: UserWarning: Pattern '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$' is not supported by Pydantic's regex engine and will not be enforced.
+    "string": lambda s: _create_string_type(s),
+
+tests/integration/test_mcp_paged_reads.py::test_mcp_protocol_validates_every_read_response
+  D:\Learning\Sellary\sellary-backend\.venv\Lib\site-packages\fastmcp\utilities\json_schema_type.py:434: UserWarning: Pattern '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,3}0*$' is not supported by Pydantic's regex engine and will not be enforced.
+    "string": lambda s: _create_string_type(s),
+
+tests/integration/test_mcp_paged_reads.py::test_mcp_protocol_validates_every_read_response
+  D:\Learning\Sellary\sellary-backend\.venv\Lib\site-packages\fastmcp\utilities\json_schema_type.py:434: UserWarning: Pattern '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,4}0*$' is not supported by Pydantic's regex engine and will not be enforced.
+    "string": lambda s: _create_string_type(s),
+
+tests/unit/test_security.py::TestJWTTokenDecoding::test_decode_token_with_wrong_secret
+  D:\Learning\Sellary\sellary-backend\.venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 12 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    return self._jws.encode(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+===================== 1285 passed, 78 warnings in 33.51s ======================

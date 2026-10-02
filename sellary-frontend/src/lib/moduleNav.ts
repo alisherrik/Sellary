@@ -45,6 +45,7 @@ export const MODULE_NAV: ModuleDef[] = [
     tagline: 'Товары, категории, инвентаризация',
     pages: [
       { label: 'Товары', href: '/products' },
+      { label: 'Инвентаризация', href: '/stocktakes' },
       { label: 'Списания', href: '/write-offs' },
     ],
   },
@@ -71,6 +72,7 @@ export const MODULE_NAV: ModuleDef[] = [
     pages: [
       { label: 'Дашборд', href: '/dashboard' },
       { label: 'Аналитика', href: '/reports' },
+      { label: 'Периоды', href: '/periods' },
     ],
   },
   {

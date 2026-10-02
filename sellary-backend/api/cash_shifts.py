@@ -28,6 +28,7 @@ def _to_response(service: CashShiftService, shift: CashShiftModel) -> CashShift:
         opened_at=shift.opened_at,
         opened_by_user_id=shift.opened_by_user_id,
         opening_cash=shift.opening_cash,
+        opening_notes=shift.opening_notes,
         closed_at=shift.closed_at,
         closed_by_user_id=shift.closed_by_user_id,
         counted_cash=shift.counted_cash,
@@ -59,7 +60,7 @@ def open_shift(
 ):
     service = CashShiftService(db, auth.company_id)
     try:
-        shift = service.open_shift(body.opening_cash, auth.user.id)
+        shift = service.open_shift(body.opening_cash, auth.user.id, body.opening_notes)
     except ShiftConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()

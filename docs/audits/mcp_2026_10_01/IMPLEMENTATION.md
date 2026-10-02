@@ -149,4 +149,25 @@ Eski `probes.py` tarixiy nosozliklarni assert qiladi; amaldagi regressiya to‘p
   MCP hisobotlari amalda yozilgan chek va qaytarish summalariga bog‘langan.
 
 Userning avvalgi `.claude/settings.local.json` va frontend `tsconfig.tsbuildinfo`
-o‘zgarishlari saqlandi. Commit/push qilinmadi.
+o‘zgarishlari saqlandi va MCP commitlariga kiritilmaydi.
+
+## Production bilan birlashtirish — 2026-10-02
+
+Deploy oldidan remote `main` mahalliy boshlang‘ich koddan 45 commit oldinda
+ekani aniqlandi. `679da08` dagi mavjud o‘zgarishlar saqlanib, MCP tuzatishlari
+ularga birlashtirildi. Yakuniy connector 44 tool: mavjud nomlar va yangi
+sahifalangan o‘qishlar birga ishlaydi; hammasi typed output va annotations bilan.
+
+Mavjud `sellary:records` rozilik chegarasi saqlandi: reports-only token individual
+chek, qarz tarixi, harakat, xarid/spisanie hujjati va checker findings o‘qiy olmaydi.
+Katalog va yig‘ma hisobotlar `sellary:reports` bilan o‘qiladi.
+
+Yopilgan davr hisobotlari UTC query instants va purchase exclusive-end chegarasiga
+moslandi. Ombor baholashidagi miqdor/mahsulotlar soni birinchi 100 qator bilan
+cheklanmaydi, kompaniya bo‘yicha SQL aggregate ishlatadi. Eski tool aliases shu
+o‘qishlarning sahifalangan kontraktlariga ulanadi.
+
+Production bazasida faqat o‘qish orqali `3de347509835` revision va `opening_notes`
+ustuni tasdiqlandi. Yangi migratsiya parent shu revisionga moslandi:
+`e8f9a0b1c2d3 → 3de347509835 → f9a0b1c2d3e4`.
+Yakuniy release dalillari `DEPLOYMENT.md` da yoziladi.

@@ -167,6 +167,7 @@ class InventoryService:
         start_date=None,
         end_date=None,
         reference_type: str = None,
+        stocktake_only: bool = False,
     ) -> Tuple[List[InventoryLog], int]:
         logs, total = self.inventory_repo.get_logs(
             self.company_id,
@@ -177,17 +178,18 @@ class InventoryService:
             start_date=start_date,
             end_date=end_date,
             reference_type=reference_type,
+            stocktake_only=stocktake_only,
         )
         return [self._log_to_response(log) for log in logs], total
 
     def get_inventory_value(self) -> dict:
-        value = self.inventory_repo.get_inventory_value(self.company_id)
-        products = self.product_repo.get_all(self.company_id, active_only=True)[0]
-        total_items = sum(product.stock_quantity for product in products)
+        value, total_products, total_items = self.inventory_repo.get_inventory_totals(
+            self.company_id
+        )
 
         return {
             "total_value": str(value.quantize(Decimal("0.01"))),
-            "total_products": len(products),
+            "total_products": total_products,
             "total_items": total_items,
         }
 

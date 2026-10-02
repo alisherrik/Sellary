@@ -195,6 +195,14 @@ The quantity field survives on product **creation**: that is a real opening
 balance, written as a `product_initial` FIFO layer on a product with no prior
 figure to corrupt.
 
+Counts are read back on `/stocktakes` («Инвентаризация», in the Склад nav group).
+`GET /api/inventory/logs?stocktake_only=true` narrows the movement log to
+`STOCKTAKE_REFERENCE_TYPES` — the four `StocktakeReason` values plus the removed
+`manual_adjust` channel, whose 146 production rows are real corrections and are
+shown rather than hidden. That flag is the server's only job here: the page loads
+one page of rows and does its own date, reason, user, direction and search
+filtering, because counts are rare while every sale line writes a log row.
+
 ### Одна проверка
 Every derived figure is recomputed from an **independent** source in
 `services/consistency_service.py`, and that registry is the only place to add
@@ -264,6 +272,18 @@ one, is exactly the decay this work exists to prevent.
 Railway worker in the stack — `railway.toml` carries only a `preDeployCommand`
 and a healthcheck — so production runs are manual until someone builds that.
 
+A сверка's **period** — from the previous cut-off to the day before this one — is
+derived, never stored. `services/reconciliation.py` holds the one predicate
+(`periods`, `period`) beside `open_from`, and `services/period_report_service.py`
+composes the existing profit and purchase reports over that window. Nothing is
+written to `company_reconciliations`: a settled total with no independent source
+is the same shape as `stock_quantity` drifting from its layers, and the freeze
+binds the application rather than the database — the repair scripts write behind
+it, so a derived report shows the repaired truth while a frozen column would
+disagree with every other screen forever. The figure can move, and that residual
+is named: `late_arrivals` on the period report counts receipts dated inside it
+whose tenders were written after the freeze.
+
 ### Which side of the stock invariant is the truth
 `products.stock_quantity` and the sum of a product's open `inventory_layers`
 must agree, and when they do not the checker **reports both figures and names
@@ -298,11 +318,25 @@ ordinary company-scoped JWT plus an `mcp: true` claim, so a web-session token is
 rejected at `/mcp` and an MCP token carries no more authority than its owner's login.
 Discovery documents are served from the **origin root**, not under the mount.
 
-Reports are read-only. The only write is the two-phase purchase: `purchase_preview`
-resolves a delivery against the catalogue and returns a signed `draft_token` without
+Reads come in two permissions. `sellary:reports` covers aggregates — dashboards,
+summaries, valuations, the сверка archive. `sellary:records` covers rows — a
+receipt, a customer's debt ledger, a money movement, a stock movement, a purchase
+order, a shop order, a shift. They are separate because widening what an agent can
+read must mean asking the owner again, not silently upgrading a token already
+issued; `provider.py` grants both to newly registered clients, and an older token
+gets «Приложению не выдано это разрешение» until it reconnects.
+
+The only write is still the two-phase purchase: `purchase_preview` resolves a
+delivery against the catalogue and returns a signed `draft_token` without
 writing; `purchase_commit` executes only what that token carries, guarded by the
-existing `idempotency_keys` table. Required env var: `MCP_PUBLIC_BASE_URL` (the public
-https origin) — in production the connector disables itself if it is unset.
+existing `idempotency_keys` table. Ten capabilities are excluded on purpose and
+listed in `docs/superpowers/specs/2026-08-15-period-reports-and-mcp-parity-design.md`:
+ringing a sale, refunds, voids, opening or closing a shift, delta stock
+adjustment, stocktake, balance correction, declaring a сверка, staff and password
+administration, and revoking an MCP agent. Each one either moves money outward, is
+a physical count that needs a human author, or edits the agent's own authority.
+Required env var: `MCP_PUBLIC_BASE_URL` (the public https origin) — in production
+the connector disables itself if it is unset.
 
 ### Tauri cashier — offline-first sync
 The cashier app is a local-first POS. It keeps a local SQLite catalog and an **outbox** of sales (`src/lib/db.ts`), and reconciles with the server via the backend's sync endpoints:

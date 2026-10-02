@@ -58,6 +58,16 @@ STOCKTAKE_REASON_LABELS: dict[StocktakeReason, str] = {
 }
 
 
+# What the Инвентаризация page reads back. Derived from the enum rather than
+# hand-listed, so a new reason cannot be added above and forgotten here.
+# `manual_adjust` is the removed edit-form quantity box — a dead channel, but its
+# rows are real corrections to counted stock and an audit that omits them is
+# worse than one that shows them.
+STOCKTAKE_REFERENCE_TYPES: tuple[str, ...] = tuple(
+    reason.value for reason in StocktakeReason
+) + ("manual_adjust",)
+
+
 class StocktakeRequest(BaseModel):
     """An absolute physical count, not a delta.
 

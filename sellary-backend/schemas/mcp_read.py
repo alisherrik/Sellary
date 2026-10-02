@@ -177,3 +177,23 @@ class CurrentShiftResult(BaseModel):
 
 class ConsistencyPage(ConsistencyReport, Page):
     pass
+
+
+class SaleReturnsPage(Page):
+    sale_id: int
+    returns: list[SaleReturnResponse]
+
+
+class CategoryRow(BaseModel):
+    id: int
+    name: str
+
+
+class CategoryPage(Page):
+    categories: list[CategoryRow]
+
+
+class InventoryValuation(BaseModel):
+    total_value: Decimal
+    total_products: int
+    total_items: Decimal

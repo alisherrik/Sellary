@@ -2,6 +2,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session, joinedload
 from models.inventory_log import InventoryLog
 from models.product import Product
+from schemas.inventory_log import STOCKTAKE_REFERENCE_TYPES
 from typing import Optional, List
 
 # Everything a receipt number can do to stock: the sale itself, a return
@@ -23,6 +24,7 @@ class InventoryRepository:
         start_date=None,
         end_date=None,
         reference_type: Optional[str] = None,
+        stocktake_only: bool = False,
     ) -> tuple[List[InventoryLog], int]:
         query = self.db.query(InventoryLog).options(
             joinedload(InventoryLog.product), joinedload(InventoryLog.user)
@@ -37,6 +39,13 @@ class InventoryRepository:
             query = query.filter(InventoryLog.created_at <= end_date)
         if reference_type:
             query = query.filter(InventoryLog.reference_type == reference_type)
+        if stocktake_only:
+            # Counting stock is rare; every sale line writes a row. Narrowing
+            # here is what keeps the Инвентаризация page from downloading the
+            # whole movement history to find a handful of rows.
+            query = query.filter(
+                InventoryLog.reference_type.in_(STOCKTAKE_REFERENCE_TYPES)
+            )
 
         if sale_id:
             # reference_id alone is ambiguous — a purchase receive stores the
@@ -86,14 +95,21 @@ class InventoryRepository:
         return log
 
     def get_inventory_value(self, company_id: int) -> Decimal:
+        return self.get_inventory_totals(company_id)[0]
+
+    def get_inventory_totals(self, company_id: int) -> tuple[Decimal, int, Decimal]:
         from sqlalchemy import func
 
-        result = (
-            self.db.query(func.sum(Product.inventory_value))
+        value, product_count, total_items = (
+            self.db.query(
+                func.sum(Product.inventory_value),
+                func.count(Product.id),
+                func.sum(Product.stock_quantity),
+            )
             .filter(
                 Product.company_id == company_id,
                 Product.is_active == True,
             )
-            .scalar()
+            .one()
         )
-        return result or Decimal("0.00")
+        return value or Decimal("0.00"), product_count, total_items or Decimal("0")

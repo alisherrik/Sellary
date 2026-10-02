@@ -90,6 +90,15 @@ class TestShiftLifecycle:
         # /shifts/current must resolve to this handler, not /{shift_id}.
         assert "totals" in current
 
+    def test_opening_notes_round_trip(self, client, cashier_headers):
+        client.post(
+            "/api/shifts/open",
+            headers=cashier_headers,
+            json={"opening_cash": "0.00", "opening_notes": "касса без сдачи"},
+        )
+        current = client.get("/api/shifts/current", headers=cashier_headers).json()
+        assert current["opening_notes"] == "касса без сдачи"
+
     def test_second_open_conflicts(self, client, cashier_headers):
         client.post("/api/shifts/open", headers=cashier_headers, json={"opening_cash": "0.00"})
         second = client.post("/api/shifts/open", headers=cashier_headers, json={"opening_cash": "0.00"})

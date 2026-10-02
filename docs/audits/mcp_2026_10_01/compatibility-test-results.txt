@@ -1,0 +1,36 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.3, pytest-9.0.3, pluggy-1.6.0
+rootdir: D:\Learning\Sellary\sellary-backend
+configfile: pytest.ini
+plugins: anyio-4.13.0, Faker-40.18.0, asyncio-1.3.0, cov-7.1.0, mock-3.15.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 91 items
+
+tests\integration\test_mcp_auth_hardening.py ...................         [ 20%]
+tests\integration\test_mcp_paged_reads.py .......................        [ 46%]
+tests\integration\test_mcp_read_tools.py ..............................  [ 79%]
+tests\integration\test_mcp_upstream_compatibility.py ................... [100%]
+
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\Learning\Sellary\sellary-backend\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv\Lib\site-packages\pydantic\main.py:263
+  D:\Learning\Sellary\sellary-backend\.venv\Lib\site-packages\pydantic\main.py:263: RuntimeWarning: SYNC_ALLOW_OVERSELL is enabled but no longer overrides ledger safety: synced sales that exceed available FIFO layer stock are always rejected. The flag is deprecated and can be removed.
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+tests/integration/test_mcp_paged_reads.py: 23 warnings
+  D:\Learning\Sellary\sellary-backend\.venv\Lib\site-packages\fastmcp\utilities\json_schema_type.py:434: UserWarning: Pattern '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$' is not supported by Pydantic's regex engine and will not be enforced.
+    "string": lambda s: _create_string_type(s),
+
+tests/integration/test_mcp_paged_reads.py::test_mcp_protocol_validates_every_read_response
+  D:\Learning\Sellary\sellary-backend\.venv\Lib\site-packages\fastmcp\utilities\json_schema_type.py:434: UserWarning: Pattern '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,3}0*$' is not supported by Pydantic's regex engine and will not be enforced.
+    "string": lambda s: _create_string_type(s),
+
+tests/integration/test_mcp_paged_reads.py::test_mcp_protocol_validates_every_read_response
+  D:\Learning\Sellary\sellary-backend\.venv\Lib\site-packages\fastmcp\utilities\json_schema_type.py:434: UserWarning: Pattern '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,4}0*$' is not supported by Pydantic's regex engine and will not be enforced.
+    "string": lambda s: _create_string_type(s),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 91 passed, 27 warnings in 4.66s =======================

@@ -130,6 +130,17 @@ Write-offs never enter turnover. The profit report carries them as
 `write_off_cost` and `profit_after_write_offs` beside an unchanged `profit`, so
 existing callers (frontend, MCP `get_profit_report`) keep their meaning.
 
+### Counting stock
+Editing a product never changes its stock — `POST /api/inventory/stocktake`
+takes the **absolute** counted quantity plus the `expected_quantity` the dialog
+opened on and returns 409 if they disagree; counting back the same figure writes
+no log. Reasons are only what counting can tell you (`stocktake`, `surplus`,
+`shortage`, `other`); spoilage and supplier returns stay with the write-off
+document. Counts are read back on `/stocktakes` («Инвентаризация»);
+`GET /api/inventory/logs?stocktake_only=true` narrows to `STOCKTAKE_REFERENCE_TYPES`
+(those four reasons plus the removed `manual_adjust` channel), and the page does
+its own date/reason/user/direction/search filtering client-side.
+
 ### Одна проверка
 Every derived figure is recomputed from an independent source in
 `services/consistency_service.py` — one registry, and the only place to add a
@@ -162,6 +173,15 @@ application, not the database: the backend-root maintenance scripts write
 outside it, deliberately. Nothing schedules the checker — there is no cron or
 worker in the stack.
 
+A сверка's **period** — from the previous cut-off to the day before this one —
+is derived, never stored: `services/reconciliation.py` holds the predicate
+(`periods`, `period`) beside `open_from`, and
+`services/period_report_service.py` composes the existing profit and purchase
+reports over that window. A stored total would be the same drift as
+`stock_quantity` vs. its layers, and would disagree with the repair scripts that
+write behind the freeze. `late_arrivals` on the period report names, rather than
+absorbs, receipts dated inside the window whose tenders arrived after it closed.
+
 ### Which side of the stock invariant is the truth
 `products.stock_quantity` and the sum of a product's open `inventory_layers`
 must agree, and when they do not the checker **reports both figures and names
@@ -180,7 +200,9 @@ Gated on the `ai` module — in no business-type preset, checked on every tool c
 
 `sellary-backend/mcp_server/` is an MCP server mounted in-process at `/mcp` (FastMCP 3.x). Tools call `services/`, never repositories — a tool is the MCP equivalent of a router. Auth is OAuth 2.1 (PKCE + Dynamic Client Registration) with Sellary as both authorization and resource server; `/authorize` parks the request in a signed transaction and hands the browser to `login → company → consent`. New access tokens have `token_type: mcp_access`, `mcp: true`, and bound resource audience/issuer; REST refuses both these and legacy MCP-marked tokens. Ordinary web sessions cannot open `/mcp`. Discovery documents are served from the **origin root**, not under the mount. Reports and document histories are read-only; the only write is `purchase_preview` → `purchase_commit`, where the commit atomically executes only the signed draft the preview issued. New-product MCP plans never reactivate archived barcodes. Requires `MCP_PUBLIC_BASE_URL`; in production the connector disables itself if it is unset.
 
-Lists expose `count`, `total`, `limit`, `offset`, `has_more`, `next_offset`; money movements explicitly report `total: null`. Page limits bound each response, not access to the whole catalogue/history. All 33 tools declare input/output schemas and side-effect annotations. Calendar dates are company-local and converted to UTC query instants; an explicit date pair selects custom even if period is omitted. Named historical periods preserve their requested days across reconciliation. Reconciliation history requires manager/admin, and the read-only consistency checker requires admin; filtered/paged findings retain a whole-company `clean` result. Each tool call checks live membership and both company/member `ai` grants. Rotation and admin revocation lock the same persistent OAuth client row on PostgreSQL; access JWT revocation still follows its documented expiry policy.
+Lists expose `count`, `total`, `limit`, `offset`, `has_more`, `next_offset`; money movements explicitly report `total: null`. Page limits bound each response, not access to the whole catalogue/history. All 44 tools declare input/output schemas and side-effect annotations. Calendar dates are company-local and converted to UTC query instants; an explicit date pair selects custom even if period is omitted. Named historical periods preserve their requested days across reconciliation. Reconciliation history requires manager/admin, and the read-only consistency checker requires admin; filtered/paged findings retain a whole-company `clean` result. Each tool call checks live membership and both company/member `ai` grants. Rotation and admin revocation lock the same persistent OAuth client row on PostgreSQL; access JWT revocation still follows its documented expiry policy.
+
+Two read scopes remain separate: `sellary:reports` for aggregates, catalogue and reconciliation archive; `sellary:records` for receipts, customer ledgers, movements, purchase/write-off documents, shop orders, individual shifts and consistency findings. A reports-only token cannot read those records. Existing tool names remain available alongside the new paginated reads. Physical counts, sales/refunds/voids, finance movements, declaring reconciliation and changing permissions remain human actions in the app.
 
 ### Frontend routing
 

@@ -38,6 +38,11 @@ class CategoryRepository:
         self.db.refresh(category)
         return category
 
+    def get_page(self, company_id: int, skip: int = 0, limit: int = 50):
+        query = self.db.query(Category).filter(Category.company_id == company_id)
+        total = query.count()
+        return query.order_by(Category.name.asc(), Category.id.asc()).offset(skip).limit(limit).all(), total
+
     def update(self, category: Category) -> Category:
         self.db.commit()
         self.db.refresh(category)

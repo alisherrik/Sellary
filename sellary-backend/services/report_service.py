@@ -300,8 +300,8 @@ class ReportService:
         ]
 
         return DailySalesReport(
-            period_start=start_date.isoformat(),
-            period_end=end_date.isoformat(),
+            period_start=to_local(start_date, self.tz()).date().isoformat(),
+            period_end=to_local(end_date, self.tz()).date().isoformat(),
             data=data,
             total_sales=sum(result.total_sales for result in data),
             gross_turnover=gross_turnover,
@@ -357,8 +357,8 @@ class ReportService:
         )
 
         return ProfitReport(
-            period_start=start_date.isoformat(),
-            period_end=end_date.isoformat(),
+            period_start=to_local(start_date, self.tz()).date().isoformat(),
+            period_end=to_local(end_date, self.tz()).date().isoformat(),
             revenue=revenue,
             cost=cost,
             profit=profit,
@@ -384,8 +384,8 @@ class ReportService:
             Sale.status.in_(NON_CANCELLED_STATUSES),
         ).scalar() or 0
         return TopProductReport(
-            period_start=start_date.isoformat(),
-            period_end=end_date.isoformat(),
+            period_start=to_local(start_date, self.tz()).date().isoformat(),
+            period_end=to_local(end_date, self.tz()).date().isoformat(),
             top_products=self._get_top_products(start_date, end_date, limit, offset),
             product_count=product_count,
         )

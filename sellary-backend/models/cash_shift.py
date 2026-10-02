@@ -68,6 +68,10 @@ class CashShift(Base):
     opened_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     opened_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     opening_cash = Column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
+    # What the cashier noted at handover — a separate column from `notes`
+    # (written only at close) so opening and closing comments never overwrite
+    # each other.
+    opening_notes = Column(Text, nullable=True)
 
     closed_at = Column(DateTime(timezone=True), nullable=True)
     closed_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)

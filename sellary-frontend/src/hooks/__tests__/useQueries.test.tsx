@@ -448,6 +448,8 @@ describe('Report Hooks (useDailySales, useProfit, useTopProducts)', () => {
             expect(result.current.isSuccess).toBe(true);
         });
 
+        // No start_date: Аналитика has no day-picker to be honest about, so
+        // the server's own сверка-aware floor is the correct window.
         expect(api.reportsApi.getDailySales).toHaveBeenCalledWith({ days: 7 });
     });
 
@@ -463,7 +465,25 @@ describe('Report Hooks (useDailySales, useProfit, useTopProducts)', () => {
             expect(result.current.isSuccess).toBe(true);
         });
 
-        expect(api.reportsApi.getProfit).toHaveBeenCalledWith({ days: 30 });
+        expect(api.reportsApi.getProfit).toHaveBeenCalledWith(
+            expect.objectContaining({ days: 30, start_date: expect.any(String) })
+        );
+    });
+
+    it('sends a start that is N-1 days back, so the server does not floor it', async () => {
+        vi.mocked(api.reportsApi.getProfit).mockResolvedValue(createMockAxiosResponse({}));
+
+        const { result } = renderHook(() => useProfit(90), { wrapper: createWrapper() });
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        const sent = vi.mocked(api.reportsApi.getProfit).mock.calls[0][0] as {
+            start_date: string;
+        };
+        const expected = new Date();
+        expected.setDate(expected.getDate() - 89);
+        expected.setHours(0, 0, 0, 0);
+
+        expect(new Date(sent.start_date).getTime()).toBe(expected.getTime());
     });
 
     it('should fetch top products when server is reachable', async () => {

@@ -5,7 +5,7 @@ movements, explicit anchors, counted shifts or reconciliations require review:
 moving their anchor could count money already included by a physical count.
 
 Revision ID: f9a0b1c2d3e4
-Revises: e8f9a0b1c2d3
+Revises: 3de347509835
 Create Date: 2026-10-01 16:00:00
 """
 from alembic import op
@@ -13,7 +13,7 @@ from datetime import timezone
 import sqlalchemy as sa
 
 revision = "f9a0b1c2d3e4"
-down_revision = "e8f9a0b1c2d3"
+down_revision = "3de347509835"
 branch_labels = None
 depends_on = None
 

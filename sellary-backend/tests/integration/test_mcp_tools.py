@@ -16,7 +16,7 @@ import pytest
 from fastmcp.exceptions import ToolError
 from mcp.server.auth.provider import AccessToken
 
-from mcp_server import SCOPE_PURCHASING, SCOPE_REPORTS
+from mcp_server import SCOPE_PURCHASING, SCOPE_RECORDS, SCOPE_REPORTS
 from mcp_server import context as mcp_context
 from mcp_server import tools_catalog, tools_purchase, tools_reports
 from models.company_module import CompanyModule
@@ -54,7 +54,7 @@ class _SharedSession:
 def as_user(monkeypatch, db_session):
     """Run tools as a given user, with a given set of scopes."""
 
-    def _install(user, company, scopes=(SCOPE_REPORTS, SCOPE_PURCHASING)):
+    def _install(user, company, scopes=(SCOPE_REPORTS, SCOPE_RECORDS, SCOPE_PURCHASING)):
         token = AccessToken(
             token="test-token",
             client_id="test-client",

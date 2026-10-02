@@ -297,3 +297,22 @@ class TestTokenSeparation:
 
         token = create_access_token(data={"sub": "admin", "user_id": 1, "mcp": True})
         assert asyncio.run(auth_provider.load_access_token(token)) is None
+
+
+def test_the_records_scope_is_offered_and_labelled():
+    """A new read capability must be consented to, not inherited."""
+    from mcp_server import SCOPE_RECORDS, SCOPES
+    from mcp_server.oauth.templates import render_consent
+
+    assert SCOPE_RECORDS in SCOPES
+
+    page = render_consent(
+        txn="t",
+        client_name="Claude",
+        company_name="Магазин",
+        user_label="Алишер",
+        scopes=[SCOPE_RECORDS],
+    )
+
+    assert SCOPE_RECORDS not in page, "the raw scope leaked instead of its label"
+    assert "чеки" in page

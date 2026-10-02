@@ -119,7 +119,7 @@ def test_new_mcp_token_is_resource_bound(oauth_client):
     assert access is not None
     assert access.claims["token_type"] == "mcp_access"
     assert access.claims["aud"] == settings.MCP_PUBLIC_BASE_URL.rstrip("/") + "/mcp"
-    assert access.scopes == ["sellary:reports", "sellary:purchasing"]
+    assert access.scopes == ["sellary:reports", "sellary:records", "sellary:purchasing"]
     assert oauth_client.get("/api/auth/me", headers={
         "Authorization": f"Bearer {tokens['access_token']}",
     }).status_code == 401
@@ -256,7 +256,7 @@ def test_agent_list_groups_reconnections(oauth_client, db_session, admin_user, d
     ))
     agents = McpAdminService(db_session, default_company.id).agents().agents
     assert len(agents) == 1
-    assert agents[0].scopes == ["sellary:reports", "sellary:purchasing"]
+    assert agents[0].scopes == ["sellary:reports", "sellary:records", "sellary:purchasing"]
 
 
 def test_connection_is_disabled_when_server_connector_is_disabled(
