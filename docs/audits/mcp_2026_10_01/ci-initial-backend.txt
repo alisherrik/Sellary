@@ -1,0 +1,693 @@
+Backend	Set up job	﻿2026-10-02T06:38:02.7377848Z Current runner version: '2.337.0'
+Backend	Set up job	2026-10-02T06:38:02.7419955Z ##[group]Runner Image Provisioner
+Backend	Set up job	2026-10-02T06:38:02.7420824Z Hosted Compute Agent
+Backend	Set up job	2026-10-02T06:38:02.7421352Z Version: 20260901.588
+Backend	Set up job	2026-10-02T06:38:02.7421950Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+Backend	Set up job	2026-10-02T06:38:02.7422667Z Build Date: 2026-09-01T19:56:44Z
+Backend	Set up job	2026-10-02T06:38:02.7423315Z Worker ID: {b0679a2e-35ba-4684-910a-f9e171d2b612}
+Backend	Set up job	2026-10-02T06:38:02.7423988Z Azure Region: northcentralus
+Backend	Set up job	2026-10-02T06:38:02.7424582Z ##[endgroup]
+Backend	Set up job	2026-10-02T06:38:02.7425921Z ##[group]Operating System
+Backend	Set up job	2026-10-02T06:38:02.7426570Z Microsoft Windows Server 2025
+Backend	Set up job	2026-10-02T06:38:02.7427131Z 10.0.26100
+Backend	Set up job	2026-10-02T06:38:02.7427598Z Datacenter
+Backend	Set up job	2026-10-02T06:38:02.7428077Z ##[endgroup]
+Backend	Set up job	2026-10-02T06:38:02.7428560Z ##[group]Runner Image
+Backend	Set up job	2026-10-02T06:38:02.7429110Z Image: windows-2025-vs2026
+Backend	Set up job	2026-10-02T06:38:02.7429669Z Version: 20260925.250.1
+Backend	Set up job	2026-10-02T06:38:02.7430805Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260925.250/images/windows/Windows2025-VS2026-Readme.md
+Backend	Set up job	2026-10-02T06:38:02.7433350Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260925.250
+Backend	Set up job	2026-10-02T06:38:02.7434308Z ##[endgroup]
+Backend	Set up job	2026-10-02T06:38:02.7435450Z ##[group]GITHUB_TOKEN Permissions
+Backend	Set up job	2026-10-02T06:38:02.7437280Z Contents: read
+Backend	Set up job	2026-10-02T06:38:02.7437851Z Metadata: read
+Backend	Set up job	2026-10-02T06:38:02.7438370Z Packages: read
+Backend	Set up job	2026-10-02T06:38:02.7438886Z ##[endgroup]
+Backend	Set up job	2026-10-02T06:38:02.7440835Z Secret source: Actions
+Backend	Set up job	2026-10-02T06:38:02.7441745Z Cache mode: write
+Backend	Set up job	2026-10-02T06:38:02.7442385Z Prepare workflow directory
+Backend	Set up job	2026-10-02T06:38:02.7949309Z Prepare all required actions
+Backend	Set up job	2026-10-02T06:38:02.7997683Z Getting action download info
+Backend	Set up job	2026-10-02T06:38:03.0174485Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+Backend	Set up job	2026-10-02T06:38:03.1461850Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+Backend	Set up job	2026-10-02T06:38:03.4133055Z Complete job name: Backend
+Backend	Run actions/checkout@v4	﻿2026-10-02T06:38:03.5575630Z ##[group]Run actions/checkout@v4
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5576667Z with:
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5577102Z   repository: alisherrik/Sellary
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5581207Z   token: ***
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5581973Z   ssh-strict: true
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5582388Z   ssh-user: git
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5582809Z   persist-credentials: true
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5583254Z   clean: true
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5583662Z   sparse-checkout-cone-mode: true
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5584148Z   fetch-depth: 1
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5584539Z   fetch-tags: false
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5584949Z   show-progress: true
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5585359Z   lfs: false
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5585732Z   submodules: false
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5586148Z   set-safe-directory: true
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5586616Z   allow-unsafe-pr-checkout: false
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.5587394Z ##[endgroup]
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.6948419Z Syncing repository: alisherrik/Sellary
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.6950170Z ##[group]Getting Git version info
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.6950831Z Working directory is 'D:\a\Sellary\Sellary'
+Backend	Run actions/checkout@v4	2026-10-02T06:38:03.8046905Z [command]"C:\Program Files\Git\bin\git.exe" version
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.0923228Z git version 2.55.0.windows.5
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.0977073Z ##[endgroup]
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.0997377Z Temporarily overriding HOME='D:\a\_temp\5eb1ce64-13d5-4743-8716-5fbb1d5ba3ac' before making global git config changes
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.0998734Z Adding repository directory to the temporary git global config as a safe directory
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.1008230Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\Sellary\Sellary
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.1572982Z Deleting the contents of 'D:\a\Sellary\Sellary'
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.1579150Z ##[group]Initializing the repository
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.1587131Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\Sellary\Sellary
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.2332865Z Initialized empty Git repository in D:/a/Sellary/Sellary/.git/
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.2370992Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/alisherrik/Sellary
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.2940408Z ##[endgroup]
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.2941454Z ##[group]Disabling automatic garbage collection
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.2945923Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.3257279Z ##[endgroup]
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.3258392Z ##[group]Setting up auth
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.3269529Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Backend	Run actions/checkout@v4	2026-10-02T06:38:04.3556822Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Backend	Run actions/checkout@v4	2026-10-02T06:38:05.5838183Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Backend	Run actions/checkout@v4	2026-10-02T06:38:05.6124004Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Backend	Run actions/checkout@v4	2026-10-02T06:38:06.1269613Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Backend	Run actions/checkout@v4	2026-10-02T06:38:06.1550780Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Backend	Run actions/checkout@v4	2026-10-02T06:38:06.6851611Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+Backend	Run actions/checkout@v4	2026-10-02T06:38:06.7190760Z ##[endgroup]
+Backend	Run actions/checkout@v4	2026-10-02T06:38:06.7191654Z ##[group]Fetching the repository
+Backend	Run actions/checkout@v4	2026-10-02T06:38:06.7204756Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +8139f400fb9466e70d99a5737213ce3273f2755b:refs/remotes/origin/main
+Backend	Run actions/checkout@v4	2026-10-02T06:38:10.4556519Z From https://github.com/alisherrik/Sellary
+Backend	Run actions/checkout@v4	2026-10-02T06:38:10.4559800Z  * [new ref]         8139f400fb9466e70d99a5737213ce3273f2755b -> origin/main
+Backend	Run actions/checkout@v4	2026-10-02T06:38:10.4600362Z ##[endgroup]
+Backend	Run actions/checkout@v4	2026-10-02T06:38:10.4601112Z ##[group]Determining the checkout info
+Backend	Run actions/checkout@v4	2026-10-02T06:38:10.4603082Z ##[endgroup]
+Backend	Run actions/checkout@v4	2026-10-02T06:38:10.4613341Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+Backend	Run actions/checkout@v4	2026-10-02T06:38:10.5027823Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+Backend	Run actions/checkout@v4	2026-10-02T06:38:10.5300693Z ##[group]Checking out the ref
+Backend	Run actions/checkout@v4	2026-10-02T06:38:10.5309058Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force -B main refs/remotes/origin/main
+Backend	Run actions/checkout@v4	2026-10-02T06:38:11.7409717Z Updating files:  68% (753/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.0002032Z Updating files:  69% (759/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.0259192Z Updating files:  70% (770/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.1656374Z Updating files:  71% (781/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.3895022Z Updating files:  72% (792/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5240638Z Updating files:  73% (803/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5264678Z Updating files:  74% (814/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5323586Z Updating files:  75% (825/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5380379Z Updating files:  76% (836/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5423008Z Updating files:  77% (847/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5465208Z Updating files:  78% (858/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5501672Z Updating files:  79% (869/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5531119Z Updating files:  80% (880/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5565968Z Updating files:  81% (891/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5596111Z Updating files:  82% (902/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5625022Z Updating files:  83% (913/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5674742Z Updating files:  84% (924/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5815011Z Updating files:  85% (935/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5840134Z Updating files:  85% (938/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5872954Z Updating files:  86% (946/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5903853Z Updating files:  87% (957/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5938356Z Updating files:  88% (968/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.5971765Z Updating files:  89% (979/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6007158Z Updating files:  90% (990/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6036982Z Updating files:  91% (1001/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6063167Z Updating files:  92% (1012/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6088429Z Updating files:  93% (1023/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6117595Z Updating files:  94% (1034/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6154741Z Updating files:  95% (1045/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6196694Z Updating files:  96% (1056/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6222490Z Updating files:  97% (1067/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6249784Z Updating files:  98% (1078/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6277822Z Updating files:  99% (1089/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6278314Z Updating files: 100% (1100/1100)
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6278611Z Updating files: 100% (1100/1100), done.
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6425538Z Switched to a new branch 'main'
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6485654Z branch 'main' set up to track 'origin/main'.
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.6752139Z ##[endgroup]
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.7138686Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+Backend	Run actions/checkout@v4	2026-10-02T06:38:12.7393505Z 8139f400fb9466e70d99a5737213ce3273f2755b
+Backend	Run actions/setup-python@v5	﻿2026-10-02T06:38:12.7837032Z ##[group]Run actions/setup-python@v5
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.7837418Z with:
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.7837611Z   python-version: 3.13
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.7837840Z   check-latest: false
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.7840312Z   token: ***
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.7840506Z   update-environment: true
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.7840728Z   allow-prereleases: false
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.7840934Z   freethreaded: false
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.7841120Z ##[endgroup]
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.9518658Z ##[group]Installed versions
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.9705348Z (node:3272) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.9706420Z (Use `node --trace-deprecation ...` to show where the warning was created)
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.9707182Z Successfully set up CPython (3.13.15)
+Backend	Run actions/setup-python@v5	2026-10-02T06:38:12.9782630Z ##[endgroup]
+Backend	Install dependencies	﻿2026-10-02T06:38:13.0003430Z ##[group]Run python -m pip install --upgrade pip
+Backend	Install dependencies	2026-10-02T06:38:13.0003939Z [36;1mpython -m pip install --upgrade pip[0m
+Backend	Install dependencies	2026-10-02T06:38:13.0004260Z [36;1mpip install -r requirements.txt[0m
+Backend	Install dependencies	2026-10-02T06:38:13.0607547Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Backend	Install dependencies	2026-10-02T06:38:13.0608079Z env:
+Backend	Install dependencies	2026-10-02T06:38:13.0608457Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Install dependencies	2026-10-02T06:38:13.0609142Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.13.15\x64/lib/pkgconfig
+Backend	Install dependencies	2026-10-02T06:38:13.0609800Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Install dependencies	2026-10-02T06:38:13.0610429Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Install dependencies	2026-10-02T06:38:13.0611078Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Install dependencies	2026-10-02T06:38:13.0611505Z ##[endgroup]
+Backend	Install dependencies	2026-10-02T06:38:16.9696648Z Requirement already satisfied: pip in C:\hostedtoolcache\windows\Python\3.13.15\x64\Lib\site-packages (26.2.1)
+Backend	Install dependencies	2026-10-02T06:38:19.0743526Z Collecting fastapi>=0.136.1 (from -r requirements.txt (line 1))
+Backend	Install dependencies	2026-10-02T06:38:19.2779992Z   Downloading fastapi-0.142.2-py3-none-any.whl.metadata (27 kB)
+Backend	Install dependencies	2026-10-02T06:38:19.3695060Z Collecting uvicorn>=0.47.0 (from uvicorn[standard]>=0.47.0->-r requirements.txt (line 2))
+Backend	Install dependencies	2026-10-02T06:38:19.3736899Z   Downloading uvicorn-0.54.0-py3-none-any.whl.metadata (6.6 kB)
+Backend	Install dependencies	2026-10-02T06:38:19.7027951Z Collecting sqlalchemy>=2.0.49 (from -r requirements.txt (line 3))
+Backend	Install dependencies	2026-10-02T06:38:19.7073414Z   Downloading sqlalchemy-2.1.2-cp313-cp313-win_amd64.whl.metadata (9.9 kB)
+Backend	Install dependencies	2026-10-02T06:38:19.8018799Z Collecting psycopg2-binary>=2.9.12 (from -r requirements.txt (line 4))
+Backend	Install dependencies	2026-10-02T06:38:19.8063616Z   Downloading psycopg2_binary-2.9.13-cp313-cp313-win_amd64.whl.metadata (5.1 kB)
+Backend	Install dependencies	2026-10-02T06:38:19.8486337Z Collecting alembic>=1.18.4 (from -r requirements.txt (line 5))
+Backend	Install dependencies	2026-10-02T06:38:19.8529548Z   Downloading alembic-1.20.0-py3-none-any.whl.metadata (7.3 kB)
+Backend	Install dependencies	2026-10-02T06:38:19.9814758Z Collecting pydantic>=2.13.4 (from -r requirements.txt (line 6))
+Backend	Install dependencies	2026-10-02T06:38:19.9857697Z   Downloading pydantic-2.13.5-py3-none-any.whl.metadata (110 kB)
+Backend	Install dependencies	2026-10-02T06:38:20.0698359Z Collecting pydantic-settings>=2.14.1 (from -r requirements.txt (line 7))
+Backend	Install dependencies	2026-10-02T06:38:20.0741379Z   Downloading pydantic_settings-2.15.0-py3-none-any.whl.metadata (3.9 kB)
+Backend	Install dependencies	2026-10-02T06:38:20.1100304Z Collecting python-multipart>=0.0.29 (from -r requirements.txt (line 8))
+Backend	Install dependencies	2026-10-02T06:38:20.1141990Z   Downloading python_multipart-0.0.32-py3-none-any.whl.metadata (2.1 kB)
+Backend	Install dependencies	2026-10-02T06:38:20.1763870Z Collecting bcrypt>=5.0.0 (from -r requirements.txt (line 9))
+Backend	Install dependencies	2026-10-02T06:38:20.1806241Z   Downloading bcrypt-5.0.0-cp39-abi3-win_amd64.whl.metadata (10 kB)
+Backend	Install dependencies	2026-10-02T06:38:20.2221252Z Collecting PyJWT>=2.12.1 (from -r requirements.txt (line 10))
+Backend	Install dependencies	2026-10-02T06:38:20.2262281Z   Downloading pyjwt-2.15.1-py3-none-any.whl.metadata (3.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:20.2620968Z Collecting email-validator>=2.3.0 (from -r requirements.txt (line 11))
+Backend	Install dependencies	2026-10-02T06:38:20.2661887Z   Downloading email_validator-2.3.0-py3-none-any.whl.metadata (26 kB)
+Backend	Install dependencies	2026-10-02T06:38:20.3051523Z Collecting python-dotenv>=1.2.2 (from -r requirements.txt (line 12))
+Backend	Install dependencies	2026-10-02T06:38:20.3095186Z   Downloading python_dotenv-1.2.4-py3-none-any.whl.metadata (29 kB)
+Backend	Install dependencies	2026-10-02T06:38:20.8213868Z Collecting rapidfuzz>=3.0.0 (from -r requirements.txt (line 13))
+Backend	Install dependencies	2026-10-02T06:38:20.8264591Z   Downloading rapidfuzz-3.14.6-cp313-cp313-win_amd64.whl.metadata (12 kB)
+Backend	Install dependencies	2026-10-02T06:38:20.8722320Z Collecting cloudinary<2,>=1.40 (from -r requirements.txt (line 14))
+Backend	Install dependencies	2026-10-02T06:38:20.8776648Z   Downloading cloudinary-1.46.2-py3-none-any.whl.metadata (10 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.0779717Z Collecting cryptography<46,>=43 (from -r requirements.txt (line 15))
+Backend	Install dependencies	2026-10-02T06:38:21.0841775Z   Downloading cryptography-45.0.7-cp311-abi3-win_amd64.whl.metadata (5.7 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.1317686Z Collecting fastmcp<4,>=3.4 (from -r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:21.1363949Z   Downloading fastmcp-3.4.7-py3-none-any.whl.metadata (8.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.1850462Z Collecting pytest>=9.0.3 (from -r requirements.txt (line 19))
+Backend	Install dependencies	2026-10-02T06:38:21.1891064Z   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.2332100Z Collecting pytest-asyncio>=1.3.0 (from -r requirements.txt (line 20))
+Backend	Install dependencies	2026-10-02T06:38:21.2373112Z   Downloading pytest_asyncio-1.4.0-py3-none-any.whl.metadata (4.1 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.2733345Z Collecting pytest-cov>=7.1.0 (from -r requirements.txt (line 21))
+Backend	Install dependencies	2026-10-02T06:38:21.2776624Z   Downloading pytest_cov-7.1.0-py3-none-any.whl.metadata (32 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.3215016Z Collecting pytest-mock>=3.15.1 (from -r requirements.txt (line 22))
+Backend	Install dependencies	2026-10-02T06:38:21.3256597Z   Downloading pytest_mock-3.16.0-py3-none-any.whl.metadata (3.9 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.3670614Z Collecting httpx>=0.28.1 (from -r requirements.txt (line 23))
+Backend	Install dependencies	2026-10-02T06:38:21.3710019Z   Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.4131493Z Collecting factory-boy>=3.3.3 (from -r requirements.txt (line 24))
+Backend	Install dependencies	2026-10-02T06:38:21.4172357Z   Downloading factory_boy-3.3.3-py2.py3-none-any.whl.metadata (15 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.4564274Z Collecting freezegun>=1.5.5 (from -r requirements.txt (line 25))
+Backend	Install dependencies	2026-10-02T06:38:21.4605059Z   Downloading freezegun-1.5.5-py3-none-any.whl.metadata (13 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.4990038Z Collecting six (from cloudinary<2,>=1.40->-r requirements.txt (line 14))
+Backend	Install dependencies	2026-10-02T06:38:21.5030632Z   Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.5496431Z Collecting urllib3>=1.26.5 (from cloudinary<2,>=1.40->-r requirements.txt (line 14))
+Backend	Install dependencies	2026-10-02T06:38:21.5539811Z   Downloading urllib3-2.8.0-py3-none-any.whl.metadata (7.4 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.6023183Z Collecting certifi (from cloudinary<2,>=1.40->-r requirements.txt (line 14))
+Backend	Install dependencies	2026-10-02T06:38:21.6067083Z   Downloading certifi-2026.7.22-py3-none-any.whl.metadata (2.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.7582533Z Collecting cffi>=1.14 (from cryptography<46,>=43->-r requirements.txt (line 15))
+Backend	Install dependencies	2026-10-02T06:38:21.7628162Z   Downloading cffi-2.1.1-cp313-cp313-win_amd64.whl.metadata (2.6 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.8022607Z Collecting fastmcp-slim==3.4.7 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:21.8071938Z   Downloading fastmcp_slim-3.4.7-py3-none-any.whl.metadata (10 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.8600883Z Collecting platformdirs>=4.0.0 (from fastmcp-slim==3.4.7->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:21.8643974Z   Downloading platformdirs-4.12.2-py3-none-any.whl.metadata (5.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.9243343Z Collecting rich>=13.9.4 (from fastmcp-slim==3.4.7->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:21.9285051Z   Downloading rich-15.0.0-py3-none-any.whl.metadata (18 kB)
+Backend	Install dependencies	2026-10-02T06:38:21.9720996Z Collecting typing-extensions>=4.0.0 (from fastmcp-slim==3.4.7->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:21.9764929Z   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.0156730Z Collecting authlib>=1.6.11 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.0199994Z   Downloading authlib-1.8.0-py2.py3-none-any.whl.metadata (10 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.0562157Z Collecting exceptiongroup>=1.2.2 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.0614753Z   Downloading exceptiongroup-1.3.1-py3-none-any.whl.metadata (6.7 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.1039524Z Collecting mcp<2.0,>=1.24.0 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.1083437Z   Downloading mcp-1.30.0-py3-none-any.whl.metadata (9.3 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.1531405Z Collecting opentelemetry-api>=1.20.0 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.1577189Z   Downloading opentelemetry_api-1.45.0-py3-none-any.whl.metadata (1.4 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.1936017Z Collecting py-key-value-aio<0.5.0,>=0.4.4 (from py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4; extra == "client"->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.1978356Z   Downloading py_key_value_aio-0.4.6-py3-none-any.whl.metadata (16 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.2556907Z Collecting starlette>=1.0.1 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.2599621Z   Downloading starlette-1.7.0-py3-none-any.whl.metadata (6.6 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.3177670Z Collecting cyclopts>=4.0.0 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.3217239Z   Downloading cyclopts-5.1.1-py3-none-any.whl.metadata (12 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.3608980Z Collecting griffelib>=2.0.0 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.3651036Z   Downloading griffelib-2.3.0-py3-none-any.whl.metadata (1.3 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.4017956Z Collecting joserfc>=1.1.0 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.4061220Z   Downloading joserfc-1.7.5-py3-none-any.whl.metadata (3.1 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.4422394Z Collecting jsonref>=1.1.0 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.4464616Z   Downloading jsonref-1.1.0-py3-none-any.whl.metadata (2.7 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.4869084Z Collecting jsonschema-path>=0.3.4 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.4909426Z   Downloading jsonschema_path-0.5.0-py3-none-any.whl.metadata (8.1 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.5292389Z Collecting openapi-pydantic>=0.5.1 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.5332988Z   Downloading openapi_pydantic-0.5.1-py3-none-any.whl.metadata (10 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.5728301Z Collecting packaging>=24.0 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.5769035Z   Downloading packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.6123271Z Collecting pyperclip>=1.9.0 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.6166738Z   Downloading pyperclip-1.11.0-py3-none-any.whl.metadata (2.4 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.6766119Z Collecting pyyaml<7.0,>=6.0 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.6839439Z   Downloading pyyaml-6.0.3-cp313-cp313-win_amd64.whl.metadata (2.4 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.7180369Z Collecting uncalled-for>=0.2.0 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.7219635Z   Downloading uncalled_for-0.4.0-py3-none-any.whl.metadata (4.4 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.8251510Z Collecting watchfiles>=1.0.0 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.8298039Z   Downloading watchfiles-1.3.0-cp310-abi3-win_amd64.whl.metadata (5.0 kB)
+Backend	Install dependencies	2026-10-02T06:38:22.9584019Z Collecting websockets>=15.0.1 (from fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:22.9625608Z   Downloading websockets-17.1-cp313-cp313-win_amd64.whl.metadata (6.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:23.0101973Z Collecting anyio (from httpx>=0.28.1->-r requirements.txt (line 23))
+Backend	Install dependencies	2026-10-02T06:38:23.0142829Z   Downloading anyio-4.15.1-py3-none-any.whl.metadata (4.7 kB)
+Backend	Install dependencies	2026-10-02T06:38:23.0571756Z Collecting httpcore==1.* (from httpx>=0.28.1->-r requirements.txt (line 23))
+Backend	Install dependencies	2026-10-02T06:38:23.0615225Z   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+Backend	Install dependencies	2026-10-02T06:38:23.1106540Z Collecting idna (from httpx>=0.28.1->-r requirements.txt (line 23))
+Backend	Install dependencies	2026-10-02T06:38:23.1456928Z   Downloading idna-3.20-py3-none-any.whl.metadata (7.2 kB)
+Backend	Install dependencies	2026-10-02T06:38:23.1834499Z Collecting h11>=0.16 (from httpcore==1.*->httpx>=0.28.1->-r requirements.txt (line 23))
+Backend	Install dependencies	2026-10-02T06:38:23.1877462Z   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+Backend	Install dependencies	2026-10-02T06:38:23.2265570Z Collecting httpx-sse>=0.4 (from mcp<2.0,>=1.24.0->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:23.2309063Z   Downloading httpx_sse-0.4.3-py3-none-any.whl.metadata (9.7 kB)
+Backend	Install dependencies	2026-10-02T06:38:23.2921722Z Collecting jsonschema>=4.20.0 (from mcp<2.0,>=1.24.0->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:23.2964267Z   Downloading jsonschema-4.26.0-py3-none-any.whl.metadata (7.6 kB)
+Backend	Install dependencies	2026-10-02T06:38:23.3486336Z Collecting pywin32>=310 (from mcp<2.0,>=1.24.0->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:23.3528554Z   Downloading pywin32-312-cp313-cp313-win_amd64.whl.metadata (11 kB)
+Backend	Install dependencies	2026-10-02T06:38:23.3924755Z Collecting sse-starlette>=1.6.1 (from mcp<2.0,>=1.24.0->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:23.3964875Z   Downloading sse_starlette-3.5.0-py3-none-any.whl.metadata (15 kB)
+Backend	Install dependencies	2026-10-02T06:38:23.4333010Z Collecting typing-inspection>=0.4.1 (from mcp<2.0,>=1.24.0->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:23.4373971Z   Downloading typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+Backend	Install dependencies	2026-10-02T06:38:23.4752629Z Collecting annotated-types>=0.6.0 (from pydantic>=2.13.4->-r requirements.txt (line 6))
+Backend	Install dependencies	2026-10-02T06:38:23.4795169Z   Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.1647074Z Collecting pydantic-core==2.46.5 (from pydantic>=2.13.4->-r requirements.txt (line 6))
+Backend	Install dependencies	2026-10-02T06:38:24.1695627Z   Downloading pydantic_core-2.46.5-cp313-cp313-win_amd64.whl.metadata (6.7 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.2127422Z Collecting beartype>=0.20.0 (from py-key-value-aio<0.5.0,>=0.4.4->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4; extra == "client"->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:24.2169768Z   Downloading beartype-0.22.9-py3-none-any.whl.metadata (37 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.2788358Z Collecting aiofile>=3.12.3 (from py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4; extra == "client"->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:24.2828590Z   Downloading aiofile-3.12.3-py3-none-any.whl.metadata (17 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.3363029Z Collecting keyring>=25.6.0 (from py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4; extra == "client"->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:24.3401942Z   Downloading keyring-25.7.0-py3-none-any.whl.metadata (21 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.3861392Z Collecting cachetools>=5.0.0 (from py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4; extra == "client"->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:24.3908065Z   Downloading cachetools-7.2.0-py3-none-any.whl.metadata (5.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.4352008Z Collecting annotated-doc>=0.0.2 (from fastapi>=0.136.1->-r requirements.txt (line 1))
+Backend	Install dependencies	2026-10-02T06:38:24.4395295Z   Downloading annotated_doc-0.0.5-py3-none-any.whl.metadata (6.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.4824119Z Collecting click>=7.0 (from uvicorn>=0.47.0->uvicorn[standard]>=0.47.0->-r requirements.txt (line 2))
+Backend	Install dependencies	2026-10-02T06:38:24.4991713Z   Downloading click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.5437543Z Collecting Mako (from alembic>=1.18.4->-r requirements.txt (line 5))
+Backend	Install dependencies	2026-10-02T06:38:24.5490139Z   Downloading mako-1.4.3-py3-none-any.whl.metadata (2.9 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.5915487Z Collecting dnspython>=2.0.0 (from email-validator>=2.3.0->-r requirements.txt (line 11))
+Backend	Install dependencies	2026-10-02T06:38:24.5956334Z   Downloading dnspython-2.8.0-py3-none-any.whl.metadata (5.7 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.6366686Z Collecting colorama>=0.4 (from pytest>=9.0.3->-r requirements.txt (line 19))
+Backend	Install dependencies	2026-10-02T06:38:24.6410446Z   Downloading colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.6779394Z Collecting iniconfig>=1.0.1 (from pytest>=9.0.3->-r requirements.txt (line 19))
+Backend	Install dependencies	2026-10-02T06:38:24.6819214Z   Downloading iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.7189201Z Collecting pluggy<2,>=1.5 (from pytest>=9.0.3->-r requirements.txt (line 19))
+Backend	Install dependencies	2026-10-02T06:38:24.7261646Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+Backend	Install dependencies	2026-10-02T06:38:24.7710788Z Collecting pygments>=2.7.2 (from pytest>=9.0.3->-r requirements.txt (line 19))
+Backend	Install dependencies	2026-10-02T06:38:24.7756225Z   Downloading pygments-2.21.0-py3-none-any.whl.metadata (2.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:25.2041858Z Collecting coverage>=7.10.6 (from coverage[toml]>=7.10.6->pytest-cov>=7.1.0->-r requirements.txt (line 21))
+Backend	Install dependencies	2026-10-02T06:38:25.2087294Z   Downloading coverage-7.16.2-cp313-cp313-win_amd64.whl.metadata (8.4 kB)
+Backend	Install dependencies	2026-10-02T06:38:25.3110989Z Collecting Faker>=0.7.0 (from factory-boy>=3.3.3->-r requirements.txt (line 24))
+Backend	Install dependencies	2026-10-02T06:38:25.3154721Z   Downloading faker-40.40.0-py3-none-any.whl.metadata (16 kB)
+Backend	Install dependencies	2026-10-02T06:38:25.3633570Z Collecting python-dateutil>=2.7 (from freezegun>=1.5.5->-r requirements.txt (line 25))
+Backend	Install dependencies	2026-10-02T06:38:25.3673074Z   Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Backend	Install dependencies	2026-10-02T06:38:25.4409481Z Collecting caio~=0.12.0 (from aiofile>=3.12.3->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4; extra == "client"->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:25.4453783Z   Downloading caio-0.12.9-py3-none-any.whl.metadata (4.7 kB)
+Backend	Install dependencies	2026-10-02T06:38:25.4899640Z Collecting pycparser (from cffi>=1.14->cryptography<46,>=43->-r requirements.txt (line 15))
+Backend	Install dependencies	2026-10-02T06:38:25.4943602Z   Downloading pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+Backend	Install dependencies	2026-10-02T06:38:25.5378717Z Collecting attrs>=23.1.0 (from cyclopts>=4.0.0->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:25.5421724Z   Downloading attrs-26.1.0-py3-none-any.whl.metadata (8.8 kB)
+Backend	Install dependencies	2026-10-02T06:38:25.5782862Z Collecting docstring-parser<4.0,>=0.15 (from cyclopts>=4.0.0->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:25.5826594Z   Downloading docstring_parser-0.18.0-py3-none-any.whl.metadata (3.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:25.6259459Z Collecting rich-rst<3,>=2.0.1 (from cyclopts>=4.0.0->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:25.6302158Z   Downloading rich_rst-2.2.0-py3-none-any.whl.metadata (5.0 kB)
+Backend	Install dependencies	2026-10-02T06:38:25.6779257Z Collecting tzdata (from Faker>=0.7.0->factory-boy>=3.3.3->-r requirements.txt (line 24))
+Backend	Install dependencies	2026-10-02T06:38:25.6819309Z   Downloading tzdata-2026.4-py2.py3-none-any.whl.metadata (1.4 kB)
+Backend	Install dependencies	2026-10-02T06:38:25.7219485Z Collecting jsonschema-specifications>=2023.03.6 (from jsonschema>=4.20.0->mcp<2.0,>=1.24.0->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:25.7261769Z   Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl.metadata (2.9 kB)
+Backend	Install dependencies	2026-10-02T06:38:25.7699048Z Collecting referencing>=0.28.4 (from jsonschema>=4.20.0->mcp<2.0,>=1.24.0->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:25.7740176Z   Downloading referencing-0.37.0-py3-none-any.whl.metadata (2.8 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.1001046Z Collecting rpds-py>=0.25.0 (from jsonschema>=4.20.0->mcp<2.0,>=1.24.0->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:26.1047058Z   Downloading rpds_py-2026.6.3-cp313-cp313-win_amd64.whl.metadata (4.2 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.1442995Z Collecting pathable<0.7.0,>=0.6.0 (from jsonschema-path>=0.3.4->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:26.1485762Z   Downloading pathable-0.6.0-py3-none-any.whl.metadata (7.2 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.1943930Z Collecting pywin32-ctypes>=0.2.0 (from keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4; extra == "client"->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:26.1986855Z   Downloading pywin32_ctypes-0.2.3-py3-none-any.whl.metadata (3.9 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.2357931Z Collecting jaraco.classes (from keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4; extra == "client"->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:26.2411921Z   Downloading jaraco.classes-3.4.0-py3-none-any.whl.metadata (2.6 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.2879432Z Collecting jaraco.functools (from keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4; extra == "client"->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:26.2919742Z   Downloading jaraco_functools-4.6.0-py3-none-any.whl.metadata (2.9 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.3276742Z Collecting jaraco.context (from keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4; extra == "client"->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:26.3316346Z   Downloading jaraco_context-6.1.2-py3-none-any.whl.metadata (4.2 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.3819688Z Collecting markdown-it-py>=2.2.0 (from rich>=13.9.4->fastmcp-slim==3.4.7->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:26.3861585Z   Downloading markdown_it_py-4.2.0-py3-none-any.whl.metadata (7.4 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.4243552Z Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich>=13.9.4->fastmcp-slim==3.4.7->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:26.4282995Z   Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.4966478Z Collecting httptools>=0.8.0 (from uvicorn[standard]>=0.47.0->-r requirements.txt (line 2))
+Backend	Install dependencies	2026-10-02T06:38:26.5012822Z   Downloading httptools-0.8.0-cp313-cp313-win_amd64.whl.metadata (3.7 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.5486184Z Collecting more-itertools (from jaraco.classes->keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4; extra == "client"->fastmcp-slim[client,server]==3.4.7->fastmcp<4,>=3.4->-r requirements.txt (line 16))
+Backend	Install dependencies	2026-10-02T06:38:26.5529069Z   Downloading more_itertools-11.1.0-py3-none-any.whl.metadata (41 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.6495935Z Collecting MarkupSafe>=2.0 (from Mako->alembic>=1.18.4->-r requirements.txt (line 5))
+Backend	Install dependencies	2026-10-02T06:38:26.6542267Z   Downloading markupsafe-3.0.3-cp313-cp313-win_amd64.whl.metadata (2.8 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.6814321Z Downloading cloudinary-1.46.2-py3-none-any.whl (192 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.7040940Z Downloading cryptography-45.0.7-cp311-abi3-win_amd64.whl (3.4 MB)
+Backend	Install dependencies	2026-10-02T06:38:26.7401899Z    ---------------------------------------- 3.4/3.4 MB 96.0 MB/s  0:00:00
+Backend	Install dependencies	2026-10-02T06:38:26.7441429Z Downloading fastmcp-3.4.7-py3-none-any.whl (8.0 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.7604170Z Downloading fastmcp_slim-3.4.7-py3-none-any.whl (769 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.7834969Z    ---------------------------------------- 769.4/769.4 kB 24.9 MB/s  0:00:00
+Backend	Install dependencies	2026-10-02T06:38:26.7875039Z Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.8053142Z Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.8281169Z Downloading mcp-1.30.0-py3-none-any.whl (234 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.8482080Z Downloading pydantic-2.13.5-py3-none-any.whl (472 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.8751818Z Downloading pydantic_core-2.46.5-cp313-cp313-win_amd64.whl (2.0 MB)
+Backend	Install dependencies	2026-10-02T06:38:26.9027526Z    ---------------------------------------- 2.0/2.0 MB 72.2 MB/s  0:00:00
+Backend	Install dependencies	2026-10-02T06:38:26.9068674Z Downloading py_key_value_aio-0.4.6-py3-none-any.whl (171 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.9269273Z Downloading pyyaml-6.0.3-cp313-cp313-win_amd64.whl (154 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.9448047Z Downloading fastapi-0.142.2-py3-none-any.whl (144 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.9632535Z Downloading uvicorn-0.54.0-py3-none-any.whl (87 kB)
+Backend	Install dependencies	2026-10-02T06:38:26.9833541Z Downloading sqlalchemy-2.1.2-cp313-cp313-win_amd64.whl (2.4 MB)
+Backend	Install dependencies	2026-10-02T06:38:27.0193765Z    ---------------------------------------- 2.4/2.4 MB 66.5 MB/s  0:00:00
+Backend	Install dependencies	2026-10-02T06:38:27.0267617Z Downloading psycopg2_binary-2.9.13-cp313-cp313-win_amd64.whl (2.8 MB)
+Backend	Install dependencies	2026-10-02T06:38:27.0621411Z    ---------------------------------------- 2.8/2.8 MB 77.1 MB/s  0:00:00
+Backend	Install dependencies	2026-10-02T06:38:27.0660683Z Downloading alembic-1.20.0-py3-none-any.whl (268 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.0845059Z Downloading pydantic_settings-2.15.0-py3-none-any.whl (69 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.1025357Z Downloading python_multipart-0.0.32-py3-none-any.whl (30 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.1210630Z Downloading bcrypt-5.0.0-cp39-abi3-win_amd64.whl (150 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.1399781Z Downloading pyjwt-2.15.1-py3-none-any.whl (33 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.1563033Z Downloading email_validator-2.3.0-py3-none-any.whl (35 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.1747320Z Downloading python_dotenv-1.2.4-py3-none-any.whl (23 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.1914615Z Downloading rapidfuzz-3.14.6-cp313-cp313-win_amd64.whl (1.7 MB)
+Backend	Install dependencies	2026-10-02T06:38:27.2207459Z    ---------------------------------------- 1.7/1.7 MB 56.0 MB/s  0:00:00
+Backend	Install dependencies	2026-10-02T06:38:27.2248985Z Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.2522102Z Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.3440183Z Downloading pytest_asyncio-1.4.0-py3-none-any.whl (16 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.3618954Z Downloading pytest_cov-7.1.0-py3-none-any.whl (22 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.3787951Z Downloading pytest_mock-3.16.0-py3-none-any.whl (10 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.3980631Z Downloading factory_boy-3.3.3-py2.py3-none-any.whl (37 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.4148516Z Downloading freezegun-1.5.5-py3-none-any.whl (19 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.4316448Z Downloading aiofile-3.12.3-py3-none-any.whl (22 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.4493458Z Downloading caio-0.12.9-py3-none-any.whl (26 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.4761302Z Downloading annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.4928180Z Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.5090919Z Downloading anyio-4.15.1-py3-none-any.whl (132 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.5291016Z Downloading authlib-1.8.0-py2.py3-none-any.whl (260 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.5499010Z Downloading beartype-0.22.9-py3-none-any.whl (1.3 MB)
+Backend	Install dependencies	2026-10-02T06:38:27.5728809Z    ---------------------------------------- 1.3/1.3 MB 52.9 MB/s  0:00:00
+Backend	Install dependencies	2026-10-02T06:38:27.5766751Z Downloading cachetools-7.2.0-py3-none-any.whl (16 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.5983464Z Downloading cffi-2.1.1-cp313-cp313-win_amd64.whl (185 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.6414983Z Downloading click-8.5.0-py3-none-any.whl (125 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.6635990Z Downloading colorama-0.4.6-py2.py3-none-any.whl (25 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.6914513Z Downloading coverage-7.16.2-cp313-cp313-win_amd64.whl (226 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.7095431Z Downloading cyclopts-5.1.1-py3-none-any.whl (279 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.7327882Z Downloading docstring_parser-0.18.0-py3-none-any.whl (22 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.7504114Z Downloading rich_rst-2.2.0-py3-none-any.whl (279 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.7702527Z Downloading attrs-26.1.0-py3-none-any.whl (67 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.7865953Z Downloading dnspython-2.8.0-py3-none-any.whl (331 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.8108126Z Downloading exceptiongroup-1.3.1-py3-none-any.whl (16 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.8309845Z Downloading faker-40.40.0-py3-none-any.whl (2.1 MB)
+Backend	Install dependencies	2026-10-02T06:38:27.8605316Z    ---------------------------------------- 2.1/2.1 MB 67.7 MB/s  0:00:00
+Backend	Install dependencies	2026-10-02T06:38:27.8646946Z Downloading griffelib-2.3.0-py3-none-any.whl (169 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.8836168Z Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.8999187Z Downloading httpx_sse-0.4.3-py3-none-any.whl (9.0 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.9178512Z Downloading idna-3.20-py3-none-any.whl (69 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.9348088Z Downloading iniconfig-2.3.0-py3-none-any.whl (7.5 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.9522202Z Downloading joserfc-1.7.5-py3-none-any.whl (71 kB)
+Backend	Install dependencies	2026-10-02T06:38:27.9714089Z Downloading jsonref-1.1.0-py3-none-any.whl (9.4 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.2175520Z Downloading jsonschema-4.26.0-py3-none-any.whl (90 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.2350384Z Downloading jsonschema_path-0.5.0-py3-none-any.whl (24 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.2534598Z Downloading pathable-0.6.0-py3-none-any.whl (18 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.2692393Z Downloading referencing-0.37.0-py3-none-any.whl (26 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.2880214Z Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.3092341Z Downloading keyring-25.7.0-py3-none-any.whl (39 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.3255598Z Downloading openapi_pydantic-0.5.1-py3-none-any.whl (96 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.3429853Z Downloading opentelemetry_api-1.45.0-py3-none-any.whl (60 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.3615311Z Downloading packaging-26.3-py3-none-any.whl (129 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.3828829Z Downloading platformdirs-4.12.2-py3-none-any.whl (32 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.4028495Z Downloading pygments-2.21.0-py3-none-any.whl (1.3 MB)
+Backend	Install dependencies	2026-10-02T06:38:28.4266072Z    ---------------------------------------- 1.3/1.3 MB 47.1 MB/s  0:00:00
+Backend	Install dependencies	2026-10-02T06:38:28.4348456Z Downloading pyperclip-1.11.0-py3-none-any.whl (11 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.4524164Z Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.4716864Z Downloading pywin32-312-cp313-cp313-win_amd64.whl (6.9 MB)
+Backend	Install dependencies	2026-10-02T06:38:28.5175329Z    ---------------------------------------- 6.9/6.9 MB 155.4 MB/s  0:00:00
+Backend	Install dependencies	2026-10-02T06:38:28.5216330Z Downloading pywin32_ctypes-0.2.3-py3-none-any.whl (30 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.5379263Z Downloading rich-15.0.0-py3-none-any.whl (310 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.5591541Z Downloading markdown_it_py-4.2.0-py3-none-any.whl (91 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.5783284Z Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.5970711Z Downloading rpds_py-2026.6.3-cp313-cp313-win_amd64.whl (219 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.6140260Z Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.6330011Z Downloading sse_starlette-3.5.0-py3-none-any.whl (17 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.7078299Z Downloading starlette-1.7.0-py3-none-any.whl (78 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.7236901Z Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.7404004Z Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.7588874Z Downloading uncalled_for-0.4.0-py3-none-any.whl (15 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.7785748Z Downloading urllib3-2.8.0-py3-none-any.whl (135 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.7977608Z Downloading httptools-0.8.0-cp313-cp313-win_amd64.whl (90 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.8178586Z Downloading watchfiles-1.3.0-cp310-abi3-win_amd64.whl (290 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.8402500Z Downloading websockets-17.1-cp313-cp313-win_amd64.whl (217 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.8578746Z Downloading certifi-2026.7.22-py3-none-any.whl (136 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.8780172Z Downloading jaraco.classes-3.4.0-py3-none-any.whl (6.8 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.8953344Z Downloading jaraco_context-6.1.2-py3-none-any.whl (7.9 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.9118922Z Downloading jaraco_functools-4.6.0-py3-none-any.whl (11 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.9324588Z Downloading mako-1.4.3-py3-none-any.whl (80 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.9482689Z Downloading markupsafe-3.0.3-cp313-cp313-win_amd64.whl (15 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.9650600Z Downloading more_itertools-11.1.0-py3-none-any.whl (72 kB)
+Backend	Install dependencies	2026-10-02T06:38:28.9839573Z Downloading pycparser-3.0-py3-none-any.whl (48 kB)
+Backend	Install dependencies	2026-10-02T06:38:29.0008803Z Downloading tzdata-2026.4-py2.py3-none-any.whl (347 kB)
+Backend	Install dependencies	2026-10-02T06:38:29.5638352Z Installing collected packages: pyperclip, websockets, urllib3, uncalled-for, tzdata, typing-extensions, six, rpds-py, rapidfuzz, pyyaml, pywin32-ctypes, pywin32, python-multipart, python-dotenv, PyJWT, pygments, pycparser, psycopg2-binary, pluggy, platformdirs, pathable, packaging, more-itertools, mdurl, MarkupSafe, jsonref, jaraco.context, iniconfig, idna, httpx-sse, httptools, h11, griffelib, exceptiongroup, docstring-parser, dnspython, coverage, colorama, click, certifi, caio, cachetools, beartype, bcrypt, attrs, annotated-types, annotated-doc, uvicorn, typing-inspection, sqlalchemy, referencing, python-dateutil, pytest, pydantic-core, py-key-value-aio, opentelemetry-api, markdown-it-py, Mako, jaraco.functools, jaraco.classes, httpcore, Faker, email-validator, cloudinary, cffi, anyio, aiofile, watchfiles, starlette, rich, pytest-mock, pytest-cov, pytest-asyncio, pydantic, keyring, jsonschema-specifications, jsonschema-path, httpx, freezegun, factory-boy, cryptography, alembic, sse-starlette, rich-rst, pydantic-settings, openapi-pydantic, jsonschema, joserfc, fastapi, mcp, fastmcp-slim, cyclopts, authlib, fastmcp
+Backend	Install dependencies	2026-10-02T06:38:55.2971247Z
+Backend	Install dependencies	2026-10-02T06:38:55.3067061Z Successfully installed Faker-40.40.0 Mako-1.4.3 MarkupSafe-3.0.3 PyJWT-2.15.1 aiofile-3.12.3 alembic-1.20.0 annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 attrs-26.1.0 authlib-1.8.0 bcrypt-5.0.0 beartype-0.22.9 cachetools-7.2.0 caio-0.12.9 certifi-2026.7.22 cffi-2.1.1 click-8.5.0 cloudinary-1.46.2 colorama-0.4.6 coverage-7.16.2 cryptography-45.0.7 cyclopts-5.1.1 dnspython-2.8.0 docstring-parser-0.18.0 email-validator-2.3.0 exceptiongroup-1.3.1 factory-boy-3.3.3 fastapi-0.142.2 fastmcp-3.4.7 fastmcp-slim-3.4.7 freezegun-1.5.5 griffelib-2.3.0 h11-0.16.0 httpcore-1.0.9 httptools-0.8.0 httpx-0.28.1 httpx-sse-0.4.3 idna-3.20 iniconfig-2.3.0 jaraco.classes-3.4.0 jaraco.context-6.1.2 jaraco.functools-4.6.0 joserfc-1.7.5 jsonref-1.1.0 jsonschema-4.26.0 jsonschema-path-0.5.0 jsonschema-specifications-2025.9.1 keyring-25.7.0 markdown-it-py-4.2.0 mcp-1.30.0 mdurl-0.1.2 more-itertools-11.1.0 openapi-pydantic-0.5.1 opentelemetry-api-1.45.0 packaging-26.3 pathable-0.6.0 platformdirs-4.12.2 pluggy-1.6.0 psycopg2-binary-2.9.13 py-key-value-aio-0.4.6 pycparser-3.0 pydantic-2.13.5 pydantic-core-2.46.5 pydantic-settings-2.15.0 pygments-2.21.0 pyperclip-1.11.0 pytest-9.1.1 pytest-asyncio-1.4.0 pytest-cov-7.1.0 pytest-mock-3.16.0 python-dateutil-2.9.0.post0 python-dotenv-1.2.4 python-multipart-0.0.32 pywin32-312 pywin32-ctypes-0.2.3 pyyaml-6.0.3 rapidfuzz-3.14.6 referencing-0.37.0 rich-15.0.0 rich-rst-2.2.0 rpds-py-2026.6.3 six-1.17.0 sqlalchemy-2.1.2 sse-starlette-3.5.0 starlette-1.7.0 typing-extensions-4.16.0 typing-inspection-0.4.4 tzdata-2026.4 uncalled-for-0.4.0 urllib3-2.8.0 uvicorn-0.54.0 watchfiles-1.3.0 websockets-17.1
+Backend	Compile	﻿2026-10-02T06:38:55.7440333Z ##[group]Run python -m compileall api core models repositories schemas services main.py
+Backend	Compile	2026-10-02T06:38:55.7441052Z [36;1mpython -m compileall api core models repositories schemas services main.py[0m
+Backend	Compile	2026-10-02T06:38:55.7525104Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Backend	Compile	2026-10-02T06:38:55.7525451Z env:
+Backend	Compile	2026-10-02T06:38:55.7525730Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Compile	2026-10-02T06:38:55.7526593Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.13.15\x64/lib/pkgconfig
+Backend	Compile	2026-10-02T06:38:55.7527050Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Compile	2026-10-02T06:38:55.7527449Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Compile	2026-10-02T06:38:55.7527847Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Compile	2026-10-02T06:38:55.7528153Z ##[endgroup]
+Backend	Compile	2026-10-02T06:38:56.3432768Z Listing 'api'...
+Backend	Compile	2026-10-02T06:38:56.3433261Z Compiling 'api\\__init__.py'...
+Backend	Compile	2026-10-02T06:38:56.3433678Z Compiling 'api\\admin.py'...
+Backend	Compile	2026-10-02T06:38:56.3434152Z Compiling 'api\\auth.py'...
+Backend	Compile	2026-10-02T06:38:56.3434522Z Compiling 'api\\cash_shifts.py'...
+Backend	Compile	2026-10-02T06:38:56.3434906Z Compiling 'api\\categories.py'...
+Backend	Compile	2026-10-02T06:38:56.3435275Z Compiling 'api\\company.py'...
+Backend	Compile	2026-10-02T06:38:56.3435649Z Compiling 'api\\customers.py'...
+Backend	Compile	2026-10-02T06:38:56.3436022Z Compiling 'api\\dependencies.py'...
+Backend	Compile	2026-10-02T06:38:56.3436725Z Compiling 'api\\device_auth.py'...
+Backend	Compile	2026-10-02T06:38:56.3437123Z Compiling 'api\\inventory.py'...
+Backend	Compile	2026-10-02T06:38:56.3437484Z Compiling 'api\\mcp.py'...
+Backend	Compile	2026-10-02T06:38:56.3437814Z Compiling 'api\\meta.py'...
+Backend	Compile	2026-10-02T06:38:56.3438150Z Compiling 'api\\money.py'...
+Backend	Compile	2026-10-02T06:38:56.3438486Z Compiling 'api\\orders.py'...
+Backend	Compile	2026-10-02T06:38:56.3438829Z Compiling 'api\\owner.py'...
+Backend	Compile	2026-10-02T06:38:56.3439176Z Compiling 'api\\products.py'...
+Backend	Compile	2026-10-02T06:38:56.3439544Z Compiling 'api\\purchase_orders.py'...
+Backend	Compile	2026-10-02T06:38:56.3439958Z Compiling 'api\\reconciliation.py'...
+Backend	Compile	2026-10-02T06:38:56.3440370Z Compiling 'api\\reports.py'...
+Backend	Compile	2026-10-02T06:38:56.3440717Z Compiling 'api\\sales.py'...
+Backend	Compile	2026-10-02T06:38:56.3441074Z Compiling 'api\\shop.py'...
+Backend	Compile	2026-10-02T06:38:56.3441422Z Compiling 'api\\shop_dependencies.py'...
+Backend	Compile	2026-10-02T06:38:56.3441828Z Compiling 'api\\shop_orders.py'...
+Backend	Compile	2026-10-02T06:38:56.3442197Z Compiling 'api\\stock_write_offs.py'...
+Backend	Compile	2026-10-02T06:38:56.3442630Z Compiling 'api\\suppliers.py'...
+Backend	Compile	2026-10-02T06:38:56.3443031Z Compiling 'api\\sync.py'...
+Backend	Compile	2026-10-02T06:38:56.3443425Z Compiling 'api\\telegram_webhook.py'...
+Backend	Compile	2026-10-02T06:38:56.3443838Z Listing 'core'...
+Backend	Compile	2026-10-02T06:38:56.3444154Z Compiling 'core\\config.py'...
+Backend	Compile	2026-10-02T06:38:56.3444545Z Compiling 'core\\crypto.py'...
+Backend	Compile	2026-10-02T06:38:56.3444951Z Compiling 'core\\database.py'...
+Backend	Compile	2026-10-02T06:38:56.3445380Z Compiling 'core\\idempotency.py'...
+Backend	Compile	2026-10-02T06:38:56.3445820Z Compiling 'core\\modules.py'...
+Backend	Compile	2026-10-02T06:38:56.3446291Z Compiling 'core\\rate_limiter.py'...
+Backend	Compile	2026-10-02T06:38:56.3446731Z Compiling 'core\\security.py'...
+Backend	Compile	2026-10-02T06:38:56.3447136Z Compiling 'core\\state_machine.py'...
+Backend	Compile	2026-10-02T06:38:56.3447848Z Listing 'models'...
+Backend	Compile	2026-10-02T06:38:56.3448167Z Compiling 'models\\__init__.py'...
+Backend	Compile	2026-10-02T06:38:56.3448543Z Compiling 'models\\cash_shift.py'...
+Backend	Compile	2026-10-02T06:38:56.3448912Z Compiling 'models\\cashier_device.py'...
+Backend	Compile	2026-10-02T06:38:56.3449323Z Compiling 'models\\category.py'...
+Backend	Compile	2026-10-02T06:38:56.3449733Z Compiling 'models\\company.py'...
+Backend	Compile	2026-10-02T06:38:56.3450176Z Compiling 'models\\company_membership.py'...
+Backend	Compile	2026-10-02T06:38:56.3450679Z Compiling 'models\\company_module.py'...
+Backend	Compile	2026-10-02T06:38:56.3451107Z Compiling 'models\\customer.py'...
+Backend	Compile	2026-10-02T06:38:56.3451582Z Compiling 'models\\customer_ledger_entry.py'...
+Backend	Compile	2026-10-02T06:38:56.3452118Z Compiling 'models\\idempotency_key.py'...
+Backend	Compile	2026-10-02T06:38:56.3452621Z Compiling 'models\\inventory_layer.py'...
+Backend	Compile	2026-10-02T06:38:56.3453104Z Compiling 'models\\inventory_log.py'...
+Backend	Compile	2026-10-02T06:38:56.3453632Z Compiling 'models\\membership_module_access.py'...
+Backend	Compile	2026-10-02T06:38:56.3457119Z Compiling 'models\\merchant_notify_link.py'...
+Backend	Compile	2026-10-02T06:38:56.3457569Z Compiling 'models\\money_account.py'...
+Backend	Compile	2026-10-02T06:38:56.3457970Z Compiling 'models\\oauth.py'...
+Backend	Compile	2026-10-02T06:38:56.3458356Z Compiling 'models\\order.py'...
+Backend	Compile	2026-10-02T06:38:56.3458782Z Compiling 'models\\order_item.py'...
+Backend	Compile	2026-10-02T06:38:56.3459221Z Compiling 'models\\platform_setting.py'...
+Backend	Compile	2026-10-02T06:38:56.3484027Z Compiling 'models\\product.py'...
+Backend	Compile	2026-10-02T06:38:56.3484568Z Compiling 'models\\product_unit.py'...
+Backend	Compile	2026-10-02T06:38:56.3485055Z Compiling 'models\\purchase_order.py'...
+Backend	Compile	2026-10-02T06:38:56.3485583Z Compiling 'models\\purchase_order_item.py'...
+Backend	Compile	2026-10-02T06:38:56.3486120Z Compiling 'models\\purchase_receipt.py'...
+Backend	Compile	2026-10-02T06:38:56.3486593Z Compiling 'models\\reconciliation.py'...
+Backend	Compile	2026-10-02T06:38:56.3487097Z Compiling 'models\\reversal_operation.py'...
+Backend	Compile	2026-10-02T06:38:56.3487557Z Compiling 'models\\sale.py'...
+Backend	Compile	2026-10-02T06:38:56.3487992Z Compiling 'models\\sale_item.py'...
+Backend	Compile	2026-10-02T06:38:56.3488436Z Compiling 'models\\sale_payment.py'...
+Backend	Compile	2026-10-02T06:38:56.3488906Z Compiling 'models\\sale_return.py'...
+Backend	Compile	2026-10-02T06:38:56.3489358Z Compiling 'models\\stock_write_off.py'...
+Backend	Compile	2026-10-02T06:38:56.3489806Z Compiling 'models\\supplier.py'...
+Backend	Compile	2026-10-02T06:38:56.3490245Z Compiling 'models\\telegram_user.py'...
+Backend	Compile	2026-10-02T06:38:56.3490684Z Compiling 'models\\user.py'...
+Backend	Compile	2026-10-02T06:38:56.3491088Z Listing 'repositories'...
+Backend	Compile	2026-10-02T06:38:56.3491476Z Compiling 'repositories\\__init__.py'...
+Backend	Compile	2026-10-02T06:38:56.3492041Z Compiling 'repositories\\cashier_device_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3492660Z Compiling 'repositories\\category_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3493254Z Compiling 'repositories\\company_module_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3493880Z Compiling 'repositories\\customer_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3494471Z Compiling 'repositories\\inventory_ledger_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3495132Z Compiling 'repositories\\inventory_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3495745Z Compiling 'repositories\\merchant_notify_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3496364Z Compiling 'repositories\\money_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3497327Z Compiling 'repositories\\order_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3497972Z Compiling 'repositories\\platform_setting_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3498594Z Compiling 'repositories\\product_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3499154Z Compiling 'repositories\\purchase_order_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3499699Z Compiling 'repositories\\sale_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3500220Z Compiling 'repositories\\shop_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3500819Z Compiling 'repositories\\stock_write_off_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3501484Z Compiling 'repositories\\supplier_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3502068Z Compiling 'repositories\\telegram_user_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3502635Z Compiling 'repositories\\user_repository.py'...
+Backend	Compile	2026-10-02T06:38:56.3503104Z Listing 'schemas'...
+Backend	Compile	2026-10-02T06:38:56.3503693Z Compiling 'schemas\\__init__.py'...
+Backend	Compile	2026-10-02T06:38:56.3504120Z Compiling 'schemas\\admin.py'...
+Backend	Compile	2026-10-02T06:38:56.3504500Z Compiling 'schemas\\cash_shift.py'...
+Backend	Compile	2026-10-02T06:38:56.3504895Z Compiling 'schemas\\category.py'...
+Backend	Compile	2026-10-02T06:38:56.3505312Z Compiling 'schemas\\company.py'...
+Backend	Compile	2026-10-02T06:38:56.3505737Z Compiling 'schemas\\consistency.py'...
+Backend	Compile	2026-10-02T06:38:56.3506190Z Compiling 'schemas\\customer.py'...
+Backend	Compile	2026-10-02T06:38:56.3506656Z Compiling 'schemas\\customer_ledger.py'...
+Backend	Compile	2026-10-02T06:38:56.3507128Z Compiling 'schemas\\device.py'...
+Backend	Compile	2026-10-02T06:38:56.3507572Z Compiling 'schemas\\inventory_log.py'...
+Backend	Compile	2026-10-02T06:38:56.3508014Z Compiling 'schemas\\mcp.py'...
+Backend	Compile	2026-10-02T06:38:56.3508419Z Compiling 'schemas\\mcp_compat.py'...
+Backend	Compile	2026-10-02T06:38:56.3508878Z Compiling 'schemas\\mcp_purchase.py'...
+Backend	Compile	2026-10-02T06:38:56.3509315Z Compiling 'schemas\\mcp_read.py'...
+Backend	Compile	2026-10-02T06:38:56.3510569Z Compiling 'schemas\\money.py'...
+Backend	Compile	2026-10-02T06:38:56.3510968Z Compiling 'schemas\\order.py'...
+Backend	Compile	2026-10-02T06:38:56.3511404Z Compiling 'schemas\\platform_settings.py'...
+Backend	Compile	2026-10-02T06:38:56.3511861Z Compiling 'schemas\\product.py'...
+Backend	Compile	2026-10-02T06:38:56.3512275Z Compiling 'schemas\\purchase_order.py'...
+Backend	Compile	2026-10-02T06:38:56.3512721Z Compiling 'schemas\\purchase_report.py'...
+Backend	Compile	2026-10-02T06:38:56.3513158Z Compiling 'schemas\\reconciliation.py'...
+Backend	Compile	2026-10-02T06:38:56.3513607Z Compiling 'schemas\\report.py'...
+Backend	Compile	2026-10-02T06:38:56.3513995Z Compiling 'schemas\\reversal.py'...
+Backend	Compile	2026-10-02T06:38:56.3514395Z Compiling 'schemas\\sale.py'...
+Backend	Compile	2026-10-02T06:38:56.3514795Z Compiling 'schemas\\sale_return.py'...
+Backend	Compile	2026-10-02T06:38:56.3515211Z Compiling 'schemas\\shop.py'...
+Backend	Compile	2026-10-02T06:38:56.3515605Z Compiling 'schemas\\stock_write_off.py'...
+Backend	Compile	2026-10-02T06:38:56.3516038Z Compiling 'schemas\\supplier.py'...
+Backend	Compile	2026-10-02T06:38:56.3516433Z Compiling 'schemas\\sync.py'...
+Backend	Compile	2026-10-02T06:38:56.3516813Z Compiling 'schemas\\telegram.py'...
+Backend	Compile	2026-10-02T06:38:56.3517574Z Compiling 'schemas\\user.py'...
+Backend	Compile	2026-10-02T06:38:56.3517968Z Listing 'services'...
+Backend	Compile	2026-10-02T06:38:56.3518314Z Compiling 'services\\__init__.py'...
+Backend	Compile	2026-10-02T06:38:56.3518775Z Compiling 'services\\admin_management.py'...
+Backend	Compile	2026-10-02T06:38:56.3519220Z Compiling 'services\\auth_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3519706Z Compiling 'services\\calculation_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3520237Z Compiling 'services\\cash_shift_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3520739Z Compiling 'services\\category_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3521189Z Compiling 'services\\company_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3521662Z Compiling 'services\\company_time.py'...
+Backend	Compile	2026-10-02T06:38:56.3522144Z Compiling 'services\\consistency_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3522677Z Compiling 'services\\customer_credit_schema.py'...
+Backend	Compile	2026-10-02T06:38:56.3523213Z Compiling 'services\\customer_ledger_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3523753Z Compiling 'services\\customer_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3524262Z Compiling 'services\\customer_sync_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3524769Z Compiling 'services\\device_auth_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3525308Z Compiling 'services\\image_upload_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3525858Z Compiling 'services\\inventory_ledger_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3526389Z Compiling 'services\\inventory_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3526890Z Compiling 'services\\mcp_admin_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3527397Z Compiling 'services\\merchant_link_token.py'...
+Backend	Compile	2026-10-02T06:38:56.3527928Z Compiling 'services\\merchant_notify_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3528441Z Compiling 'services\\money_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3528892Z Compiling 'services\\order_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3529390Z Compiling 'services\\period_report_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3530042Z Compiling 'services\\platform_settings_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3530423Z Compiling 'services\\product_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3530758Z Compiling 'services\\purchase_order_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3531302Z Compiling 'services\\purchase_report_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3531614Z Compiling 'services\\reconciliation.py'...
+Backend	Compile	2026-10-02T06:38:56.3531926Z Compiling 'services\\reconciliation_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3532240Z Compiling 'services\\report_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3532530Z Compiling 'services\\sale_return_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3532831Z Compiling 'services\\sale_search_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3533112Z Compiling 'services\\sale_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3533387Z Compiling 'services\\sale_tender_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3533669Z Compiling 'services\\shop_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3533952Z Compiling 'services\\stock_write_off_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3534258Z Compiling 'services\\supplier_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3534530Z Compiling 'services\\sync_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3535224Z Compiling 'services\\telegram_auth_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3535596Z Compiling 'services\\telegram_bot_client.py'...
+Backend	Compile	2026-10-02T06:38:56.3535873Z Compiling 'services\\tenant.py'...
+Backend	Compile	2026-10-02T06:38:56.3536169Z Compiling 'services\\transaction_reversal_service.py'...
+Backend	Compile	2026-10-02T06:38:56.3536469Z Compiling 'main.py'...
+Backend	Check module registry parity	﻿2026-10-02T06:38:56.4868175Z ##[group]Run python ../scripts/check_module_parity.py
+Backend	Check module registry parity	2026-10-02T06:38:56.4868648Z [36;1mpython ../scripts/check_module_parity.py[0m
+Backend	Check module registry parity	2026-10-02T06:38:56.4938275Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Backend	Check module registry parity	2026-10-02T06:38:56.4938627Z env:
+Backend	Check module registry parity	2026-10-02T06:38:56.4938892Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Check module registry parity	2026-10-02T06:38:56.4939362Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.13.15\x64/lib/pkgconfig
+Backend	Check module registry parity	2026-10-02T06:38:56.4940261Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Check module registry parity	2026-10-02T06:38:56.4940684Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Check module registry parity	2026-10-02T06:38:56.4941080Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Check module registry parity	2026-10-02T06:38:56.4941407Z ##[endgroup]
+Backend	Check module registry parity	2026-10-02T06:38:56.8000544Z OK: 9 modules match � register, sales, customers, inventory, purchasing, shop, reports, finance, ai
+Backend	Check migration pin	﻿2026-10-02T06:38:56.9189446Z ##[group]Run python ../scripts/check_migration_pin.py
+Backend	Check migration pin	2026-10-02T06:38:56.9189908Z [36;1mpython ../scripts/check_migration_pin.py[0m
+Backend	Check migration pin	2026-10-02T06:38:56.9282210Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Backend	Check migration pin	2026-10-02T06:38:56.9282572Z env:
+Backend	Check migration pin	2026-10-02T06:38:56.9282851Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Check migration pin	2026-10-02T06:38:56.9283324Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.13.15\x64/lib/pkgconfig
+Backend	Check migration pin	2026-10-02T06:38:56.9283801Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Check migration pin	2026-10-02T06:38:56.9284209Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Check migration pin	2026-10-02T06:38:56.9284613Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Check migration pin	2026-10-02T06:38:56.9284958Z ##[endgroup]
+Backend	Check migration pin	2026-10-02T06:38:57.2309246Z OK: railway.toml pins `f9a0b1c2d3e4`, still a head. Heads: 20260319_0001, f9a0b1c2d3e4
+Backend	Tests	﻿2026-10-02T06:38:57.3472615Z ##[group]Run pytest tests/integration tests/unit -q -p no:cacheprovider --durations=15
+Backend	Tests	2026-10-02T06:38:57.3473335Z [36;1mpytest tests/integration tests/unit -q -p no:cacheprovider --durations=15[0m
+Backend	Tests	2026-10-02T06:38:57.3542632Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Backend	Tests	2026-10-02T06:38:57.3542992Z env:
+Backend	Tests	2026-10-02T06:38:57.3543256Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Tests	2026-10-02T06:38:57.3543735Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.13.15\x64/lib/pkgconfig
+Backend	Tests	2026-10-02T06:38:57.3544182Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Tests	2026-10-02T06:38:57.3544578Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Tests	2026-10-02T06:38:57.3544975Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.13.15\x64
+Backend	Tests	2026-10-02T06:38:57.3545340Z   SELLARY_ENV: test
+Backend	Tests	2026-10-02T06:38:57.3545817Z   SECRET_KEY: ci-only-not-a-real-secret-0000000000000000000000000000000000
+Backend	Tests	2026-10-02T06:38:57.3546170Z ##[endgroup]
+Backend	Tests	2026-10-02T06:39:00.6642354Z ImportError while loading conftest 'D:\a\Sellary\Sellary\sellary-backend\tests\conftest.py'.
+Backend	Tests	2026-10-02T06:39:00.8234278Z tests\conftest.py:20: in <module>
+Backend	Tests	2026-10-02T06:39:00.8234865Z     from core.database import Base, get_db
+Backend	Tests	2026-10-02T06:39:00.8235396Z core\database.py:7: in <module>
+Backend	Tests	2026-10-02T06:39:00.8236017Z     engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+Backend	Tests	2026-10-02T06:39:00.8236922Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Backend	Tests	2026-10-02T06:39:00.8237777Z C:\hostedtoolcache\windows\Python\3.13.15\x64\Lib\site-packages\sqlalchemy\util\deprecations.py:281: in warned
+Backend	Tests	2026-10-02T06:39:00.8238700Z     return fn(*args, **kwargs)  # type: ignore[no-any-return]
+Backend	Tests	2026-10-02T06:39:00.8239193Z            ^^^^^^^^^^^^^^^^^^^
+Backend	Tests	2026-10-02T06:39:00.8239825Z C:\hostedtoolcache\windows\Python\3.13.15\x64\Lib\site-packages\sqlalchemy\engine\create.py:602: in create_engine
+Backend	Tests	2026-10-02T06:39:00.8240442Z     dbapi = dbapi_meth(**dbapi_args)
+Backend	Tests	2026-10-02T06:39:00.8240722Z             ^^^^^^^^^^^^^^^^^^^^^^^^
+Backend	Tests	2026-10-02T06:39:00.8241299Z C:\hostedtoolcache\windows\Python\3.13.15\x64\Lib\site-packages\sqlalchemy\dialects\postgresql\psycopg.py:497: in import_dbapi
+Backend	Tests	2026-10-02T06:39:00.8241914Z     import psycopg
+Backend	Tests	2026-10-02T06:39:00.8242161Z E   ModuleNotFoundError: No module named 'psycopg'
+Backend	Tests	2026-10-02T06:39:01.0483247Z ##[error]Process completed with exit code 1.
+Backend	Post Run actions/checkout@v4	﻿2026-10-02T06:39:01.0738970Z Post job cleanup.
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:01.2674507Z [command]"C:\Program Files\Git\bin\git.exe" version
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:01.2949193Z git version 2.55.0.windows.5
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:01.3020072Z Temporarily overriding HOME='D:\a\_temp\a1fe5ee2-dece-4edd-ac5b-5c7bd87c63c7' before making global git config changes
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:01.3021426Z Adding repository directory to the temporary git global config as a safe directory
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:01.3031675Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\Sellary\Sellary
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:01.3440392Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:01.3755149Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:01.9239422Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:01.9487354Z http.https://github.com/.extraheader
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:01.9529522Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:01.9818847Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:02.5119460Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Backend	Post Run actions/checkout@v4	2026-10-02T06:39:02.5414321Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Backend	Complete job	﻿2026-10-02T06:39:03.0681484Z Cleaning up orphan processes
+Backend	Complete job	2026-10-02T06:39:03.0715761Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

@@ -1,6 +1,7 @@
 fastapi>=0.136.1
 uvicorn[standard]>=0.47.0
-sqlalchemy>=2.0.49
+# SQLAlchemy 2.1 switches bare PostgreSQL URLs to psycopg3; this stack uses psycopg2.
+sqlalchemy>=2.0.49,<2.1
 psycopg2-binary>=2.9.12
 alembic>=1.18.4
 pydantic>=2.13.4

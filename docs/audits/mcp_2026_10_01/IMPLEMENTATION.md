@@ -171,3 +171,14 @@ Production bazasida faqat o‘qish orqali `3de347509835` revision va `opening_no
 ustuni tasdiqlandi. Yangi migratsiya parent shu revisionga moslandi:
 `e8f9a0b1c2d3 → 3de347509835 → f9a0b1c2d3e4`.
 Yakuniy release dalillari `DEPLOYMENT.md` da yoziladi.
+
+Railwayning birinchi yangi buildi SQLAlchemy 2.1 ni o‘rnatdi va Alembic DBga
+ulanishdan oldin `ModuleNotFoundError: psycopg` bilan to‘xtadi; mavjud backend
+healthy bo‘lib qoldi. [SQLAlchemy 2.1 migratsiya hujjati](https://docs.sqlalchemy.org/en/21/changelog/migration_21.html)
+bare PostgreSQL URL uchun default driver psycopg3 bo‘lganini tasdiqlaydi.
+Ushbu stack psycopg2 ishlatgani uchun dependency `>=2.0.49,<2.1` ga chegaralandi.
+
+Toza Python muhitida yangi paketlar bilan 1285 test qayta o‘tdi (32.59s):
+FastMCP 3.4.7, SQLAlchemy 2.0.54, FastAPI 0.142.2, Starlette 1.7.0, pytest 9.1.1.
+`pip check`, compile, PostgreSQL dialect `psycopg2` va migration pin ham tekshirildi.
+Natija: `fresh-deploy-test-results.txt`.
