@@ -1,4 +1,11 @@
 'use strict';
+const isRussian = document.documentElement.lang === 'ru';
+const t = text => (window.SELLARY_TRANSLATIONS || {})[text]
+  || (isRussian && /^[\d,.]+ TJS$/.test(text) ? text.replace(/,/g, ' ').replace('.', ',') : text);
+const format = (text, values) => t(text).replace(/\{(\w+)\}/g, (_, key) => values[key]);
+const itemCount = count => isRussian
+  ? count+' '+({one:'товар',few:'товара',many:'товаров',other:'товара'}[new Intl.PluralRules('ru').select(count)])
+  : count+' '+(count===1?'item':'items');
 const icon = name => '<svg class="icon" aria-hidden="true"><use href="#i-'+name+'"/></svg>';
 const productArt = [
 '<path d="m22 13 8-8h20l8 8v59H22Z" fill="#f5f8ff" stroke="#abbcd4" stroke-width="1.5"/><path d="M22 13h36M30 5v8" stroke="#abbcd4" stroke-width="1.5"/><path d="M22 32h36v24H22Z" fill="#2563eb"/><path d="M30 40h20m-17 5h14m-11 5h8" stroke="white" stroke-width="2"/><circle cx="48" cy="21" r="4" fill="#e0e9f7"/>',
@@ -17,23 +24,23 @@ const products = [
 {id:5,name:'Green tea',price:2400,unit:'100 g'}
 ];
 const art = index => '<svg viewBox="0 0 80 80" aria-hidden="true" focusable="false">'+productArt[index]+'</svg>';
-const money = cents => (cents/100).toFixed(2);
+const money = cents => (cents/100).toFixed(2).replace('.', isRussian ? ',' : '.');
 let cart = new Map([[0,1],[1,1],[3,1]]);
 const productsNode = document.getElementById('hero-products');
-productsNode.innerHTML=products.map(p=>'<button class="product-tile" data-product="'+p.id+'" aria-label="Add '+p.name+' to demo sale, '+money(p.price)+' TJS"><span class="product-picture">'+art(p.id)+'</span><span class="product-name">'+p.name+'</span><span class="product-price">'+money(p.price)+' <span class="product-add" aria-hidden="true">+</span></span></button>').join('');
-document.getElementById('phone-products').innerHTML=[0,1,3,5].map(id=>{const p=products[id];return '<div class="phone-product"><div class="product-picture">'+art(p.id)+'</div><strong>'+p.name+'</strong><span>'+money(p.price)+' TJS <span class="plus" aria-hidden="true">+</span></span></div>';}).join('');
+productsNode.innerHTML=products.map(p=>'<button class="product-tile" data-product="'+p.id+'" aria-label="'+format('Add {name} to demo sale, {price} TJS',{name:t(p.name),price:money(p.price)})+'"><span class="product-picture">'+art(p.id)+'</span><span class="product-name">'+t(p.name)+'</span><span class="product-price">'+money(p.price)+' <span class="product-add" aria-hidden="true">+</span></span></button>').join('');
+document.getElementById('phone-products').innerHTML=[0,1,3,5].map(id=>{const p=products[id];return '<div class="phone-product"><div class="product-picture">'+art(p.id)+'</div><strong>'+t(p.name)+'</strong><span>'+money(p.price)+' TJS <span class="plus" aria-hidden="true">+</span></span></div>';}).join('');
 function renderCart(){
 let total=0,count=0;
-document.getElementById('receipt-lines').innerHTML=Array.from(cart).map(([id,qty])=>{const p=products[id];total+=p.price*qty;count+=qty;return '<div class="receipt-line"><span>'+p.name+'<small>'+qty+' × '+money(p.price)+'</small></span><strong>'+money(p.price*qty)+'</strong></div>';}).join('');
-document.getElementById('item-count').textContent=count+' '+(count===1?'item':'items');
+document.getElementById('receipt-lines').innerHTML=Array.from(cart).map(([id,qty])=>{const p=products[id];total+=p.price*qty;count+=qty;return '<div class="receipt-line"><span>'+t(p.name)+'<small>'+qty+' × '+money(p.price)+'</small></span><strong>'+money(p.price*qty)+'</strong></div>';}).join('');
+document.getElementById('item-count').textContent=itemCount(count);
 document.getElementById('cart-total').textContent=money(total);
 document.getElementById('subtotal').textContent=money(total);
 const pay=document.getElementById('demo-pay');pay.disabled=count===0;
-pay.innerHTML=count?'Complete sale '+icon('arrow'):'Add products to begin';
+pay.innerHTML=count?t('Complete sale')+' '+icon('arrow'):t('Add products to begin');
 return total;
 }
-productsNode.addEventListener('click',e=>{const btn=e.target.closest('[data-product]');if(!btn)return;const id=Number(btn.dataset.product);cart.set(id,(cart.get(id)||0)+1);renderCart();document.querySelector('#receipt-toast strong').textContent=products[id].name+' added.';document.querySelector('#receipt-toast div>span').textContent='Demo only · no real sale is recorded.';});
-document.getElementById('demo-pay').addEventListener('click',()=>{const total=renderCart();if(!cart.size)return;cart.clear();renderCart();document.querySelector('#receipt-toast strong').textContent='Demo sale completed · '+money(total)+' TJS';document.querySelector('#receipt-toast div>span').textContent='Try another sale by adding products.';});
+productsNode.addEventListener('click',e=>{const btn=e.target.closest('[data-product]');if(!btn)return;const id=Number(btn.dataset.product);cart.set(id,(cart.get(id)||0)+1);renderCart();document.querySelector('#receipt-toast strong').textContent=format('{name} added.',{name:t(products[id].name)});document.querySelector('#receipt-toast div>span').textContent=t('Demo only · no real sale is recorded.');});
+document.getElementById('demo-pay').addEventListener('click',()=>{const total=renderCart();if(!cart.size)return;cart.clear();renderCart();document.querySelector('#receipt-toast strong').textContent=format('Demo sale completed · {total} TJS',{total:money(total)});document.querySelector('#receipt-toast div>span').textContent=t('Try another sale by adding products.');});
 renderCart();
 document.querySelector('.receipt-total').setAttribute('aria-live','polite');
 const views={
@@ -44,18 +51,20 @@ reports:{title:'Understand the numbers behind the day.',description:'Review turn
 };
 const panel=document.getElementById('workspace-panel');
 function selectView(name){
-const v=views[name];
+const raw=views[name];
+const translateValue=value=>Array.isArray(value)?value.map(translateValue):t(value);
+const v=Object.fromEntries(Object.entries(raw).map(([key,value])=>[key,translateValue(value)]));
 document.querySelectorAll('[role=tab]').forEach(t=>{const selected=t.dataset.view===name;t.setAttribute('aria-selected',String(selected));t.tabIndex=selected?0:-1;});
 panel.setAttribute('aria-labelledby','tab-'+name);
-panel.innerHTML='<div class="workspace-description"><h3>'+v.title+'</h3><p>'+v.description+'</p><ul class="check-list">'+v.checks.map(c=>'<li>'+c+'</li>').join('')+'</ul></div><div class="workspace-demo"><div class="table-top"><strong>'+v.table+'</strong><span>Example</span></div><table class="demo-table"><caption class="sr-only">'+v.table+' Illustrative data.</caption><thead><tr>'+v.head.map(h=>'<th scope="col">'+h+'</th>').join('')+'</tr></thead><tbody>'+v.rows.map(r=>'<tr>'+r.map((c,i)=>'<td'+(i===1?' class="cell-blue"':'')+'>'+(i===2&&name!=='reports'?'<span class="status-label'+(['On account','Low stock','Ordered'].includes(c)?' pending':'')+'">'+c+'</span>':c)+'</td>').join('')+'</tr>').join('')+'</tbody></table><div class="demo-footer"><span>'+v.footer+'</span><strong>'+v.total+'</strong></div></div>';
+panel.innerHTML='<div class="workspace-description"><h3>'+v.title+'</h3><p>'+v.description+'</p><ul class="check-list">'+v.checks.map(c=>'<li>'+c+'</li>').join('')+'</ul></div><div class="workspace-demo"><div class="table-top"><strong>'+v.table+'</strong><span>'+t('Example')+'</span></div><table class="demo-table"><caption class="sr-only">'+v.table+' '+t('Illustrative data.')+'</caption><thead><tr>'+v.head.map(h=>'<th scope="col">'+h+'</th>').join('')+'</tr></thead><tbody>'+v.rows.map((r,rowIndex)=>'<tr>'+r.map((c,i)=>'<td'+(i===1?' class="cell-blue"':'')+'>'+(i===2&&name!=='reports'?'<span class="status-label'+(['On account','Low stock','Ordered'].includes(raw.rows[rowIndex][i])?' pending':'')+'">'+c+'</span>':c)+'</td>').join('')+'</tr>').join('')+'</tbody></table><div class="demo-footer"><span>'+v.footer+'</span><strong>'+v.total+'</strong></div></div>';
 }
 document.querySelectorAll('[role=tab]').forEach((tab,index,all)=>{tab.addEventListener('click',()=>selectView(tab.dataset.view));tab.addEventListener('keydown',e=>{let next;if(e.key==='ArrowRight')next=(index+1)%all.length;else if(e.key==='ArrowLeft')next=(index+all.length-1)%all.length;else if(e.key==='Home')next=0;else if(e.key==='End')next=all.length-1;else return;e.preventDefault();selectView(all[next].dataset.view);all[next].focus();});});
 selectView('pos');
 const toggle=document.querySelector('.menu-toggle'),nav=document.getElementById('navigation');
-function closeMenu(){toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','Open navigation');nav.classList.remove('open');}
-toggle.addEventListener('click',()=>{const open=toggle.getAttribute('aria-expanded')!=='true';toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'Close navigation':'Open navigation');nav.classList.toggle('open',open);});
+function closeMenu(){toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label',t('Open navigation'));nav.classList.remove('open');}
+toggle.addEventListener('click',()=>{const open=toggle.getAttribute('aria-expanded')!=='true';toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',t(open?'Close navigation':'Open navigation'));nav.classList.toggle('open',open);});
 nav.addEventListener('click',e=>{if(e.target.closest('a'))closeMenu();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&toggle.getAttribute('aria-expanded')==='true'){closeMenu();toggle.focus();}});
 document.addEventListener('click',e=>{if(!e.target.closest('.header'))closeMenu();});
-matchMedia('(min-width:641px)').addEventListener('change',e=>{if(e.matches)closeMenu();});
+matchMedia('(min-width:901px)').addEventListener('change',e=>{if(e.matches)closeMenu();});
 document.getElementById('year').textContent=new Date().getFullYear();
